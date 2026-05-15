@@ -1,0 +1,44 @@
+---
+description: Stake Engine game structure — books, events, monorepo, and task breakdown
+alwaysApply: true
+---
+
+# Stake Engine — Architecture & Structure
+
+Follow patterns documented in `README.md`. This is a **TurboRepo monorepo** (Svelte 5, PixiJS 8): game logic lives in `apps/<game>/`, shared code in `packages/*`.
+
+## Core data flow (RGS → presentation)
+
+1. **Book** — JSON from RGS (math); ordered **`book.events`** array.
+2. **`playBookEvents()`** — runs bookEvents **sequentially** (`sequence()`, not `Promise.all()`). Order matters (e.g. spin before win).
+3. **`bookEventHandlerMap`** — one async handler per `bookEvent.type`; may `broadcast` / `broadcastAsync` emitter events.
+4. **Components** — `subscribeOnMount` on `emitterEventHandlerMap`; keep handlers **small** (single responsibility, task breakdown).
+
+## Adding or changing game behavior
+
+Typical path (see README “Steps to Add a New BookEvent”):
+
+- Story data: `src/stories/data/*_books.ts`, `*_events.ts`
+- Types: `typesBookEvent.ts`, component module types, `typesEmitterEvent.ts`, `eventEmitter.ts`
+- Handler: `bookEventHandlerMap.ts`
+- UI: dedicated Svelte component + Storybook (`MODE_*/bookEvent/*`, `COMPONENTS/*`)
+
+Test **atomically** in Storybook before relying on full books.
+
+## Monorepo rules
+
+- Reuse `packages/*` (`utils-book`, `utils-xstate`, `components-shared`, etc.); avoid duplicating shared logic in one app.
+- `*-shared` packages stay minimal and broadly reusable.
+- Call `setContext()` at app/story entry (`+page.svelte`, story templates) before `<Game />`.
+- Rebuild `pixi-svelte` after changes: `pnpm run build --filter=pixi-svelte`.
+
+## Stateful vs stateless
+
+- **Stateless**: one RGS request completes the round; mind `end-round` timing vs animations (`BET_TYPE_METHODS_MAP` in `utils-xstate`).
+- **Stateful**: multiple RGS steps; never advance game state on client-only assumptions.
+
+## Code style in this repo
+
+- Match existing naming, types (discriminated unions for `BookEvent` / `EmitterEvent`), and file layout in the target `apps/<game>/` app.
+- Prefer extending existing handlers/components over parallel implementations.
+- Minimal, focused diffs — no unrelated refactors.

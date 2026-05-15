@@ -29,7 +29,9 @@ export function createEventEmitter<TEmitterEvent extends EmitterEventBase>() {
 	};
 
 	const subscribeOnMount = (emitterEventHandlerMap: Partial<EmitterEventHandlerMap>) => {
-		onMount(() => subscribeHandlerMap(emitterEventHandlerMap));
+		onMount(() => {
+			return subscribeHandlerMap(emitterEventHandlerMap);
+		});
 	};
 
 	const broadcast = (emitterEvent: TEmitterEvent) => {

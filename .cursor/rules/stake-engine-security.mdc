@@ -1,0 +1,30 @@
+---
+description: Casino game security — trust server, no client-side outcome manipulation
+alwaysApply: true
+---
+
+# Stake Engine — Security (Anti-Cheat)
+
+This is **real-money casino software**. The client is untrusted; **RGS + math are authoritative**.
+
+## Non-negotiables
+
+- **Never** compute or alter outcomes on the client (wins, multipliers, board results, RNG, payout) except to **display** what the server/math book already sent.
+- **Never** expose or trust secrets in frontend code (API keys, seeds, bypass flags).
+- **Never** add debug/cheat hooks, client-side “force win”, editable books in production paths, or shortcuts that skip RGS for real bets.
+- **Balance and bet state** come from RGS responses (`authenticate`, bet, `end-round`) — use existing flows in `rgs-requests` / `rgs-fetcher` and `Authenticate.svelte`; do not invent parallel wallet logic.
+
+## Client responsibilities
+
+- Render books/bookEvents faithfully; call RGS APIs at the correct lifecycle points (see README FAQ on `end-round` and resume behavior).
+- Validate **UI-only** concerns (disabled buttons while pending, prevent double-submit) — not game fairness.
+- Do not log or persist sensitive session tokens in client storage beyond existing patterns.
+
+## When changing bet/RGS code
+
+- Explain security impact to the user.
+- If unsure whether a change could let players influence outcomes or balances, **stop and ask** before implementing.
+
+## Math alignment
+
+- Book/bookEvent shapes must match **math** definitions. Do not hand-author production outcomes; story fixtures mirror math data for local/Storybook use only.

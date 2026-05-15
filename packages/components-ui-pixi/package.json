@@ -6,10 +6,11 @@
 	"scripts": {
 		"format": "prettier --write --ignore-path=../../.prettierignore .",
 		"lint": "eslint \"src\"",
-		"storybook": "PUBLIC_CHROMATIC=true storybook dev -p 5003 public"
+		"storybook": "cross-env PUBLIC_CHROMATIC=true storybook dev -p 5003 public"
 	},
 	"type": "module",
 	"devDependencies": {
+		"cross-env": "7.0.3",
 		"eslint": "9.21.0",
 		"eslint-config-custom": "workspace:*",
 		"config-ts": "workspace:*",

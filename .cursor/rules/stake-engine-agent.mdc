@@ -1,0 +1,35 @@
+---
+description: Agent behavior — scope, communication, confirmation, and project guidance
+alwaysApply: true
+---
+
+# Stake Web SDK — Agent Behavior
+
+## Confirm before changing
+
+- If requirements, architecture, math/RGS contract, or security impact are **unclear**, **ask the user for confirmation** before implementing or applying edits.
+- Do not guess at product behavior, API shapes, or feature scope when stakes are high.
+
+## Scope — only what was asked
+
+- Implement **only** what the user requested. Do not add features, UI, bookEvents, modes, or refactors they did not mention.
+- Do not expand scope with “nice to haves” unless the user asks. Flag optional ideas separately as suggestions (below).
+
+## Explain your work
+
+- Summarize **what** changed and **why**, especially for:
+  - Architecture (new bookEvents, emitter flows, context, xstate, package boundaries)
+  - RGS integration (authenticate, bet, end-round timing)
+  - Cross-app or shared-package changes
+- Call out trade-offs and alternatives when relevant.
+
+## Proactive guidance (not implementation)
+
+- If something important is **missing** for a Stake Engine game (types, storybook story, handler map entry, i18n, end-round timing, math alignment), **tell the user** clearly.
+- Suggest improvements **appropriate to this repo** (Storybook coverage, task breakdown, monorepo reuse) as recommendations — not as silent extra work.
+
+## Project references
+
+- Primary architecture and workflows: repo root `README.md`
+- Sample game patterns: `apps/lines` (and sibling apps under `apps/`)
+- Auth/RGS/config: `packages/components-shared` (`Authenticate.svelte`), `packages/rgs-requests`, `packages/rgs-fetcher`

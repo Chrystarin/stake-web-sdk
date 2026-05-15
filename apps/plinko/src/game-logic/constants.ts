@@ -1,0 +1,48 @@
+/** Bet amount presets shown in the HUD (filtered by min/max at runtime). */
+export const BET_PER_BALL_PRESETS = [0.01, 0.1, 0.2, 0.5, 1, 5, 10] as const;
+
+/** Balls released per drop tier selector. */
+export const BALL_PER_DROP_TIERS = [10, 20, 50] as const;
+
+/** Bonus meter fill ratios per balls-per-drop tier. */
+export const METER_TIER_CONFIG: Record<number, { startRatio: number; maxRatio: number }> = {
+	10: { startRatio: 0, maxRatio: 1 },
+	20: { startRatio: 0.125, maxRatio: 1.125 },
+	50: { startRatio: 0.25, maxRatio: 1.25 },
+};
+
+/** Pyramid row counts available in the UI. */
+export const ROW_COUNT_OPTIONS = [10, 14, 20] as const;
+
+/** Default pyramid row count. */
+export const DEFAULT_ROW_COUNT = 14;
+
+/** Difficulty labels (index matches server `difficulty` field). */
+export const DIFFICULTY_LABELS = ['Easy', 'Medium', 'Hard', 'Expert'] as const;
+
+/** Auto-bet round count options. */
+export const AUTO_BET_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100] as const;
+
+/** Minimum milliseconds between consecutive ball spawns. */
+export const MIN_MS_BETWEEN_BALL_SPAWNS = 400;
+
+/** Normal vs fast simulation speed multipliers. */
+export const SIM_SPEED = { normal: 0.7, fast: 3.0 } as const;
+
+/** Bonus level ladder labels. */
+export const BONUS_LEVEL_LABELS = [1, 2, 4, 8, 16, 32, 64, 128, 256] as const;
+
+/** Bonus roulette segment prizes (free balls). */
+export const BONUS_ROULETTE_SEGMENTS = [100, 20, 50, 50, 50, 80, 20, 20] as const;
+
+/** Free-spin wheel segment labels. */
+export const FREE_SPIN_SEGMENTS = [
+	'2X',
+	'0.5X',
+	'1X',
+	'5X',
+	'10X',
+	'BONUS',
+	'20X',
+	'15X',
+] as const;
