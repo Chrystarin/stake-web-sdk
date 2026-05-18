@@ -3,6 +3,7 @@
 
 	import { BONUS_ROULETTE_SEGMENTS } from '../../game-logic/constants';
 	import { isMobile } from '../../lib/format';
+	import { staticUrl } from '../../lib/staticUrl';
 
 	export type BonusRouletteResult = {
 		segmentIndex: number;
@@ -162,20 +163,20 @@
 		<div
 			class="bonus-spin-bg-drop"
 			class:bonus-spin-bg-drop--visible={bgJoined}
-			style:background-image="url({mobile ? '/img/bonus-roulette-background-mobile.png' : '/img/bonus-roulette-background.png'})"
+			style:background-image="url({mobile ? staticUrl('img/bonus-roulette-background-mobile.png') : staticUrl('img/bonus-roulette-background.png')})"
 		></div>
 		<div class="bonus-spin-content">
 			<img
 				class="bonus-spin-title"
 				class:bonus-spin-title--visible={labelVisible}
-				src="/img/bonus-roulette-label.png"
+				src={staticUrl('img/bonus-roulette-label.png')}
 				alt="Free balls"
 			/>
 			<div class="bonus-spin-wheel-block">
 				<img
 					class="bonus-spin-marker"
 					class:bonus-spin-marker--visible={markerVisible}
-					src="/img/free-spin-marker.png"
+					src={staticUrl('img/free-spin-marker.png')}
 					alt=""
 				/>
 				<img
@@ -184,13 +185,13 @@
 					class:bonus-spin-wheel--animating={wheelSpinClass}
 					class:bonus-spin-wheel--visible={wheelVisible}
 					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-					src="/img/bonus-roulette-wheel.png"
+					src={staticUrl('img/bonus-roulette-wheel.png')}
 					alt="Bonus roulette wheel"
 				/>
 				<img
 					class="bonus-spin-center-base"
 					class:bonus-spin-center-base--visible={wheelVisible}
-					src="/img/bonus-roulette-center-base.png"
+					src={staticUrl('img/bonus-roulette-center-base.png')}
 					alt=""
 				/>
 			</div>
@@ -205,7 +206,7 @@
 			class:bonus-announcement--mobile={mobile}
 			class:bonus-announcement--bg-visible={announcementBgVisible}
 			class:bonus-announcement--text-visible={announcementTextVisible}
-			style:background-image="url({mobile ? '/img/announcement-message-background-mobile.png' : '/img/announcement-message-background.png'})"
+			style:background-image="url({mobile ? staticUrl('img/announcement-message-background-mobile.png') : staticUrl('img/announcement-message-background.png')})"
 			onclick={onAnnouncementClick}
 		>
 			<div class="bonus-announcement-headline">

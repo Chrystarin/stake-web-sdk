@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { stateGame } from '../game/stateGame.svelte';
+	import { staticUrl } from '../lib/staticUrl';
 </script>
 
 {#if stateGame.bonusLevelUpOverlayOpen}
@@ -7,7 +8,7 @@
 		class="bonus-level-up-overlay"
 		class:bonus-level-up-overlay--visible={stateGame.bonusLevelUpOverlayVisible}
 	>
-		<div class="bonus-level-up-card" style:background-image="url('/img/bonus-level-up-base.png')">
+		<div class="bonus-level-up-card" style:background-image="url({staticUrl('img/bonus-level-up-base.png')})">
 			<div class="bonus-level-up-title">LEVEL {stateGame.bonusLevelUpLevel}</div>
 			<div class="bonus-level-up-reward">
 				<span class="bonus-level-up-reward-value">+{stateGame.bonusLevelUpAddedBalls}</span>

@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { staticUrl } from '../../lib/staticUrl';
 
 export class FreeSpinMeterEngine {
 	private hostElement!: HTMLElement;
@@ -77,9 +78,9 @@ export class FreeSpinMeterEngine {
     let wheelTexture: Texture;
     try {
       [baseTexture, meterTexture, wheelTexture] = await Promise.all([
-        Assets.load('/img/free-spin-base.png'),
-        Assets.load('/img/free-spin-meter.png'),
-        Assets.load('/img/free-spin-meter-wheel.png')
+        Assets.load(staticUrl('img/free-spin-base.png')),
+        Assets.load(staticUrl('img/free-spin-meter.png')),
+        Assets.load(staticUrl('img/free-spin-meter-wheel.png'))
       ]);
     } catch {
       return;

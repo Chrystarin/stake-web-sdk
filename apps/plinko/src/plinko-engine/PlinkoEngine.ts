@@ -1,5 +1,6 @@
 import { Application, Assets, Container, FillGradient, Graphics, Sprite, Text } from 'pixi.js';
 import { formatCoefficientLabel, isMobile } from '../lib/format';
+import { staticUrl } from '../lib/staticUrl';
 
 export type BallDroppedEvent = {
 	multiplier: number;
@@ -96,7 +97,12 @@ export class PlinkoEngine {
 		if (coefficients?.length) this.coefficients = coefficients;
 		if (rows) this.rows = rows;
 		if (animationEnabled !== undefined) this.animationEnabled = animationEnabled;
-		if (this.coefficients?.length && this.rows && this.pixiReady) {
+		if (!this.coefficients.length) {
+			this.layoutWidthFloor = 0;
+			return;
+		}
+		/** Slots + multipliers come from coefficient rows; wait until they exist (config or RGS hydrate) before rebuilding. */
+		if (this.rows && this.pixiReady && this.app) {
 			this.updateContainerSize();
 			this.rebuildScene();
 		}
@@ -137,6 +143,8 @@ export class PlinkoEngine {
   /** Last window size — layout uses vw() so we must rebuild when inner size changes even if the canvas host size is unchanged. */
   private lastWindowInnerW = 0;
   private lastWindowInnerH = 0;
+  /** Minimum layout width so the full peg grid is not clipped when the flex host is narrower than the pyramid span. */
+  private layoutWidthFloor = 0;
 
   private readonly boundWindowResize = (): void => {
     this.resizeCanvasToContainer();
@@ -217,7 +225,11 @@ export class PlinkoEngine {
     if (this.rows <= 1) return this.vw(2.1);
     const availableHeight =
       this.containerHeight - this.topMargin - this.bottomMargin - this.slotHeight - this.vw(1.05);
-    return availableHeight / (this.rows + 0.5);
+    /** Flex can transiently shrink height → negative spacing and invalid peg rows. */
+    const raw = availableHeight / (this.rows + 0.5);
+    if (!Number.isFinite(raw)) return this.vw(2.1);
+    const safe = raw > 0 ? raw : this.vw(2.5);
+    return Math.max(this.vw(1.05), safe);
   }
 
   get pegSpacingX(): number {
@@ -265,6 +277,7 @@ export class PlinkoEngine {
   };
 
   destroy(): void {
+    this.layoutWidthFloor = 0;
     this.stopTicker();
     this.clearPendingDropTimeouts();
     this.clearPendingBallRemovalTimeouts();
@@ -340,10 +353,17 @@ export class PlinkoEngine {
     }
 
     try {
+      const loadOptional = async (url: string) => {
+        try {
+          return await Assets.load(url);
+        } catch {
+          return undefined;
+        }
+      };
       const [ballTex, pipeTex, coinPegTex] = await Promise.all([
-        Assets.load('/img/ball.svg'),
-        Assets.load('/img/slot_pipe_bg.svg'),
-        Assets.load('/img/coin_peg.png')
+        loadOptional(staticUrl('img/ball.svg')),
+        loadOptional(staticUrl('img/slot_pipe_bg.svg')),
+        loadOptional(staticUrl('img/coin_peg.png'))
       ]);
       this.ballTexture = ballTex;
       this.slotPipeTexture = pipeTex;
@@ -365,9 +385,14 @@ export class PlinkoEngine {
     this.resizeObserver.observe(this.hostElement);
 
     this.pixiReady = true;
-    if (this.coefficients?.length && this.rows) {
+    if (this.coefficients.length && this.rows) {
       this.rebuildScene();
     }
+
+    queueMicrotask(() => {
+      this.bustResizeDedupe();
+      this.resizeCanvasToContainer();
+    });
   }
 
   private updateContainerSize(): void {
@@ -377,8 +402,74 @@ export class PlinkoEngine {
     this.containerHeight = size.height;
   }
 
+  /** Smallest usable board box (CSS px). Rejects flex “almost zero” widths that bunch every peg left. */
+  private layoutMinExtentPx(): number {
+    return Math.max(96, Math.floor(this.vw(24)));
+  }
+
+  /** When the CSS host still measures 0×0, pyramid math (`pegRadius`, etc.) tracks the Pixi buffer. */
+  private ensureLayoutDimensionsFromRendererIfNeeded(): void {
+    const r = this.app?.renderer;
+    if (!r) return;
+    const rw = Math.max(1, Math.floor(Number(r.width) || 0));
+    const rh = Math.max(1, Math.floor(Number(r.height) || 0));
+    const minE = this.layoutMinExtentPx();
+    const unusable =
+      this.containerWidth < minE ||
+      this.containerHeight < minE ||
+      this.containerWidth <= 0 ||
+      this.containerHeight <= 0;
+    if (!unusable) return;
+    this.containerWidth = Math.max(minE, rw);
+    this.containerHeight = Math.max(minE, rh);
+  }
+
+  /** True if flex/layout gave bogus narrow/tiny rectangles (fixes “single peg top-left”). */
+  private measurementsLookUsable(width: number, height: number): boolean {
+    const minE = this.layoutMinExtentPx();
+    if (width < minE || height < minE) return false;
+    const area = width * height;
+    return Number.isFinite(area) && area >= minE * minE;
+  }
+
+  /** VW-based fallback canvas size when DOM has not yielded a real flex box yet. */
+  private createViewportFallbackSize(): { width: number; height: number } {
+    const minE = this.layoutMinExtentPx();
+    return {
+      width: Math.max(minE, Math.floor(this.vw(92))),
+      height: Math.max(
+        minE,
+        Math.floor(this.vw(55)),
+        Math.floor(this.vw(22) * ((this.rows + 4) / 8)),
+      ),
+    };
+  }
+
   private rebuildScene(): void {
     if (!this.app) return;
+    if (!this.coefficients.length || !this.rows) return;
+    this.ensureLayoutDimensionsFromRendererIfNeeded();
+    /** If DOM gave a bogus strip after init, widen/tall-enough before peg math. */
+    if (!this.measurementsLookUsable(this.containerWidth, this.containerHeight)) {
+      const fb = this.createViewportFallbackSize();
+      const r = this.app.renderer;
+      this.containerWidth = fb.width;
+      this.containerHeight = fb.height;
+      r.resize(this.containerWidth, this.containerHeight);
+      this.lastWidth = this.containerWidth;
+      this.lastHeight = this.containerHeight;
+    }
+    /** Host can be a narrow flex column; buffer must be at least the bottom-row peg span or only the left column is visible. */
+    const pegsInBottomRow = this.rows + 3;
+    const footprintX = Math.max(1, pegsInBottomRow - 1) * this.pegSpacingX * 1.02;
+    this.layoutWidthFloor = Math.ceil(footprintX);
+    if (this.containerWidth < this.layoutWidthFloor) {
+      this.containerWidth = this.layoutWidthFloor;
+      const r = this.app.renderer;
+      r.resize(this.containerWidth, this.containerHeight);
+      this.lastWidth = this.containerWidth;
+      this.lastHeight = this.containerHeight;
+    }
     this.updateWorldViewportOffset();
     this.generatePegs();
     this.syncFeaturedPegSprites();
@@ -390,9 +481,7 @@ export class PlinkoEngine {
   }
 
   private renderFrame(): void {
-    if (this.app?.renderer) {
-      this.app.renderer.render(this.app.stage);
-    }
+    this.app?.render();
   }
 
   private refreshSlotLabelAppearance(): void {
@@ -523,6 +612,7 @@ export class PlinkoEngine {
         winW === this.lastWindowInnerW &&
         winH === this.lastWindowInnerH
       ) {
+        this.updateContainerSize();
         return;
       }
       const prevWidth = this.containerWidth || this.lastWidth;
@@ -535,7 +625,7 @@ export class PlinkoEngine {
       this.updateContainerSize();
       this.updateWorldViewportOffset();
       this.remapActiveBallsForResize(prevWidth, prevHeight, width, height);
-      if (this.coefficients?.length && this.rows) {
+      if (this.coefficients.length && this.rows) {
         this.rebuildScene();
         this.rebindActiveBallPathPegs();
       }
@@ -590,17 +680,39 @@ export class PlinkoEngine {
     let w = Math.round(rect.width);
     let h = Math.round(rect.height);
     if (!w || !h) {
-      w = host.clientWidth;
-      h = host.clientHeight;
+      w = Math.round(host.clientWidth);
+      h = Math.round(host.clientHeight);
     }
-    if (w >= 4 && h >= 4) return { width: w, height: h };
-    if (this.lastWidth >= 32 && this.lastHeight >= 32) return { width: this.lastWidth, height: this.lastHeight };
-    return null;
+    if (this.layoutWidthFloor > 0) {
+      w = Math.max(w, this.layoutWidthFloor);
+    }
+    if (this.measurementsLookUsable(w, h)) return { width: w, height: h };
+
+    const r = this.app?.renderer;
+    const bufW = r ? Math.max(1, Math.floor(Number(r.width) || 0)) : 0;
+    const bufH = r ? Math.max(1, Math.floor(Number(r.height) || 0)) : 0;
+    if (this.measurementsLookUsable(bufW, bufH)) return { width: bufW, height: bufH };
+
+    const lw = this.lastWidth;
+    const lh = this.lastHeight;
+    if (this.measurementsLookUsable(lw, lh)) return { width: lw, height: lh };
+
+    return this.createViewportFallbackSize();
   }
 
   /** Re-measure host and redraw after layout (e.g. flex parent finished sizing). */
   refreshLayout(): void {
     this.resizeCanvasToContainer();
+  }
+
+  /**
+   * Clears resize dedupe keyed on window dims so the next pass picks up flex layout once it settles.
+   * Call shortly after mount / refresh.
+   */
+  bustResizeDedupe(): void {
+    this.lastWindowInnerW = -1;
+    this.lastWidth = 0;
+    this.lastHeight = 0;
   }
 
   /** Synchronous layout + redraw before spawning balls (avoids rAF race with drop burst). */
@@ -616,9 +728,11 @@ export class PlinkoEngine {
       height === this.lastHeight &&
       winW === this.lastWindowInnerW &&
       winH === this.lastWindowInnerH &&
-      this.coefficients?.length &&
-      this.rows
+      this.rows &&
+      this.coefficients.length
     ) {
+      this.updateContainerSize();
+      this.ensureLayoutDimensionsFromRendererIfNeeded();
       this.drawStaticPyramid();
       this.renderFrame();
       return;
@@ -633,7 +747,7 @@ export class PlinkoEngine {
     this.updateContainerSize();
     this.updateWorldViewportOffset();
     this.remapActiveBallsForResize(prevWidth, prevHeight, width, height);
-    if (this.coefficients?.length && this.rows) {
+    if (this.coefficients.length && this.rows) {
       this.rebuildScene();
       this.rebindActiveBallPathPegs();
     }
@@ -1250,7 +1364,12 @@ export class PlinkoEngine {
 
       if (isFeaturedPeg) {
         const sprite = this.featuredPegSprites.get(`${peg.row}:${peg.col}`);
-        if (sprite) {
+        const hasCoinSprite = !!(
+          sprite &&
+          this.coinPegTexture &&
+          (sprite.texture.width ?? 0) > 0
+        );
+        if (hasCoinSprite && sprite) {
           const coinGrow = glowIntensity > 0 ? 1 + glowIntensity * 0.5 : 1;
           const size = pr * 6.2 * coinGrow;
           const tw = sprite.texture.width || 1;
@@ -1275,40 +1394,51 @@ export class PlinkoEngine {
             alpha: Math.min(0.56, glowIntensity * 0.46)
           });
         }
+        if (!hasCoinSprite) {
+          if (glowIntensity > 0) {
+            this.drawClassicPegHitGlow(g, peg, pr, glowIntensity);
+          } else {
+            this.drawClassicPegIdleBody(g, peg, pr);
+          }
+        }
       } else {
         if (glowIntensity > 0) {
-          const glowStrokeWidth = Math.max(1.2, pr * 0.62);
-          g.circle(peg.x, peg.y, pr * 1.34 + glowStrokeWidth / 2).stroke({
-            width: glowStrokeWidth,
-            color: 0xffffff,
-            alpha: Math.min(0.28, 0.08 + glowIntensity * 0.2)
-          });
-          g.circle(peg.x, peg.y, pr * 1.82).fill({ color: 0xffffff, alpha: Math.min(0.15, glowIntensity * 0.1) });
-          // Flash peg body to bright white on hit.
-          g.circle(peg.x, peg.y, pr).fill({ color: 0xffffff, alpha: Math.min(1, 0.95 + glowIntensity * 0.3) });
-          g.circle(peg.x - pr * 0.2, peg.y - pr * 0.22, pr * 0.68).fill({
-            color: 0xffffff,
-            alpha: Math.min(1, 0.75 + glowIntensity * 0.35)
-          });
-          g.circle(peg.x - pr * 0.28, peg.y - pr * 0.3, pr * 0.36).fill({
-            color: 0xffffff,
-            alpha: Math.min(1, 0.62 + glowIntensity * 0.35)
-          });
-          g.circle(peg.x, peg.y, pr).stroke({
-            width: Math.max(0.5, pr * 0.07),
-            color: 0xffffff,
-            alpha: Math.min(1, 0.68 + glowIntensity * 0.28)
-          });
+          this.drawClassicPegHitGlow(g, peg, pr, glowIntensity);
         } else {
-          // Base peg tone.
-          g.circle(peg.x, peg.y, pr).fill({ color: 0xafafaf, alpha: 0.98 });
-          // Subtle radial-style inner gradient using layered circles.
-          g.circle(peg.x - pr * 0.2, peg.y - pr * 0.22, pr * 0.68).fill({ color: 0xc8c8c8, alpha: 0.55 });
-          g.circle(peg.x - pr * 0.28, peg.y - pr * 0.3, pr * 0.36).fill({ color: 0xe2e2e2, alpha: 0.42 });
-          // Thin dark outline.
-          g.circle(peg.x, peg.y, pr).stroke({ width: Math.max(0.5, pr * 0.07), color: 0x22181b, alpha: 0.95 });
+          this.drawClassicPegIdleBody(g, peg, pr);
         }
       }
+    });
+  }
+
+  private drawClassicPegIdleBody(g: Graphics, peg: Peg, pr: number): void {
+    g.circle(peg.x, peg.y, pr).fill({ color: 0xafafaf, alpha: 0.98 });
+    g.circle(peg.x - pr * 0.2, peg.y - pr * 0.22, pr * 0.68).fill({ color: 0xc8c8c8, alpha: 0.55 });
+    g.circle(peg.x - pr * 0.28, peg.y - pr * 0.3, pr * 0.36).fill({ color: 0xe2e2e2, alpha: 0.42 });
+    g.circle(peg.x, peg.y, pr).stroke({ width: Math.max(0.5, pr * 0.07), color: 0x22181b, alpha: 0.95 });
+  }
+
+  private drawClassicPegHitGlow(g: Graphics, peg: Peg, pr: number, glowIntensity: number): void {
+    const glowStrokeWidth = Math.max(1.2, pr * 0.62);
+    g.circle(peg.x, peg.y, pr * 1.34 + glowStrokeWidth / 2).stroke({
+      width: glowStrokeWidth,
+      color: 0xffffff,
+      alpha: Math.min(0.28, 0.08 + glowIntensity * 0.2)
+    });
+    g.circle(peg.x, peg.y, pr * 1.82).fill({ color: 0xffffff, alpha: Math.min(0.15, glowIntensity * 0.1) });
+    g.circle(peg.x, peg.y, pr).fill({ color: 0xffffff, alpha: Math.min(1, 0.95 + glowIntensity * 0.3) });
+    g.circle(peg.x - pr * 0.2, peg.y - pr * 0.22, pr * 0.68).fill({
+      color: 0xffffff,
+      alpha: Math.min(1, 0.75 + glowIntensity * 0.35)
+    });
+    g.circle(peg.x - pr * 0.28, peg.y - pr * 0.3, pr * 0.36).fill({
+      color: 0xffffff,
+      alpha: Math.min(1, 0.62 + glowIntensity * 0.35)
+    });
+    g.circle(peg.x, peg.y, pr).stroke({
+      width: Math.max(0.5, pr * 0.07),
+      color: 0xffffff,
+      alpha: Math.min(1, 0.68 + glowIntensity * 0.28)
     });
   }
 

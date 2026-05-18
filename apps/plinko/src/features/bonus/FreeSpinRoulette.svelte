@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
+	import { staticUrl } from '../../lib/staticUrl';
 
 	export type FreeSpinRouletteResult = {
 		segmentIndex: number;
@@ -91,12 +92,12 @@
 	aria-label="Free spin wheel"
 >
 	<div class="free-spin-content">
-		<img class="free-spin-label" src="/img/free-spin-label.png" alt="Free spin" />
+		<img class="free-spin-label" src={staticUrl('img/free-spin-label.png')} alt="Free spin" />
 		<div class="free-spin-wheel-block">
 			<img
 				class="free-spin-marker"
 				class:free-spin-marker--visible={markerVisible}
-				src="/img/free-spin-roulette-marker.png"
+				src={staticUrl('img/free-spin-roulette-marker.png')}
 				alt=""
 			/>
 			<img
@@ -105,10 +106,10 @@
 				class:free-spin-wheel--animating={wheelSpinClass}
 				class:free-spin-wheel--visible={wheelVisible}
 				style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-				src="/img/free-spin-roulette-wheel.png"
+				src={staticUrl('img/free-spin-roulette-wheel.png')}
 				alt=""
 			/>
-			<img class="free-spin-center-base" src="/img/free-spin-roulette-base.png" alt="" />
+			<img class="free-spin-center-base" src={staticUrl('img/free-spin-roulette-base.png')} alt="" />
 		</div>
 	</div>
 </div>

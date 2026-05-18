@@ -4,18 +4,19 @@
 	import { sound } from '../game/sound';
 	import { getContext } from '../game/context';
 	import { stateGame } from '../game/stateGame.svelte';
+	import { staticUrl } from '../lib/staticUrl';
 
 	const context = getContext();
 
 	const soundMap: Record<string, string> = {
-		bet: '/sound/bet.mp3',
-		win: '/sound/win.mp3',
-		pocket: '/sound/pocket.mp3',
-		placeChip: '/sound/placeChip.mp3',
-		clickingFail: '/sound/clickingFail.mp3',
-		startAutoPlay: '/sound/startAutoPlay.mp3',
-		openPopup: '/sound/openPopup.mp3',
-		clickUIButton: '/sound/clickUIButton.mp3',
+		bet: staticUrl('sound/bet.mp3'),
+		win: staticUrl('sound/win.mp3'),
+		pocket: staticUrl('sound/pocket.mp3'),
+		placeChip: staticUrl('sound/placeChip.mp3'),
+		clickingFail: staticUrl('sound/clickingFail.mp3'),
+		startAutoPlay: staticUrl('sound/startAutoPlay.mp3'),
+		openPopup: staticUrl('sound/openPopup.mp3'),
+		clickUIButton: staticUrl('sound/clickUIButton.mp3'),
 	};
 
 	onMount(() => {

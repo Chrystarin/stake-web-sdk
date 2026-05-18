@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { staticUrl } from '../../lib/staticUrl';
 
 export class BonusMeterEngine {
 	private hostElement!: HTMLElement;
@@ -75,8 +76,8 @@ export class BonusMeterEngine {
     let meterTexture: Texture;
     try {
       [baseTexture, meterTexture] = await Promise.all([
-        Assets.load('/img/bonus-bar-base.png'),
-        Assets.load('/img/bonus-bar-fill.png')
+        Assets.load(staticUrl('img/bonus-bar-base.png')),
+        Assets.load(staticUrl('img/bonus-bar-fill.png'))
       ]);
     } catch {
       return;

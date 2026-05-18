@@ -12,6 +12,7 @@
 	import { stateGame } from '../game/stateGame.svelte';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/meters';
+	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
 		betAmount: number;
@@ -67,7 +68,11 @@
 	}
 </script>
 
-<section class="bet-panel" class:bet-panel--mobile={props.mobile}>
+<section
+	class="bet-panel"
+	class:bet-panel--mobile={props.mobile}
+	style:background-image="url({staticUrl('img/betting-component-frame.png')})"
+>
 	<div class="free-spin-meter-wrap">
 		<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
 	</div>
@@ -114,7 +119,7 @@
 				disabled={controlsLocked}
 				onclick={() => props.onBetAmountChange(Math.max(0.01, props.betAmount / 2))}
 			>
-				<img src="/img/betting-component-input-decrease.png" alt="-" />
+				<img src={staticUrl('img/betting-component-input-decrease.png')} alt="-" />
 			</button>
 			<span class="amount">{props.betAmount.toFixed(2)}</span>
 			<button
@@ -123,7 +128,7 @@
 				disabled={controlsLocked}
 				onclick={() => props.onBetAmountChange(props.betAmount * 2)}
 			>
-				<img src="/img/betting-component-input-increase.png" alt="+" />
+				<img src={staticUrl('img/betting-component-input-increase.png')} alt="+" />
 			</button>
 			<button
 				class="preset-toggle"
@@ -151,10 +156,10 @@
 		>
 			<img
 				src={props.hasPendingBonusBalls
-					? '/img/play-btn.png'
+					? staticUrl('img/play-btn.png')
 					: props.mobile
-						? '/img/play-btn-mobile.png'
-						: '/img/play-btn.png'}
+						? staticUrl('img/play-btn-mobile.png')
+						: staticUrl('img/play-btn.png')}
 				alt=""
 			/>
 			{#if props.hasPendingBonusBalls}
@@ -170,7 +175,7 @@
 			onclick={() => (autoPanelOpen = !autoPanelOpen)}
 		>
 			<img
-				src={props.mobile ? '/img/auto-bet-btn-mobile.png' : '/img/auto-bet-btn.png'}
+				src={props.mobile ? staticUrl('img/auto-bet-btn-mobile.png') : staticUrl('img/auto-bet-btn.png')}
 				alt=""
 			/>
 			{#if props.autoMode}<span class="auto-count">{props.autoRoundsLeft}</span>{/if}
@@ -182,7 +187,7 @@
 			disabled={controlsLocked}
 			onclick={() => (stateGame.fastGameEnabled = !stateGame.fastGameEnabled)}
 		>
-			<img src={props.mobile ? '/img/fast-game-btn-mobile.png' : '/img/fast-game-btn.png'} alt="" />
+			<img src={props.mobile ? staticUrl('img/fast-game-btn-mobile.png') : staticUrl('img/fast-game-btn.png')} alt="" />
 		</button>
 		{#if autoPanelOpen}
 			<div class="auto-panel">
@@ -211,7 +216,7 @@
 	.bet-panel {
 		margin: 0 12px 12px;
 		padding: 16px;
-		background: url('/img/betting-component-frame.png') center/100% 100% no-repeat;
+		background: center/100% 100% no-repeat;
 		color: #d6e8f7;
 		font-family: 'Instrument Sans', system-ui, sans-serif;
 		position: relative;

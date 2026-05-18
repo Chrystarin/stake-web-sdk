@@ -15,6 +15,7 @@
 	class="loader"
 	draggable="false"
 	onload={props.onload}
+	onerror={props.onload}
 />
 
 <style lang="scss">

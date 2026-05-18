@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { BonusMeterEngine } from './BonusMeterEngine';
+	import { staticUrl } from '../../lib/staticUrl';
 
 	type Props = { progress?: number };
 
@@ -43,7 +44,7 @@
 	<div class="meter-host" bind:this={hostEl}></div>
 	<img
 		class="meter-marker"
-		src="/img/bonus-bar-marker.png"
+		src={staticUrl('img/bonus-bar-marker.png')}
 		alt=""
 		style:left="{markerLeft}px"
 		style:top="{markerTop}px"

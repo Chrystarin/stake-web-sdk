@@ -1,6 +1,6 @@
 <script lang="ts">
 
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
 
 
@@ -42,7 +42,8 @@
 
 	let hostEl: HTMLDivElement;
 
-	let engine: PlinkoEngine | undefined;
+	/** Must be reactive so `$effect` re-runs after bootstrap (plain `let` never triggers effects). */
+	let engine = $state<PlinkoEngine | undefined>(undefined);
 
 
 
@@ -62,7 +63,7 @@
 
 	onMount(() => {
 
-		engine = new PlinkoEngine({
+		const eng = new PlinkoEngine({
 
 			hostElement: hostEl,
 
@@ -72,17 +73,33 @@
 
 		});
 
+		engine = eng;
 
+		void eng.init().then(async () => {
 
-		void engine.init().then(() => {
+			await tick();
 
 			syncEngineScene();
 
-			if (props.animationSpeed) engine!.animationSpeed = props.animationSpeed;
+			if (props.animationSpeed != null) eng.animationSpeed = props.animationSpeed;
+
+			await tick();
+
+			eng.bustResizeDedupe();
+
+			eng.refreshLayoutSync();
+
+			queueMicrotask(() => {
+
+				eng.bustResizeDedupe();
+
+				eng.refreshLayoutSync();
+
+			});
 
 			requestAnimationFrame(() => {
 
-				requestAnimationFrame(() => engine?.refreshLayoutSync());
+				requestAnimationFrame(() => eng.refreshLayoutSync());
 
 			});
 
@@ -92,7 +109,9 @@
 
 		return () => {
 
-			engine?.destroy();
+			eng.destroy();
+
+			engine = undefined;
 
 		};
 
@@ -142,11 +161,21 @@
 
 	$effect(() => {
 
-		if (!engine) return;
+		props.coefficients;
+
+		props.rows;
+
+		props.animationEnabled;
+
+		props.animationSpeed;
+
+		const e = engine;
+
+		if (!e) return;
 
 		syncEngineScene();
 
-		if (props.animationSpeed != null) engine.animationSpeed = props.animationSpeed;
+		if (props.animationSpeed != null) e.animationSpeed = props.animationSpeed;
 
 	});
 

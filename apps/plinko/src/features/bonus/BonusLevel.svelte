@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { BONUS_LEVEL_LABELS } from '../../game-logic/constants';
+	import { staticUrl } from '../../lib/staticUrl';
+
+	const asset = (path: string) => `url(${staticUrl(path)})`;
 
 	type Props = {
 		activeLevels?: number;
@@ -14,7 +17,28 @@
 	);
 </script>
 
-<div class="bonus-level-track">
+<div
+	class="bonus-level-track"
+	style:--bonus-level-base={asset('img/bonus-level-base.png')}
+	style:--bl-1={asset('img/bonus-bar-level-1.png')}
+	style:--bl-2={asset('img/bonus-bar-level-2.png')}
+	style:--bl-3={asset('img/bonus-bar-level-3.png')}
+	style:--bl-4={asset('img/bonus-bar-level-4.png')}
+	style:--bl-5={asset('img/bonus-bar-level-5.png')}
+	style:--bl-6={asset('img/bonus-bar-level-6.png')}
+	style:--bl-7={asset('img/bonus-bar-level-7.png')}
+	style:--bl-8={asset('img/bonus-bar-level-8.png')}
+	style:--bl-9={asset('img/bonus-bar-level-9.png')}
+	style:--bla-1={asset('img/bonus-bar-level-active-1.png')}
+	style:--bla-2={asset('img/bonus-bar-level-active-2.png')}
+	style:--bla-3={asset('img/bonus-bar-level-active-3.png')}
+	style:--bla-4={asset('img/bonus-bar-level-active-4.png')}
+	style:--bla-5={asset('img/bonus-bar-level-active-5.png')}
+	style:--bla-6={asset('img/bonus-bar-level-active-6.png')}
+	style:--bla-7={asset('img/bonus-bar-level-active-7.png')}
+	style:--bla-8={asset('img/bonus-bar-level-active-8.png')}
+	style:--bla-9={asset('img/bonus-bar-level-active-9.png')}
+>
 	{#each displayLevelLabels as label, idx}
 		<div
 			class="bonus-level-node"
@@ -41,7 +65,7 @@
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
-		background: url('/img/bonus-level-base.png') center / contain no-repeat;
+		background: var(--bonus-level-base) center / contain no-repeat;
 		z-index: 2;
 	}
 	.bonus-level-node {
@@ -82,90 +106,90 @@
 		top: 8.25vw;
 		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 61;
-		--bonus-level-node-image: url('/img/bonus-bar-level-1.png');
+		--bonus-level-node-image: var(--bl-1);
 	}
 	.bonus-level-node:nth-child(2) {
 		left: 21%;
 		top: 6.5vw;
 		--bonus-level-node-width: 73;
 		--bonus-level-node-height: 72;
-		--bonus-level-node-image: url('/img/bonus-bar-level-2.png');
+		--bonus-level-node-image: var(--bl-2);
 	}
 	.bonus-level-node:nth-child(3) {
 		left: 28.5%;
 		top: 4.25vw;
 		--bonus-level-node-width: 74;
 		--bonus-level-node-height: 71;
-		--bonus-level-node-image: url('/img/bonus-bar-level-3.png');
+		--bonus-level-node-image: var(--bl-3);
 	}
 	.bonus-level-node:nth-child(4) {
 		left: 37.5%;
 		top: 2.8vw;
 		--bonus-level-node-width: 70;
 		--bonus-level-node-height: 62;
-		--bonus-level-node-image: url('/img/bonus-bar-level-4.png');
+		--bonus-level-node-image: var(--bl-4);
 	}
 	.bonus-level-node:nth-child(5) {
 		left: 49%;
 		top: 2.5vw;
 		--bonus-level-node-width: 68;
 		--bonus-level-node-height: 50;
-		--bonus-level-node-image: url('/img/bonus-bar-level-5.png');
+		--bonus-level-node-image: var(--bl-5);
 	}
 	.bonus-level-node:nth-child(6) {
 		left: 61%;
 		top: 3vw;
 		--bonus-level-node-width: 72;
 		--bonus-level-node-height: 63;
-		--bonus-level-node-image: url('/img/bonus-bar-level-6.png');
+		--bonus-level-node-image: var(--bl-6);
 	}
 	.bonus-level-node:nth-child(7) {
 		left: 70.5%;
 		top: 4.5vw;
 		--bonus-level-node-width: 71;
 		--bonus-level-node-height: 66;
-		--bonus-level-node-image: url('/img/bonus-bar-level-7.png');
+		--bonus-level-node-image: var(--bl-7);
 	}
 	.bonus-level-node:nth-child(8) {
 		left: 78%;
 		top: 6.5vw;
 		--bonus-level-node-width: 75;
 		--bonus-level-node-height: 75;
-		--bonus-level-node-image: url('/img/bonus-bar-level-8.png');
+		--bonus-level-node-image: var(--bl-8);
 	}
 	.bonus-level-node:nth-child(9) {
 		left: 89%;
 		top: 8.3vw;
 		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 62;
-		--bonus-level-node-image: url('/img/bonus-bar-level-9.png');
+		--bonus-level-node-image: var(--bl-9);
 	}
 	.bonus-level-node:nth-child(1).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-1.png');
+		background-image: var(--bla-1);
 	}
 	.bonus-level-node:nth-child(2).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-2.png');
+		background-image: var(--bla-2);
 	}
 	.bonus-level-node:nth-child(3).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-3.png');
+		background-image: var(--bla-3);
 	}
 	.bonus-level-node:nth-child(4).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-4.png');
+		background-image: var(--bla-4);
 	}
 	.bonus-level-node:nth-child(5).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-5.png');
+		background-image: var(--bla-5);
 	}
 	.bonus-level-node:nth-child(6).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-6.png');
+		background-image: var(--bla-6);
 	}
 	.bonus-level-node:nth-child(7).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-7.png');
+		background-image: var(--bla-7);
 	}
 	.bonus-level-node:nth-child(8).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-8.png');
+		background-image: var(--bla-8);
 	}
 	.bonus-level-node:nth-child(9).bonus-level-node--active {
-		background-image: url('/img/bonus-bar-level-active-9.png');
+		background-image: var(--bla-9);
 	}
 	@keyframes bonus-level-node-pending-tint-blink {
 		0% {

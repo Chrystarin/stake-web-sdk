@@ -53,6 +53,7 @@
 	import { BonusMeter, FreeSpinMeter } from '../features/meters';
 
 	import { isMobile } from '../lib/format';
+	import { staticUrl } from '../lib/staticUrl';
 	import { slotColorForMultiplier } from '../game-logic/slotColors';
 
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
@@ -273,7 +274,7 @@
 
 		class="bg-layer"
 
-		style:background-image="url({mobile ? '/img/background-mobile.png' : '/img/background.png'})"
+		style:background-image="url({mobile ? staticUrl('img/background-mobile.png') : staticUrl('img/background.png')})"
 
 	></div>
 
@@ -301,9 +302,9 @@
 
 	<header class="top-hud">
 
-		<div class="balance-pill">
+		<div class="balance-pill" style:background-image="url({staticUrl('img/balance-frame.png')})">
 
-			<img src="/img/wallet-ico.png" alt="" class="ico" />
+			<img src={staticUrl('img/wallet-ico.png')} alt="" class="ico" />
 
 			<span>{context.i18nDerived.t('Balance')}</span>
 
@@ -317,7 +318,7 @@
 
 				<button type="button" class="buy-bonus-btn" aria-label="Buy bonus">
 
-					<img src="/img/buy-bonus-btn.png" alt="" />
+					<img src={staticUrl('img/buy-bonus-btn.png')} alt="" />
 
 				</button>
 
@@ -335,7 +336,7 @@
 
 			>
 
-				<img src={mobile ? '/img/menu-btn-mobile.png' : '/img/menu-btn.png'} alt="" />
+				<img src={mobile ? staticUrl('img/menu-btn-mobile.png') : staticUrl('img/menu-btn.png')} alt="" />
 
 			</button>
 
@@ -411,7 +412,7 @@
 
 			class:board-frame--bonus={stateGameDerived.isBonusBackgroundActive}
 
-			style:background-image="url({stateGameDerived.isBonusBackgroundActive ? '/img/game_area_bonus.png' : '/img/game_area_background.png'})"
+			style:background-image="url({stateGameDerived.isBonusBackgroundActive ? staticUrl('img/game_area_bonus.png') : staticUrl('img/game_area_background.png')})"
 
 		>
 
@@ -479,7 +480,7 @@
 
 		<div class="win-overlay" role="dialog">
 
-			<div class="win-card" style:background-image="url('/img/win_bg.svg')">
+			<div class="win-card" style:background-image="url({staticUrl('img/win_bg.svg')})">
 
 				<p>{context.i18nDerived.t('Win')}</p>
 
@@ -548,26 +549,6 @@
 
 
 <style>
-
-	@font-face {
-
-		font-family: 'Instrument Sans';
-
-		src: url('/fonts/Instrument_Sans/InstrumentSans-Regular.ttf') format('truetype');
-
-		font-weight: 400;
-
-	}
-
-	@font-face {
-
-		font-family: 'Instrument Sans';
-
-		src: url('/fonts/Instrument_Sans/InstrumentSans-Bold.ttf') format('truetype');
-
-		font-weight: 700;
-
-	}
 
 	.game-root {
 
@@ -645,7 +626,7 @@
 
 		gap: 8px;
 
-		background: url('/img/balance-frame.png') center/100% 100% no-repeat;
+		background: center/100% 100% no-repeat;
 
 		padding: 8px 20px;
 
