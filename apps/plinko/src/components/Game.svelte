@@ -412,12 +412,6 @@
 				</div>
 			{/if}
 
-			{#if !mobile}
-				<div class="bonus-meter-wrap">
-					<BonusMeter progress={stateGameDerived.bonusMeterProgress} />
-				</div>
-			{/if}
-
 			<div
 				class="container"
 				class:container--bonus={stateGameDerived.isBonusBackgroundActive}
@@ -456,13 +450,11 @@
 						onCoinPegHit={onCoinPegHit}
 					/>
 				{/if}
-			</div>
 
-			{#if mobile}
 				<div class="bonus-meter-wrap">
 					<BonusMeter progress={stateGameDerived.bonusMeterProgress} />
 				</div>
-			{/if}
+			</div>
 		</div>
 
 
@@ -949,31 +941,16 @@
 
 	}
 
-	.bonus-meter-wrap {
-
-		position: absolute;
-
-		top: 6vw;
-
-		left: 50%;
-
-		transform: translateX(-50%);
-
-		width: 12vw;
-
-		height: 7.8vw;
-
-		pointer-events: none;
-
-		z-index: 6;
-
-	}
-
 	.container {
 
 		/* Plinko layout ratios track frame (fit-width/height), not viewport vw */
 		--plinko-area-scale: 0.58;
 		--plinko-area-offset-ratio: 0.38;
+
+		/* Bonus meter — desktop proportions vs 96×55 frame (12×7.8 @ top 6) */
+		--bonus-meter-width-ratio: 0.125;
+		--bonus-meter-height-ratio: 0.141818;
+		--bonus-meter-top-ratio: 0.109091;
 
 		/* Largest 96:55 box inside game-area, no crop */
 		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
@@ -993,6 +970,9 @@
 		--plinko-area-offset-y: calc(
 			var(--game-area-fit-height) * var(--plinko-area-offset-ratio)
 		);
+		--bonus-meter-width: calc(var(--game-area-fit-width) * var(--bonus-meter-width-ratio));
+		--bonus-meter-height: calc(var(--game-area-fit-height) * var(--bonus-meter-height-ratio));
+		--bonus-meter-offset-y: calc(var(--game-area-fit-height) * var(--bonus-meter-top-ratio));
 
 		width: var(--game-area-fit-width);
 
@@ -1052,6 +1032,26 @@
 		z-index: 0;
 
 		user-select: none;
+
+	}
+
+	.container .bonus-meter-wrap {
+
+		position: absolute;
+
+		left: 50%;
+
+		top: var(--bonus-meter-offset-y);
+
+		width: var(--bonus-meter-width);
+
+		height: var(--bonus-meter-height);
+
+		transform: translateX(-50%);
+
+		pointer-events: none;
+
+		z-index: 6;
 
 	}
 
@@ -1211,6 +1211,11 @@
 		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
 		--game-area-max-h: 100cqh;
 
+		/* Bonus meter — mobile proportions vs frame (26×20 @ top 15 on ~100×57) */
+		--bonus-meter-width-ratio: 0.26;
+		--bonus-meter-height-ratio: 0.349;
+		--bonus-meter-top-ratio: 0.262;
+
 		width: var(--game-area-fit-width);
 
 		height: var(--game-area-fit-height);
@@ -1268,26 +1273,6 @@
 	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-host) {
 
 		pointer-events: auto;
-
-	}
-
-	.game-root--mobile .game-area > .bonus-meter-wrap {
-
-		position: absolute;
-
-		top: 15vw;
-
-		left: 50%;
-
-		transform: translateX(-50%);
-
-		width: 26vw;
-
-		height: 20vw;
-
-		pointer-events: none;
-
-		z-index: 6;
 
 	}
 

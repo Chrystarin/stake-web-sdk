@@ -35,6 +35,7 @@
 		"@sveltejs/kit": "2.17.3",
 		"@lingui/core": "5.2.0",
 		"pixi.js": "8.8.1",
+		"@esotericsoftware/spine-pixi-v8": "4.2.74",
 		"envs": "workspace:*",
 		"rgs-requests": "workspace:*",
 		"pixi-svelte": "workspace:*",
