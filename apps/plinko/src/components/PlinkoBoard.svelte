@@ -176,26 +176,61 @@
 		height: 100%;
 		min-height: inherit;
 		flex: 1;
+		position: relative;
+		z-index: 2;
+		overflow: visible;
 	}
 
 	.plinko-host {
 		width: 100%;
-		height: 100%;
+		height: min(54vw, 100%);
 		flex: 1;
-		min-height: inherit;
-		/* Flex parents often report 0×0 on first paint; guarantee room for the Pixi host. */
-		min-height: min(46vw, 52vh);
+		min-height: 0;
+		max-height: 100%;
+		margin: 2.4vw auto 0;
 		position: relative;
 		overflow: visible;
+		box-sizing: border-box;
+		background: transparent;
 	}
 
 	.plinko-host :global(canvas) {
 		display: block;
 		width: 100% !important;
 		height: 100% !important;
+		position: relative;
+		z-index: 1;
+		background: transparent !important;
+	}
+
+	:global(.game-area--pixi-fill) .plinko-root {
+		flex: 1;
+		min-height: 0;
+	}
+
+	:global(.game-area--pixi-fill) .plinko-host {
+		flex: 0 1 auto;
+		min-height: 0;
+		height: min(54vw, 100%);
+		max-height: 100%;
+		width: 100%;
+		margin-inline: auto;
+	}
+
+	:global(.game-root--mobile) .plinko-root {
+		justify-content: flex-start;
+		align-items: center;
 	}
 
 	:global(.game-root--mobile) .plinko-host {
-		min-height: var(--mobile-pixi-height, 55vw);
+		width: 100%;
+		max-width: 100%;
+		flex: 0 1 auto;
+		min-height: 0;
+		max-height: none;
+		height: var(--mobile-pixi-height, 63vw);
+		margin-left: 0;
+		margin-top: 0;
+		overflow: visible;
 	}
 </style>

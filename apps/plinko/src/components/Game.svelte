@@ -279,7 +279,7 @@
 
 	{#if stateGame.bonusRoundActive}
 
-		<div class="bonus-level-layer">
+		<div class="bonus-level-behind-game-area">
 
 			<BonusLevel
 
@@ -398,56 +398,67 @@
 	{/if}
 
 	<div class="game-content">
-		<div class="board-area">
-		{#if mobile}
-			<div class="top-hud">
-				<button type="button" class="top-hud-buy-bonus" aria-label="Buy bonus">
-					<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
-				</button>
+		<div class="game-area" class:game-area--pixi-fill={!mobile}>
+			{#if mobile}
+				<div class="top-hud">
+					<button type="button" class="top-hud-buy-bonus" aria-label="Buy bonus">
+						<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
+					</button>
+				</div>
+			{/if}
+
+			{#if !mobile}
+				<div class="bonus-meter-wrap">
+					<BonusMeter progress={stateGameDerived.bonusMeterProgress} />
+				</div>
+			{/if}
+
+			<div
+				class="container"
+				class:container--bonus={stateGameDerived.isBonusBackgroundActive}
+			>
+				<img
+					class="game-area-frame"
+					src={staticUrl('img/game_area_background.png')}
+					alt=""
+					aria-hidden="true"
+				/>
+				<img
+					class="game-area-bonus-overlay"
+					src={staticUrl('img/game_area_bonus.png')}
+					alt=""
+					aria-hidden="true"
+				/>
+
+				{#if mobile}
+					<div class="pixi-stage-wrap">
+						<PlinkoBoard
+							{coefficients}
+							rows={stateGame.rowCount}
+							animationEnabled={stateGame.animationEnabled}
+							animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
+							onBallDropped={onBallDropped}
+							onCoinPegHit={onCoinPegHit}
+						/>
+					</div>
+				{:else}
+					<PlinkoBoard
+						{coefficients}
+						rows={stateGame.rowCount}
+						animationEnabled={stateGame.animationEnabled}
+						animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
+						onBallDropped={onBallDropped}
+						onCoinPegHit={onCoinPegHit}
+					/>
+				{/if}
 			</div>
-		{/if}
 
-		<div class="bonus-meter-wrap">
-
-			<BonusMeter progress={stateGameDerived.bonusMeterProgress} />
-
+			{#if mobile}
+				<div class="bonus-meter-wrap">
+					<BonusMeter progress={stateGameDerived.bonusMeterProgress} />
+				</div>
+			{/if}
 		</div>
-
-		<div
-
-			class="board-frame"
-
-			class:board-frame--bonus={stateGameDerived.isBonusBackgroundActive}
-
-			style:background-image={staticCssUrl(
-				stateGameDerived.isBonusBackgroundActive
-					? 'img/game_area_bonus.png'
-					: 'img/game_area_background.png',
-			)}
-
-		>
-
-			<div class="board-bonus-overlay" aria-hidden="true"></div>
-
-			<PlinkoBoard
-
-				{coefficients}
-
-				rows={stateGame.rowCount}
-
-				animationEnabled={stateGame.animationEnabled}
-
-				animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
-
-				onBallDropped={onBallDropped}
-
-				onCoinPegHit={onCoinPegHit}
-
-			/>
-
-		</div>
-
-	</div>
 
 
 
@@ -586,9 +597,34 @@
 
 		flex-direction: column;
 
+		align-items: center;
+
+		justify-content: center;
+
 		z-index: 1;
 
 		overflow: hidden;
+
+	}
+
+	.game-root:not(.game-root--mobile) .game-content {
+
+		/* top HUD ~4vw + bottom panel ~14vw; padding keeps stack off screen edges */
+		--game-area-available-height: calc(100dvh - 34vw);
+
+		padding-top: 4vw;
+
+		padding-bottom: 13vw;
+
+	}
+
+	.game-root--mobile .game-content {
+
+		--game-area-available-height: calc(100dvh - 48vw);
+
+		padding-top: 2vw;
+
+		padding-bottom: 36vw;
 
 	}
 
@@ -610,23 +646,37 @@
 
 	}
 
-	.bonus-level-layer {
+	.bonus-level-behind-game-area {
 
 		position: absolute;
 
 		inset: 0;
 
-		z-index: 2;
-
 		pointer-events: none;
 
-		display: flex;
+		z-index: 0;
 
-		align-items: flex-start;
+		left: 36.5vw;
 
-		justify-content: center;
+		top: -1vw;
 
-		padding-top: 10vh;
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area {
+
+		inset: auto;
+
+		top: -5.25vw;
+
+		left: 39.5vw;
+
+		width: 42vw;
+
+		height: 17.6vw;
+
+		transform: translateX(-50%);
+
+		z-index: -1;
 
 	}
 
@@ -762,25 +812,80 @@
 
 	}
 
-	.board-area {
+	/* Desktop — game area + board centered in viewport (above bottom panel) */
+	.game-area {
 
 		position: relative;
-
-		flex: 1;
-
-		min-height: 0;
-
-		padding: 0 12px;
 
 		display: flex;
 
 		flex-direction: column;
 
-		overflow: hidden;
+		align-items: center;
+
+		justify-content: center;
+
+		width: 100%;
+
+		max-width: 100%;
+
+		max-height: var(--game-area-available-height);
+
+		overflow: visible;
+
+		z-index: 1;
+
+		margin: 0 auto;
+
+		flex-shrink: 1;
+
+		min-height: 0;
 
 	}
 
-	.game-root--mobile .board-area .top-hud {
+	.game-area--pixi-fill .container {
+
+		position: relative;
+
+		flex: 0 0 auto;
+
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+		justify-content: flex-start;
+
+		align-self: center;
+
+		margin: 0 auto;
+
+	}
+
+	.game-area--pixi-fill .container :global(.plinko-root) {
+
+		flex: 0 1 auto;
+
+		width: 100%;
+
+		overflow: visible;
+
+		position: relative;
+
+		top: 0;
+
+		z-index: 2;
+
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+	}
+
+	.game-root--mobile .game-area .top-hud {
 
 		top: 0.6vw;
 
@@ -836,83 +941,137 @@
 
 	.bonus-meter-wrap {
 
-		width: min(92vw, 720px);
+		position: absolute;
 
-		height: clamp(36px, 5vh, 52px);
+		top: 6vw;
 
-		margin: 0 auto 6px;
+		left: 50%;
 
-		flex-shrink: 0;
+		transform: translateX(-50%);
+
+		width: 12vw;
+
+		height: 7.8vw;
+
+		pointer-events: none;
+
+		z-index: 6;
 
 	}
 
-	.board-frame {
+	.container {
+
+		/* Base frame size in vw; scaled size clamped to viewport (dvh + vw reserve). */
+		--game-area-base-width: 96vw;
+		--game-area-base-height: 55vw;
+		--game-area-frame-scale: calc(1.125 * 1.25 * 1.5);
+		--game-area-frame-width: min(
+			calc(var(--game-area-base-width) * var(--game-area-frame-scale)),
+			100vw
+		);
+		--game-area-frame-height: min(
+			calc(var(--game-area-base-height) * var(--game-area-frame-scale)),
+			var(--game-area-available-height, calc(100dvh - 34vw))
+		);
+
+		width: min(100%, var(--game-area-base-width));
+
+		border-radius: 0.8vw;
+
+		padding: 0.2vw 0.2vw 0.1vw;
+
+		text-align: center;
+
+		/* Match frame height so background is not vertically clipped */
+		height: var(--game-area-frame-height);
+
+		max-height: var(--game-area-available-height, calc(100dvh - 34vw));
 
 		position: relative;
 
-		flex: 1;
-
-		min-height: min(49vw, 52vh);
-
-		background-size: contain;
-
-		background-position: top center;
-
-		background-repeat: no-repeat;
-
-		border-radius: 12px;
+		margin: 0 auto;
 
 		overflow: visible;
 
-		display: flex;
-
-		flex-direction: column;
-
-		align-items: stretch;
-
-	}
-
-	.board-frame :global(.plinko-root) {
-
-		position: relative;
-
-		z-index: 2;
-
-		flex: 1;
-
-		width: 100%;
-
-		min-height: min(46vw, 100%);
-
-		margin-top: 3vw;
-
-		margin-left: 0.75vw;
+		isolation: isolate;
 
 		box-sizing: border-box;
 
 	}
 
-	.board-frame--bonus .board-bonus-overlay {
+	.game-area-frame,
+	.game-area-bonus-overlay {
+
+		position: absolute;
+
+		top: 0;
+
+		left: 50%;
+
+		width: var(--game-area-frame-width);
+
+		height: 100%;
+
+		max-width: min(var(--game-area-frame-width), 100vw);
+
+		max-height: 100%;
+
+		transform: translateX(-50%);
+
+		object-fit: contain;
+
+		object-position: top center;
+
+		pointer-events: none;
+
+		z-index: 0;
+
+		user-select: none;
+
+	}
+
+	.game-area-frame {
+
+		transition: opacity 0.28s ease-in-out;
+
+	}
+
+	.game-area-bonus-overlay {
+
+		opacity: 0;
+
+		transition: opacity 0.28s ease-in-out;
+
+	}
+
+	.container :global(.plinko-root),
+	.container .pixi-stage-wrap {
+
+		position: relative;
+
+		z-index: 2;
+
+		max-height: 100%;
+
+	}
+
+	.game-area--pixi-fill .container :global(.plinko-root) {
+
+		max-height: 100%;
+
+	}
+
+	.container.container--bonus .game-area-bonus-overlay {
 
 		opacity: 1;
 
 	}
 
-	.board-bonus-overlay {
-
-		position: absolute;
-
-		inset: 0;
-
-		pointer-events: none;
-
-		z-index: 1;
+	.container.container--bonus .game-area-frame {
 
 		opacity: 0;
 
-		transition: opacity 0.35s ease;
-
-		background: radial-gradient(ellipse at 50% 30%, rgba(180, 40, 20, 0.18), transparent 70%);
+		transition: opacity 0.28s ease-in-out;
 
 	}
 
@@ -976,33 +1135,195 @@
 
 	}
 
-	.game-root--mobile .bonus-meter-wrap {
+	/* Mobile — matches crimson-plinko game.mobile .game-area / .container */
+	.game-root--mobile .game-area {
 
-		width: 88vw;
+		flex: 0 1 auto;
 
-	}
-
-	.game-root--mobile .board-frame {
-
-		min-height: clamp(360px, 96vw, 760px);
-
-		padding-top: 22.4vw;
-
-		background-size: 125% auto;
-
-		background-position: center top;
-
-	}
-
-	.game-root--mobile .board-frame :global(.plinko-root) {
-
-		flex: 1 1 auto;
-
-		min-height: var(--mobile-pixi-height, 55vw);
+		min-height: 0;
 
 		width: 100%;
 
-		margin: 0;
+		max-width: 100vw;
+
+		max-height: var(--game-area-available-height);
+
+		margin: 0 auto;
+
+		padding: 0;
+
+		position: relative;
+
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+		justify-content: center;
+
+		align-self: center;
+
+		z-index: 1;
+
+		height: auto;
+
+		overflow: visible;
+
+	}
+
+	.game-root--mobile .game-area > .container {
+
+		--mobile-game-width: 100vw;
+
+		--mobile-game-height: min(
+			clamp(400px, 104vw, 840px),
+			var(--game-area-available-height)
+		);
+
+		--game-area-base-width: 100vw;
+
+		--game-area-base-height: var(--mobile-game-height);
+
+		--game-area-frame-scale: calc(1.125 * 1.25 * 1.5);
+		--game-area-frame-width: min(calc(100vw * 1.25 * var(--game-area-frame-scale)), 100vw);
+		--game-area-frame-height: min(
+			calc(var(--game-area-base-height) * var(--game-area-frame-scale)),
+			var(--game-area-available-height)
+		);
+
+		width: var(--mobile-game-width);
+
+		max-width: var(--mobile-game-width);
+
+		min-width: 0;
+
+		align-self: center;
+
+		flex: 0 1 auto;
+
+		min-height: 0;
+
+		height: var(--game-area-frame-height);
+
+		max-height: var(--game-area-available-height);
+
+		box-sizing: border-box;
+
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+		justify-content: flex-start;
+
+		overflow: visible;
+
+		position: relative;
+
+		padding: 0;
+
+		margin: 0 auto;
+
+		border-radius: 4vw;
+
+	}
+
+	.game-root--mobile .game-area > .container .game-area-frame,
+	.game-root--mobile .game-area > .container .game-area-bonus-overlay {
+
+		top: 0;
+
+		left: 50%;
+
+		width: var(--game-area-frame-width);
+
+		height: 100%;
+
+		max-width: var(--game-area-frame-width);
+
+		max-height: 100%;
+
+		object-fit: contain;
+
+		object-position: top center;
+
+		transform: translateX(-50%);
+
+	}
+
+	.game-root--mobile .game-area > .container .pixi-stage-wrap {
+
+		position: relative;
+
+		flex: 0 1 auto;
+
+		min-height: 0;
+
+		width: 100%;
+
+		height: auto;
+
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+		justify-content: center;
+
+		overflow: visible;
+
+		z-index: 1;
+
+	}
+
+	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-root) {
+
+		--mobile-pixi-height: 63vw;
+
+		flex: 0 1 auto;
+
+		width: 100%;
+
+		height: var(--mobile-pixi-height);
+
+		min-height: 0;
+
+		max-width: 100%;
+
+		max-height: none;
+
+		align-self: center;
+
+		margin: 0 auto;
+
+		position: relative;
+
+		top: 0;
+
+		left: 0;
+
+	}
+
+	.game-root--mobile .game-area > .bonus-meter-wrap {
+
+		position: absolute;
+
+		top: 15vw;
+
+		left: 50%;
+
+		transform: translateX(-50%);
+
+		width: 26vw;
+
+		height: 20vw;
+
+		pointer-events: none;
+
+		z-index: 6;
 
 	}
 

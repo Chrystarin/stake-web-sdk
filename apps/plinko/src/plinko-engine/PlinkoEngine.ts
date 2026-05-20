@@ -312,12 +312,15 @@ export class PlinkoEngine {
   private async initPixi(): Promise<void> {
     const initialSize = this.getContainerSize();
     const { width, height } = initialSize;
+    this.containerWidth = width;
+    this.containerHeight = height;
+    const renderHeight = this.getRendererHeight();
 
     const app = new Application();
     try {
       await app.init({
         width,
-        height,
+        height: renderHeight,
         resolution:
           typeof window !== 'undefined'
             ? Math.min(this.MAX_RENDER_RESOLUTION, window.devicePixelRatio || 1)
@@ -463,7 +466,7 @@ export class PlinkoEngine {
     const footprintX = Math.max(1, pegsInBottomRow - 1) * this.pegSpacingX * 1.02;
     this.layoutWidthFloor = Math.ceil(footprintX);
     const layoutW = Math.max(this.containerWidth, this.layoutWidthFloor);
-    const layoutH = this.containerHeight;
+    const layoutH = this.getRendererHeight();
     const r = this.app.renderer;
     if (r.width !== layoutW || r.height !== layoutH) {
       r.resize(layoutW, layoutH);
@@ -471,7 +474,6 @@ export class PlinkoEngine {
       this.lastHeight = layoutH;
     }
     this.containerWidth = layoutW;
-    this.containerHeight = layoutH;
 
     this.updateWorldViewportOffset();
     this.generatePegs();
@@ -515,13 +517,22 @@ export class PlinkoEngine {
     }
   }
 
+  /** Desktop render offset — board sits lower so spawn airspace stays visible. */
+  private getWorldViewportYOffset(): number {
+    return isMobile() ? 0 : this.containerHeight * 0.085;
+  }
+
+  /** Pixi buffer height: host size plus viewport offset so bottom slots are not clipped. */
+  private getRendererHeight(): number {
+    return Math.ceil(this.containerHeight + this.getWorldViewportYOffset());
+  }
+
   /**
    * Keep the board visually lower inside a taller canvas so high spawn remains visible.
    * This is a render offset only; physics/layout coordinates remain unchanged.
    */
   private updateWorldViewportOffset(): void {
-    const yOffset = isMobile() ? 0 : this.containerHeight * 0.085;
-    this.world.position.set(0, yOffset);
+    this.world.position.set(0, this.getWorldViewportYOffset());
   }
 
   private syncFeaturedPegSprites(): void {
@@ -606,16 +617,20 @@ export class PlinkoEngine {
     if (this.resizeRafId !== null) return;
     this.resizeRafId = requestAnimationFrame(() => {
       this.resizeRafId = null;
+      const prevWidth = this.containerWidth || this.lastWidth;
+      const prevHeight = this.containerHeight || this.lastHeight;
       const { width, height } = this.getContainerSize();
+      this.containerWidth = width;
+      this.containerHeight = height;
+      const renderHeight = this.getRendererHeight();
       const winW = typeof window !== 'undefined' ? window.innerWidth : 0;
       const winH = typeof window !== 'undefined' ? window.innerHeight : 0;
       if (
         width === this.lastWidth &&
-        height === this.lastHeight &&
+        renderHeight === this.lastHeight &&
         winW === this.lastWindowInnerW &&
         winH === this.lastWindowInnerH
       ) {
-        this.updateContainerSize();
         this.ensureLayoutDimensionsFromRendererIfNeeded();
         if (this.coefficients.length && this.rows) {
           this.drawStaticPyramid();
@@ -623,11 +638,9 @@ export class PlinkoEngine {
         }
         return;
       }
-      const prevWidth = this.containerWidth || this.lastWidth;
-      const prevHeight = this.containerHeight || this.lastHeight;
-      this.app?.renderer.resize(width, height);
+      this.app?.renderer.resize(width, renderHeight);
       this.lastWidth = width;
-      this.lastHeight = height;
+      this.lastHeight = renderHeight;
       this.lastWindowInnerW = winW;
       this.lastWindowInnerH = winH;
       this.updateContainerSize();
