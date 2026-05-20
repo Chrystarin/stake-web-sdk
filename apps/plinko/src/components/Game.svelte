@@ -873,13 +873,7 @@
 
 		position: relative;
 
-		display: flex;
-
-		flex-direction: column;
-
-		align-items: stretch;
-
-		justify-content: stretch;
+		display: block;
 
 		align-self: center;
 
@@ -891,27 +885,13 @@
 
 	.game-area--pixi-fill .container :global(.plinko-root) {
 
-		flex: 1 1 0;
+		position: absolute;
 
-		width: 100%;
-
-		height: 100%;
-
-		min-height: 0;
+		inset: 0;
 
 		overflow: visible;
 
-		position: relative;
-
-		top: 0;
-
 		z-index: 2;
-
-		display: flex;
-
-		flex-direction: column;
-
-		align-items: stretch;
 
 	}
 
@@ -991,6 +971,10 @@
 
 	.container {
 
+		/* Plinko layout ratios track frame (fit-width/height), not viewport vw */
+		--plinko-area-scale: 0.58;
+		--plinko-area-offset-ratio: 0.38;
+
 		/* Largest 96:55 box inside game-area, no crop */
 		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
 		--game-area-max-h: 100cqh;
@@ -1003,6 +987,11 @@
 		--game-area-fit-height: min(
 			var(--game-area-max-h),
 			calc(var(--game-area-max-w) * var(--game-area-aspect-h) / var(--game-area-aspect-w))
+		);
+		--plinko-host-width: calc(var(--game-area-fit-width) * var(--plinko-area-scale));
+		--plinko-host-height: calc(var(--game-area-fit-height) * var(--plinko-area-scale));
+		--plinko-area-offset-y: calc(
+			var(--game-area-fit-height) * var(--plinko-area-offset-ratio)
 		);
 
 		width: var(--game-area-fit-width);
@@ -1029,13 +1018,13 @@
 
 		box-sizing: border-box;
 
-		display: flex;
-
-		flex-direction: column;
-
-		align-items: stretch;
+		display: block;
 
 		min-height: 0;
+
+		container-type: size;
+
+		container-name: plinko-frame;
 
 	}
 
@@ -1083,19 +1072,24 @@
 	.container :global(.plinko-root),
 	.container .pixi-stage-wrap {
 
-		position: relative;
+		position: absolute;
+
+		inset: 0;
 
 		z-index: 2;
-
-		flex: 1 1 0;
-
-		min-height: 0;
 
 		width: 100%;
 
 		height: 100%;
 
-		max-height: 100%;
+		pointer-events: none;
+
+	}
+
+	.container :global(.plinko-root) :global(.plinko-host),
+	.container .pixi-stage-wrap :global(.plinko-host) {
+
+		pointer-events: auto;
 
 	}
 
@@ -1235,13 +1229,7 @@
 
 		box-sizing: border-box;
 
-		display: flex;
-
-		flex-direction: column;
-
-		align-items: stretch;
-
-		justify-content: stretch;
+		display: block;
 
 		overflow: visible;
 
@@ -1253,57 +1241,33 @@
 
 		border-radius: 4vw;
 
+		container-type: size;
+
+		container-name: plinko-frame;
+
 	}
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap {
 
-		position: relative;
+		position: absolute;
 
-		flex: 1 1 0;
-
-		min-height: 0;
+		inset: 0;
 
 		width: 100%;
 
 		height: 100%;
-
-		display: flex;
-
-		flex-direction: column;
-
-		align-items: stretch;
-
-		justify-content: stretch;
 
 		overflow: visible;
 
 		z-index: 1;
 
+		pointer-events: none;
+
 	}
 
-	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-root) {
+	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-host) {
 
-		flex: 1 1 0;
-
-		width: 100%;
-
-		height: 100%;
-
-		min-height: 0;
-
-		max-width: 100%;
-
-		max-height: 100%;
-
-		align-self: stretch;
-
-		margin: 0;
-
-		position: relative;
-
-		top: 0;
-
-		left: 0;
+		pointer-events: auto;
 
 	}
 

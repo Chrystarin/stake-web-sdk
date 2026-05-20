@@ -169,29 +169,30 @@
 </div>
 
 <style>
+	/* Sized/positioned from .container CSS vars (frame fit-width/height), not viewport vw */
 	.plinko-root {
-		display: flex;
-		flex-direction: column;
+		position: absolute;
+		inset: 0;
 		width: 100%;
 		height: 100%;
-		min-height: 0;
-		flex: 1 1 0;
-		position: relative;
 		z-index: 2;
 		overflow: visible;
+		pointer-events: none;
 	}
 
 	.plinko-host {
-		width: 100%;
-		height: 100%;
-		flex: 1 1 0;
-		min-height: 0;
-		max-height: 100%;
-		margin: 0;
-		position: relative;
-		overflow: visible;
+		position: absolute;
+		left: 50%;
+		top: var(--plinko-area-offset-y);
+		width: var(--plinko-host-width);
+		height: var(--plinko-host-height);
+		max-width: var(--plinko-host-width);
+		max-height: var(--plinko-host-height);
+		transform: translateX(-50%);
 		box-sizing: border-box;
+		overflow: visible;
 		background: transparent;
+		pointer-events: auto;
 	}
 
 	.plinko-host :global(canvas) {
@@ -201,36 +202,5 @@
 		position: relative;
 		z-index: 1;
 		background: transparent !important;
-	}
-
-	:global(.game-area--pixi-fill) .plinko-root {
-		flex: 1 1 0;
-		min-height: 0;
-		height: 100%;
-	}
-
-	:global(.game-area--pixi-fill) .plinko-host {
-		flex: 1 1 0;
-		min-height: 0;
-		width: 100%;
-		height: 100%;
-		max-height: 100%;
-		margin: 0;
-	}
-
-	:global(.game-root--mobile) .plinko-root {
-		justify-content: flex-start;
-		align-items: center;
-	}
-
-	:global(.game-root--mobile) .plinko-host {
-		width: 100%;
-		max-width: 100%;
-		flex: 1 1 0;
-		min-height: 0;
-		height: 100%;
-		max-height: 100%;
-		margin: 0;
-		overflow: visible;
 	}
 </style>
