@@ -56,7 +56,6 @@
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { slotColorForMultiplier } from '../game-logic/slotColors';
 
-	import { BackgroundLandscape } from '../features/background';
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
 
 	import EnableGameActor from './EnableGameActor.svelte';
@@ -270,10 +269,6 @@
 
 
 <main class="game-root" class:game-root--mobile={mobile}>
-
-	{#if !mobile}
-		<BackgroundLandscape />
-	{/if}
 
 	<div
 		class="bg-layer"
@@ -570,12 +565,6 @@
 		font-family: 'Instrument Sans', system-ui, sans-serif;
 
 		background: transparent;
-
-	}
-
-	.game-root :global(.background-landscape-root) {
-
-		z-index: 0;
 
 	}
 

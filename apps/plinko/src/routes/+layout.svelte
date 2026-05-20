@@ -4,9 +4,11 @@
 
 	import { GlobalStyle } from 'components-ui-html';
 
-	import { Authenticate, LoaderStakeEngine, LoaderExample, LoadI18n } from 'components-shared';
+	import { LoaderStakeEngine, LoaderExample, LoadI18n } from 'components-shared';
 
 	import Game from '../components/Game.svelte';
+	import PlinkoAuthenticate from '../components/PlinkoAuthenticate.svelte';
+	import { BackgroundLandscape } from '../features/background';
 
 	import { setContext } from '../game/context';
 
@@ -59,12 +61,13 @@
 
 
 <div class="plinko-app-shell">
+	<BackgroundLandscape />
 
 	<div class="plinko-app-shell-content">
 
 		<GlobalStyle>
 
-			<Authenticate>
+			<PlinkoAuthenticate>
 
 				<LoadI18n {messagesMap}>
 
@@ -72,7 +75,7 @@
 
 				</LoadI18n>
 
-			</Authenticate>
+			</PlinkoAuthenticate>
 
 		</GlobalStyle>
 
@@ -117,6 +120,8 @@
 	.plinko-app-shell-content {
 
 		position: relative;
+
+		z-index: 1;
 
 		min-height: 100vh;
 

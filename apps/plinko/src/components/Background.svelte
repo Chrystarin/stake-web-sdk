@@ -5,6 +5,10 @@
 
 	const context = getContext();
 
+	const spineData = $derived(
+		context.stateApp.loadedAssets.backgroundLandscape,
+	);
+
 	const canvasSizes = $derived(() => {
 		const renderer = context.stateApp.pixiApplication?.renderer;
 		if (renderer) {
@@ -25,8 +29,10 @@
 	});
 </script>
 
-<Rectangle {...canvasSizes()} backgroundColor={0x0a0f14} backgroundAlpha={1} zIndex={0} />
+{#if spineData}
+	<Rectangle {...canvasSizes()} backgroundColor={0x0a0f14} backgroundAlpha={1} zIndex={0} />
 
-<SpineProvider key="backgroundLandscape" {...backgroundProps} zIndex={1}>
-	<SpineTrack trackIndex={0} animationName="animation" loop timeScale={1} />
-</SpineProvider>
+	<SpineProvider key="backgroundLandscape" {...backgroundProps} zIndex={1}>
+		<SpineTrack trackIndex={0} animationName="animation" loop timeScale={1} />
+	</SpineProvider>
+{/if}

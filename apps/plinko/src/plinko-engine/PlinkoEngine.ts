@@ -310,21 +310,27 @@ export class PlinkoEngine {
   }
 
   private async initPixi(): Promise<void> {
-    const initialSize = this.getContainerSize() ?? { width: Math.floor(this.vw(16.7)), height: Math.floor(this.vw(9.4)) };
+    const initialSize = this.getContainerSize();
     const { width, height } = initialSize;
 
     const app = new Application();
-    await app.init({
-      width,
-      height,
-      resolution:
-        typeof window !== 'undefined'
-          ? Math.min(this.MAX_RENDER_RESOLUTION, window.devicePixelRatio || 1)
-          : 1,
-      autoDensity: true,
-      antialias: true,
-      backgroundAlpha: 0
-    });
+    try {
+      await app.init({
+        width,
+        height,
+        resolution:
+          typeof window !== 'undefined'
+            ? Math.min(this.MAX_RENDER_RESOLUTION, window.devicePixelRatio || 1)
+            : 1,
+        autoDensity: true,
+        antialias: true,
+        backgroundAlpha: 0,
+        preference: 'webgl',
+      });
+    } catch (err) {
+      console.error('[PlinkoEngine] Pixi Application.init failed', err);
+      throw err;
+    }
 
     this.hostElement.appendChild(app.canvas as HTMLCanvasElement);
 
@@ -401,13 +407,15 @@ export class PlinkoEngine {
     });
   }
 
+  private static readonly MIN_LAYOUT_PX = 48;
+
   /** True when the DOM host has a real flex box (not the transient 0×0 on cold load). */
   hostHasLayoutExtent(): boolean {
     const host = this.hostElement;
     const rect = host.getBoundingClientRect();
     const w = Math.round(rect.width) || Math.round(host.clientWidth);
     const h = Math.round(rect.height) || Math.round(host.clientHeight);
-    return this.measurementsLookUsable(w, h);
+    return w >= PlinkoEngine.MIN_LAYOUT_PX && h >= PlinkoEngine.MIN_LAYOUT_PX;
   }
 
   private updateContainerSize(): void {
@@ -417,43 +425,23 @@ export class PlinkoEngine {
     this.containerHeight = size.height;
   }
 
-  /** Smallest usable board box (CSS px). Rejects flex “almost zero” widths that bunch every peg left. */
-  private layoutMinExtentPx(): number {
-    return Math.max(96, Math.floor(this.vw(24)));
-  }
-
   /** When the CSS host still measures 0×0, pyramid math (`pegRadius`, etc.) tracks the Pixi buffer. */
   private ensureLayoutDimensionsFromRendererIfNeeded(): void {
     const r = this.app?.renderer;
     if (!r) return;
+    if (this.containerWidth > 0 && this.containerHeight > 0) return;
     const rw = Math.max(1, Math.floor(Number(r.width) || 0));
     const rh = Math.max(1, Math.floor(Number(r.height) || 0));
-    const minE = this.layoutMinExtentPx();
-    const unusable =
-      this.containerWidth < minE ||
-      this.containerHeight < minE ||
-      this.containerWidth <= 0 ||
-      this.containerHeight <= 0;
-    if (!unusable) return;
-    this.containerWidth = Math.max(minE, rw);
-    this.containerHeight = Math.max(minE, rh);
+    this.containerWidth = rw;
+    this.containerHeight = rh;
   }
 
-  /** True if flex/layout gave bogus narrow/tiny rectangles (fixes “single peg top-left”). */
-  private measurementsLookUsable(width: number, height: number): boolean {
-    const minE = this.layoutMinExtentPx();
-    if (width < minE || height < minE) return false;
-    const area = width * height;
-    return Number.isFinite(area) && area >= minE * minE;
-  }
-
-  /** VW-based fallback canvas size when DOM has not yielded a real flex box yet. */
+  /** VW-based fallback when the flex host has not reported a size yet. */
   private createViewportFallbackSize(): { width: number; height: number } {
-    const minE = this.layoutMinExtentPx();
     return {
-      width: Math.max(minE, Math.floor(this.vw(92))),
+      width: Math.max(PlinkoEngine.MIN_LAYOUT_PX, Math.floor(this.vw(92))),
       height: Math.max(
-        minE,
+        PlinkoEngine.MIN_LAYOUT_PX,
         Math.floor(this.vw(55)),
         Math.floor(this.vw(22) * ((this.rows + 4) / 8)),
       ),
@@ -463,28 +451,28 @@ export class PlinkoEngine {
   private rebuildScene(): void {
     if (!this.app) return;
     if (!this.coefficients.length || !this.rows) return;
+    this.updateContainerSize();
     this.ensureLayoutDimensionsFromRendererIfNeeded();
-    /** If DOM gave a bogus strip after init, widen/tall-enough before peg math. */
-    if (!this.measurementsLookUsable(this.containerWidth, this.containerHeight)) {
+    if (this.containerWidth <= 0 || this.containerHeight <= 0) {
       const fb = this.createViewportFallbackSize();
-      const r = this.app.renderer;
       this.containerWidth = fb.width;
       this.containerHeight = fb.height;
-      r.resize(this.containerWidth, this.containerHeight);
-      this.lastWidth = this.containerWidth;
-      this.lastHeight = this.containerHeight;
     }
-    /** Host can be a narrow flex column; buffer must be at least the bottom-row peg span or only the left column is visible. */
+
     const pegsInBottomRow = this.rows + 3;
     const footprintX = Math.max(1, pegsInBottomRow - 1) * this.pegSpacingX * 1.02;
     this.layoutWidthFloor = Math.ceil(footprintX);
-    if (this.containerWidth < this.layoutWidthFloor) {
-      this.containerWidth = this.layoutWidthFloor;
-      const r = this.app.renderer;
-      r.resize(this.containerWidth, this.containerHeight);
-      this.lastWidth = this.containerWidth;
-      this.lastHeight = this.containerHeight;
+    const layoutW = Math.max(this.containerWidth, this.layoutWidthFloor);
+    const layoutH = this.containerHeight;
+    const r = this.app.renderer;
+    if (r.width !== layoutW || r.height !== layoutH) {
+      r.resize(layoutW, layoutH);
+      this.lastWidth = layoutW;
+      this.lastHeight = layoutH;
     }
+    this.containerWidth = layoutW;
+    this.containerHeight = layoutH;
+
     this.updateWorldViewportOffset();
     this.generatePegs();
     this.syncFeaturedPegSprites();
@@ -496,7 +484,9 @@ export class PlinkoEngine {
   }
 
   private renderFrame(): void {
-    this.app?.render();
+    if (this.app?.renderer) {
+      this.app.renderer.render(this.app.stage);
+    }
   }
 
   private refreshSlotLabelAppearance(): void {
@@ -616,9 +606,7 @@ export class PlinkoEngine {
     if (this.resizeRafId !== null) return;
     this.resizeRafId = requestAnimationFrame(() => {
       this.resizeRafId = null;
-      const size = this.getContainerSize();
-      if (!size) return;
-      const { width, height } = size;
+      const { width, height } = this.getContainerSize();
       const winW = typeof window !== 'undefined' ? window.innerWidth : 0;
       const winH = typeof window !== 'undefined' ? window.innerHeight : 0;
       if (
@@ -628,6 +616,11 @@ export class PlinkoEngine {
         winH === this.lastWindowInnerH
       ) {
         this.updateContainerSize();
+        this.ensureLayoutDimensionsFromRendererIfNeeded();
+        if (this.coefficients.length && this.rows) {
+          this.drawStaticPyramid();
+          this.renderFrame();
+        }
         return;
       }
       const prevWidth = this.containerWidth || this.lastWidth;
@@ -689,28 +682,28 @@ export class PlinkoEngine {
     }
   }
 
-  private getContainerSize(): { width: number; height: number } | null {
+  private getContainerSize(): { width: number; height: number } {
     const host = this.hostElement;
     const rect = host.getBoundingClientRect();
-    let w = Math.round(rect.width);
-    let h = Math.round(rect.height);
-    if (!w || !h) {
-      w = Math.round(host.clientWidth);
-      h = Math.round(host.clientHeight);
+    let w = Math.round(rect.width) || Math.round(host.clientWidth);
+    let h = Math.round(rect.height) || Math.round(host.clientHeight);
+    const min = PlinkoEngine.MIN_LAYOUT_PX;
+    if (w >= min && h >= min) {
+      return { width: w, height: h };
     }
-    if (this.layoutWidthFloor > 0) {
-      w = Math.max(w, this.layoutWidthFloor);
-    }
-    if (this.measurementsLookUsable(w, h)) return { width: w, height: h };
 
     const r = this.app?.renderer;
-    const bufW = r ? Math.max(1, Math.floor(Number(r.width) || 0)) : 0;
-    const bufH = r ? Math.max(1, Math.floor(Number(r.height) || 0)) : 0;
-    if (this.measurementsLookUsable(bufW, bufH)) return { width: bufW, height: bufH };
+    if (r) {
+      const rw = Math.max(1, Math.floor(Number(r.width) || 0));
+      const rh = Math.max(1, Math.floor(Number(r.height) || 0));
+      if (rw >= min && rh >= min) {
+        return { width: rw, height: rh };
+      }
+    }
 
-    const lw = this.lastWidth;
-    const lh = this.lastHeight;
-    if (this.measurementsLookUsable(lw, lh)) return { width: lw, height: lh };
+    if (this.lastWidth >= min && this.lastHeight >= min) {
+      return { width: this.lastWidth, height: this.lastHeight };
+    }
 
     return this.createViewportFallbackSize();
   }
@@ -733,9 +726,7 @@ export class PlinkoEngine {
   /** Synchronous layout + redraw before spawning balls (avoids rAF race with drop burst). */
   refreshLayoutSync(): void {
     if (!this.app) return;
-    const size = this.getContainerSize();
-    if (!size) return;
-    const { width, height } = size;
+    const { width, height } = this.getContainerSize();
     const winW = typeof window !== 'undefined' ? window.innerWidth : 0;
     const winH = typeof window !== 'undefined' ? window.innerHeight : 0;
     if (

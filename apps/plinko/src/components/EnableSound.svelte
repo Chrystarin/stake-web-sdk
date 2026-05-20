@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	import { sound } from '../game/sound';
 	import { getContext } from '../game/context';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { staticUrl } from '../lib/staticUrl';
+	import {
+		loadPlinkoSound,
+		playPlinkoSound,
+		type SoundEffectName,
+	} from '../game/sound';
 
 	const context = getContext();
 
-	const soundMap: Record<string, string> = {
+	const soundMap: Record<SoundEffectName, string> = {
 		bet: staticUrl('sound/bet.mp3'),
 		win: staticUrl('sound/win.mp3'),
 		pocket: staticUrl('sound/pocket.mp3'),
@@ -20,15 +24,15 @@
 	};
 
 	onMount(() => {
-		Object.entries(soundMap).forEach(([name, url]) => {
-			sound.load({ name: name as keyof typeof soundMap, url });
-		});
+		for (const [name, url] of Object.entries(soundMap)) {
+			loadPlinkoSound(name as SoundEffectName, url);
+		}
 	});
 
 	context.eventEmitter.subscribeOnMount({
 		soundOnce: ({ name }) => {
 			if (!stateGame.soundEnabled) return;
-			sound.play({ name: name as keyof typeof soundMap });
+			playPlinkoSound(name as SoundEffectName);
 		},
 	});
 </script>
