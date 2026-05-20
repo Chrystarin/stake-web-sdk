@@ -8,7 +8,6 @@
 
 	import Game from '../components/Game.svelte';
 	import PlinkoAuthenticate from '../components/PlinkoAuthenticate.svelte';
-	import { BackgroundLandscape } from '../features/background';
 
 	import { setContext } from '../game/context';
 
@@ -61,8 +60,6 @@
 
 
 <div class="plinko-app-shell">
-	<BackgroundLandscape />
-
 	<div class="plinko-app-shell-content">
 
 		<GlobalStyle>
@@ -112,6 +109,8 @@
 		min-height: 100dvh;
 
 		overflow: hidden;
+
+		isolation: isolate;
 
 	}
 

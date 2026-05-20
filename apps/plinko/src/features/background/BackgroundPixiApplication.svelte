@@ -32,6 +32,8 @@
 			resolution: devicePixelRatio.current,
 			resizeTo: resizeTarget,
 		});
+
+		application.stage.sortableChildren = true;
 		application.renderer.events.autoPreventDefault = false;
 		application.renderer.canvas.style.touchAction = 'auto';
 		return application;

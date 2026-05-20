@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy, type Snippet } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { EnablePixiExtension } from 'components-pixi';
 
 	import { getContextApp } from 'pixi-svelte';
@@ -10,7 +10,7 @@
 	import { loadBackgroundLandscape } from './loadBackgroundLandscape';
 
 	type Props = {
-		resizeTarget?: HTMLElement;
+		resizeTarget: HTMLElement;
 	};
 
 	const props: Props = $props();
@@ -19,19 +19,32 @@
 	let assetsReady = $state(false);
 	let loadError = $state<string | undefined>(undefined);
 
-	onMount(async () => {
-		try {
-			await loadBackgroundLandscape(context.stateApp);
-			assetsReady = true;
-		} catch (error) {
-			console.error('[plinko background] Failed to load spine assets', error);
-			loadError = error instanceof Error ? error.message : String(error);
-		}
+	$effect(() => {
+		const app = context.stateApp.pixiApplication;
+		if (!app || assetsReady || loadError) return;
+
+		let cancelled = false;
+
+		void (async () => {
+			try {
+				await loadBackgroundLandscape(context.stateApp);
+				if (!cancelled) assetsReady = true;
+			} catch (error) {
+				if (!cancelled) {
+					console.error('[plinko background] Failed to load spine assets', error);
+					loadError = error instanceof Error ? error.message : String(error);
+				}
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	onDestroy(() => {
-		context.stateApp.loadedAssets = {};
-		context.stateApp.loaded = false;
+		const { backgroundLandscape: _, ...rest } = context.stateApp.loadedAssets;
+		context.stateApp.loadedAssets = rest;
 	});
 </script>
 

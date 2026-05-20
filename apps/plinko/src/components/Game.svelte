@@ -52,6 +52,7 @@
 
 	import { BonusMeter, FreeSpinMeter } from '../features/meters';
 
+	import { BackgroundLandscape } from '../features/background';
 	import { isMobile } from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { slotColorForMultiplier } from '../game-logic/slotColors';
@@ -269,6 +270,10 @@
 
 
 <main class="game-root" class:game-root--mobile={mobile}>
+
+	{#if !mobile}
+		<BackgroundLandscape />
+	{/if}
 
 	<div
 		class="bg-layer"
