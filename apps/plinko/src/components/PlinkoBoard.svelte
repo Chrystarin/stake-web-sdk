@@ -59,62 +59,89 @@
 
 	};
 
+	const MIN_HOST_PX = 48;
 
+	/** Flex layout often reports 0×0 on cold load; wait so peg/ball radii are not zero. */
+	function waitForHostLayout(el: HTMLElement): Promise<void> {
+		return new Promise((resolve) => {
+			const usable = () => {
+				const r = el.getBoundingClientRect();
+				const w = Math.round(r.width) || Math.round(el.clientWidth);
+				const h = Math.round(r.height) || Math.round(el.clientHeight);
+				return w >= MIN_HOST_PX && h >= MIN_HOST_PX;
+			};
+			if (usable()) {
+				resolve();
+				return;
+			}
+			const ro = new ResizeObserver(() => {
+				if (usable()) {
+					ro.disconnect();
+					resolve();
+				}
+			});
+			ro.observe(el);
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					if (usable()) {
+						ro.disconnect();
+						resolve();
+					}
+				});
+			});
+			window.setTimeout(() => {
+				ro.disconnect();
+				resolve();
+			}, 2500);
+		});
+	}
+
+	async function bootstrapEngine(eng: PlinkoEngine) {
+		await eng.init();
+		await tick();
+		syncEngineScene();
+		if (props.animationSpeed != null) eng.animationSpeed = props.animationSpeed;
+		await tick();
+		eng.bustResizeDedupe();
+		eng.refreshLayoutSync();
+		queueMicrotask(() => {
+			eng.bustResizeDedupe();
+			eng.refreshLayoutSync();
+		});
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => eng.refreshLayoutSync());
+		});
+	}
 
 	onMount(() => {
+		let disposed = false;
+		let hostLayoutObserver: ResizeObserver | undefined;
+		let eng: PlinkoEngine | undefined;
 
-		const eng = new PlinkoEngine({
+		void waitForHostLayout(hostEl).then(async () => {
+			if (disposed) return;
+			eng = new PlinkoEngine({
+				hostElement: hostEl,
+				onBallDropped: handleBallDropped,
+				onCoinPegHit: () => props.onCoinPegHit?.(),
+			});
+			engine = eng;
+			await bootstrapEngine(eng);
 
-			hostElement: hostEl,
-
-			onBallDropped: handleBallDropped,
-
-			onCoinPegHit: () => props.onCoinPegHit?.(),
-
-		});
-
-		engine = eng;
-
-		void eng.init().then(async () => {
-
-			await tick();
-
-			syncEngineScene();
-
-			if (props.animationSpeed != null) eng.animationSpeed = props.animationSpeed;
-
-			await tick();
-
-			eng.bustResizeDedupe();
-
-			eng.refreshLayoutSync();
-
-			queueMicrotask(() => {
-
+			hostLayoutObserver = new ResizeObserver(() => {
+				if (!eng?.hostHasLayoutExtent()) return;
 				eng.bustResizeDedupe();
-
-				eng.refreshLayoutSync();
-
+				syncEngineScene();
 			});
-
-			requestAnimationFrame(() => {
-
-				requestAnimationFrame(() => eng.refreshLayoutSync());
-
-			});
-
+			hostLayoutObserver.observe(hostEl);
 		});
-
-
 
 		return () => {
-
-			eng.destroy();
-
+			disposed = true;
+			hostLayoutObserver?.disconnect();
+			eng?.destroy();
 			engine = undefined;
-
 		};
-
 	});
 
 

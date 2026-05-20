@@ -30,7 +30,13 @@ export type RawSpriteSheet = { textures: PIXI.Dict<LoadedSprite> };
 export type RawAsset = RawSpine | RawSprite | RawSprites | RawSpriteSheet | RawAudio;
 export type RawType = 'spine' | 'sprite' | 'sprites' | 'spriteSheet' | 'font' | 'audio';
 
-export type SpineSrc = { skeleton: string; atlas: string; scale?: number };
+export type SpineSrc = {
+	skeleton: string;
+	atlas: string;
+	scale?: number;
+	/** Atlas page name → texture URL. Required on Windows when the atlas references multiple PNGs. */
+	images?: Record<string, string>;
+};
 export type Asset = { type: RawType; src: string | SpineSrc; preload?: boolean };
 export type Assets = PIXI.Dict<Asset>;
 

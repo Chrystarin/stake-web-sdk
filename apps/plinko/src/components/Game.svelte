@@ -53,9 +53,10 @@
 	import { BonusMeter, FreeSpinMeter } from '../features/meters';
 
 	import { isMobile } from '../lib/format';
-	import { staticUrl } from '../lib/staticUrl';
+	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { slotColorForMultiplier } from '../game-logic/slotColors';
 
+	import { BackgroundLandscape } from '../features/background';
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
 
 	import EnableGameActor from './EnableGameActor.svelte';
@@ -270,12 +271,13 @@
 
 <main class="game-root" class:game-root--mobile={mobile}>
 
+	{#if !mobile}
+		<BackgroundLandscape />
+	{/if}
+
 	<div
-
 		class="bg-layer"
-
-		style:background-image="url({mobile ? staticUrl('img/background-mobile.png') : staticUrl('img/background.png')})"
-
+		style:background-image={mobile ? staticCssUrl('img/background-mobile.png') : undefined}
 	></div>
 
 
@@ -300,49 +302,19 @@
 
 
 
-	<header class="top-hud">
+	{#if !mobile}
+		<header class="top-hud">
+			<div class="top-hud-actions">
+				<button
+					class="top-hud-btn top-hud-btn--menu"
+					type="button"
+					style:background-image={staticCssUrl('img/menu-btn.png')}
+					onclick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
+					aria-label="Menu"
+				></button>
 
-		<div class="balance-pill" style:background-image="url({staticUrl('img/balance-frame.png')})">
-
-			<img src={staticUrl('img/wallet-ico.png')} alt="" class="ico" />
-
-			<span>{context.i18nDerived.t('Balance')}</span>
-
-			<strong>{stateBet.balanceAmount.toFixed(2)} {stateBet.currency}</strong>
-
-		</div>
-
-		<div class="top-actions">
-
-			{#if mobile}
-
-				<button type="button" class="buy-bonus-btn" aria-label="Buy bonus">
-
-					<img src={staticUrl('img/buy-bonus-btn.png')} alt="" />
-
-				</button>
-
-			{/if}
-
-			<button
-
-				class="icon-btn"
-
-				type="button"
-
-				onclick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
-
-				aria-label="Menu"
-
-			>
-
-				<img src={mobile ? staticUrl('img/menu-btn-mobile.png') : staticUrl('img/menu-btn.png')} alt="" />
-
-			</button>
-
-			{#if stateGame.menuOpen}
-
-				<div class="menu-popup">
+				{#if stateGame.menuOpen}
+					<div class="hud-menu-popup">
 
 					<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
 
@@ -388,17 +360,57 @@
 
 					</button>
 
-				</div>
+					</div>
+				{/if}
+			</div>
+		</header>
+	{/if}
 
-			{/if}
-
+	{#if mobile && stateGame.menuOpen}
+		<div class="hud-menu-popup hud-menu-popup--mobile">
+			<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
+			<button type="button" onclick={() => openInfo('fair')}>Provably fair</button>
+			<button type="button" onclick={() => openInfo('rules')}>Game rules</button>
+			<button type="button" onclick={() => openInfo('history')}>Bet history</button>
+			<button
+				type="button"
+				onclick={() => {
+					stateGame.fastGameEnabled = !stateGame.fastGameEnabled;
+					stateGame.menuOpen = false;
+				}}
+			>
+				Fast: {stateGame.fastGameEnabled ? 'ON' : 'OFF'}
+			</button>
+			<button
+				type="button"
+				onclick={() => {
+					stateGame.animationEnabled = !stateGame.animationEnabled;
+					stateGame.menuOpen = false;
+				}}
+			>
+				Anim: {stateGame.animationEnabled ? 'ON' : 'OFF'}
+			</button>
+			<button
+				type="button"
+				onclick={() => {
+					stateGame.soundEnabled = !stateGame.soundEnabled;
+					stateGame.menuOpen = false;
+				}}
+			>
+				Sound: {stateGame.soundEnabled ? 'ON' : 'OFF'}
+			</button>
 		</div>
+	{/if}
 
-	</header>
-
-
-
-	<div class="board-area">
+	<div class="game-content">
+		<div class="board-area">
+		{#if mobile}
+			<div class="top-hud">
+				<button type="button" class="top-hud-buy-bonus" aria-label="Buy bonus">
+					<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
+				</button>
+			</div>
+		{/if}
 
 		<div class="bonus-meter-wrap">
 
@@ -412,7 +424,11 @@
 
 			class:board-frame--bonus={stateGameDerived.isBonusBackgroundActive}
 
-			style:background-image="url({stateGameDerived.isBonusBackgroundActive ? staticUrl('img/game_area_bonus.png') : staticUrl('img/game_area_background.png')})"
+			style:background-image={staticCssUrl(
+				stateGameDerived.isBonusBackgroundActive
+					? 'img/game_area_bonus.png'
+					: 'img/game_area_background.png',
+			)}
 
 		>
 
@@ -441,46 +457,29 @@
 
 
 	<GameHud
-
 		betAmount={stateBet.betAmount}
-
 		winAmount={stateGame.winAmount}
-
 		totalBetAmount={stateBet.betAmount * stateGame.ballPerDrop}
-
 		onBetAmountChange={handleBetAmountChange}
-
 		onPlay={handlePlay}
-
-		onToggleAuto={toggleAuto}
-
 		autoMode={stateGame.autoMode}
-
 		autoPlayStarted={stateGame.autoPlayStarted}
-
 		autoRoundsLeft={stateGame.autoRoundsDisplay}
-
 		spinMeterProgress={stateGameDerived.spinMeterProgress}
-
 		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
-
 		bonusBallsRemaining={stateGame.bonusBallsRemaining}
-
 		playDisabled={stateGame.isSubmitting || stateGame.isAnimating}
-
 		bonusPlayDisabled={stateGame.bonusRouletteOpen}
-
 		{mobile}
-
-	/>
-
-
+		onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
+		/>
+	</div>
 
 	{#if stateGame.showWinPopup}
 
 		<div class="win-overlay" role="dialog">
 
-			<div class="win-card" style:background-image="url({staticUrl('img/win_bg.svg')})">
+			<div class="win-card" style:background-image={staticCssUrl('img/win_bg.svg')}>
 
 				<p>{context.i18nDerived.t('Win')}</p>
 
@@ -556,15 +555,51 @@
 
 		height: 100vh;
 
-		display: grid;
+		height: 100dvh;
 
-		grid-template-rows: auto 1fr auto;
+		display: flex;
+
+		flex-direction: column;
 
 		overflow: hidden;
 
 		position: relative;
 
+		isolation: isolate;
+
 		font-family: 'Instrument Sans', system-ui, sans-serif;
+
+		background: transparent;
+
+	}
+
+	.game-root :global(.background-landscape-root) {
+
+		z-index: 0;
+
+	}
+
+	.game-root:not(.game-root--mobile) .bg-layer {
+
+		pointer-events: none;
+
+	}
+
+	.game-content {
+
+		flex: 1;
+
+		min-height: 0;
+
+		position: relative;
+
+		display: flex;
+
+		flex-direction: column;
+
+		z-index: 1;
+
+		overflow: hidden;
 
 	}
 
@@ -574,11 +609,15 @@
 
 		inset: 0;
 
+		z-index: 0;
+
+		overflow: hidden;
+
 		background-size: cover;
 
 		background-position: center;
 
-		z-index: 0;
+		pointer-events: none;
 
 	}
 
@@ -604,129 +643,101 @@
 
 	.top-hud {
 
-		position: relative;
+		position: absolute;
 
-		z-index: 10;
+		top: 0.55vw;
 
-		display: flex;
+		left: 0.9vw;
 
-		justify-content: space-between;
+		right: 0.9vw;
 
-		align-items: center;
+		z-index: 20;
 
-		padding: 12px 16px;
-
-	}
-
-	.balance-pill {
+		height: 3vw;
 
 		display: flex;
 
-		align-items: center;
+		align-items: stretch;
 
-		gap: 8px;
+		justify-content: flex-end;
 
-		background: center/100% 100% no-repeat;
+		padding: 0;
 
-		padding: 8px 20px;
-
-		color: #e8f4ff;
-
-		font-size: 14px;
+		pointer-events: none;
 
 	}
 
-	.balance-pill strong {
+	.top-hud > * {
 
-		color: #fff;
-
-	}
-
-	.ico {
-
-		width: 20px;
-
-		height: 20px;
+		pointer-events: auto;
 
 	}
 
-	.top-actions {
+	.top-hud-actions {
 
 		position: relative;
 
 		display: flex;
 
-		align-items: center;
+		align-items: stretch;
 
-		gap: 8px;
+		gap: 0.45vw;
+
+		height: 100%;
 
 	}
 
-	.buy-bonus-btn {
+	.top-hud-btn {
+
+		width: auto;
+
+		height: 100%;
+
+		aspect-ratio: 1 / 1;
 
 		border: none;
 
-		background: none;
-
-		padding: 0;
+		background: center / 100% 100% no-repeat;
 
 		cursor: pointer;
 
-	}
-
-	.buy-bonus-btn img {
-
-		height: 40px;
+		transition: transform 0.12s ease;
 
 	}
 
-	.icon-btn {
-
-		background: none;
-
-		border: none;
-
-		cursor: pointer;
-
-		padding: 0;
-
-	}
-
-	.icon-btn img {
-
-		height: 40px;
-
-	}
-
-	.menu-popup {
+	.hud-menu-popup {
 
 		position: absolute;
 
+		top: calc(100% + 0.55vw);
+
 		right: 0;
 
-		top: 100%;
+		width: min(280px, 16.8vw);
 
-		background: rgba(10, 18, 28, 0.95);
+		border-radius: 0.2vw;
 
-		border: 1px solid rgba(255, 255, 255, 0.12);
+		border: 0.08vw dashed rgba(255, 255, 255, 0.12);
 
-		border-radius: 8px;
+		background: linear-gradient(180deg, rgba(22, 24, 31, 0.98) 0%, rgba(16, 18, 24, 0.99) 100%);
 
-		padding: 8px;
+		box-shadow:
+			inset 0 0.04vw 0 rgba(255, 255, 255, 0.04),
+			0 0.45vw 1.1vw rgba(0, 0, 0, 0.45);
+
+		padding: 0.7vw 0.8vw 0.8vw;
 
 		display: flex;
 
 		flex-direction: column;
 
-		gap: 4px;
+		gap: 0.35vw;
 
-		min-width: 180px;
-
-		z-index: 20;
+		z-index: 30;
 
 	}
 
-	.menu-popup button {
+	.hud-menu-popup button {
 
 		background: transparent;
 
@@ -736,9 +747,29 @@
 
 		text-align: left;
 
-		padding: 8px;
+		padding: 0.45vw 0.35vw;
 
 		cursor: pointer;
+
+		font-size: clamp(12px, 0.85vw, 14px);
+
+	}
+
+	.hud-menu-popup--mobile {
+
+		position: fixed;
+
+		top: clamp(72px, 18vw, 112px);
+
+		right: clamp(10px, 3vw, 18px);
+
+		width: min(92vw, 320px);
+
+		border-radius: 8px;
+
+		padding: 12px;
+
+		gap: 6px;
 
 	}
 
@@ -746,7 +777,7 @@
 
 		position: relative;
 
-		z-index: 1;
+		flex: 1;
 
 		min-height: 0;
 
@@ -755,6 +786,62 @@
 		display: flex;
 
 		flex-direction: column;
+
+		overflow: hidden;
+
+	}
+
+	.game-root--mobile .board-area .top-hud {
+
+		top: 0.6vw;
+
+		left: 0;
+
+		right: 0;
+
+		height: 7.6vw;
+
+		justify-content: space-between;
+
+	}
+
+	.top-hud-buy-bonus {
+
+		position: absolute;
+
+		top: 0;
+
+		right: 0;
+
+		width: clamp(72px, 18vw, 112px);
+
+		height: clamp(72px, 18vw, 112px);
+
+		border: none;
+
+		background: transparent;
+
+		padding: 0;
+
+		margin: 0;
+
+		cursor: pointer;
+
+		z-index: 22;
+
+	}
+
+	.top-hud-buy-bonus img {
+
+		width: 100%;
+
+		height: 100%;
+
+		display: block;
+
+		object-fit: contain;
+
+		pointer-events: none;
 
 	}
 

@@ -104,6 +104,7 @@ export class PlinkoEngine {
 		/** Slots + multipliers come from coefficient rows; wait until they exist (config or RGS hydrate) before rebuilding. */
 		if (this.rows && this.pixiReady && this.app) {
 			this.updateContainerSize();
+			this.ensureLayoutDimensionsFromRendererIfNeeded();
 			this.rebuildScene();
 		}
 	}
@@ -193,7 +194,9 @@ export class PlinkoEngine {
   }
 
   get pegRadius(): number {
-    return this.containerHeight * 0.0135 * this.elementScale;
+    const raw = this.containerHeight * 0.0135 * this.elementScale;
+    if (!Number.isFinite(raw) || raw <= 0) return 2;
+    return Math.max(2, raw);
   }
 
   get ballRadius(): number {
@@ -201,7 +204,9 @@ export class PlinkoEngine {
     const desiredRadius = this.containerHeight * 0.0245 * this.elementScale;
     // Keep enough clearance so a falling ball fits between neighboring pegs.
     const laneSafeRadius = Math.max(1, (this.pegSpacingX - this.pegRadius * 2) * 0.46);
-    return Math.min(desiredRadius, laneSafeRadius);
+    const raw = Math.min(desiredRadius, laneSafeRadius);
+    if (!Number.isFinite(raw) || raw <= 0) return 2;
+    return Math.max(2, raw);
   }
 
   get slotBounceHeight(): number {
@@ -385,6 +390,7 @@ export class PlinkoEngine {
     this.resizeObserver.observe(this.hostElement);
 
     this.pixiReady = true;
+    this.ensureLayoutDimensionsFromRendererIfNeeded();
     if (this.coefficients.length && this.rows) {
       this.rebuildScene();
     }
@@ -393,6 +399,15 @@ export class PlinkoEngine {
       this.bustResizeDedupe();
       this.resizeCanvasToContainer();
     });
+  }
+
+  /** True when the DOM host has a real flex box (not the transient 0×0 on cold load). */
+  hostHasLayoutExtent(): boolean {
+    const host = this.hostElement;
+    const rect = host.getBoundingClientRect();
+    const w = Math.round(rect.width) || Math.round(host.clientWidth);
+    const h = Math.round(rect.height) || Math.round(host.clientHeight);
+    return this.measurementsLookUsable(w, h);
   }
 
   private updateContainerSize(): void {

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import '@esotericsoftware/spine-pixi-v8';
 	import * as PIXI from 'pixi.js';
 
 	import { getContextApp } from '../context.svelte';
 	import { getProcessed } from '../assetLoad';
-	import type { LoadedAssets, RawAsset } from '../types';
+	import type { LoadedAssets, RawAsset, RawSpine, SpineSrc } from '../types';
 
 	type Props = { children: Snippet };
 
@@ -44,9 +45,29 @@
 			nameList.map(async (key) => {
 				try {
 					const { type, src } = context.stateApp.assets![key];
-					const loadSrc =
-						type === 'spine' ? Object.values(src).filter((item) => typeof item === 'string') : src;
-					const rawAsset = await PIXI.Assets.load<RawAsset>(loadSrc, onProgress);
+					let rawAsset: RawAsset;
+
+					if (type === 'spine' && typeof src === 'object') {
+						const spineSrc = src as SpineSrc;
+						const atlasAsset = spineSrc.images
+							? { src: spineSrc.atlas, data: { images: spineSrc.images } }
+							: spineSrc.atlas;
+						const [atlas, skeleton] = await Promise.all([
+							PIXI.Assets.load(atlasAsset, onProgress),
+							PIXI.Assets.load(spineSrc.skeleton, onProgress),
+						]);
+						rawAsset = {
+							[spineSrc.atlas]: atlas,
+							[spineSrc.skeleton]: skeleton,
+						} as RawSpine;
+					} else {
+						const loadSrc =
+							type === 'spine'
+								? Object.values(src).filter((item) => typeof item === 'string')
+								: src;
+						rawAsset = await PIXI.Assets.load<RawAsset>(loadSrc, onProgress);
+					}
+
 					const processed = getProcessed({ key, rawAsset, type, src });
 					return processed;
 				} catch (error) {

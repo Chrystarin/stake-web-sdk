@@ -1,18 +1,29 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+
 	import { stateBet } from 'state-shared';
 
+	import config from '../game/config';
 	import {
 		AUTO_BET_OPTIONS,
 		BALL_PER_DROP_TIERS,
 		BET_PER_BALL_PRESETS,
-		DIFFICULTY_LABELS,
-		ROW_COUNT_OPTIONS,
 	} from '../game-logic/constants';
-	import { isBetControlsLocked, isBonusPlayButtonDisabled } from '../game/gameOrchestrator';
+	import {
+		isBetControlsLocked,
+		isBonusPlayButtonDisabled,
+		isGameOngoing,
+		isPlayActionBlockedByBonusRoulette,
+		isPlayActionBlockedByFreeSpinRoulette,
+		startAutoBet,
+		stopAutoBet,
+	} from '../game/gameOrchestrator';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/meters';
 	import { staticUrl } from '../lib/staticUrl';
+
+	import './GameHud.scss';
 
 	type Props = {
 		betAmount: number;
@@ -20,7 +31,6 @@
 		totalBetAmount: number;
 		onBetAmountChange: (value: number) => void;
 		onPlay: () => void;
-		onToggleAuto: () => void;
 		autoMode: boolean;
 		autoPlayStarted: boolean;
 		autoRoundsLeft: number;
@@ -30,6 +40,7 @@
 		playDisabled?: boolean;
 		bonusPlayDisabled?: boolean;
 		mobile?: boolean;
+		onMenuClick?: () => void;
 	};
 
 	const props: Props = $props();
@@ -37,361 +48,628 @@
 
 	let autoPanelOpen = $state(false);
 	let betPresetOpen = $state(false);
+	let mobileBetPopupOpen = $state(false);
 
-	const difficultyLabel = $derived(DIFFICULTY_LABELS[stateGame.difficultyLevelId] ?? 'Easy');
+	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
 	const controlsLocked = $derived(isBetControlsLocked());
 	const bonusPlayDisabled = $derived(isBonusPlayButtonDisabled() || props.bonusPlayDisabled);
+	const availableBetPresets = $derived(
+		BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet),
+	);
 
-	function cycleDifficulty() {
-		stateGame.difficultyLevelId = (stateGame.difficultyLevelId + 1) % DIFFICULTY_LABELS.length;
+	const playDisabledMain = $derived(
+		props.playDisabled ||
+			isPlayActionBlockedByBonusRoulette() ||
+			isPlayActionBlockedByFreeSpinRoulette(),
+	);
+
+	const mobileAutoCountDisplay = $derived(
+		props.autoPlayStarted ? '■' : String(props.autoRoundsLeft || stateGame.autoRoundsLeft),
+	);
+
+	function formatMoney(value: number) {
+		return `${currencySign}${value.toFixed(2)}`;
+	}
+
+	function getClosestPresetIndex(presets: readonly number[], amount: number) {
+		if (!presets.length) return 0;
+		let best = 0;
+		let bestDiff = Math.abs(presets[0] - amount);
+		for (let i = 1; i < presets.length; i++) {
+			const diff = Math.abs(presets[i] - amount);
+			if (diff < bestDiff) {
+				bestDiff = diff;
+				best = i;
+			}
+		}
+		return best;
+	}
+
+	function adjustBetAmountStep(delta: number) {
+		if (controlsLocked || delta === 0) return;
+		const presets = availableBetPresets;
+		if (!presets.length) return;
+		const idx = getClosestPresetIndex(presets, props.betAmount);
+		const next = idx + (delta > 0 ? 1 : -1);
+		if (next < 0 || next >= presets.length) return;
+		props.onBetAmountChange(presets[next]);
+	}
+
+	function isBetAmountStepDisabled(delta: number) {
+		if (controlsLocked || delta === 0) return true;
+		const presets = availableBetPresets;
+		if (presets.length <= 1) return true;
+		const idx = getClosestPresetIndex(presets, props.betAmount);
+		if (delta > 0) return idx >= presets.length - 1;
+		return idx <= 0;
+	}
+
+	function adjustBallPerDrop(delta: number) {
+		if (controlsLocked || delta === 0) return;
+		const arr = BALL_PER_DROP_TIERS;
+		let idx = arr.indexOf(stateGame.ballPerDrop as (typeof BALL_PER_DROP_TIERS)[number]);
+		if (idx < 0) idx = 0;
+		const next = idx + delta;
+		if (next < 0 || next >= arr.length) return;
+		stateGame.ballPerDrop = arr[next];
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
 
-	function cycleRowCount() {
-		const idx = ROW_COUNT_OPTIONS.indexOf(stateGame.rowCount as (typeof ROW_COUNT_OPTIONS)[number]);
-		stateGame.rowCount = ROW_COUNT_OPTIONS[(idx + 1) % ROW_COUNT_OPTIONS.length];
+	function isBallPerDropStepDisabled(delta: number) {
+		if (controlsLocked || delta === 0) return true;
+		const arr = BALL_PER_DROP_TIERS;
+		let idx = arr.indexOf(stateGame.ballPerDrop as (typeof BALL_PER_DROP_TIERS)[number]);
+		if (idx < 0) idx = 0;
+		const next = idx + delta;
+		return next < 0 || next >= arr.length;
 	}
 
-	function cycleBallPerDrop() {
-		const idx = BALL_PER_DROP_TIERS.indexOf(stateGame.ballPerDrop as (typeof BALL_PER_DROP_TIERS)[number]);
-		stateGame.ballPerDrop = BALL_PER_DROP_TIERS[(idx + 1) % BALL_PER_DROP_TIERS.length];
-	}
-
-	function setBetPreset(amount: number) {
-		props.onBetAmountChange(amount);
+	function closePanels() {
+		autoPanelOpen = false;
 		betPresetOpen = false;
 	}
 
-	function selectAutoRounds(n: number) {
-		stateGame.autoRoundsLeft = n;
+	function onBetPerBallPanelTrigger(event: MouseEvent) {
+		event.stopPropagation();
+		if (controlsLocked) return;
 		autoPanelOpen = false;
+		betPresetOpen = !betPresetOpen;
 	}
+
+	function selectBetPerBallOption(value: number) {
+		props.onBetAmountChange(value);
+		betPresetOpen = false;
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
+	}
+
+	function onAutoButtonClick(event: MouseEvent) {
+		event.stopPropagation();
+		if (controlsLocked && !props.autoPlayStarted) return;
+		if (props.autoMode) {
+			stateGame.autoMode = false;
+			stopAutoBet();
+			autoPanelOpen = false;
+			return;
+		}
+		betPresetOpen = false;
+		autoPanelOpen = !autoPanelOpen;
+	}
+
+	function selectAutoBetCount(count: number) {
+		if (controlsLocked && !props.autoPlayStarted) return;
+		stateGame.autoRoundsLeft = count;
+		stateGame.autoMode = true;
+		autoPanelOpen = false;
+		if (!props.autoPlayStarted && props.betAmount > 0 && !isGameOngoing()) {
+			startAutoBet(() => props.onPlay());
+			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
+		}
+	}
+
+	function onAutoGameStopClick() {
+		stateGame.autoMode = false;
+		stopAutoBet();
+	}
+
+	function onAutoGameStartClick() {
+		if (props.betAmount <= 0 || playDisabledMain) return;
+		startAutoBet(() => props.onPlay());
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
+	}
+
+	function onMainActionClick() {
+		if (props.hasPendingBonusBalls || !props.autoMode) {
+			props.onPlay();
+			return;
+		}
+		if (props.autoPlayStarted) {
+			onAutoGameStopClick();
+		} else {
+			onAutoGameStartClick();
+		}
+	}
+
+	function isMainActionDisabled() {
+		if (props.hasPendingBonusBalls) return bonusPlayDisabled;
+		if (props.autoMode) {
+			return props.autoPlayStarted ? false : playDisabledMain || props.betAmount <= 0;
+		}
+		return playDisabledMain;
+	}
+
+	function toggleMobileBetPopup() {
+		mobileBetPopupOpen = !mobileBetPopupOpen;
+		if (mobileBetPopupOpen) autoPanelOpen = false;
+	}
+
+	function onMobileAutoButtonClick(event: MouseEvent) {
+		event.stopPropagation();
+		if (props.autoPlayStarted) {
+			onAutoGameStopClick();
+			autoPanelOpen = false;
+			return;
+		}
+		if (props.autoMode) {
+			stateGame.autoMode = false;
+			stopAutoBet();
+			autoPanelOpen = false;
+			return;
+		}
+		if (controlsLocked) return;
+		mobileBetPopupOpen = false;
+		autoPanelOpen = !autoPanelOpen;
+	}
+
+	function selectMobileAutoBetCount(count: number) {
+		selectAutoBetCount(count);
+	}
+
+	onMount(() => {
+		const onDocumentClick = (event: MouseEvent) => {
+			const target = event.target as HTMLElement | null;
+			if (!target) return;
+			if (
+				target.closest('.bp-auto-wrap') ||
+				target.closest('.bp-autobet-panel') ||
+				target.closest('.bp-bet-presets-wrap') ||
+				target.closest('.bp-bet-presets-panel') ||
+				target.closest('.mobile-autobet-wrap') ||
+				target.closest('.mobile-autobet-panel')
+			) {
+				return;
+			}
+			closePanels();
+		};
+		document.addEventListener('click', onDocumentClick);
+		return () => document.removeEventListener('click', onDocumentClick);
+	});
 </script>
 
-<section
-	class="bet-panel"
-	class:bet-panel--mobile={props.mobile}
-	style:background-image="url({staticUrl('img/betting-component-frame.png')})"
->
-	<div class="free-spin-meter-wrap">
-		<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
-	</div>
+{#snippet bettingFieldFrame()}
+	<img
+		class="bp-field-frame"
+		src={staticUrl('img/betting-component-frame.png')}
+		alt=""
+		aria-hidden="true"
+	/>
+{/snippet}
 
-	<div class="stats-row">
-		<div class="stat">
-			<span class="stat-label">{context.i18nDerived.t('Balance')}</span>
-			<strong>{stateBet.balanceAmount.toFixed(2)}</strong>
-		</div>
-		<div class="stat">
-			<span class="stat-label">{context.i18nDerived.t('Bet')}</span>
-			<strong>{props.totalBetAmount.toFixed(2)}</strong>
-		</div>
-		<div class="stat">
-			<span class="stat-label">{context.i18nDerived.t('Win')}</span>
-			<strong class="win-val">{props.winAmount.toFixed(2)}</strong>
-		</div>
-	</div>
-
-	<div class="bet-row">
-		<span class="row-label">{context.i18nDerived.t('Difficulty')}</span>
-		<button class="chip" type="button" disabled={controlsLocked} onclick={cycleDifficulty}>
-			{difficultyLabel}
-		</button>
-	</div>
-	<div class="bet-row">
-		<span class="row-label">Rows</span>
-		<button class="chip" type="button" disabled={controlsLocked} onclick={cycleRowCount}>
-			{stateGame.rowCount}
-		</button>
-	</div>
-	<div class="bet-row">
-		<span class="row-label">{context.i18nDerived.t('Ball per drop')}</span>
-		<button class="chip" type="button" disabled={controlsLocked} onclick={cycleBallPerDrop}>
-			{stateGame.ballPerDrop}
-		</button>
-	</div>
-	<div class="bet-row bet-amount-row">
-		<span class="row-label">{context.i18nDerived.t('Bet per ball')}</span>
-		<div class="amount-wrap">
-			<button
-				class="step"
-				type="button"
-				disabled={controlsLocked}
-				onclick={() => props.onBetAmountChange(Math.max(0.01, props.betAmount / 2))}
-			>
-				<img src={staticUrl('img/betting-component-input-decrease.png')} alt="-" />
-			</button>
-			<span class="amount">{props.betAmount.toFixed(2)}</span>
-			<button
-				class="step"
-				type="button"
-				disabled={controlsLocked}
-				onclick={() => props.onBetAmountChange(props.betAmount * 2)}
-			>
-				<img src={staticUrl('img/betting-component-input-increase.png')} alt="+" />
-			</button>
-			<button
-				class="preset-toggle"
-				type="button"
-				disabled={controlsLocked}
-				onclick={() => (betPresetOpen = !betPresetOpen)}>▼</button
-			>
-		</div>
-		{#if betPresetOpen}
-			<div class="preset-panel">
-				{#each BET_PER_BALL_PRESETS as preset}
-					<button type="button" onclick={() => setBetPreset(preset)}>{preset}</button>
-				{/each}
+{#if props.mobile}
+	<div class="mobile-hud">
+		<div class="mobile-top-row">
+			<div class="mobile-top-card">
+				{@render bettingFieldFrame()}
+				<span class="mobile-top-card-label">{context.i18nDerived.t('Bet')}</span>
+				<span class="mobile-top-card-value">{formatMoney(props.totalBetAmount)}</span>
 			</div>
-		{/if}
-	</div>
+			<div class="mobile-top-card">
+				{@render bettingFieldFrame()}
+				<span class="mobile-top-card-label">{context.i18nDerived.t('Ball per drop')}</span>
+				<span class="mobile-top-card-value">{stateGame.ballPerDrop}</span>
+			</div>
+			<div class="mobile-top-card">
+				{@render bettingFieldFrame()}
+				<span class="mobile-top-card-label">{context.i18nDerived.t('Bet per ball')}</span>
+				<span class="mobile-top-card-value">{props.betAmount.toFixed(2)}</span>
+			</div>
+			<div class="mobile-top-card mobile-top-card--free-spin">
+				<div class="mobile-free-spin-meter">
+					<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+				</div>
+			</div>
+		</div>
 
-	<div class="actions">
-		<button
-			class="play-btn"
-			type="button"
-			class:play-btn--bonus={props.hasPendingBonusBalls}
-			disabled={props.hasPendingBonusBalls ? bonusPlayDisabled : props.playDisabled}
-			onclick={props.onPlay}
-		>
-			<img
-				src={props.hasPendingBonusBalls
-					? staticUrl('img/play-btn.png')
-					: props.mobile
-						? staticUrl('img/play-btn-mobile.png')
-						: staticUrl('img/play-btn.png')}
-				alt=""
-			/>
-			{#if props.hasPendingBonusBalls}
-				<span class="bonus-badge">{props.bonusBallsRemaining}</span>
-			{/if}
-		</button>
-		<button
-			class="auto-btn"
-			type="button"
-			class:auto-btn--on={props.autoMode}
-			class:auto-btn--running={props.autoPlayStarted}
-			disabled={controlsLocked}
-			onclick={() => (autoPanelOpen = !autoPanelOpen)}
-		>
-			<img
-				src={props.mobile ? staticUrl('img/auto-bet-btn-mobile.png') : staticUrl('img/auto-bet-btn.png')}
-				alt=""
-			/>
-			{#if props.autoMode}<span class="auto-count">{props.autoRoundsLeft}</span>{/if}
-		</button>
-		<button
-			class="fast-btn"
-			type="button"
-			class:fast-btn--on={stateGame.fastGameEnabled}
-			disabled={controlsLocked}
-			onclick={() => (stateGame.fastGameEnabled = !stateGame.fastGameEnabled)}
-		>
-			<img src={props.mobile ? staticUrl('img/fast-game-btn-mobile.png') : staticUrl('img/fast-game-btn.png')} alt="" />
-		</button>
-		{#if autoPanelOpen}
-			<div class="auto-panel">
-				{#each AUTO_BET_OPTIONS as n}
-					<button type="button" onclick={() => selectAutoRounds(n)}>{n}</button>
-				{/each}
-				<button type="button" class="start-auto" onclick={props.onToggleAuto}>
-					{props.autoPlayStarted
-						? context.i18nDerived.t('Stop autobet')
-						: context.i18nDerived.t('Start autobet')}
+		<div class="mobile-action-row">
+			<button
+				type="button"
+				class="mobile-icon-btn mobile-icon-btn--menu"
+				aria-label="Menu"
+				onclick={() => props.onMenuClick?.()}
+			>
+				<img src={staticUrl('img/menu-btn-mobile.png')} alt="" aria-hidden="true" />
+			</button>
+			<button
+				type="button"
+				class="mobile-icon-btn mobile-icon-btn--fast"
+				class:mobile-icon-btn--fast-on={stateGame.fastGameEnabled}
+				disabled={controlsLocked}
+				aria-pressed={stateGame.fastGameEnabled}
+				aria-label="Fast game"
+				onclick={() => {
+					stateGame.fastGameEnabled = !stateGame.fastGameEnabled;
+					context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
+				}}
+			>
+				<img src={staticUrl('img/fast-game-btn-mobile.png')} alt="" aria-hidden="true" />
+			</button>
+			<button
+				type="button"
+				class="mobile-icon-btn mobile-icon-btn--play"
+				disabled={isMainActionDisabled()}
+				aria-label="Bet"
+				onclick={onMainActionClick}
+			>
+				<img src={staticUrl('img/play-btn-mobile.png')} alt="" aria-hidden="true" />
+				{#if props.hasPendingBonusBalls}
+					<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
+				{/if}
+			</button>
+			<button
+				type="button"
+				class="mobile-icon-btn mobile-icon-btn--coins"
+				aria-expanded={mobileBetPopupOpen}
+				aria-label="Open bet settings"
+				onclick={toggleMobileBetPopup}
+			>
+				<img src={staticUrl('img/coins-btn-mobile.png')} alt="" aria-hidden="true" />
+			</button>
+			<div class="mobile-autobet-wrap">
+				<button
+					type="button"
+					class="mobile-icon-btn mobile-icon-btn--autobet"
+					class:mobile-icon-btn--on={props.autoMode || props.autoPlayStarted}
+					disabled={controlsLocked && !props.autoPlayStarted}
+					aria-pressed={props.autoMode || props.autoPlayStarted}
+					aria-label="Autobet"
+					onclick={onMobileAutoButtonClick}
+				>
+					<img src={staticUrl('img/auto-bet-btn-mobile.png')} alt="" aria-hidden="true" />
+					{#if props.autoMode || props.autoPlayStarted}
+						<span class="mobile-autobet-count-badge">{mobileAutoCountDisplay}</span>
+					{/if}
 				</button>
+				{#if autoPanelOpen}
+					<div class="mobile-autobet-panel">
+						{#each AUTO_BET_OPTIONS as option}
+							<button
+								type="button"
+								class="mobile-autobet-option"
+								disabled={controlsLocked}
+								onclick={() => selectMobileAutoBetCount(option)}
+							>
+								{option}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		</div>
+
+		{#if mobileBetPopupOpen}
+			<div class="mobile-bet-popup" role="dialog" aria-label="Bet settings">
+				{@render bettingFieldFrame()}
+				<div class="mobile-bet-popup-row">
+					{@render bettingFieldFrame()}
+					<div class="mobile-bet-popup-mid">
+						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet')}</span>
+						<span class="mobile-bet-popup-value">{formatMoney(props.totalBetAmount)}</span>
+					</div>
+				</div>
+				<div class="mobile-bet-popup-row">
+					{@render bettingFieldFrame()}
+					<button
+						type="button"
+						class="mobile-bet-popup-step"
+						disabled={isBallPerDropStepDisabled(-1)}
+						aria-label="Decrease ball per drop"
+						onclick={() => adjustBallPerDrop(-1)}
+					>
+						−
+					</button>
+					<div class="mobile-bet-popup-mid">
+						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Ball per drop')}</span>
+						<span class="mobile-bet-popup-value">{stateGame.ballPerDrop}</span>
+					</div>
+					<button
+						type="button"
+						class="mobile-bet-popup-step"
+						disabled={isBallPerDropStepDisabled(1)}
+						aria-label="Increase ball per drop"
+						onclick={() => adjustBallPerDrop(1)}
+					>
+						+
+					</button>
+				</div>
+				<div class="mobile-bet-popup-row">
+					{@render bettingFieldFrame()}
+					<button
+						type="button"
+						class="mobile-bet-popup-step"
+						disabled={isBetAmountStepDisabled(-1)}
+						aria-label="Decrease bet per ball"
+						onclick={() => adjustBetAmountStep(-1)}
+					>
+						−
+					</button>
+					<div class="mobile-bet-popup-mid">
+						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet per ball')}</span>
+						<span class="mobile-bet-popup-value">{props.betAmount.toFixed(2)}</span>
+					</div>
+					<button
+						type="button"
+						class="mobile-bet-popup-step"
+						disabled={isBetAmountStepDisabled(1)}
+						aria-label="Increase bet per ball"
+						onclick={() => adjustBetAmountStep(1)}
+					>
+						+
+					</button>
+				</div>
 			</div>
 		{/if}
-	</div>
 
-	{#if stateGame.history.length}
-		<div class="history-strip">
-			{#each stateGame.history as item}
-				<span class="hist-pill" style:background={item.color}>{item.result}×</span>
-			{/each}
+		<div class="mobile-bottom-corners">
+			<div class="mobile-corner-info mobile-corner-info--left">
+				<img src={staticUrl('img/coin-ico.png')} alt="" aria-hidden="true" />
+				<span class="mobile-corner-label">{context.i18nDerived.t('Win')}:</span>
+				<span class="mobile-corner-value">{formatMoney(props.winAmount)}</span>
+			</div>
+			<div class="mobile-corner-info mobile-corner-info--right">
+				<img src={staticUrl('img/wallet-ico.png')} alt="" aria-hidden="true" />
+				<span class="mobile-corner-value">{formatMoney(stateBet.balanceAmount)}</span>
+			</div>
 		</div>
-	{/if}
-</section>
+	</div>
+{:else}
+	<div class="game-bottom-panel">
+		<div class="bp-free-spin-meter-wrap">
+			<div class="bp-free-spin-meter">
+				<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+			</div>
+		</div>
 
-<style>
-	.bet-panel {
-		margin: 0 12px 12px;
-		padding: 16px;
-		background: center/100% 100% no-repeat;
-		color: #d6e8f7;
-		font-family: 'Instrument Sans', system-ui, sans-serif;
-		position: relative;
-		z-index: 5;
-	}
-	.free-spin-meter-wrap {
-		width: min(100%, 420px);
-		height: clamp(28px, 4vh, 40px);
-		margin: 0 auto 12px;
-	}
-	.stats-row {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 8px;
-		margin-bottom: 12px;
-	}
-	.stat {
-		text-align: center;
-		font-size: 12px;
-	}
-	.stat strong {
-		display: block;
-		color: #fff;
-		font-size: 15px;
-	}
-	.win-val {
-		color: #fee663;
-	}
-	.bet-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 10px;
-	}
-	.chip {
-		background: rgba(0, 0, 0, 0.35);
-		border: 1px solid rgba(126, 200, 255, 0.35);
-		border-radius: 999px;
-		color: #fff;
-		padding: 6px 14px;
-		cursor: pointer;
-		min-width: 88px;
-	}
-	.chip:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-	.amount-wrap {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.step,
-	.preset-toggle {
-		width: 32px;
-		height: 32px;
-		border: none;
-		background: transparent;
-		cursor: pointer;
-		padding: 0;
-	}
-	.step img {
-		width: 100%;
-		height: 100%;
-	}
-	.amount {
-		min-width: 72px;
-		text-align: center;
-		font-weight: 700;
-		color: #fff;
-	}
-	.preset-panel,
-	.auto-panel {
-		position: absolute;
-		right: 24px;
-		bottom: 100%;
-		background: rgba(8, 14, 22, 0.96);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		padding: 8px;
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
-		gap: 6px;
-		z-index: 10;
-	}
-	.preset-panel button,
-	.auto-panel button {
-		background: rgba(255, 255, 255, 0.06);
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		color: #fff;
-		border-radius: 6px;
-		padding: 8px;
-		cursor: pointer;
-	}
-	.actions {
-		display: flex;
-		gap: 12px;
-		margin-top: 12px;
-		position: relative;
-		align-items: center;
-		justify-content: center;
-	}
-	.play-btn,
-	.auto-btn,
-	.fast-btn {
-		position: relative;
-		border: none;
-		background: transparent;
-		cursor: pointer;
-		padding: 0;
-	}
-	.play-btn img,
-	.auto-btn img,
-	.fast-btn img {
-		height: 52px;
-	}
-	.play-btn:disabled,
-	.auto-btn:disabled,
-	.fast-btn:disabled {
-		opacity: 0.45;
-		cursor: not-allowed;
-	}
-	.bonus-badge {
-		position: absolute;
-		top: 4px;
-		right: 4px;
-		background: #e63b2e;
-		color: #fff;
-		border-radius: 999px;
-		min-width: 22px;
-		height: 22px;
-		display: grid;
-		place-items: center;
-		font-size: 11px;
-		font-weight: 800;
-	}
-	.auto-count {
-		position: absolute;
-		bottom: 2px;
-		right: 2px;
-		background: rgba(0, 0, 0, 0.65);
-		color: #fff;
-		border-radius: 999px;
-		padding: 2px 6px;
-		font-size: 10px;
-	}
-	.auto-btn--on {
-		filter: drop-shadow(0 0 8px rgba(58, 168, 232, 0.5));
-	}
-	.fast-btn--on {
-		filter: drop-shadow(0 0 8px rgba(255, 214, 96, 0.45));
-	}
-	.start-auto {
-		grid-column: 1 / -1;
-		background: linear-gradient(180deg, #2a8fd4, #1a5f9c) !important;
-	}
-	.history-strip {
-		display: flex;
-		gap: 6px;
-		margin-top: 12px;
-		flex-wrap: wrap;
-	}
-	.hist-pill {
-		padding: 4px 10px;
-		border-radius: 999px;
-		font-size: 12px;
-		font-weight: 700;
-		color: #0a1018;
-	}
-	.bet-amount-row {
-		position: relative;
-	}
-	.bet-panel--mobile .play-btn img,
-	.bet-panel--mobile .auto-btn img,
-	.bet-panel--mobile .fast-btn img {
-		height: 44px;
-	}
-</style>
+		<div class="bottom-panel-form">
+			<div class="bottom-panel-chrome">
+				<div class="bottom-panel-row">
+					<div class="bp-field">
+						{@render bettingFieldFrame()}
+						<span class="bp-field-label">{context.i18nDerived.t('Balance')}</span>
+						<div class="bp-field-value">
+							<span>{formatMoney(stateBet.balanceAmount)}</span>
+						</div>
+					</div>
+
+					<div
+						class="bp-field bp-field--bet-total"
+						class:bp-field-disabled={controlsLocked}
+					>
+						{@render bettingFieldFrame()}
+						<span class="bp-field-label">{context.i18nDerived.t('Bet')}</span>
+						<div class="bp-total-stepper">
+							<span class="bp-total-display" aria-live="polite">
+								{formatMoney(props.totalBetAmount)}
+							</span>
+						</div>
+					</div>
+
+					<div class="bp-field">
+						{@render bettingFieldFrame()}
+						<span class="bp-field-label">{context.i18nDerived.t('Win')}</span>
+						<div class="bp-field-value">
+							<span>{formatMoney(props.winAmount)}</span>
+						</div>
+					</div>
+
+					<div
+						class="bp-field bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
+						class:bp-field-disabled={controlsLocked}
+					>
+						{@render bettingFieldFrame()}
+						<span class="bp-field-label">{context.i18nDerived.t('Bet per ball')}</span>
+						<div class="bp-bet-input-wrap">
+							<button
+								type="button"
+								class="bp-stepper-btn bp-stepper-btn--decrease"
+								disabled={isBetAmountStepDisabled(-1)}
+								aria-label="Decrease bet per ball"
+								onclick={() => adjustBetAmountStep(-1)}
+							>
+								<img
+									src={staticUrl('img/betting-component-input-decrease.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+							</button>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="bp-bet-input-mid"
+								role="button"
+								tabindex={controlsLocked ? -1 : 0}
+								aria-label="Open bet per ball presets"
+								onclick={onBetPerBallPanelTrigger}
+								onkeydown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ')
+										onBetPerBallPanelTrigger(e as unknown as MouseEvent);
+								}}
+							>
+								<span class="bp-select-display" aria-live="polite">
+									{props.betAmount.toFixed(2)}
+								</span>
+							</div>
+							<button
+								type="button"
+								class="bp-stepper-btn bp-stepper-btn--increase"
+								disabled={isBetAmountStepDisabled(1)}
+								aria-label="Increase bet per ball"
+								onclick={() => adjustBetAmountStep(1)}
+							>
+								<img
+									src={staticUrl('img/betting-component-input-increase.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+							</button>
+						</div>
+						{#if betPresetOpen}
+							<div class="bp-bet-presets-panel">
+								{#each availableBetPresets as preset}
+									<button
+										type="button"
+										class="bp-bet-presets-option"
+										class:bp-bet-presets-option--active={props.betAmount === preset}
+										onclick={() => selectBetPerBallOption(preset)}
+									>
+										{preset.toFixed(2)}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<div
+						class="bp-field bp-field--select bp-field--bet-controls"
+						class:bp-field-disabled={controlsLocked}
+					>
+						{@render bettingFieldFrame()}
+						<span class="bp-field-label">{context.i18nDerived.t('Ball per drop')}</span>
+						<div class="bp-bet-input-wrap">
+							<button
+								type="button"
+								class="bp-stepper-btn bp-stepper-btn--decrease"
+								disabled={isBallPerDropStepDisabled(-1)}
+								aria-label="Decrease ball per drop"
+								onclick={() => adjustBallPerDrop(-1)}
+							>
+								<img
+									src={staticUrl('img/betting-component-input-decrease.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+							</button>
+							<div class="bp-bet-input-mid">
+								<span class="bp-select-display" aria-live="polite">{stateGame.ballPerDrop}</span>
+							</div>
+							<button
+								type="button"
+								class="bp-stepper-btn bp-stepper-btn--increase"
+								disabled={isBallPerDropStepDisabled(1)}
+								aria-label="Increase ball per drop"
+								onclick={() => adjustBallPerDrop(1)}
+							>
+								<img
+									src={staticUrl('img/betting-component-input-increase.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+							</button>
+						</div>
+					</div>
+
+					{#if !props.autoMode || props.hasPendingBonusBalls}
+						<button
+							type="button"
+							class="bp-btn-play"
+							disabled={props.hasPendingBonusBalls ? bonusPlayDisabled : playDisabledMain}
+							aria-label="Bet"
+							onclick={props.onPlay}
+						>
+							<img
+								src={staticUrl(
+									props.hasPendingBonusBalls ? 'img/empty-btn.png' : 'img/play-btn.png',
+								)}
+								alt=""
+								aria-hidden="true"
+							/>
+							{#if props.hasPendingBonusBalls}
+								<span class="bp-bonus-count-badge">{props.bonusBallsRemaining}</span>
+							{/if}
+						</button>
+					{:else if props.autoPlayStarted}
+						<button
+							type="button"
+							class="bp-btn-play bp-btn-play--narrow"
+							aria-label="Stop autobet"
+							onclick={onAutoGameStopClick}
+						>
+							<img src={staticUrl('img/pause-btn.png')} alt="" aria-hidden="true" />
+						</button>
+					{:else}
+						<button
+							type="button"
+							class="bp-btn-play bp-btn-play--narrow"
+							disabled={playDisabledMain || props.betAmount <= 0}
+							aria-label="Start autobet"
+							onclick={onAutoGameStartClick}
+						>
+							<img src={staticUrl('img/play-btn.png')} alt="" aria-hidden="true" />
+						</button>
+					{/if}
+
+					<div class="bp-side-actions">
+						<div class="bp-auto-wrap">
+							<button
+								type="button"
+								class="bp-btn-auto"
+								class:bp-btn-auto--on={props.autoMode}
+								class:bp-btn-auto--running={props.autoPlayStarted}
+								disabled={controlsLocked && !props.autoPlayStarted}
+								aria-pressed={props.autoMode}
+								title={props.autoMode ? 'Manual' : 'Auto'}
+								onclick={onAutoButtonClick}
+							>
+								<span class="bp-btn-auto-ico" aria-hidden="true">
+									<img src={staticUrl('img/auto-bet-btn.png')} alt="" />
+								</span>
+								{#if props.autoMode}
+									<span class="bp-auto-count-badge">{props.autoRoundsLeft}</span>
+								{/if}
+							</button>
+							{#if autoPanelOpen}
+								<div class="bp-autobet-panel">
+									{#each AUTO_BET_OPTIONS as option}
+										<button
+											type="button"
+											class="bp-autobet-option"
+											disabled={controlsLocked}
+											onclick={() => selectAutoBetCount(option)}
+										>
+											{option}
+										</button>
+									{/each}
+								</div>
+							{/if}
+						</div>
+
+						<div class="bp-fast-panel">
+							<button
+								type="button"
+								class="bp-fast-btn"
+								class:bp-fast-btn--on={stateGame.fastGameEnabled}
+								disabled={controlsLocked}
+								aria-pressed={stateGame.fastGameEnabled}
+								aria-label="Fast game"
+								onclick={() => {
+									stateGame.fastGameEnabled = !stateGame.fastGameEnabled;
+									context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
+								}}
+							>
+								<img src={staticUrl('img/fast-game-btn.png')} alt="" aria-hidden="true" />
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}

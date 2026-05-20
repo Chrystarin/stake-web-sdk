@@ -1,3 +1,5 @@
 import { createApp } from 'pixi-svelte';
 
-export const { stateApp } = createApp({ assets: {} });
+import assets from './assets';
+
+export const { stateApp } = createApp({ assets });
