@@ -174,8 +174,8 @@
 		flex-direction: column;
 		width: 100%;
 		height: 100%;
-		min-height: inherit;
-		flex: 1;
+		min-height: 0;
+		flex: 1 1 0;
 		position: relative;
 		z-index: 2;
 		overflow: visible;
@@ -183,11 +183,11 @@
 
 	.plinko-host {
 		width: 100%;
-		height: min(54vw, 100%);
-		flex: 1;
+		height: 100%;
+		flex: 1 1 0;
 		min-height: 0;
 		max-height: 100%;
-		margin: 2.4vw auto 0;
+		margin: 0;
 		position: relative;
 		overflow: visible;
 		box-sizing: border-box;
@@ -204,17 +204,18 @@
 	}
 
 	:global(.game-area--pixi-fill) .plinko-root {
-		flex: 1;
+		flex: 1 1 0;
 		min-height: 0;
+		height: 100%;
 	}
 
 	:global(.game-area--pixi-fill) .plinko-host {
-		flex: 0 1 auto;
+		flex: 1 1 0;
 		min-height: 0;
-		height: min(54vw, 100%);
-		max-height: 100%;
 		width: 100%;
-		margin-inline: auto;
+		height: 100%;
+		max-height: 100%;
+		margin: 0;
 	}
 
 	:global(.game-root--mobile) .plinko-root {
@@ -225,12 +226,11 @@
 	:global(.game-root--mobile) .plinko-host {
 		width: 100%;
 		max-width: 100%;
-		flex: 0 1 auto;
+		flex: 1 1 0;
 		min-height: 0;
-		max-height: none;
-		height: var(--mobile-pixi-height, 63vw);
-		margin-left: 0;
-		margin-top: 0;
+		height: 100%;
+		max-height: 100%;
+		margin: 0;
 		overflow: visible;
 	}
 </style>

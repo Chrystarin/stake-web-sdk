@@ -441,14 +441,23 @@ export class PlinkoEngine {
 
   /** VW-based fallback when the flex host has not reported a size yet. */
   private createViewportFallbackSize(): { width: number; height: number } {
-    return {
-      width: Math.max(PlinkoEngine.MIN_LAYOUT_PX, Math.floor(this.vw(92))),
-      height: Math.max(
-        PlinkoEngine.MIN_LAYOUT_PX,
-        Math.floor(this.vw(55)),
-        Math.floor(this.vw(22) * ((this.rows + 4) / 8)),
-      ),
-    };
+    const maxW = Math.floor(this.vw(100));
+    const maxH = Math.max(
+      PlinkoEngine.MIN_LAYOUT_PX,
+      Math.floor(window.innerHeight * 0.94),
+      Math.floor(this.vw(22) * ((this.rows + 4) / 8)),
+    );
+    const aspectW = 96;
+    const aspectH = 55;
+    const width = Math.max(
+      PlinkoEngine.MIN_LAYOUT_PX,
+      Math.min(maxW, Math.floor((maxH * aspectW) / aspectH)),
+    );
+    const height = Math.max(
+      PlinkoEngine.MIN_LAYOUT_PX,
+      Math.min(maxH, Math.floor((width * aspectH) / aspectW)),
+    );
+    return { width, height };
   }
 
   private rebuildScene(): void {

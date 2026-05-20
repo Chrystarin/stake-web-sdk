@@ -602,34 +602,27 @@
 
 		flex-direction: column;
 
-		align-items: center;
+		align-items: stretch;
 
-		justify-content: center;
+		justify-content: stretch;
 
 		z-index: 1;
 
-		overflow: hidden;
+		overflow: visible;
 
 	}
 
 	.game-root:not(.game-root--mobile) .game-content {
 
-		/* top HUD ~4vw + bottom panel ~14vw; padding keeps stack off screen edges */
-		--game-area-available-height: calc(100dvh - 34vw);
-
-		padding-top: 4vw;
-
-		padding-bottom: 13vw;
+		--game-area-width-cap: 100vw;
+		padding: 0;
 
 	}
 
 	.game-root--mobile .game-content {
 
-		--game-area-available-height: calc(100dvh - 48vw);
-
-		padding-top: 2vw;
-
-		padding-bottom: 36vw;
+		--game-area-width-cap: 100vw;
+		padding: 0;
 
 	}
 
@@ -817,7 +810,31 @@
 
 	}
 
-	/* Desktop — game area + board centered in viewport (above bottom panel) */
+	/* Desktop — absolute inset uses almost full viewport (HUD/panel overlay) */
+	.game-root:not(.game-root--mobile) .game-area {
+
+		position: absolute;
+
+		top: 3vw;
+
+		right: 0;
+
+		bottom: 7vw;
+
+		left: 0;
+
+		flex: none;
+
+		width: 100%;
+
+		max-width: var(--game-area-width-cap, 100vw);
+
+		height: auto;
+
+		margin: 0;
+
+	}
+
 	.game-area {
 
 		position: relative;
@@ -830,11 +847,15 @@
 
 		justify-content: center;
 
+		flex: 1 1 0;
+
 		width: 100%;
 
-		max-width: 100%;
+		max-width: var(--game-area-width-cap, 100vw);
 
-		max-height: var(--game-area-available-height);
+		min-height: 0;
+
+		height: 100%;
 
 		overflow: visible;
 
@@ -842,9 +863,9 @@
 
 		margin: 0 auto;
 
-		flex-shrink: 1;
+		container-type: size;
 
-		min-height: 0;
+		container-name: game-area;
 
 	}
 
@@ -852,27 +873,31 @@
 
 		position: relative;
 
-		flex: 0 0 auto;
-
 		display: flex;
 
 		flex-direction: column;
 
-		align-items: center;
+		align-items: stretch;
 
-		justify-content: flex-start;
+		justify-content: stretch;
 
 		align-self: center;
 
 		margin: 0 auto;
 
+		min-height: 0;
+
 	}
 
 	.game-area--pixi-fill .container :global(.plinko-root) {
 
-		flex: 0 1 auto;
+		flex: 1 1 0;
 
 		width: 100%;
+
+		height: 100%;
+
+		min-height: 0;
 
 		overflow: visible;
 
@@ -886,7 +911,7 @@
 
 		flex-direction: column;
 
-		align-items: center;
+		align-items: stretch;
 
 	}
 
@@ -966,31 +991,33 @@
 
 	.container {
 
-		/* Base frame size in vw; scaled size clamped to viewport (dvh + vw reserve). */
-		--game-area-base-width: 96vw;
-		--game-area-base-height: 55vw;
-		--game-area-frame-scale: calc(1.125 * 1.25 * 1.5);
-		--game-area-frame-width: min(
-			calc(var(--game-area-base-width) * var(--game-area-frame-scale)),
-			100vw
+		/* Largest 96:55 box inside game-area, no crop */
+		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
+		--game-area-max-h: 100cqh;
+		--game-area-aspect-w: 96;
+		--game-area-aspect-h: 55;
+		--game-area-fit-width: min(
+			var(--game-area-max-w),
+			calc(var(--game-area-max-h) * var(--game-area-aspect-w) / var(--game-area-aspect-h))
 		);
-		--game-area-frame-height: min(
-			calc(var(--game-area-base-height) * var(--game-area-frame-scale)),
-			var(--game-area-available-height, calc(100dvh - 34vw))
+		--game-area-fit-height: min(
+			var(--game-area-max-h),
+			calc(var(--game-area-max-w) * var(--game-area-aspect-h) / var(--game-area-aspect-w))
 		);
 
-		width: min(100%, var(--game-area-base-width));
+		width: var(--game-area-fit-width);
+
+		height: var(--game-area-fit-height);
+
+		max-width: var(--game-area-max-w);
+
+		max-height: var(--game-area-max-h);
 
 		border-radius: 0.8vw;
 
-		padding: 0.2vw 0.2vw 0.1vw;
+		padding: 0;
 
 		text-align: center;
-
-		/* Match frame height so background is not vertically clipped */
-		height: var(--game-area-frame-height);
-
-		max-height: var(--game-area-available-height, calc(100dvh - 34vw));
 
 		position: relative;
 
@@ -1002,6 +1029,14 @@
 
 		box-sizing: border-box;
 
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: stretch;
+
+		min-height: 0;
+
 	}
 
 	.game-area-frame,
@@ -1009,19 +1044,15 @@
 
 		position: absolute;
 
-		top: 0;
+		inset: 0;
 
-		left: 50%;
-
-		width: var(--game-area-frame-width);
+		width: 100%;
 
 		height: 100%;
 
-		max-width: min(var(--game-area-frame-width), 100vw);
+		max-width: 100%;
 
 		max-height: 100%;
-
-		transform: translateX(-50%);
 
 		object-fit: contain;
 
@@ -1056,11 +1087,13 @@
 
 		z-index: 2;
 
-		max-height: 100%;
+		flex: 1 1 0;
 
-	}
+		min-height: 0;
 
-	.game-area--pixi-fill .container :global(.plinko-root) {
+		width: 100%;
+
+		height: 100%;
 
 		max-height: 100%;
 
@@ -1140,18 +1173,18 @@
 
 	}
 
-	/* Mobile — matches crimson-plinko game.mobile .game-area / .container */
+	/* Mobile — same max-fit sizing inside flex slot */
 	.game-root--mobile .game-area {
 
-		flex: 0 1 auto;
+		flex: 1 1 0;
 
 		min-height: 0;
 
 		width: 100%;
 
-		max-width: 100vw;
+		max-width: var(--game-area-width-cap, 100vw);
 
-		max-height: var(--game-area-available-height);
+		height: 100%;
 
 		margin: 0 auto;
 
@@ -1171,35 +1204,26 @@
 
 		z-index: 1;
 
-		height: auto;
-
 		overflow: visible;
+
+		container-type: size;
+
+		container-name: game-area;
 
 	}
 
 	.game-root--mobile .game-area > .container {
 
-		--mobile-game-width: 100vw;
+		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
+		--game-area-max-h: 100cqh;
 
-		--mobile-game-height: min(
-			clamp(400px, 104vw, 840px),
-			var(--game-area-available-height)
-		);
+		width: var(--game-area-fit-width);
 
-		--game-area-base-width: 100vw;
+		height: var(--game-area-fit-height);
 
-		--game-area-base-height: var(--mobile-game-height);
+		max-width: var(--game-area-max-w);
 
-		--game-area-frame-scale: calc(1.125 * 1.25 * 1.5);
-		--game-area-frame-width: min(calc(100vw * 1.25 * var(--game-area-frame-scale)), 100vw);
-		--game-area-frame-height: min(
-			calc(var(--game-area-base-height) * var(--game-area-frame-scale)),
-			var(--game-area-available-height)
-		);
-
-		width: var(--mobile-game-width);
-
-		max-width: var(--mobile-game-width);
+		max-height: var(--game-area-max-h);
 
 		min-width: 0;
 
@@ -1209,19 +1233,15 @@
 
 		min-height: 0;
 
-		height: var(--game-area-frame-height);
-
-		max-height: var(--game-area-available-height);
-
 		box-sizing: border-box;
 
 		display: flex;
 
 		flex-direction: column;
 
-		align-items: center;
+		align-items: stretch;
 
-		justify-content: flex-start;
+		justify-content: stretch;
 
 		overflow: visible;
 
@@ -1235,48 +1255,25 @@
 
 	}
 
-	.game-root--mobile .game-area > .container .game-area-frame,
-	.game-root--mobile .game-area > .container .game-area-bonus-overlay {
-
-		top: 0;
-
-		left: 50%;
-
-		width: var(--game-area-frame-width);
-
-		height: 100%;
-
-		max-width: var(--game-area-frame-width);
-
-		max-height: 100%;
-
-		object-fit: contain;
-
-		object-position: top center;
-
-		transform: translateX(-50%);
-
-	}
-
 	.game-root--mobile .game-area > .container .pixi-stage-wrap {
 
 		position: relative;
 
-		flex: 0 1 auto;
+		flex: 1 1 0;
 
 		min-height: 0;
 
 		width: 100%;
 
-		height: auto;
+		height: 100%;
 
 		display: flex;
 
 		flex-direction: column;
 
-		align-items: center;
+		align-items: stretch;
 
-		justify-content: center;
+		justify-content: stretch;
 
 		overflow: visible;
 
@@ -1286,23 +1283,21 @@
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-root) {
 
-		--mobile-pixi-height: 63vw;
-
-		flex: 0 1 auto;
+		flex: 1 1 0;
 
 		width: 100%;
 
-		height: var(--mobile-pixi-height);
+		height: 100%;
 
 		min-height: 0;
 
 		max-width: 100%;
 
-		max-height: none;
+		max-height: 100%;
 
-		align-self: center;
+		align-self: stretch;
 
-		margin: 0 auto;
+		margin: 0;
 
 		position: relative;
 
