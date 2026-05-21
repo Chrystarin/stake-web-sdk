@@ -358,7 +358,7 @@
 		{#if mobileBetPopupOpen}
 			<div class="mobile-bet-popup" role="dialog" aria-label="Bet settings">
 				{@render bettingFieldFrame()}
-				<div class="mobile-bet-popup-row">
+				<div class="mobile-bet-popup-row mobile-bet-popup-row--stat">
 					{@render bettingFieldFrame()}
 					<div class="mobile-bet-popup-mid">
 						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet')}</span>
@@ -374,7 +374,11 @@
 						aria-label="Decrease ball per drop"
 						onclick={() => adjustBallPerDrop(-1)}
 					>
-						−
+						<img
+							src={staticUrl('img/betting-component-input-decrease.png')}
+							alt=""
+							aria-hidden="true"
+						/>
 					</button>
 					<div class="mobile-bet-popup-mid">
 						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Ball per drop')}</span>
@@ -387,7 +391,11 @@
 						aria-label="Increase ball per drop"
 						onclick={() => adjustBallPerDrop(1)}
 					>
-						+
+						<img
+							src={staticUrl('img/betting-component-input-increase.png')}
+							alt=""
+							aria-hidden="true"
+						/>
 					</button>
 				</div>
 				<div class="mobile-bet-popup-row">
@@ -399,7 +407,11 @@
 						aria-label="Decrease bet per ball"
 						onclick={() => adjustBetAmountStep(-1)}
 					>
-						−
+						<img
+							src={staticUrl('img/betting-component-input-decrease.png')}
+							alt=""
+							aria-hidden="true"
+						/>
 					</button>
 					<div class="mobile-bet-popup-mid">
 						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet per ball')}</span>
@@ -412,7 +424,11 @@
 						aria-label="Increase bet per ball"
 						onclick={() => adjustBetAmountStep(1)}
 					>
-						+
+						<img
+							src={staticUrl('img/betting-component-input-increase.png')}
+							alt=""
+							aria-hidden="true"
+						/>
 					</button>
 				</div>
 			</div>
@@ -471,7 +487,7 @@
 					</div>
 
 					<div
-						class="bp-field bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
+						class="bp-field bp-field--bet bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
 						class:bp-field-disabled={controlsLocked}
 					>
 						{@render bettingFieldFrame()}
