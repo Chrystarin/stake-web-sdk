@@ -1,4 +1,4 @@
-import { Application, Assets, Container, FillGradient, Graphics, Sprite, Text } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
 import { formatCoefficientLabel, isMobile } from '../lib/format';
 import { staticUrl } from '../lib/staticUrl';
 
@@ -98,7 +98,6 @@ export class PlinkoEngine {
 		if (rows) this.rows = rows;
 		if (animationEnabled !== undefined) this.animationEnabled = animationEnabled;
 		if (!this.coefficients.length) {
-			this.layoutWidthFloor = 0;
 			return;
 		}
 		/** Slots + multipliers come from coefficient rows; wait until they exist (config or RGS hydrate) before rebuilding. */
@@ -123,15 +122,12 @@ export class PlinkoEngine {
   private readonly world = new Container();
   private readonly pegGraphics = new Graphics();
   private readonly featuredPegLayer = new Container();
-  private readonly slotGlowGraphics = new Graphics();
-  private readonly slotBodiesGraphics = new Graphics();
   private readonly labelLayer = new Container();
   private readonly bulletsLayer = new Container();
   private readonly ballsGraphics = new Graphics();
-  private readonly pipeLayer = new Container();
+  private readonly slotAssetLayer = new Container();
   private readonly slotLabels: Text[] = [];
-  private pipeSprites: Sprite[] = [];
-  private slotPipeGradients: FillGradient[] = [];
+  private slotSprites: (Sprite | undefined)[] = [];
   private readonly pendingDropTimeouts = new Set<ReturnType<typeof setTimeout>>();
   private readonly pendingBallRemovalTimeouts = new Set<ReturnType<typeof setTimeout>>();
   /** Balls queued by `dropBallBurst` that have not yet been spawned. */
@@ -144,19 +140,23 @@ export class PlinkoEngine {
   /** Last window size — layout uses vw() so we must rebuild when inner size changes even if the canvas host size is unchanged. */
   private lastWindowInnerW = 0;
   private lastWindowInnerH = 0;
-  /** Minimum layout width so the full peg grid is not clipped when the flex host is narrower than the pyramid span. */
-  private layoutWidthFloor = 0;
-
   private readonly boundWindowResize = (): void => {
     this.resizeCanvasToContainer();
   };
 
   private ballTexture?: Sprite['texture'];
-  private slotPipeTexture?: Sprite['texture'];
   private coinPegTexture?: Sprite['texture'];
-  private texturesLoaded = false;
+  private multiplierSlotSpinTexture?: Sprite['texture'];
+  private readonly multiplierSlotTextures: Partial<Record<number, Sprite['texture']>> = {};
+  private multiplierSlotAssetsReady = false;
+  /** Pixel size for standard multiplier slots (from the 0.7× reference slot). */
+  private uniformSlotDisplayW = 0;
+  private uniformSlotDisplayH = 0;
+  /** Spin slot keeps the wider center column width from layout. */
+  private uniformSlotSpinDisplayW = 0;
+  private static readonly MULTIPLIER_SLOT_REF_TEX_W = 41;
+  private static readonly MULTIPLIER_SLOT_REF_TEX_H = 63;
   private pixiReady = false;
-  private slotGlowStripGradient?: FillGradient;
   private readonly featuredPegSprites = new Map<string, Sprite>();
   private readonly pegsByRow = new Map<number, Peg[]>();
   private featuredPegKeys = new Set<string>();
@@ -282,7 +282,6 @@ export class PlinkoEngine {
   };
 
   destroy(): void {
-    this.layoutWidthFloor = 0;
     this.stopTicker();
     this.clearPendingDropTimeouts();
     this.clearPendingBallRemovalTimeouts();
@@ -291,8 +290,6 @@ export class PlinkoEngine {
       window.removeEventListener('resize', this.boundWindowResize);
     }
     this.resizeObserver?.disconnect();
-    this.slotGlowStripGradient?.destroy();
-    this.slotGlowStripGradient = undefined;
     this.featuredPegSprites.forEach((sprite) => sprite.destroy());
     this.featuredPegSprites.clear();
     this.app?.destroy(true, { children: true, texture: false });
@@ -338,20 +335,16 @@ export class PlinkoEngine {
     this.hostElement.appendChild(app.canvas as HTMLCanvasElement);
 
     this.world.sortableChildren = true;
-    this.slotGlowGraphics.zIndex = 0;
     this.pegGraphics.zIndex = 1;
     this.featuredPegLayer.zIndex = 1.5;
-    this.pipeLayer.zIndex = 2;
+    this.slotAssetLayer.zIndex = 2;
     this.bulletsLayer.zIndex = 2.5;
     this.ballsGraphics.zIndex = 2.6;
-    this.slotBodiesGraphics.zIndex = 3;
     this.labelLayer.zIndex = 4;
 
-    this.world.addChild(this.slotGlowGraphics);
     this.world.addChild(this.pegGraphics);
     this.world.addChild(this.featuredPegLayer);
-    this.world.addChild(this.pipeLayer);
-    this.world.addChild(this.slotBodiesGraphics);
+    this.world.addChild(this.slotAssetLayer);
     this.world.addChild(this.labelLayer);
     this.world.addChild(this.bulletsLayer);
     this.world.addChild(this.ballsGraphics);
@@ -374,20 +367,30 @@ export class PlinkoEngine {
           return undefined;
         }
       };
-      const [ballTex, pipeTex, coinPegTex] = await Promise.all([
+      const [ballTex, coinPegTex, spinTex, ...tierTex] = await Promise.all([
         loadOptional(staticUrl('img/ball.svg')),
-        loadOptional(staticUrl('img/slot_pipe_bg.svg')),
-        loadOptional(staticUrl('img/coin_peg.png'))
+        loadOptional(staticUrl('img/coin_peg.png')),
+        loadOptional(staticUrl('img/multiplier_slot_spin.png')),
+        ...([1, 2, 3, 4, 5, 6, 7] as const).map((tier) =>
+          loadOptional(staticUrl(`img/multiplier_slot_${tier}.png`))
+        )
       ]);
       this.ballTexture = ballTex;
-      this.slotPipeTexture = pipeTex;
       this.coinPegTexture = coinPegTex;
+      this.multiplierSlotSpinTexture = spinTex;
+      for (let i = 0; i < 7; i++) {
+        const tier = i + 1;
+        if (tierTex[i]) this.multiplierSlotTextures[tier] = tierTex[i];
+      }
     } catch {
       this.ballTexture = undefined;
-      this.slotPipeTexture = undefined;
       this.coinPegTexture = undefined;
+      this.multiplierSlotSpinTexture = undefined;
     }
-    this.texturesLoaded = !!this.slotPipeTexture;
+    this.multiplierSlotAssetsReady = !!this.multiplierSlotSpinTexture;
+    if (!this.multiplierSlotAssetsReady) {
+      console.warn('[PlinkoEngine] multiplier slot images failed to load');
+    }
 
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.boundWindowResize, { passive: true });
@@ -463,18 +466,21 @@ export class PlinkoEngine {
   private rebuildScene(): void {
     if (!this.app) return;
     if (!this.coefficients.length || !this.rows) return;
-    this.updateContainerSize();
-    this.ensureLayoutDimensionsFromRendererIfNeeded();
-    if (this.containerWidth <= 0 || this.containerHeight <= 0) {
-      const fb = this.createViewportFallbackSize();
-      this.containerWidth = fb.width;
-      this.containerHeight = fb.height;
+    const hostSize = this.getHostSize();
+    if (hostSize) {
+      this.containerWidth = hostSize.width;
+      this.containerHeight = hostSize.height;
+    } else {
+      this.updateContainerSize();
+      this.ensureLayoutDimensionsFromRendererIfNeeded();
+      if (this.containerWidth <= 0 || this.containerHeight <= 0) {
+        const fb = this.createViewportFallbackSize();
+        this.containerWidth = fb.width;
+        this.containerHeight = fb.height;
+      }
     }
 
-    const pegsInBottomRow = this.rows + 3;
-    const footprintX = Math.max(1, pegsInBottomRow - 1) * this.pegSpacingX * 1.02;
-    this.layoutWidthFloor = Math.ceil(footprintX);
-    const layoutW = Math.max(this.containerWidth, this.layoutWidthFloor);
+    const layoutW = this.containerWidth;
     const layoutH = this.getRendererHeight();
     const r = this.app.renderer;
     if (r.width !== layoutW || r.height !== layoutH) {
@@ -482,16 +488,57 @@ export class PlinkoEngine {
       this.lastWidth = layoutW;
       this.lastHeight = layoutH;
     }
-    this.containerWidth = layoutW;
 
     this.updateWorldViewportOffset();
     this.generatePegs();
     this.syncFeaturedPegSprites();
     this.generateSlots();
-    this.syncSlotPipesAndLabels();
+    this.updateUniformSlotAssetScale();
+    this.syncSlotAssetsAndLabels();
     this.refreshSlotLabelAppearance();
+    this.fitWorldToSlotRow();
     this.drawStaticPyramid();
     this.renderFrame();
+  }
+
+  /** Host element size only — avoids vw fallback wider than the visible board. */
+  private getHostSize(): { width: number; height: number } | null {
+    const host = this.hostElement;
+    const w = Math.round(host.getBoundingClientRect().width) || Math.round(host.clientWidth);
+    const h = Math.round(host.getBoundingClientRect().height) || Math.round(host.clientHeight);
+    if (w >= PlinkoEngine.MIN_LAYOUT_PX && h >= PlinkoEngine.MIN_LAYOUT_PX) {
+      return { width: w, height: h };
+    }
+    return null;
+  }
+
+  /** Scale/center the Pixi world so every multiplier slot fits the visible host. */
+  private fitWorldToSlotRow(): void {
+    if (!this.slots.length || this.containerWidth <= 0) {
+      this.world.scale.set(1);
+      this.updateWorldViewportOffset();
+      return;
+    }
+
+    let left = Infinity;
+    let right = -Infinity;
+    for (const slot of this.slots) {
+      left = Math.min(left, slot.x);
+      right = Math.max(right, slot.x + slot.width);
+    }
+    const span = right - left;
+    const margin = Math.max(this.pegRadius * 2, 8);
+    const targetSpan = Math.max(1, this.containerWidth - margin * 2);
+
+    if (span > targetSpan) {
+      const scale = targetSpan / span;
+      this.world.scale.set(scale);
+      const offsetX = (this.containerWidth - span * scale) / 2 - left * scale;
+      this.world.position.set(offsetX, this.getWorldViewportYOffset());
+    } else {
+      this.world.scale.set(1);
+      this.updateWorldViewportOffset();
+    }
   }
 
   private renderFrame(): void {
@@ -522,7 +569,8 @@ export class PlinkoEngine {
         join: 'round',
         cap: 'round'
       };
-      label.text = slot.labelText;
+      const middle = this.getMiddleSlotIndex();
+      label.text = i === middle ? '' : slot.labelText;
     }
   }
 
@@ -561,27 +609,42 @@ export class PlinkoEngine {
     }
   }
 
-  private syncSlotPipesAndLabels(): void {
-    for (const s of this.pipeSprites) {
-      s.destroy();
+  private getMiddleSlotIndex(): number {
+    return Math.floor(this.slots.length / 2);
+  }
+
+  /** Spin uses spin asset; neighbors use tier 1..7 by distance from center. */
+  private getMultiplierSlotTextureForIndex(idx: number): Sprite['texture'] | undefined {
+    const middle = this.getMiddleSlotIndex();
+    if (idx === middle) return this.multiplierSlotSpinTexture;
+    const distance = Math.abs(idx - middle);
+    const tier = Math.min(7, Math.max(1, distance));
+    return this.multiplierSlotTextures[tier];
+  }
+
+  private syncSlotAssetsAndLabels(): void {
+    for (const s of this.slotSprites) {
+      s?.destroy();
     }
-    this.pipeSprites = [];
+    this.slotSprites = [];
     for (const t of this.slotLabels) {
       t.destroy();
     }
     this.slotLabels.length = 0;
-    for (const gradient of this.slotPipeGradients) {
-      gradient.destroy();
-    }
-    this.slotPipeGradients = [];
 
-    if (!this.texturesLoaded || !this.slotPipeTexture) return;
+    if (!this.multiplierSlotAssetsReady) return;
 
     for (let i = 0; i < this.slots.length; i++) {
-      const sp = new Sprite(this.slotPipeTexture);
-      sp.anchor.set(0.5, 0);
-      this.pipeLayer.addChild(sp);
-      this.pipeSprites.push(sp);
+      const texture = this.getMultiplierSlotTextureForIndex(i);
+      if (texture) {
+        const sp = new Sprite(texture);
+        sp.anchor.set(0.5, 1);
+        sp.visible = false;
+        this.slotAssetLayer.addChild(sp);
+        this.slotSprites.push(sp);
+      } else {
+        this.slotSprites.push(undefined);
+      }
 
       const slot = this.slots[i];
       const slotBodyH = this.slotHeight * 0.82;
@@ -600,24 +663,6 @@ export class PlinkoEngine {
       txt.anchor.set(0.5, 0.5);
       this.labelLayer.addChild(txt);
       this.slotLabels.push(txt);
-
-      const slotRgb = this.cssColorToNumber(slot.color);
-      const { r: sr, g: sg, b: sb } = this.numberToRgb(slotRgb);
-      this.slotPipeGradients.push(
-        new FillGradient({
-          type: 'linear',
-          start: { x: 0, y: 0 },
-          end: { x: 0, y: 1 },
-          textureSpace: 'local',
-          colorStops: [
-            { offset: 0, color: `rgba(${sr}, ${sg}, ${sb}, 0.0)` },
-            { offset: 0.22, color: `rgba(${sr}, ${sg}, ${sb}, 0.03)` },
-            { offset: 0.5, color: `rgba(${sr}, ${sg}, ${sb}, 0.2)` },
-            { offset: 0.78, color: `rgba(${sr}, ${sg}, ${sb}, 0.48)` },
-            { offset: 1, color: `rgba(${sr}, ${sg}, ${sb}, 0.72)` }
-          ]
-        })
-      );
     }
   }
 
@@ -658,6 +703,8 @@ export class PlinkoEngine {
       if (this.coefficients.length && this.rows) {
         this.rebuildScene();
         this.rebindActiveBallPathPegs();
+      } else {
+        this.fitWorldToSlotRow();
       }
     });
   }
@@ -1184,8 +1231,6 @@ export class PlinkoEngine {
       const hasSlotVisuals = this.hasActiveSlotVisuals(currentTime);
       const hasPegVisuals = this.hasActivePegVisuals(currentTime);
       if (hasSlotVisuals) {
-        this.slotGlowGraphics.clear();
-        this.slotBodiesGraphics.clear();
         this.drawAllSlotsPixi(currentTime);
       }
       if (hasPegVisuals) {
@@ -1470,57 +1515,85 @@ export class PlinkoEngine {
     });
   }
 
+  private resolveSlotAnimationOffset(slot: Slot, currentTime: number): number {
+    if (!slot.animationActive) return 0;
+    const elapsed = currentTime - slot.animationTime;
+    if (elapsed < this.pyramidConfig.slotAnimationDuration) {
+      const progress = elapsed / this.pyramidConfig.slotAnimationDuration;
+      const bounce = progress * Math.PI * this.pyramidConfig.slotBounceCount;
+      return this.slotBounceHeight * Math.sin(bounce) * (1 - progress);
+    }
+    slot.animationActive = false;
+    slot.animationOffset = 0;
+    return 0;
+  }
+
+  /** Match the 0.7× slot size (coefficient 0.69 → label "0.7") for all multiplier assets. */
+  private updateUniformSlotAssetScale(): void {
+    const middle = this.getMiddleSlotIndex();
+    let refIdx = this.slots.findIndex(
+      (s) => formatCoefficientLabel(s.coefficient) === '0.7'
+    );
+    if (refIdx < 0) {
+      refIdx = this.slots.findIndex(
+        (s) => Math.abs(s.coefficient - 0.69) < 0.01 || Math.abs(s.coefficient - 0.7) < 0.01
+      );
+    }
+    if (refIdx < 0) refIdx = middle > 0 ? middle - 1 : 0;
+
+    const refSlot = this.slots[refIdx];
+    const refW = refSlot.width - this.pegRadius;
+    const middleIndex = (this.slots.length - 1) / 2;
+    const distanceFromMiddle = Math.abs(refIdx - middleIndex);
+    const normalizedDistance = middleIndex > 0 ? distanceFromMiddle / middleIndex : 0;
+    const heightScale = 0.72 + normalizedDistance * 2.42;
+    const scaleX = refW / PlinkoEngine.MULTIPLIER_SLOT_REF_TEX_W;
+    const scaleY = scaleX * heightScale;
+
+    this.uniformSlotDisplayW = scaleX * PlinkoEngine.MULTIPLIER_SLOT_REF_TEX_W;
+    this.uniformSlotDisplayH = scaleY * PlinkoEngine.MULTIPLIER_SLOT_REF_TEX_H;
+
+    const spinSlot = this.slots[middle];
+    if (spinSlot) {
+      this.uniformSlotSpinDisplayW = spinSlot.width - this.pegRadius;
+    }
+  }
+
+  private layoutSlotAssetSprite(idx: number, x: number, y: number, w: number, h: number): void {
+    const sp = this.slotSprites[idx];
+    if (!sp || this.uniformSlotDisplayW <= 0 || this.uniformSlotDisplayH <= 0) return;
+
+    const texW = sp.texture.width || PlinkoEngine.MULTIPLIER_SLOT_REF_TEX_W;
+    const texH = sp.texture.height || PlinkoEngine.MULTIPLIER_SLOT_REF_TEX_H;
+    const isSpin = idx === this.getMiddleSlotIndex();
+    const displayW =
+      isSpin && this.uniformSlotSpinDisplayW > 0
+        ? this.uniformSlotSpinDisplayW
+        : this.uniformSlotDisplayW;
+
+    sp.visible = true;
+    sp.scale.set(displayW / texW, this.uniformSlotDisplayH / texH);
+    sp.position.set(x + w / 2, y + h);
+    sp.tint = 0xffffff;
+    sp.alpha = 1;
+  }
+
   private drawAllSlotsPixi(currentTime: number): void {
     if (!this.slots.length) return;
-    const g = this.slotBodiesGraphics;
 
     for (let idx = 0; idx < this.slots.length; idx++) {
       const slot = this.slots[idx];
-      if (slot.animationActive) {
-        const elapsed = currentTime - slot.animationTime;
-        if (elapsed < this.pyramidConfig.slotAnimationDuration) {
-          const progress = elapsed / this.pyramidConfig.slotAnimationDuration;
-          const bounce = progress * Math.PI * this.pyramidConfig.slotBounceCount;
-          slot.animationOffset = this.slotBounceHeight * Math.sin(bounce) * (1 - progress);
-        } else {
-          slot.animationActive = false;
-          slot.animationOffset = 0;
-        }
-      }
+      slot.animationOffset = this.resolveSlotAnimationOffset(slot, currentTime);
 
       const x = slot.x;
       const y = slot.y + slot.animationOffset;
       const w = slot.width - this.pegRadius;
       const h = this.slotHeight * 0.82;
-      const r = Math.max(4, Math.min(6, h * 0.28));
-      const shadowOffset = Math.max(2, h * 0.13);
-      const slotRgb = slot.colorNumber;
 
-      g.roundRect(x, y + shadowOffset, w, h, r).fill({ color: 0x000000, alpha: 0.22 });
-      g.roundRect(x, y + shadowOffset * 1.9, w, h * 0.9, r * 1.2).fill({ color: 0x000000, alpha: 0.14 });
-
-      if (this.pipeSprites[idx] && this.texturesLoaded) {
-        const bgW0 = 37;
-        const bgH0 = 40;
-        const scale = w / bgW0;
-        const baseBgH = bgH0 * scale;
-        const middleIndex = (this.slots.length - 1) / 2;
-        const distanceFromMiddle = Math.abs(idx - middleIndex);
-        const normalizedDistance = middleIndex > 0 ? distanceFromMiddle / middleIndex : 0;
-        const heightScale = 0.72 + normalizedDistance * 2.42;
-        const bgH = baseBgH * heightScale;
-        const sp = this.pipeSprites[idx];
-        sp.visible = false;
-
-        const pipeTopY = y - bgH * 0.78;
-        const pipeGradient = this.slotPipeGradients[idx];
-        if (pipeGradient) {
-          g.rect(x, pipeTopY, w, bgH).fill(pipeGradient);
-        }
+      const sprite = this.slotSprites[idx];
+      if (sprite) {
+        this.layoutSlotAssetSprite(idx, x, y, w, h);
       }
-
-      g.roundRect(x, y, w, h, r)
-        .fill({ color: slotRgb });
 
       let textScale = 1.1;
       if (slot.animationActive) {
@@ -1532,7 +1605,7 @@ export class PlinkoEngine {
       const label = this.slotLabels[idx];
       if (label) {
         label.scale.set(textScale, textScale);
-        label.position.set(Math.round(x + w / 2), Math.round(y + h / 2));
+        label.position.set(Math.round(x + w / 2), Math.round(y + h * 0.52));
       }
     }
   }
@@ -1579,8 +1652,9 @@ export class PlinkoEngine {
   private drawStaticPyramid(): void {
     const now = Date.now();
     this.pegGraphics.clear();
-    this.slotGlowGraphics.clear();
-    this.slotBodiesGraphics.clear();
+    for (const sp of this.slotSprites) {
+      if (sp) sp.visible = false;
+    }
 
     this.drawAllSlotsPixi(now);
     this.drawAllPegsPixi(now);
