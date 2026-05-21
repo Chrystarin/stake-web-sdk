@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
+	import { OnHotkey } from 'components-shared';
 	import { stateBet } from 'state-shared';
 
 	import config from '../game/config';
@@ -189,6 +190,13 @@
 		}
 	}
 
+	/** Space triggers play; skip when a button is focused so native Space still works on controls. */
+	function onSpacePlay() {
+		const tag = document.activeElement?.tagName?.toLowerCase();
+		if (tag === 'button') return;
+		onMainActionClick();
+	}
+
 	function isMainActionDisabled() {
 		if (props.hasPendingBonusBalls) return bonusPlayDisabled;
 		if (props.autoMode) {
@@ -244,6 +252,8 @@
 		return () => document.removeEventListener('click', onDocumentClick);
 	});
 </script>
+
+<OnHotkey hotkey="Space" disabled={isMainActionDisabled()} onpress={onSpacePlay} />
 
 {#snippet bettingFieldFrame()}
 	<img

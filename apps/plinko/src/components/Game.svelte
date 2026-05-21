@@ -59,6 +59,8 @@
 
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
 
+	import { EnableHotkey } from 'components-shared';
+
 	import EnableGameActor from './EnableGameActor.svelte';
 
 	import EnableSound from './EnableSound.svelte';
@@ -256,6 +258,8 @@
 <EnableGameActor />
 
 <EnableSound />
+
+<EnableHotkey />
 
 <MsgBox />
 
