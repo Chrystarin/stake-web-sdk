@@ -16,6 +16,8 @@
 
 	import {
 
+		isGameOngoing,
+
 		onBallLanded,
 
 		onBonusEndAnnouncementClosed,
@@ -159,7 +161,7 @@
 
 	async function placeBet() {
 
-		if (stateGame.isSubmitting || stateGame.isAnimating) return;
+		if (stateGame.isSubmitting || stateGame.isAnimating || isGameOngoing()) return;
 
 		stateGame.isSubmitting = true;
 
@@ -475,7 +477,7 @@
 		spinMeterProgress={stateGameDerived.spinMeterProgress}
 		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
 		bonusBallsRemaining={stateGame.bonusBallsRemaining}
-		playDisabled={stateGame.isSubmitting || stateGame.isAnimating}
+		playDisabled={stateGame.isSubmitting || stateGame.isAnimating || isGameOngoing()}
 		bonusPlayDisabled={stateGame.bonusRouletteOpen}
 		{mobile}
 		onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}

@@ -64,6 +64,15 @@
 			isPlayActionBlockedByFreeSpinRoulette(),
 	);
 
+	/** Same disabled state as the visible play / stop / bonus-play button (and Space). */
+	const isPlayButtonDisabled = $derived(
+		props.hasPendingBonusBalls
+			? bonusPlayDisabled
+			: props.autoMode && !props.autoPlayStarted
+				? playDisabledMain || props.betAmount <= 0
+				: playDisabledMain,
+	);
+
 	const mobileAutoCountDisplay = $derived(
 		props.autoPlayStarted ? '■' : String(props.autoRoundsLeft || stateGame.autoRoundsLeft),
 	);
@@ -179,6 +188,7 @@
 	}
 
 	function onMainActionClick() {
+		if (isPlayButtonDisabled) return;
 		if (props.hasPendingBonusBalls || !props.autoMode) {
 			props.onPlay();
 			return;
@@ -192,17 +202,10 @@
 
 	/** Space triggers play; skip when a button is focused so native Space still works on controls. */
 	function onSpacePlay() {
+		if (isPlayButtonDisabled) return;
 		const tag = document.activeElement?.tagName?.toLowerCase();
 		if (tag === 'button') return;
 		onMainActionClick();
-	}
-
-	function isMainActionDisabled() {
-		if (props.hasPendingBonusBalls) return bonusPlayDisabled;
-		if (props.autoMode) {
-			return props.autoPlayStarted ? false : playDisabledMain || props.betAmount <= 0;
-		}
-		return playDisabledMain;
 	}
 
 	function toggleMobileBetPopup() {
@@ -253,7 +256,7 @@
 	});
 </script>
 
-<OnHotkey hotkey="Space" disabled={isMainActionDisabled()} onpress={onSpacePlay} />
+<OnHotkey hotkey="Space" disabled={isPlayButtonDisabled} onpress={onSpacePlay} />
 
 {#snippet bettingFieldFrame()}
 	<img
@@ -315,7 +318,7 @@
 			<button
 				type="button"
 				class="mobile-icon-btn mobile-icon-btn--play"
-				disabled={isMainActionDisabled()}
+				disabled={isPlayButtonDisabled}
 				aria-label="Bet"
 				onclick={onMainActionClick}
 			>
@@ -606,7 +609,7 @@
 						<button
 							type="button"
 							class="bp-btn-play"
-							disabled={props.hasPendingBonusBalls ? bonusPlayDisabled : playDisabledMain}
+							disabled={isPlayButtonDisabled}
 							aria-label="Bet"
 							onclick={props.onPlay}
 						>
@@ -634,7 +637,7 @@
 						<button
 							type="button"
 							class="bp-btn-play bp-btn-play--narrow"
-							disabled={playDisabledMain || props.betAmount <= 0}
+							disabled={isPlayButtonDisabled}
 							aria-label="Start autobet"
 							onclick={onAutoGameStartClick}
 						>

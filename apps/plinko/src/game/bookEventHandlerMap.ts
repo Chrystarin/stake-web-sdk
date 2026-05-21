@@ -2,6 +2,7 @@ import { stateBet } from 'state-shared';
 import { createPlayBookUtils, type BookEventHandlerMap } from 'utils-book';
 
 import { eventEmitter } from './eventEmitter';
+import { waitForDropBatchCompletion } from './gameOrchestrator';
 import { stateGame } from './stateGame.svelte';
 import { freeSpinSegmentIndexForMultiplier, triggerRoulette, waitForRouletteClose } from './meterFlow';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
@@ -15,6 +16,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.isAnimating = true;
 		stateGame.pendingDropWinAmount = 0;
 		stateGame.winAmount = 0;
+		stateGame.showWinPopup = false;
 		await eventEmitter.broadcastAsync({
 			type: 'plinkoDrop',
 			outcomes: bookEvent.outcomes,
@@ -58,6 +60,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateBet.winBookEventAmount = bookEvent.amount;
 		const payoutMultiplier = bookEvent.amount / 100;
 		if (payoutMultiplier > 0) {
+			await waitForDropBatchCompletion();
 			stateGame.winPopupAmount = stateGame.pendingDropWinAmount || payoutMultiplier * stateBet.betAmount;
 			stateGame.winPopupMultiplier = payoutMultiplier;
 			stateGame.showWinPopup = true;
