@@ -1,4 +1,4 @@
-/* Desktop bottom panel — ported from crimson-plinko game.desktop.component.scss */
+/* Desktop bottom panel — ported from legacy Angular game.desktop.component.scss (One-Eyed Willy's Plinko) */
 
 .bp-field-frame {
 	position: absolute;
@@ -171,7 +171,7 @@
 	align-self: center;
 	position: relative;
 	overflow: visible;
-	/* Crimson: reserve side space for label/value; steppers pin to frame edges via absolute */
+	/* One-Eyed Willy's Plinko: reserve side space for label/value; steppers pin to frame edges via absolute */
 	padding: 0.42vw calc(var(--bp-stepper-side) + 0.2vw) 0.32vw;
 
 	> .bp-field-label {
@@ -198,7 +198,7 @@
 		justify-content: center;
 	}
 
-	/* Position against .bp-field--bet-controls (not .bp-bet-input-wrap) — matches crimson */
+	/* Position against .bp-field--bet-controls (not .bp-bet-input-wrap) — matches legacy layout */
 	.bp-stepper-btn {
 		position: absolute;
 		top: 0.5vw;
@@ -601,7 +601,7 @@
 	}
 }
 
-/* Mobile HUD — crimson-plinko game.mobile.component.scss */
+/* Mobile HUD — ported from legacy Angular game.mobile.component.scss (One-Eyed Willy's Plinko) */
 
 .mobile-hud {
 	position: relative;

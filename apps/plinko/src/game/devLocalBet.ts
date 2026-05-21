@@ -6,7 +6,7 @@ import books from '../stories/data/base_books';
 export async function playDevLocalBook(): Promise<boolean> {
 	if (!books.length) {
 		console.warn(
-			'[plinko] No local books. Run stake-math-sdk crimson_plinko and: pnpm run sync-math-books',
+			"[One-Eyed Willy's Plinko] No local books. Run stake-math-sdk games/crimson_plinko, then: pnpm run sync-math-books",
 		);
 		return false;
 	}

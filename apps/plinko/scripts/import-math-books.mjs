@@ -1,5 +1,5 @@
 /**
- * Copy sample books from stake-math-sdk crimson_plinko into Storybook fixtures.
+ * Copy sample books from stake-math-sdk (One-Eyed Willy's Plinko / games/crimson_plinko) into Storybook fixtures.
  *
  * Usage (from apps/plinko):
  *   node scripts/import-math-books.mjs
@@ -26,7 +26,7 @@ const booksPath = candidates.find((p) => existsSync(p));
 
 if (!booksPath) {
 	console.warn(
-		`[sync-math-books] No math books at ${booksDir}. Run stake-math-sdk: python games/crimson_plinko/run.py`,
+		`[sync-math-books] No math books for One-Eyed Willy's Plinko at ${booksDir}. Run stake-math-sdk: python games/crimson_plinko/run.py`,
 	);
 	process.exit(0);
 }

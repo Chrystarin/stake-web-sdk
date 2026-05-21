@@ -24,7 +24,7 @@ Math books not found. Generate them first:
 
   cd ../../../stake-math-sdk
   pip install -e .
-  python games/crimson_plinko/run.py
+  python games/crimson_plinko/run.py  # One-Eyed Willy's Plinko math package
 
 Then re-run this script or: pnpm run storybook --filter=plinko
 `);

@@ -3,7 +3,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const crimson = 'E:/Projects/Web/ThirdPartyClients/Crash/crimson-plinko/src/app/components';
+/** Legacy Angular port source (One-Eyed Willy's Plinko, formerly crimson-plinko). */
+const legacyAngularSource =
+	'E:/Projects/Web/ThirdPartyClients/Crash/crimson-plinko/src/app/components';
 
 function portMeter(sourcePath, className, outPath) {
 	let code = readFileSync(sourcePath, 'utf8');
@@ -47,12 +49,12 @@ function portMeter(sourcePath, className, outPath) {
 }
 
 portMeter(
-	join(crimson, 'bonus-meter/bonus-meter.component.ts'),
+	join(legacyAngularSource, 'bonus-meter/bonus-meter.component.ts'),
 	'BonusMeterComponent',
 	join(root, 'src/features/meters/BonusMeterEngine.ts'),
 );
 portMeter(
-	join(crimson, 'free-spin-meter/free-spin-meter.component.ts'),
+	join(legacyAngularSource, 'free-spin-meter/free-spin-meter.component.ts'),
 	'FreeSpinMeterComponent',
 	join(root, 'src/features/meters/FreeSpinMeterEngine.ts'),
 );
