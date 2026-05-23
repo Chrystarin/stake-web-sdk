@@ -3,6 +3,15 @@ export const isMobile = (): boolean =>
 		typeof navigator !== 'undefined' ? navigator.userAgent : '',
 	);
 
+/** Mobile UA or tall narrow viewport (portrait reference layout 992×1761). */
+export const isPortraitGameLayout = (): boolean => {
+	if (isMobile()) return true;
+	if (typeof window === 'undefined') return false;
+	const w = window.innerWidth;
+	const h = window.innerHeight;
+	return h > w && w <= 820;
+};
+
 export const formatCoefficientLabel = (value: number): string => {
 	if (value == null || Number.isNaN(value)) return '';
 	if (value > 999_999) return `${(value / 1_000_000).toFixed(1)}m`;

@@ -1,35 +1,35 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 
-	import { BACKGROUND_LANDSCAPE_IMAGE } from '../../game/assets';
+	import { BACKGROUND_PORTRAIT_IMAGE } from '../../game/assets';
 	import { isPortraitGameLayout } from '../../lib/format';
 	import { staticCssUrl } from '../../lib/staticUrl';
-	import AnimatedLandscapeBackground from './AnimatedLandscapeBackground.svelte';
+	import AnimatedPortraitBackground from './AnimatedPortraitBackground.svelte';
 
 	let hostEl = $state<HTMLDivElement | undefined>(undefined);
 
-	/** Desktop layout only (matches Game.svelte); mobile uses BackgroundPortrait. */
-	const showAnimatedBackground = $derived(browser && !isPortraitGameLayout());
+	/** Mobile layout only (matches Game.svelte). */
+	const showAnimatedBackground = $derived(browser && isPortraitGameLayout());
 
 	const backgroundImage = $derived(
-		showAnimatedBackground ? staticCssUrl(BACKGROUND_LANDSCAPE_IMAGE) : undefined,
+		showAnimatedBackground ? staticCssUrl(BACKGROUND_PORTRAIT_IMAGE) : undefined,
 	);
 </script>
 
 <div
-	class="background-landscape-root"
-	class:background-landscape-root--active={showAnimatedBackground}
+	class="background-portrait-root"
+	class:background-portrait-root--active={showAnimatedBackground}
 	style:background-image={backgroundImage}
 	bind:this={hostEl}
 	aria-hidden="true"
 >
 	{#if showAnimatedBackground && hostEl}
-		<AnimatedLandscapeBackground host={hostEl} />
+		<AnimatedPortraitBackground host={hostEl} />
 	{/if}
 </div>
 
 <style>
-	.background-landscape-root {
+	.background-portrait-root {
 		position: fixed;
 		inset: 0;
 		width: 100vw;
@@ -40,7 +40,7 @@
 		overflow: hidden;
 	}
 
-	.background-landscape-root--active {
+	.background-portrait-root--active {
 		background-color: #5a8f94;
 		background-size: cover;
 		background-position: center top;

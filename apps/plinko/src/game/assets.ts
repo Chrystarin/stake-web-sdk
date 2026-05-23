@@ -8,6 +8,12 @@ export const BACKGROUND_LANDSCAPE_IMAGE =
 export const BACKGROUND_LANDSCAPE_SPINE_BASE =
 	'img/assets/spines/background_landscape_v2/landscape';
 
+/** Static plate behind portrait spine (922×1761). */
+export const BACKGROUND_PORTRAIT_IMAGE = 'img/background-mobile.png';
+
+/** Served from `/static/img/assets/spines/background_portrait/`. */
+export const BACKGROUND_PORTRAIT_SPINE_BASE = 'img/assets/spines/background_portrait';
+
 export default {
 	backgroundLandscape: {
 		type: 'spine',

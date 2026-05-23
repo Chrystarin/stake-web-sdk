@@ -54,8 +54,8 @@
 
 	import { BonusMeter, FreeSpinMeter } from '../features/meters';
 
-	import { BackgroundLandscape } from '../features/background';
-	import { isMobile } from '../lib/format';
+	import { BackgroundLandscape, BackgroundPortrait } from '../features/background';
+	import { isPortraitGameLayout } from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { slotColorForMultiplier } from '../game-logic/slotColors';
 
@@ -85,7 +85,7 @@
 
 	const context = getContext();
 
-	const mobile = isMobile();
+	const mobile = isPortraitGameLayout();
 
 
 
@@ -279,12 +279,11 @@
 
 	{#if !mobile}
 		<BackgroundLandscape />
+	{:else}
+		<BackgroundPortrait />
 	{/if}
 
-	<div
-		class="bg-layer"
-		style:background-image={mobile ? staticCssUrl('img/background-mobile.png') : undefined}
-	></div>
+	<div class="bg-layer"></div>
 
 
 
@@ -620,7 +619,13 @@
 	.game-root--mobile .game-content {
 
 		--game-area-width-cap: 100vw;
+		/* 992×1761 reference — scale layout tokens from design width */
+		--portrait-dw: 992;
+		--portrait-px: calc(100vw / var(--portrait-dw));
 		padding: 0;
+		flex: 1 1 0;
+		min-height: 0;
+		overflow: hidden;
 
 	}
 
@@ -893,19 +898,6 @@
 
 	}
 
-	.game-root--mobile .game-area .top-hud {
-
-		top: 0.6vw;
-
-		left: 0;
-
-		right: 0;
-
-		height: 7.6vw;
-
-		justify-content: space-between;
-
-	}
 
 	.top-hud-buy-bonus {
 
@@ -1173,7 +1165,7 @@
 
 	}
 
-	/* Mobile — same max-fit sizing inside flex slot */
+	/* Mobile — layout from 992×1761 reference (Portrait_animationGuide / legacy mobile) */
 	.game-root--mobile .game-area {
 
 		flex: 1 1 0;
@@ -1184,9 +1176,7 @@
 
 		max-width: var(--game-area-width-cap, 100vw);
 
-		height: 100%;
-
-		margin: 0 auto;
+		margin: calc(var(--portrait-px) * 10) auto calc(var(--portrait-px) * 12);
 
 		padding: 0;
 
@@ -1198,9 +1188,9 @@
 
 		align-items: center;
 
-		justify-content: center;
+		justify-content: flex-start;
 
-		align-self: center;
+		align-self: stretch;
 
 		z-index: 1;
 
@@ -1212,53 +1202,138 @@
 
 	}
 
+	.game-root--mobile .game-area .top-hud {
+
+		position: absolute;
+
+		top: calc(var(--portrait-px) * 6);
+
+		right: calc(var(--portrait-px) * 6);
+
+		left: auto;
+
+		width: auto;
+
+		height: calc(var(--portrait-px) * 112);
+
+		z-index: 22;
+
+	}
+
 	.game-root--mobile .game-area > .container {
 
-		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
-		--game-area-max-h: 100cqh;
+		--plinko-area-scale: 1;
 
-		/* Bonus meter — mobile proportions vs frame (26×20 @ top 15 on ~100×57) */
-		--bonus-meter-width-ratio: 0.26;
-		--bonus-meter-height-ratio: 0.349;
-		--bonus-meter-top-ratio: 0.262;
+		--plinko-host-width: 100%;
 
-		width: var(--game-area-fit-width);
+		--plinko-host-height: 100%;
 
-		height: var(--game-area-fit-height);
+		--plinko-area-offset-y: 0;
 
-		max-width: var(--game-area-max-w);
+		width: 100vw;
 
-		max-height: var(--game-area-max-h);
+		max-width: 100vw;
 
 		min-width: 0;
 
-		align-self: center;
+		flex: 1 1 0;
 
-		flex: 0 1 auto;
+		min-height: clamp(360px, calc(100vw * 760 / 992), 760px);
 
-		min-height: 0;
+		height: auto;
+
+		max-height: 100%;
 
 		box-sizing: border-box;
 
-		display: block;
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+		justify-content: flex-start;
 
 		overflow: visible;
 
 		position: relative;
 
-		padding: 0;
+		padding: calc(var(--portrait-px) * 222) 0 0;
 
 		margin: 0 auto;
 
-		border-radius: 4vw;
+		border-radius: calc(var(--portrait-px) * 44);
 
-		container-type: size;
+		align-self: center;
 
-		container-name: plinko-frame;
+	}
+
+	.game-root--mobile .game-area > .container .game-area-frame,
+	.game-root--mobile .game-area > .container .game-area-bonus-overlay {
+
+		top: 0;
+
+		left: 50%;
+
+		right: auto;
+
+		bottom: auto;
+
+		width: 125%;
+
+		height: auto;
+
+		max-width: none;
+
+		max-height: none;
+
+		transform: translateX(-50%);
+
+		object-fit: cover;
+
+		object-position: top center;
+
+	}
+
+	.game-root--mobile .game-area > .container .bonus-meter-wrap {
+
+		top: calc(var(--portrait-px) * 132);
+
+		left: 51%;
+
+		width: calc(var(--portrait-px) * 258);
+
+		height: calc(var(--portrait-px) * 198);
+
+		transform: translateX(-50%);
 
 	}
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap {
+
+		position: relative;
+
+		inset: auto;
+
+		flex: 0 0 auto;
+
+		width: 100%;
+
+		height: calc(var(--portrait-px) * 546);
+
+		min-height: 0;
+
+		overflow: visible;
+
+		z-index: 2;
+
+		pointer-events: none;
+
+		margin-top: calc(var(--portrait-px) * 248);
+
+	}
+
+	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-root) {
 
 		position: absolute;
 
@@ -1268,15 +1343,23 @@
 
 		height: 100%;
 
-		overflow: visible;
-
-		z-index: 1;
-
-		pointer-events: none;
-
 	}
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-host) {
+
+		left: 50%;
+
+		top: 0;
+
+		width: 100%;
+
+		height: 100%;
+
+		max-width: 100%;
+
+		max-height: 100%;
+
+		transform: translateX(-50%);
 
 		pointer-events: auto;
 
