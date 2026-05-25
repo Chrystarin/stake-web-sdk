@@ -478,10 +478,7 @@
 						</div>
 					</div>
 
-					<div
-						class="bp-field bp-field--bet-total"
-						class:bp-field-disabled={controlsLocked}
-					>
+					<div class="bp-field bp-field--bet-total">
 						{@render bettingFieldFrame()}
 						<span class="bp-field-label">{context.i18nDerived.t('Bet')}</span>
 						<div class="bp-total-stepper">
