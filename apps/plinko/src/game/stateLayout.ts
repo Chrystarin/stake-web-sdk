@@ -1,6 +1,6 @@
 import { createLayout } from 'utils-layout';
 
-/** Matches `background_landscape_v2` skeleton bounds in landscape.json. */
+/** Matches `background_landscape` skeleton bounds in landscape.json. */
 const BACKGROUND_LANDSCAPE_RATIO = 3731.67 / 2007.81;
 
 /** Mobile portrait background design frame (992×1761). */

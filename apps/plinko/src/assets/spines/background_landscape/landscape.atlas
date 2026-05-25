@@ -69,10 +69,10 @@ light
   index: -1
 moon
   rotate: false
-  xy: 1887, 1400
-  size: 143, 142
+  xy: 1887, 1402
+  size: 142, 140
   orig: 229, 229
-  offset: 43, 44
+  offset: 44, 44
   index: -1
 oceanAnim/0
   rotate: false
@@ -320,22 +320,22 @@ oceanAnim/4
   offset: 8, 4
   index: -1
 oceanAnim/40
-  rotate: false
-  xy: 1133, 1023
+  rotate: true
+  xy: 1887, 1025
   size: 375, 87
   orig: 391, 95
   offset: 8, 4
   index: -1
 oceanAnim/41
   rotate: false
-  xy: 1510, 1023
+  xy: 1133, 1023
   size: 375, 87
   orig: 391, 95
   offset: 8, 4
   index: -1
 oceanAnim/42
-  rotate: true
-  xy: 1887, 1023
+  rotate: false
+  xy: 1510, 1023
   size: 375, 87
   orig: 391, 95
   offset: 8, 4
@@ -496,7 +496,7 @@ oceanAnim/62
   index: -1
 oceanAnim/63
   rotate: true
-  xy: 1887, 646
+  xy: 1887, 648
   size: 375, 87
   orig: 391, 95
   offset: 8, 4
@@ -664,7 +664,7 @@ oceanAnim/84
   index: -1
 oceanAnim/85
   rotate: true
-  xy: 1887, 269
+  xy: 1887, 271
   size: 375, 87
   orig: 391, 95
   offset: 8, 4
@@ -958,167 +958,146 @@ waterFlow
   index: -1
 
 landscape2.png
-size: 1982,1930
+size: 1801,1400
 format: RGBA8888
 filter: Linear,Linear
 repeat: none
-backdrop
-  rotate: true
-  xy: 731, 968
-  size: 960, 540
-  orig: 960, 540
-  offset: 0, 0
-  index: -1
-ocean
-  rotate: false
-  xy: 310, 701
-  size: 652, 220
-  orig: 652, 220
-  offset: 0, 0
-  index: -1
-ocean2
-  rotate: true
-  xy: 2, 488
-  size: 1440, 306
-  orig: 1440, 810
-  offset: 0, 270
-  index: -1
 shipBig
-  rotate: true
-  xy: 310, 923
+  rotate: false
+  xy: 2, 979
   size: 1005, 419
   orig: 1005, 419
   offset: 0, 0
   index: -1
 water lines/1
   rotate: false
-  xy: 2, 9
+  xy: 2, 500
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/10
-  rotate: false
-  xy: 1322, 269
+  rotate: true
+  xy: 1009, 960
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/11
-  rotate: true
-  xy: 1400, 49
+  rotate: false
+  xy: 1488, 921
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/12
-  rotate: true
-  xy: 1443, 1710
+  rotate: false
+  xy: 882, 481
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/13
-  rotate: true
-  xy: 1443, 1490
+  rotate: false
+  xy: 1102, 481
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/14
   rotate: false
-  xy: 1273, 1011
+  xy: 882, 2
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/15
-  rotate: true
-  xy: 1493, 1270
+  rotate: false
+  xy: 1102, 2
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/16
-  rotate: true
-  xy: 1493, 1050
+  rotate: false
+  xy: 1322, 442
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/17
-  rotate: true
-  xy: 1493, 830
+  rotate: false
+  xy: 1542, 442
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/18
-  rotate: false
-  xy: 1542, 351
+  rotate: true
+  xy: 1322, 222
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/19
-  rotate: false
-  xy: 1762, 351
+  rotate: true
+  xy: 1322, 2
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/2
-  rotate: false
-  xy: 222, 9
+  rotate: true
+  xy: 1009, 1180
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/3
   rotate: false
-  xy: 442, 222
+  xy: 2, 21
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/4
-  rotate: true
-  xy: 442, 2
+  rotate: false
+  xy: 222, 500
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/5
   rotate: false
-  xy: 662, 222
+  xy: 222, 21
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/6
   rotate: false
-  xy: 882, 222
+  xy: 442, 500
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/7
-  rotate: true
-  xy: 921, 2
+  rotate: false
+  xy: 442, 21
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/8
-  rotate: true
-  xy: 964, 748
+  rotate: false
+  xy: 662, 500
   size: 218, 477
   orig: 218, 477
   offset: 0, 0
   index: -1
 water lines/9
   rotate: false
-  xy: 1102, 269
+  xy: 662, 21
   size: 218, 477
   orig: 218, 477
   offset: 0, 0

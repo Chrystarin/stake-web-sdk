@@ -2,11 +2,11 @@ import '@esotericsoftware/spine-pixi-v8';
 
 /** Static base plate behind the landscape spine (stormy sea + lower fill). */
 export const BACKGROUND_LANDSCAPE_IMAGE =
-	'img/assets/spines/background_landscape_v2/BG_landscape.jpg';
+	'img/assets/spines/background_landscape/BG_landscape.jpg';
 
-/** Served from `/static/img/assets/spines/background_landscape_v2/landscape/`. */
+/** Served from `/static/img/assets/spines/background_landscape/landscape/`. */
 export const BACKGROUND_LANDSCAPE_SPINE_BASE =
-	'img/assets/spines/background_landscape_v2/landscape';
+	'img/assets/spines/background_landscape/landscape';
 
 /** Static plate behind portrait spine (922×1761). */
 export const BACKGROUND_PORTRAIT_IMAGE = 'img/background-mobile.png';
