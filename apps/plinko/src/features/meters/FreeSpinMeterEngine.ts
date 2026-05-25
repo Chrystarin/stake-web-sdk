@@ -35,7 +35,7 @@ export class FreeSpinMeterEngine {
   private readonly wheelScaleByBaseHeight = 0.45;
   private readonly wheelOffsetXByBaseWidth = 0.9;
   private readonly wheelOffsetYByBaseHeight = 0.75;
-  private readonly wheelSpinRadiansPerSecond = 2.4;
+  private readonly wheelSpinRadiansPerSecond = 1.2;
   private wheelSpinTicker?: (ticker: { deltaMS: number }) => void;
 
 	async init(host: HTMLElement): Promise<void> {

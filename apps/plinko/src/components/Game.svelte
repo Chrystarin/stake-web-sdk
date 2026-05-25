@@ -1129,9 +1129,13 @@
 
 		text-align: center;
 
-		color: #fff;
-
 		background-size: 100% 100%;
+
+	}
+
+	.win-card p {
+
+		color: #fff;
 
 	}
 
@@ -1143,7 +1147,7 @@
 
 		margin: 12px 0 20px;
 
-		color: #fee663;
+		color: #54f917;
 
 	}
 
