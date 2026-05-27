@@ -19,6 +19,22 @@ type DropRequest = { type: 'bonusBall'; stake: number };
 let dropRequestHandler: ((req: DropRequest) => void) | null = null;
 let betRequestHandler: (() => void) | null = null;
 
+function setExpectedOutcome(ballId: number, outcome: PlinkoBallOutcome) {
+	const next = new Map(stateGame.expectedOutcomeByBallId);
+	next.set(ballId, outcome);
+	stateGame.expectedOutcomeByBallId = next;
+}
+
+function takeExpectedOutcome(ballId: number): PlinkoBallOutcome | undefined {
+	const current = stateGame.expectedOutcomeByBallId;
+	if (!current.has(ballId)) return undefined;
+	const next = new Map(current);
+	const pending = next.get(ballId);
+	next.delete(ballId);
+	stateGame.expectedOutcomeByBallId = next;
+	return pending;
+}
+
 export function setDropRequestHandler(handler: (req: DropRequest) => void) {
 	dropRequestHandler = handler;
 }
@@ -99,7 +115,7 @@ export function awardBonusBalls(count: number) {
 		!isGameOngoing()
 	) {
 		stateGame.pendingDropWinAmount = 0;
-		stateGame.expectedOutcomeByBallId.clear();
+		stateGame.expectedOutcomeByBallId = new Map<number, PlinkoBallOutcome>();
 		stateGame.nextBallSpawnAtMs = Date.now();
 		stateGame.pendingSpacedSpawnTimers = 0;
 	}
@@ -333,7 +349,7 @@ export function showResultOverlay(amount: number, rate: number, timeout = 3000) 
 }
 
 export function registerBonusBallOutcome(ballId: number, outcome: PlinkoBallOutcome) {
-	stateGame.expectedOutcomeByBallId.set(ballId, outcome);
+	setExpectedOutcome(ballId, outcome);
 }
 
 export function onBallLanded(
@@ -342,9 +358,8 @@ export function onBallLanded(
 	isSpinSlot: boolean,
 	slotColor: string,
 ) {
-	const pending = stateGame.expectedOutcomeByBallId.get(ballId);
+	const pending = takeExpectedOutcome(ballId);
 	if (pending) {
-		stateGame.expectedOutcomeByBallId.delete(ballId);
 		addSettledWinAmount(pending.amount * pending.multiplier);
 	}
 	stateGame.history.push({ result: multiplier, color: slotColor });

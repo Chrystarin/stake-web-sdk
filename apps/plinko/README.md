@@ -57,6 +57,7 @@ After `pnpm run build --filter=plinko`:
 
 - **Upload folder:** `apps/plinko/build/` (static site from `@sveltejs/adapter-static`)
 - Entry: `build/index.html` plus `build/_app/`, `build/img/`, `build/i18n/`, etc.
+- Spine runtime assets are served from `build/spines/` (source of truth: `apps/plinko/static/spines/`).
 - `paths.relative` is enabled in `svelte.config.js` so assets work on Stake Engine CDN subpaths.
 
 `build/` and `.svelte-kit/` are gitignored; regenerate before each Engine upload.
@@ -65,6 +66,7 @@ After `pnpm run build --filter=plinko`:
 
 1. Run a fresh build (above).
 2. In [Stake Engine](https://engine.stake.com/), open the game **Files** page and import the entire `build/` folder.
+   - Do not skip `build/spines/` (required for background Spine animation).
 3. Publish **Front End**, then test via **Developer → Start game session → Launch in New Tab**.
 4. Copy the session query string into local dev URL to test against RGS.
 

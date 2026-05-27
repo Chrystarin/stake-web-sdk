@@ -152,17 +152,18 @@
 		const totalMs = (minSec + Math.random() * (maxSec - minSec)) * 1000;
 		const delays = n <= 1 ? [0] : Array.from({ length: n }, (_, i) => (i / (n - 1)) * totalMs);
 		const targetIndices = outcomes.map((o) => o.rateIndex);
-		const pending = new Map<number, PlinkoBallOutcome>();
 
+		stateGame.expectedOutcomeByBallId = new Map<number, PlinkoBallOutcome>();
 		stateGame.pendingSpacedSpawnTimers = n;
 		engine.dropBallBurst(targetIndices, delays, ({ dropped, index }) => {
-			stateGame.pendingSpacedSpawnTimers = Math.max(0, stateGame.pendingSpacedSpawnTimers - 1);
 			const outcome = outcomes[index];
-			if (!outcome || !dropped) return;
-			pending.set(dropped.ballId, outcome);
+			if (outcome && dropped) {
+				const next = new Map(stateGame.expectedOutcomeByBallId);
+				next.set(dropped.ballId, outcome);
+				stateGame.expectedOutcomeByBallId = next;
+			}
+			stateGame.pendingSpacedSpawnTimers = Math.max(0, stateGame.pendingSpacedSpawnTimers - 1);
 		});
-
-		stateGame.expectedOutcomeByBallId = pending;
 	}
 </script>
 
