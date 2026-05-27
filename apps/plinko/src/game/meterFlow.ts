@@ -4,6 +4,7 @@ import {
 	clearBonusMeterDrainTimer,
 	onBonusMeterFilledDuringRound,
 	scheduleBonusMeterDrainDuringRoll,
+	waitForDropBatchCompletion,
 } from './gameOrchestrator';
 import { meterController } from './stateGame.svelte';
 import { stateGame } from './stateGame.svelte';
@@ -11,6 +12,20 @@ import { stateGame } from './stateGame.svelte';
 export type RouletteSource = 'spin' | 'bonus';
 
 let rouletteCloseWaiters: Array<() => void> = [];
+
+const isDropPipelineBusy = () =>
+	stateGame.isAnimating ||
+	stateGame.expectedOutcomeByBallId.size > 0 ||
+	stateGame.pendingSpacedSpawnTimers > 0;
+
+const waitForDropPipelineIdle = (): Promise<void> =>
+	new Promise((resolve) => {
+		const check = () => {
+			if (!isDropPipelineBusy()) resolve();
+			else requestAnimationFrame(check);
+		};
+		check();
+	});
 
 export function waitForRouletteClose(): Promise<void> {
 	return new Promise((resolve) => rouletteCloseWaiters.push(resolve));
@@ -31,13 +46,18 @@ export function triggerRoulette(source: RouletteSource) {
 		else stateGame.autoPlayStopping = true;
 	}
 	meterController.beginRoulette(source);
-	if (source === 'spin') {
-		stateGame.freeSpinRouletteOpen = true;
-		return;
-	}
-	stateGame.bonusRouletteOpen = true;
-	if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
-	scheduleBonusMeterDrainDuringRoll();
+	void (async () => {
+		await waitForDropPipelineIdle();
+		// Ignore stale opener attempts if roulette source changed in-between.
+		if (!stateGame.rouletteFlowInProgress || stateGame.activeRouletteSource !== source) return;
+		if (source === 'spin') {
+			stateGame.freeSpinRouletteOpen = true;
+			return;
+		}
+		stateGame.bonusRouletteOpen = true;
+		if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
+		scheduleBonusMeterDrainDuringRoll();
+	})();
 }
 
 export function onCoinPegHit() {
@@ -88,9 +108,14 @@ export function onFreeSpinRouletteFinished(segmentLabel: string) {
 export function onBonusRouletteResultReady(freeBallCount: number) {
 	if (stateGame.activeRouletteSource !== 'bonus') return;
 	if (stateGame.bonusRouletteResultAppliedEarly) return;
-	if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
-	awardBonusBalls(freeBallCount);
 	stateGame.bonusRouletteResultAppliedEarly = true;
+	void (async () => {
+		await waitForDropBatchCompletion();
+		// Ignore stale activation attempts if roulette source changed.
+		if (stateGame.activeRouletteSource !== 'bonus') return;
+		if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
+		awardBonusBalls(freeBallCount);
+	})();
 }
 
 export function onBonusRouletteFinished() {

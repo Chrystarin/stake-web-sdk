@@ -121,13 +121,8 @@ export const stateGameDerived = {
 		return stateGame.bonusLevelProgress + Math.min(available, levelUpQueued);
 	},
 	get isBonusBackgroundActive(): boolean {
-		if (stateGame.bonusRoundActive) return true;
-		if (stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax) {
-			return true;
-		}
-		return (
-			stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus'
-		);
+		// Show bonus visuals only after the bonus wheel is visibly opened, or once bonus mode is active.
+		return stateGame.bonusRouletteOpen || stateGame.bonusRoundActive;
 	},
 	get bonusLevelLabels(): readonly number[] {
 		return BONUS_LEVEL_LABELS;

@@ -499,7 +499,7 @@
 
 
 
-	{#if stateGame.freeSpinRouletteOpen || stateGame.showFreeSpinRoulette}
+	{#if stateGame.freeSpinRouletteOpen}
 
 		<FreeSpinRoulette
 
@@ -513,7 +513,7 @@
 
 
 
-	{#if stateGame.bonusRouletteOpen || stateGame.showBonusRoulette}
+	{#if stateGame.bonusRouletteOpen}
 
 		<BonusRoulette
 
