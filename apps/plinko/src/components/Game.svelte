@@ -1054,6 +1054,7 @@
 	.game-area-bonus-overlay {
 
 		opacity: 0;
+		z-index: 3;
 
 		transition: opacity 0.28s ease-in-out;
 
@@ -1091,7 +1092,7 @@
 
 	.container.container--bonus .game-area-frame {
 
-		opacity: 0;
+		opacity: 1;
 
 		transition: opacity 0.28s ease-in-out;
 
