@@ -118,6 +118,14 @@
 			: 0,
 	);
 
+	const winPopupCurrencySign = $derived(
+		stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `,
+	);
+
+	const winPopupAmountDisplay = $derived(
+		`${winPopupCurrencySign}${stateGame.winPopupAmount.toFixed(2)}`,
+	);
+
 	onMount(() => {
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
@@ -496,7 +504,7 @@
 
 				<p>{context.i18nDerived.t('Win')}</p>
 
-				<strong>{stateGame.winPopupAmount.toFixed(2)}</strong>
+				<strong>{winPopupAmountDisplay}</strong>
 
 				<button type="button" onclick={() => (stateGame.showWinPopup = false)}>OK</button>
 
@@ -1236,6 +1244,12 @@
 
 		color: #fff;
 
+		font-size: 1.75rem;
+
+		font-weight: 700;
+
+		margin: 0;
+
 	}
 
 	.win-card strong {
@@ -1254,7 +1268,7 @@
 
 		border: none;
 
-		background: linear-gradient(180deg, #3aa8e8, #1d6fad);
+		background: linear-gradient(180deg, #2a8fd4, #155a8a);
 
 		color: #fff;
 
@@ -1265,6 +1279,8 @@
 		cursor: pointer;
 
 		font-weight: 700;
+
+		font-size: 1.125rem;
 
 	}
 
