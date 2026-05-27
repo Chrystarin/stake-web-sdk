@@ -283,26 +283,6 @@
 
 
 
-	{#if stateGame.bonusRoundActive}
-
-		<div class="bonus-level-behind-game-area">
-
-			<BonusLevel
-
-				activeLevels={stateGame.bonusLevelProgress}
-
-				pendingLevelHighlight={stateGameDerived.bonusPendingLevelHighlight}
-
-				levelLabels={[...stateGameDerived.bonusLevelLabels]}
-
-			/>
-
-		</div>
-
-	{/if}
-
-
-
 	{#if !mobile}
 		<header class="top-hud">
 			<div class="top-hud-actions">
@@ -405,6 +385,16 @@
 
 	<div class="game-content">
 		<div class="game-area" class:game-area--pixi-fill={!mobile}>
+			{#if stateGame.bonusRoundActive}
+				<div class="bonus-level-behind-game-area">
+					<BonusLevel
+						activeLevels={stateGame.bonusLevelProgress}
+						pendingLevelHighlight={stateGameDerived.bonusPendingLevelHighlight}
+						levelLabels={[...stateGameDerived.bonusLevelLabels]}
+					/>
+				</div>
+			{/if}
+
 			{#if mobile}
 				<div class="top-hud">
 					<button type="button" class="top-hud-buy-bonus" aria-label="Buy bonus">
@@ -647,7 +637,7 @@
 
 		pointer-events: none;
 
-		z-index: 0;
+		z-index: -1;
 
 		left: 36.5vw;
 
@@ -670,6 +660,92 @@
 		transform: translateX(-50%);
 
 		z-index: -1;
+
+		--mobile-bonus-track-width: 65vw;
+
+		--mobile-bonus-track-height: 33.6vw;
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-track) {
+
+		width: var(--mobile-bonus-track-width);
+
+		height: var(--mobile-bonus-track-height);
+
+		--bonus-level-bar-scale: 0.125vw;
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(1)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.1124);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.6548);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(2)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.2016);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.5357);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(3)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.2791);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.3869);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(4)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.3721);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.2976);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(5)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.4961);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.2679);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(6)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.6124);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.3051);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(7)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.7054);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.4018);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(8)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.7752);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.5357);
+
+	}
+
+	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(9)) {
+
+		left: calc(var(--mobile-bonus-track-width) * 0.8837);
+
+		top: calc(var(--mobile-bonus-track-height) * 0.6548);
 
 	}
 
