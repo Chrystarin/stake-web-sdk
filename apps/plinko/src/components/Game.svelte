@@ -54,11 +54,11 @@
 
 	import { BonusMeter, FreeSpinMeter } from '../features/meters';
 
-	import { BackgroundLandscape, BackgroundPortrait } from '../features/background';
 	import { isPortraitGameLayout } from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { slotColorForMultiplier } from '../game-logic/slotColors';
 
+	import Background from './Background.svelte';
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
 
 	import { EnableHotkey } from 'components-shared';
@@ -277,13 +277,9 @@
 
 <main class="game-root" class:game-root--mobile={mobile}>
 
-	{#if !mobile}
-		<BackgroundLandscape />
-	{:else}
-		<BackgroundPortrait />
-	{/if}
-
-	<div class="bg-layer"></div>
+	<div class="bg-layer">
+		<Background />
+	</div>
 
 
 
@@ -638,10 +634,6 @@
 		z-index: 0;
 
 		overflow: hidden;
-
-		background-size: cover;
-
-		background-position: center;
 
 		pointer-events: none;
 

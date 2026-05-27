@@ -1,15 +1,15 @@
 import { createLayout } from 'utils-layout';
 
-/** Matches `background_landscape` skeleton bounds in landscape.json. */
-const BACKGROUND_LANDSCAPE_RATIO = 3731.67 / 2007.81;
+/** Landscape design frame aspect (1920×1080). */
+const LANDSCAPE_FRAME_RATIO = 1920 / 1080;
 
-/** Mobile portrait background design frame (992×1761). */
-const BACKGROUND_PORTRAIT_RATIO = 992 / 1761;
+/** Portrait design frame aspect (992×1761). */
+const PORTRAIT_FRAME_RATIO = 992 / 1761;
 
 export const { stateLayout, stateLayoutDerived } = createLayout({
 	backgroundRatio: {
-		normal: BACKGROUND_LANDSCAPE_RATIO,
-		portrait: BACKGROUND_PORTRAIT_RATIO,
+		normal: LANDSCAPE_FRAME_RATIO,
+		portrait: PORTRAIT_FRAME_RATIO,
 	},
 	mainSizesMap: {
 		desktop: { width: 1920, height: 1080 },

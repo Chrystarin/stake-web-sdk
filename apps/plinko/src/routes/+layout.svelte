@@ -134,7 +134,7 @@
 
 
 
-	/* Let the Spine background show through while stake-engine / example loaders run. */
+	/* Let the game shell show through while stake-engine / example loaders run. */
 
 	.plinko-app-shell-content :global(.wrap),
 
