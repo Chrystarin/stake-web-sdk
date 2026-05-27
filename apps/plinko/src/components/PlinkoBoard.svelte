@@ -4,6 +4,7 @@
 	import { PlinkoEngine, type BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 	import { getContext } from '../game/context';
 	import { registerBonusBallOutcome } from '../game/gameOrchestrator';
+	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import config from '../game/config';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import type { PlinkoBallOutcome } from '../game/typesBookEvent';
@@ -122,7 +123,8 @@
 			if (!engine) return;
 			const dropped = engine.dropBall(-1);
 			if (!dropped) return;
-			const mult = props.coefficients[dropped.targetIndex] ?? 1;
+			const isSpinSlot = isSpinSlotRateIndex(dropped.targetIndex, props.coefficients.length);
+			const mult = isSpinSlot ? 0 : (props.coefficients[dropped.targetIndex] ?? 1);
 			registerBonusBallOutcome(dropped.ballId, {
 				rateIndex: dropped.targetIndex,
 				multiplier: mult,

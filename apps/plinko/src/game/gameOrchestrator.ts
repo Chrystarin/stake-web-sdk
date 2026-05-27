@@ -359,11 +359,13 @@ export function onBallLanded(
 	slotColor: string,
 ) {
 	const pending = takeExpectedOutcome(ballId);
-	if (pending) {
+	if (pending && !isSpinSlot) {
 		addSettledWinAmount(pending.amount * pending.multiplier);
 	}
-	stateGame.history.push({ result: multiplier, color: slotColor });
-	if (stateGame.history.length > 8) stateGame.history.shift();
+	if (!isSpinSlot) {
+		stateGame.history.push({ result: multiplier, color: slotColor });
+		if (stateGame.history.length > 8) stateGame.history.shift();
+	}
 	if (isSpinSlot) {
 		meterController.addSpinMeterValue(1, (source) => {
 			if (stateGame.bonusRoundActive) {

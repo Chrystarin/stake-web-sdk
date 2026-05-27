@@ -2,6 +2,8 @@ import { playBet } from './utils';
 import type { Bet } from './typesBookEvent';
 import books from '../stories/data/base_books';
 import { stateBet } from 'state-shared';
+import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
+import config from './config';
 import { stateGame } from './stateGame.svelte';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
@@ -19,6 +21,10 @@ const resizeOutcomes = (event: PlinkoDropEvent, targetCount: number): PlinkoDrop
 const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet & { events: Bet['state'] } => {
 	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
 	const stakePerBall = Math.max(0, Number(stateBet.betAmount) || 0);
+	const coefficientSets = config.defaultCoefficientSets as number[][][];
+	const slotCount =
+		coefficientSets[stateGame.difficultyLevelId]?.[Math.max(0, stateGame.rowCount - 8)]
+			?.length ?? 0;
 
 	const events = book.events.map((event) => {
 		if (event.type !== 'plinkoDrop') return { ...event };
@@ -26,6 +32,8 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 		const outcomes = resizeOutcomes(event, ballsPerDrop).map((outcome) => ({
 			...outcome,
 			amount: stakePerBall,
+			multiplier:
+				slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount) ? 0 : outcome.multiplier,
 		}));
 
 		return {
@@ -41,10 +49,8 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 	);
 	const recalculatedWinAmount = plinkoDrop
 		? Math.round(
-				plinkoDrop.outcomes.reduce(
-					(sum, outcome) => sum + outcome.amount * outcome.multiplier,
-					0,
-				) * 100,
+				plinkoDrop.outcomes.reduce((sum, outcome) => sum + outcome.amount * outcome.multiplier, 0) *
+					100,
 			)
 		: 0;
 

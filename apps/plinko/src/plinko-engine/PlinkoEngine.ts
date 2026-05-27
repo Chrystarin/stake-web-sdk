@@ -126,7 +126,7 @@ export class PlinkoEngine {
   private readonly bulletsLayer = new Container();
   private readonly ballsGraphics = new Graphics();
   private readonly slotAssetLayer = new Container();
-  private readonly slotLabels: Text[] = [];
+  private readonly slotLabels: (Text | undefined)[] = [];
   private slotSprites: (Sprite | undefined)[] = [];
   private readonly pendingDropTimeouts = new Set<ReturnType<typeof setTimeout>>();
   private readonly pendingBallRemovalTimeouts = new Set<ReturnType<typeof setTimeout>>();
@@ -569,8 +569,7 @@ export class PlinkoEngine {
         join: 'round',
         cap: 'round'
       };
-      const middle = this.getMiddleSlotIndex();
-      label.text = i === middle ? '' : slot.labelText;
+      label.text = slot.labelText;
     }
   }
 
@@ -613,6 +612,10 @@ export class PlinkoEngine {
     return Math.floor(this.slots.length / 2);
   }
 
+  private isSpinSlotIndex(idx: number): boolean {
+    return idx === this.getMiddleSlotIndex();
+  }
+
   /** Spin uses spin asset; neighbors use tier 1..7 by distance from center. */
   private getMultiplierSlotTextureForIndex(idx: number): Sprite['texture'] | undefined {
     const middle = this.getMiddleSlotIndex();
@@ -628,7 +631,7 @@ export class PlinkoEngine {
     }
     this.slotSprites = [];
     for (const t of this.slotLabels) {
-      t.destroy();
+      t?.destroy();
     }
     this.slotLabels.length = 0;
 
@@ -646,7 +649,11 @@ export class PlinkoEngine {
         this.slotSprites.push(undefined);
       }
 
-      const slot = this.slots[i];
+      if (this.isSpinSlotIndex(i)) {
+        this.slotLabels.push(undefined);
+        continue;
+      }
+
       const slotBodyH = this.slotHeight * 0.82;
       const txt = new Text({
         text: '',
@@ -850,7 +857,9 @@ export class PlinkoEngine {
     let minInnerW = Infinity;
     let minInnerH = Infinity;
     let maxLabelLen = 1;
-    for (const slot of this.slots) {
+    for (let i = 0; i < this.slots.length; i++) {
+      if (this.isSpinSlotIndex(i)) continue;
+      const slot = this.slots[i];
       const w = slot.width - this.pegRadius;
       const innerW = w * (1 - 2 * paddingRatio);
       const innerH = slotBodyH * (1 - 2 * paddingRatio);
@@ -930,7 +939,7 @@ export class PlinkoEngine {
         originalY: bottomY,
         width: slotWidth,
         coefficient,
-        labelText: i === middleIndex ? 'Spin' : String(formatCoefficientLabel(coefficient)),
+        labelText: i === middleIndex ? '' : String(formatCoefficientLabel(coefficient)),
         centerX: slotX + slotWidth / 2,
         color: this.getSlotColor(coefficient),
         colorNumber: 0,
