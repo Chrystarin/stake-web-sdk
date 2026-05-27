@@ -6,7 +6,13 @@ import { requestBet, requestEndRound } from 'rgs-requests';
 
 import type { BaseBet } from './types';
 
-const handleRequestBet = async ({ onError }: { onError: () => void }) => {
+const handleRequestBet = async ({
+	onError,
+	getMeta,
+}: {
+	onError: () => void;
+	getMeta?: () => Record<string, unknown> | undefined;
+}) => {
 	try {
 		const data = await requestBet({
 			rgsUrl: stateUrlDerived.rgsUrl(),
@@ -14,6 +20,7 @@ const handleRequestBet = async ({ onError }: { onError: () => void }) => {
 			currency: stateBet.currency,
 			mode: stateBet.activeBetModeKey,
 			amount: stateBet.betAmount,
+			meta: getMeta?.(),
 		});
 
 		if (data?.error) {
@@ -76,6 +83,7 @@ type Options<TBet extends BaseBet> = {
 	onNewGameError: () => any;
 	onPlayGame: (bet: TBet) => Promise<void>;
 	checkIsBonusGame: (bet: TBet) => boolean;
+	getBetMeta?: () => Record<string, unknown> | undefined;
 };
 
 function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
@@ -86,6 +94,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		onNewGameError,
 		onPlayGame,
 		checkIsBonusGame,
+		getBetMeta,
 	} = options;
 
 	let balanceAmountFromApiHolder: null | number = null;
@@ -140,7 +149,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 	const newGame = fromPromise(async () => {
 		await onNewGameStart();
 
-		const data = await handleRequestBet({ onError: onNewGameError });
+		const data = await handleRequestBet({ onError: onNewGameError, getMeta: getBetMeta });
 
 		if (data) {
 			if (data.balance) {

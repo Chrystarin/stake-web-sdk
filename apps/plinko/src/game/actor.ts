@@ -14,6 +14,13 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onNewGameError: () => {},
 	onPlayGame: async (bet) => await playBet(bet),
 	checkIsBonusGame: () => stateGame.bonusRoundActive,
+	getBetMeta: () => ({
+		// UI-selected bet configuration used by the game server to build the book.
+		// Server/math remain authoritative; client only supplies preferences.
+		ballsPerDrop: stateGame.ballPerDrop,
+		rowCount: stateGame.rowCount,
+		difficulty: stateGame.difficultyLevelId,
+	}),
 });
 
 const intermediateMachines = createIntermediateMachines(primaryMachines);

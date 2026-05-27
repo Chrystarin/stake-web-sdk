@@ -58,6 +58,7 @@ export const requestBet = async (options: {
 	amount: number;
 	mode: string;
 	rgsUrl: string;
+	meta?: Record<string, unknown>;
 }) => {
 	const data = await rgsFetcher.post({
 		rgsUrl: options.rgsUrl,
@@ -67,6 +68,7 @@ export const requestBet = async (options: {
 			currency: options.currency,
 			sessionID: options.sessionID,
 			amount: options.amount * API_AMOUNT_MULTIPLIER,
+			...(options.meta ? { meta: options.meta } : {}),
 		},
 	});
 
