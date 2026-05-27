@@ -13,13 +13,15 @@ const init = fromPromise(async () => {
 	oldbalanceAmount = stateBet.balanceAmount;
 });
 
-const checkInsufficientFunds = fromPromise(async () => {
-	if (stateBetDerived.isBetCostAvailable()) return 'continue';
+const checkInsufficientFunds = (isBetCostAvailable?: () => boolean) =>
+	fromPromise(async () => {
+		const canBet = isBetCostAvailable?.() ?? stateBetDerived.isBetCostAvailable();
+		if (canBet) return 'continue';
 
-	stateBet.autoSpinsCounter = 0;
-	stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientFunds' };
-	throw Error('End auto bet with insufficientFunds');
-});
+		stateBet.autoSpinsCounter = 0;
+		stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientFunds' };
+		throw Error('End auto bet with insufficientFunds');
+	});
 
 const checkLossLimit = fromPromise(async () => {
 	if (stateBet.autoSpinsLossLimitAmount === Infinity) return 'continue';
@@ -57,7 +59,13 @@ const updateAutoSpinsCounter = fromPromise(async () => {
 	stateBet.autoSpinsCounter = newValue > 0 ? newValue : 0;
 });
 
-export const createIntermediateMachineAutoBet = ({ bet }: { bet: IntermediateMachineBet }) => {
+export const createIntermediateMachineAutoBet = ({
+	bet,
+	isBetCostAvailable,
+}: {
+	bet: IntermediateMachineBet;
+	isBetCostAvailable?: () => boolean;
+}) => {
 	const machine =
 		/** @xstate-layout N4IgpgJg5mDOIC5QCMwBcB0BLCAbMAxAEICiAKoqAA4D2sWaWNAdpSAB6ICMATAGwYADMMFcA7Dy4BWQQBZZgsQBoQAT24BmMRlkBOfQA4+fXWNl8pu2QF9rK1JgBm6AMYALLMygEILMNmYANxoAa38AWwBXNABDRhYidDZaenjWJA5EKQ0BWS0pHlMNGTE+FXUELlEMGRENXV4pKtFbe3QMZzR3T28wACc+mj6MKlw4xyHwjCjYtMS0ZLoGJnTQTgRs3PzCsWLFMrVEHjFBHX1TWXEzDQ0DGzsQBxGx1R8-AOCw55iK6iW0tjrKxcDAGRo8MEnRQ8crcHinc76QpSMxg3R8WwPZg0CBwNhPHD4RapFaAxCyGGHSoaEGI0oFPT1XStR7tTrdLzE5YsMkIeEGDC6O71LQGYSyMXKKlVXKIvhGc5cUwsp6jH5cgEZdYSXQYDQQrjmBrCKQHCq6U4iYQ0jQiMUaFXtMDMCAa0la7iKbSSAxiX2m4ToykVXgaQXnE5+iwNIyOhYZFLc1aZSoGWGpoRWrNWsSY6xAA */
 		setup({
@@ -66,7 +74,7 @@ export const createIntermediateMachineAutoBet = ({ bet }: { bet: IntermediateMac
 			},
 			actors: {
 				init,
-				checkInsufficientFunds,
+				checkInsufficientFunds: checkInsufficientFunds(isBetCostAvailable),
 				checkLossLimit,
 				checkIfSingleWinLimit,
 				checkAutoSpinsCounter,

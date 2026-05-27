@@ -7,6 +7,7 @@ import {
 } from '../game-logic/constants';
 import { createMeterController } from '../game-logic/meterController';
 import type { PlinkoBallOutcome } from './typesBookEvent';
+import { plinkoWagerAmount } from './plinkoBet';
 
 export type HistoryEntry = { result: number; color: string };
 export type InfoModalTab = 'rules' | 'fair' | 'history';
@@ -105,7 +106,7 @@ export const stateGameDerived = {
 		return meterController.bonusMeterProgress();
 	},
 	get totalBetAmount(): number {
-		return stateGame.ballPerDrop * (stateGame.expectedOutcomeByBallId.size > 0 ? 1 : 1);
+		return plinkoWagerAmount();
 	},
 	get hasPendingBonusBalls(): boolean {
 		return stateGame.bonusBallsRemaining > 0;

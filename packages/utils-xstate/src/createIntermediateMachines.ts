@@ -4,14 +4,15 @@ import { createIntermediateMachineResumeBet } from './createIntermediateMachineR
 
 import type { PrimaryMachines } from './types';
 
-const createIntermediateMachines = ({
-	resumeGame,
-	newGame,
-	playGame,
-	endGame,
-}: PrimaryMachines) => {
+const createIntermediateMachines = (
+	{ resumeGame, newGame, playGame, endGame }: PrimaryMachines,
+	options?: { isBetCostAvailable?: () => boolean },
+) => {
 	const bet = createIntermediateMachineBet({ newGame, playGame, endGame });
-	const autoBet = createIntermediateMachineAutoBet({ bet });
+	const autoBet = createIntermediateMachineAutoBet({
+		bet,
+		isBetCostAvailable: options?.isBetCostAvailable,
+	});
 	const resumeBet = createIntermediateMachineResumeBet({ resumeGame, playGame, endGame });
 
 	return {

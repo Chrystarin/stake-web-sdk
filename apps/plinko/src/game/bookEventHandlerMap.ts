@@ -2,6 +2,7 @@ import { stateBet } from 'state-shared';
 import { createPlayBookUtils, type BookEventHandlerMap } from 'utils-book';
 
 import { eventEmitter } from './eventEmitter';
+import { plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { waitForDropBatchCompletion } from './gameOrchestrator';
 import { stateGame } from './stateGame.svelte';
 import { freeSpinSegmentIndexForMultiplier, triggerRoulette, waitForRouletteClose } from './meterFlow';
@@ -12,7 +13,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.difficultyLevelId = bookEvent.difficulty;
 		stateGame.rowCount = bookEvent.rowCount;
 		stateGame.ballPerDrop = bookEvent.ballsPerDrop;
-		stateGame.pendingOutcomes = bookEvent.outcomes;
+		const bookStake = bookEvent.stakePerBall > 0 ? bookEvent.stakePerBall : 1;
+		const stakeScale = plinkoStakePerBall() / bookStake;
+		stateGame.pendingOutcomes = bookEvent.outcomes.map((outcome) => ({
+			...outcome,
+			amount: outcome.amount * stakeScale,
+		}));
 		stateGame.isAnimating = true;
 		stateGame.pendingDropWinAmount = 0;
 		stateGame.winAmount = 0;
@@ -61,7 +67,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const payoutMultiplier = bookEvent.amount / 100;
 		if (payoutMultiplier > 0) {
 			await waitForDropBatchCompletion();
-			stateGame.winPopupAmount = stateGame.pendingDropWinAmount || payoutMultiplier * stateBet.betAmount;
+			stateGame.winPopupAmount =
+				stateGame.pendingDropWinAmount || payoutMultiplier * stateBet.wageredBetAmount;
 			stateGame.winPopupMultiplier = payoutMultiplier;
 			stateGame.showWinPopup = true;
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
@@ -73,6 +80,7 @@ export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEvent
 
 export const playBet = async (bet: { state: BookEvent[] }) => {
 	stateBet.winBookEventAmount = 0;
+	stateBet.wageredBetAmount = plinkoWagerAmount();
 	stateGame.pendingDropWinAmount = 0;
 	await playBookEvents(bet.state);
 };

@@ -152,9 +152,9 @@
 
 
 	function handleBetAmountChange(value: number) {
-
-		stateBet.betAmount = value;
-
+		const maxPerBall =
+			stateGame.ballPerDrop > 0 ? stateBet.balanceAmount / stateGame.ballPerDrop : value;
+		stateBet.betAmount = Math.max(0, Math.min(value, maxPerBall));
 	}
 
 

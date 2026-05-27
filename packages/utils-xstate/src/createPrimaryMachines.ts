@@ -9,17 +9,20 @@ import type { BaseBet } from './types';
 const handleRequestBet = async ({
 	onError,
 	getMeta,
+	getWagerAmount,
 }: {
 	onError: () => void;
 	getMeta?: () => Record<string, unknown> | undefined;
+	getWagerAmount?: () => number;
 }) => {
+	const wagerAmount = getWagerAmount?.() ?? stateBet.betAmount;
 	try {
 		const data = await requestBet({
 			rgsUrl: stateUrlDerived.rgsUrl(),
 			sessionID: stateUrlDerived.sessionID(),
 			currency: stateBet.currency,
 			mode: stateBet.activeBetModeKey,
-			amount: stateBet.betAmount,
+			amount: wagerAmount,
 			meta: getMeta?.(),
 		});
 
@@ -28,7 +31,7 @@ const handleRequestBet = async ({
 		}
 
 		if (data?.round?.state && data?.round?.state?.length > 0) {
-			stateBet.wageredBetAmount = stateBet.betAmount;
+			stateBet.wageredBetAmount = wagerAmount;
 
 			return data;
 		} else {
@@ -84,6 +87,7 @@ type Options<TBet extends BaseBet> = {
 	onPlayGame: (bet: TBet) => Promise<void>;
 	checkIsBonusGame: (bet: TBet) => boolean;
 	getBetMeta?: () => Record<string, unknown> | undefined;
+	getWagerAmount?: () => number;
 };
 
 function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
@@ -95,6 +99,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		onPlayGame,
 		checkIsBonusGame,
 		getBetMeta,
+		getWagerAmount,
 	} = options;
 
 	let balanceAmountFromApiHolder: null | number = null;
@@ -149,7 +154,11 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 	const newGame = fromPromise(async () => {
 		await onNewGameStart();
 
-		const data = await handleRequestBet({ onError: onNewGameError, getMeta: getBetMeta });
+		const data = await handleRequestBet({
+			onError: onNewGameError,
+			getMeta: getBetMeta,
+			getWagerAmount,
+		});
 
 		if (data) {
 			if (data.balance) {

@@ -19,6 +19,7 @@
 		startAutoBet,
 		stopAutoBet,
 	} from '../game/gameOrchestrator';
+	import { canAffordPlinkoWager } from '../game/plinkoBet';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/meters';
@@ -60,6 +61,7 @@
 
 	const playDisabledMain = $derived(
 		props.playDisabled ||
+			!canAffordPlinkoWager() ||
 			isPlayActionBlockedByBonusRoulette() ||
 			isPlayActionBlockedByFreeSpinRoulette(),
 	);
