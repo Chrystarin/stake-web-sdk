@@ -385,16 +385,6 @@
 
 	<div class="game-content">
 		<div class="game-area" class:game-area--pixi-fill={!mobile}>
-			{#if stateGame.bonusRoundActive}
-				<div class="bonus-level-behind-game-area">
-					<BonusLevel
-						activeLevels={stateGame.bonusLevelProgress}
-						pendingLevelHighlight={stateGameDerived.bonusPendingLevelHighlight}
-						levelLabels={[...stateGameDerived.bonusLevelLabels]}
-					/>
-				</div>
-			{/if}
-
 			{#if mobile}
 				<div class="top-hud">
 					<button type="button" class="top-hud-buy-bonus" aria-label="Buy bonus">
@@ -407,6 +397,16 @@
 				class="container"
 				class:container--bonus={stateGameDerived.isBonusBackgroundActive}
 			>
+				{#if stateGame.bonusRoundActive}
+					<div class="bonus-level-behind-game-area">
+						<BonusLevel
+							activeLevels={stateGame.bonusLevelProgress}
+							pendingLevelHighlight={stateGameDerived.bonusPendingLevelHighlight}
+							levelLabels={[...stateGameDerived.bonusLevelLabels]}
+						/>
+					</div>
+				{/if}
+
 				<img
 					class="game-area-frame"
 					src={staticUrl('img/game_area_background.png')}
@@ -629,51 +629,11 @@
 
 	}
 
-	.bonus-level-behind-game-area {
-
-		position: absolute;
-
-		inset: 0;
-
-		pointer-events: none;
-
-		z-index: -1;
-
-		left: 36.5vw;
-
-		top: -1vw;
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area {
-
-		inset: auto;
-
-		top: -5.25vw;
-
-		left: 39.5vw;
-
-		width: 42vw;
-
-		height: 17.6vw;
-
-		transform: translateX(-50%);
-
-		z-index: -1;
-
-		--mobile-bonus-track-width: 65vw;
-
-		--mobile-bonus-track-height: 33.6vw;
-
-	}
-
 	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-track) {
 
 		width: var(--mobile-bonus-track-width);
 
 		height: var(--mobile-bonus-track-height);
-
-		--bonus-level-bar-scale: 0.125vw;
 
 	}
 
@@ -1017,6 +977,13 @@
 		--bonus-meter-width-ratio: 0.125;
 		--bonus-meter-height-ratio: 0.141818;
 		--bonus-meter-top-ratio: 0.109091;
+		/* Bonus level track uses frame-relative ratios like meter/marker. */
+		--bonus-level-width-ratio: 0.33;
+		--bonus-level-height-ratio: 0.238182;
+		--bonus-level-top-ratio: -0.06;
+		--bonus-level-left-ratio: 0.505;
+		--mobile-bonus-track-width: 65vw;
+		--mobile-bonus-track-height: 33.6vw;
 
 		/* Largest 96:55 box inside game-area, no crop */
 		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
@@ -1039,6 +1006,9 @@
 		--bonus-meter-width: calc(var(--game-area-fit-width) * var(--bonus-meter-width-ratio));
 		--bonus-meter-height: calc(var(--game-area-fit-height) * var(--bonus-meter-height-ratio));
 		--bonus-meter-offset-y: calc(var(--game-area-fit-height) * var(--bonus-meter-top-ratio));
+		--bonus-level-width: calc(var(--game-area-fit-width) * var(--bonus-level-width-ratio));
+		--bonus-level-height: calc(var(--game-area-fit-height) * var(--bonus-level-height-ratio));
+		--bonus-level-offset-y: calc(var(--game-area-fit-height) * var(--bonus-level-top-ratio));
 
 		width: var(--game-area-fit-width);
 
@@ -1118,6 +1088,34 @@
 		pointer-events: none;
 
 		z-index: 6;
+
+	}
+
+	.container .bonus-level-behind-game-area {
+
+		position: absolute;
+
+		left: calc(var(--game-area-fit-width) * var(--bonus-level-left-ratio));
+
+		top: var(--bonus-level-offset-y);
+
+		width: var(--bonus-level-width);
+
+		height: var(--bonus-level-height);
+
+		transform: translateX(-50%);
+
+		pointer-events: none;
+
+		z-index: -1;
+
+	}
+
+	.container .bonus-level-behind-game-area :global(.bonus-level-track) {
+
+		width: 100%;
+
+		height: 100%;
 
 	}
 
@@ -1302,6 +1300,10 @@
 		--plinko-host-height: 100%;
 
 		--plinko-area-offset-y: 0;
+		--bonus-level-left-ratio: 0.415;
+		--bonus-level-top-ratio: -0.07;
+		--bonus-level-width-ratio: 0.61;
+		--bonus-level-height-ratio: 0.336;
 
 		width: 100vw;
 
@@ -1338,6 +1340,12 @@
 		border-radius: calc(var(--portrait-px) * 44);
 
 		align-self: center;
+
+	}
+
+	.game-root--mobile .game-area > .container .bonus-level-behind-game-area {
+
+		left: calc(var(--game-area-fit-width) * var(--bonus-level-left-ratio));
 
 	}
 

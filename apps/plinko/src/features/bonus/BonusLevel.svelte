@@ -40,10 +40,10 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
-		height: 12vw;
-		width: 28.5vw;
+		width: var(--bonus-level-track-width, 100%);
+		height: var(--bonus-level-track-height, 100%);
 		box-sizing: border-box;
-		--bonus-level-bar-scale: 0.055vw;
+		--bonus-level-bar-scale: calc(var(--bonus-level-track-width, 100%) * 0.00193);
 	}
 	.bonus-level-base {
 		position: absolute;
@@ -88,55 +88,55 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 	}
 	.bonus-level-node:nth-child(1) {
 		left: 11%;
-		top: 8.25vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.6875);
 		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 61;
 	}
 	.bonus-level-node:nth-child(2) {
 		left: 21%;
-		top: 6.5vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.541667);
 		--bonus-level-node-width: 73;
 		--bonus-level-node-height: 72;
 	}
 	.bonus-level-node:nth-child(3) {
 		left: 28.5%;
-		top: 4.25vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.354167);
 		--bonus-level-node-width: 74;
 		--bonus-level-node-height: 71;
 	}
 	.bonus-level-node:nth-child(4) {
 		left: 37.5%;
-		top: 2.8vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.233333);
 		--bonus-level-node-width: 70;
 		--bonus-level-node-height: 62;
 	}
 	.bonus-level-node:nth-child(5) {
 		left: 49%;
-		top: 2.5vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.208333);
 		--bonus-level-node-width: 68;
 		--bonus-level-node-height: 50;
 	}
 	.bonus-level-node:nth-child(6) {
 		left: 61%;
-		top: 3vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.25);
 		--bonus-level-node-width: 72;
 		--bonus-level-node-height: 63;
 	}
 	.bonus-level-node:nth-child(7) {
 		left: 70.5%;
-		top: 4.5vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.375);
 		--bonus-level-node-width: 71;
 		--bonus-level-node-height: 66;
 	}
 	.bonus-level-node:nth-child(8) {
 		left: 78%;
-		top: 6.5vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.541667);
 		--bonus-level-node-width: 75;
 		--bonus-level-node-height: 75;
 	}
 	.bonus-level-node:nth-child(9) {
 		left: 89%;
-		top: 8.3vw;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.691667);
 		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 62;
 	}
