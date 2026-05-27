@@ -984,6 +984,10 @@
 		--bonus-level-left-ratio: 0.51;
 		/* Increase all bonus-level bars uniformly. */
 		--bonus-level-node-size-ratio: 2.5;
+		/* Bonus overlay image controls (desktop fallback). */
+		--bonus-overlay-scale: 1;
+		--bonus-overlay-offset-x: 0.3%;
+		--bonus-overlay-offset-y: 0.3%;
 		--mobile-bonus-track-width: 65vw;
 		--mobile-bonus-track-height: 33.6vw;
 
@@ -1131,6 +1135,9 @@
 
 		opacity: 0;
 		z-index: 3;
+		transform: translate(var(--bonus-overlay-offset-x), var(--bonus-overlay-offset-y))
+			scale(var(--bonus-overlay-scale));
+		transform-origin: center;
 
 		transition: opacity 0.28s ease-in-out;
 
@@ -1306,6 +1313,10 @@
 		--bonus-level-top-ratio: -0.07;
 		--bonus-level-width-ratio: 0.61;
 		--bonus-level-height-ratio: 0.336;
+		/* Optional mobile-specific overlay tuning (falls back to desktop vars). */
+		--bonus-overlay-scale-mobile: var(--bonus-overlay-scale);
+		--bonus-overlay-offset-x-mobile: var(--bonus-overlay-offset-x);
+		--bonus-overlay-offset-y-mobile: var(--bonus-overlay-offset-y);
 
 		width: 100vw;
 
@@ -1370,11 +1381,26 @@
 
 		max-height: none;
 
-		transform: translateX(-50%);
-
 		object-fit: cover;
 
 		object-position: top center;
+
+	}
+
+	.game-root--mobile .game-area > .container .game-area-frame {
+
+		transform: translateX(-50%);
+
+	}
+
+	.game-root--mobile .game-area > .container .game-area-bonus-overlay {
+
+		transform: translate(
+				calc(-50% + var(--bonus-overlay-offset-x-mobile)),
+				var(--bonus-overlay-offset-y-mobile)
+			)
+			scale(var(--bonus-overlay-scale-mobile));
+		transform-origin: center top;
 
 	}
 
