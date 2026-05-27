@@ -9,7 +9,7 @@ export type BallDroppedEvent = {
 	isSpinSlot: boolean;
 };
 
-export type CoinPegHitEvent = { row: number; col: number };
+export type CoinPegHitEvent = { row: number; col: number; ballId: number };
 
 export type PlinkoEngineOptions = {
 	hostElement: HTMLElement;
@@ -41,6 +41,16 @@ interface Ball {
   targetIndex: number;
   targetReached: boolean;
   slotAnimationStart: number;
+  /** When true, a featured-peg contact may credit the bonus meter (server `hitBonusPeg`). */
+  creditBonusPegHit: boolean;
+  /**
+   * When set, we will emit exactly one coin-peg hit once the ball reaches this
+   * path index. This avoids relying on collision heuristics to drive meter fill.
+   */
+  bonusPegEmitPathIndex: number | null;
+  bonusPegEmitRow: number;
+  bonusPegEmitCol: number;
+  bonusPegEmitted: boolean;
 }
 
 interface PathPoint {
@@ -983,7 +993,31 @@ export class PlinkoEngine {
     return 2; // far right
   }
 
-  private calculatePath(targetIndex: number): PathPoint[] {
+  private createPathRng(seed: number): () => number {
+    let state = (Math.abs(Math.floor(seed)) || 1) % 2147483647;
+    return () => {
+      state = (state * 16807) % 2147483647;
+      return (state - 1) / 2147483646;
+    };
+  }
+
+  private pickFeaturedPegForPath(pathSeed?: number): Peg | null {
+    const keys = Array.from(this.featuredPegKeys);
+    if (!keys.length) return null;
+    const pick =
+      pathSeed != null
+        ? keys[Math.abs(pathSeed) % keys.length]
+        : keys[Math.floor(Math.random() * keys.length)];
+    const [rowStr, colStr] = pick.split(':');
+    const row = Number(rowStr);
+    const col = Number(colStr);
+    return this.pegs.find((peg) => peg.row === row && peg.col === col) ?? null;
+  }
+
+  private calculatePath(
+    targetIndex: number,
+    pathOptions?: { hitBonusPeg?: boolean; deterministic?: boolean; pathSeed?: number },
+  ): PathPoint[] {
     if (!this.app || !this.slots.length) return [];
 
     const centerX = this.containerWidth / 2;
@@ -1001,13 +1035,20 @@ export class PlinkoEngine {
     for (let i = 0; i < this.rows; i++) {
       turns.push(i < leftTurns ? -1 : 1);
     }
+    const pathRng = pathOptions?.deterministic
+      ? this.createPathRng(pathOptions.pathSeed ?? targetIndex)
+      : null;
+    const nextRandom = () => (pathRng ? pathRng() : Math.random());
+
     for (let i = turns.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(nextRandom() * (i + 1));
       [turns[i], turns[j]] = [turns[j], turns[i]];
     }
     // Randomize initial direction from origin:
     // far-left, left, middle, right, far-right.
-    const spawnDirection = this.randomSpawnDirection();
+    const spawnDirection = pathOptions?.deterministic
+      ? (Math.floor(nextRandom() * 5) - 2)
+      : this.randomSpawnDirection();
     // Keep launch direction consistent with first peg impact so the ball
     // doesn't visually launch to one side and immediately snap to the other.
     if (spawnDirection !== 0 && turns.length > 1) {
@@ -1022,7 +1063,7 @@ export class PlinkoEngine {
           if (turns[i] === desiredFirstTurn) candidates.push(i);
         }
         if (candidates.length) {
-          const swapIndex = candidates[Math.floor(Math.random() * candidates.length)];
+          const swapIndex = candidates[Math.floor(nextRandom() * candidates.length)];
           turns[swapIndex] = originalFirstTurn;
         } else {
           // Should be rare; fallback keeps path valid.
@@ -1045,6 +1086,10 @@ export class PlinkoEngine {
     });
 
     let currentX = centerX;
+    const featuredTarget = pathOptions?.hitBonusPeg
+      ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
+      : null;
+    const avoidFeaturedPegs = pathOptions?.deterministic === true && pathOptions?.hitBonusPeg !== true;
 
     for (let row = 0; row < this.rows; row++) {
       const rowY = this.topMargin + this.pegSpacing * 0.5 + row * this.pegSpacing;
@@ -1058,18 +1103,42 @@ export class PlinkoEngine {
       let minDistance = Infinity;
       let bounceIntensity = 0;
 
-      rowPegs.forEach((peg) => {
-        const distance = Math.abs(currentX - peg.x);
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestPeg = peg;
+      if (featuredTarget && row === featuredTarget.row) {
+        currentX = featuredTarget.x;
+        closestPeg = featuredTarget;
+        bounceIntensity = 0.92;
+      } else {
+        if (avoidFeaturedPegs && rowPegs.length) {
+          // In server-authoritative mode, *only* server `hitBonusPeg` balls may contact featured pegs.
+          // If the current lane would intersect a featured peg on this row, nudge it away.
+          for (const peg of rowPegs) {
+            if (!this.featuredPegKeys.has(`${peg.row}:${peg.col}`)) continue;
+            const dx = currentX - peg.x;
+            if (Math.abs(dx) <= this.pegSpacingX * 0.28) {
+              currentX += (dx >= 0 ? 1 : -1) * this.pegSpacingX * 0.62;
+              break;
+            }
+          }
         }
-      });
 
-      if (closestPeg) {
-        const maxDistance = this.pegSpacingX / 2;
-        bounceIntensity = Math.max(0.45, Math.min(0.95, 1 - minDistance / maxDistance));
-        bounceIntensity *= 0.82 + Math.random() * 0.18;
+        rowPegs.forEach((peg) => {
+          if (avoidFeaturedPegs && this.featuredPegKeys.has(`${peg.row}:${peg.col}`)) return;
+          const distance = Math.abs(currentX - peg.x);
+          const featuredPenalty = this.featuredPegKeys.has(`${peg.row}:${peg.col}`)
+            ? this.pegSpacingX * 0.35
+            : 0;
+          const score = distance + featuredPenalty;
+          if (score < minDistance) {
+            minDistance = score;
+            closestPeg = peg;
+          }
+        });
+
+        if (closestPeg) {
+          const maxDistance = this.pegSpacingX / 2;
+          bounceIntensity = Math.max(0.45, Math.min(0.95, 1 - minDistance / maxDistance));
+          bounceIntensity *= pathRng ? 0.82 + nextRandom() * 0.18 : 0.82 + Math.random() * 0.18;
+        }
       }
 
       path.push({
@@ -1092,15 +1161,34 @@ export class PlinkoEngine {
     return path;
   }
 
-  dropBall(targetIndex: number): { ballId: number; targetIndex: number } | null {
+  dropBall(
+    targetIndex: number,
+    dropOptions?: { hitBonusPeg?: boolean; deterministic?: boolean; pathSeed?: number },
+  ): { ballId: number; targetIndex: number } | null {
     if (!this.pixiReady || !this.app || !this.coefficients.length) return null;
 
     if (targetIndex === -1) {
       targetIndex = Math.floor(Math.random() * this.coefficients.length);
     }
 
-    const path = this.calculatePath(targetIndex);
+    const path = this.calculatePath(targetIndex, dropOptions);
     if (!path.length) return null;
+
+    // Authoritative drops: only server `hitBonusPeg` may credit the bonus meter.
+    // Legacy / bonus-ball drops (non-deterministic): any featured-peg contact may credit.
+    const creditBonusPegHit =
+      dropOptions?.deterministic === true
+        ? dropOptions?.hitBonusPeg === true
+        : true;
+
+    const bonusPegPathIndex = creditBonusPegHit
+      ? path.findIndex(
+          (p) =>
+            !!p.closestPeg &&
+            this.featuredPegKeys.has(`${p.closestPeg.row}:${p.closestPeg.col}`),
+        )
+      : -1;
+    const bonusPeg = bonusPegPathIndex >= 0 ? path[bonusPegPathIndex]?.closestPeg : null;
 
     const ball: Ball = {
       id: this.nextBallId++,
@@ -1125,7 +1213,12 @@ export class PlinkoEngine {
       target: this.coefficients[targetIndex],
       targetIndex,
       targetReached: false,
-      slotAnimationStart: 0
+      slotAnimationStart: 0,
+      creditBonusPegHit,
+      bonusPegEmitPathIndex: bonusPegPathIndex >= 0 ? bonusPegPathIndex : null,
+      bonusPegEmitRow: bonusPeg?.row ?? -1,
+      bonusPegEmitCol: bonusPeg?.col ?? -1,
+      bonusPegEmitted: false,
     };
 
     this.balls.push(ball);
@@ -1173,6 +1266,24 @@ export class PlinkoEngine {
         const segmentIndex = Math.floor(segmentProgress);
         ball.currentSegmentIndex = segmentIndex;
         const segmentFraction = segmentProgress - segmentIndex;
+
+        // Server-authoritative bonus-peg credit:
+        // emit once when the ball reaches the featured-peg path segment.
+        if (
+          ball.creditBonusPegHit &&
+          !ball.bonusPegEmitted &&
+          ball.bonusPegEmitPathIndex != null &&
+          segmentIndex >= ball.bonusPegEmitPathIndex
+        ) {
+          ball.bonusPegEmitted = true;
+          if (ball.bonusPegEmitRow >= 0 && ball.bonusPegEmitCol >= 0) {
+            this.onCoinPegHit?.({
+              row: ball.bonusPegEmitRow,
+              col: ball.bonusPegEmitCol,
+              ballId: ball.id,
+            });
+          }
+        }
 
         let baseX = 0;
         let baseY = 0;
@@ -1371,8 +1482,17 @@ export class PlinkoEngine {
         pathPoint.closestPeg.bounceEffect = pathPoint.bounceIntensity;
         pathPoint.closestPeg.bounceTime = currentTime;
         pathPoint.closestPeg.isTouched = true;
-        if (this.featuredPegKeys.has(`${pathPoint.closestPeg.row}:${pathPoint.closestPeg.col}`)) {
-          this.onCoinPegHit?.({ row: pathPoint.closestPeg.row, col: pathPoint.closestPeg.col });
+        if (
+          ball.creditBonusPegHit &&
+          !ball.bonusPegEmitted &&
+          this.featuredPegKeys.has(`${pathPoint.closestPeg.row}:${pathPoint.closestPeg.col}`)
+        ) {
+          ball.bonusPegEmitted = true;
+          this.onCoinPegHit?.({
+            row: pathPoint.closestPeg.row,
+            col: pathPoint.closestPeg.col,
+            ballId: ball.id,
+          });
         }
         ball.isInBounce = true;
         ball.bounceStartTime = currentTime;
@@ -1732,7 +1852,9 @@ export class PlinkoEngine {
   dropBallBurst(
     targetIndices: number[],
     spawnDelaysMs: number[],
-    onBallSpawned?: (info: { dropped: { ballId: number; targetIndex: number } | null; index: number }) => void
+    onBallSpawned?: (info: { dropped: { ballId: number; targetIndex: number } | null; index: number }) => void,
+    hitBonusPegs?: boolean[],
+    burstOptions?: { deterministic?: boolean },
   ): void {
     const n = targetIndices?.length ?? 0;
     if (!n || !this.coefficients.length) return;
@@ -1744,7 +1866,11 @@ export class PlinkoEngine {
       const timeoutId = window.setTimeout(() => {
         this.pendingDropTimeouts.delete(timeoutId);
         try {
-          const dropped = this.dropBall(targetIndex);
+          const dropped = this.dropBall(targetIndex, {
+            hitBonusPeg: hitBonusPegs?.[i] === true,
+            deterministic: burstOptions?.deterministic === true,
+            pathSeed: targetIndex * 31 + i,
+          });
           onBallSpawned?.({ dropped, index: i });
         } finally {
           this.pendingBurstDrops = Math.max(0, this.pendingBurstDrops - 1);

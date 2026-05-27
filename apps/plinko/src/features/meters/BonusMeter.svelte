@@ -29,7 +29,9 @@
 	});
 
 	$effect(() => {
-		engine?.setProgress(props.progress ?? 0);
+		const progress = props.progress ?? 0;
+		engine?.setProgress(progress);
+		syncMarker();
 	});
 
 	function syncMarker() {

@@ -51,9 +51,15 @@ export const stateGame = $state({
 	bonusRouletteResultAppliedEarly: false,
 	pendingOutcomes: [] as PlinkoBallOutcome[],
 	expectedOutcomeByBallId: new Map<number, PlinkoBallOutcome>(),
+	/** Balls that already credited bonus meter from a server coin-peg hit this drop. */
+	bonusPegMeterCreditedBallIds: new Set<number>(),
+	/** Balls that already credited spin meter from a server spin-slot land this drop. */
+	spinSlotMeterCreditedBallIds: new Set<number>(),
 	pendingDropWinAmount: 0,
 	winAmount: 0,
 	bonusSessionWinAmount: 0,
+	/** When true, meter fills and roulettes follow RGS book events / outcome flags only. */
+	authoritativeMeterFlow: false,
 	showBonusRoulette: false,
 	showFreeSpinRoulette: false,
 	freeSpinRouletteOpen: false,
@@ -62,6 +68,7 @@ export const stateGame = $state({
 	bonusEndWinAmount: 0,
 	serverBonusFreeBalls: undefined as number | undefined,
 	serverFreeSpinSegment: undefined as number | undefined,
+	serverFreeSpinSegmentLabel: undefined as string | undefined,
 	bonusLevelUpOverlayOpen: false,
 	bonusLevelUpOverlayVisible: false,
 	bonusLevelUpLevel: 0,

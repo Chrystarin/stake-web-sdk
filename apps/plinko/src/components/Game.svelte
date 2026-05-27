@@ -105,11 +105,24 @@
 
 	});
 
+	/** Track `stateGame` meter fields directly — getters on `stateGameDerived` are not reactive. */
+	const bonusMeterProgress = $derived(
+		stateGame.bonusMeterMax > 0
+			? Math.min(1, Math.max(0, stateGame.bonusMeterValue / stateGame.bonusMeterMax))
+			: 0,
+	);
 
+	const spinMeterProgress = $derived(
+		stateGame.spinMeterMax > 0
+			? Math.min(1, Math.max(0, stateGame.spinMeterValue / stateGame.spinMeterMax))
+			: 0,
+	);
 
 	onMount(() => {
 
-		stateGame.coefficients = coefficients;
+		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
+			stateGame.coefficients = coefficients;
+		}
 
 		syncBallPerDropTier();
 
@@ -135,7 +148,9 @@
 
 	$effect(() => {
 
-		stateGame.coefficients = coefficients;
+		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
+			stateGame.coefficients = coefficients;
+		}
 
 	});
 
@@ -227,6 +242,10 @@
 
 		onBallLanded(event.ballId, event.multiplier, event.isSpinSlot, slotColor);
 
+	}
+
+	function handleCoinPegHit(event: { ballId: number }) {
+		onCoinPegHit(event.ballId);
 	}
 
 
@@ -428,7 +447,7 @@
 							animationEnabled={stateGame.animationEnabled}
 							animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
 							onBallDropped={onBallDropped}
-							onCoinPegHit={onCoinPegHit}
+							onCoinPegHit={handleCoinPegHit}
 						/>
 					</div>
 				{:else}
@@ -438,12 +457,12 @@
 						animationEnabled={stateGame.animationEnabled}
 						animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
 						onBallDropped={onBallDropped}
-						onCoinPegHit={onCoinPegHit}
+						onCoinPegHit={handleCoinPegHit}
 					/>
 				{/if}
 
 				<div class="bonus-meter-wrap">
-					<BonusMeter progress={stateGameDerived.bonusMeterProgress} />
+					<BonusMeter progress={bonusMeterProgress} />
 				</div>
 			</div>
 		</div>
@@ -459,7 +478,7 @@
 		autoMode={stateGame.autoMode}
 		autoPlayStarted={stateGame.autoPlayStarted}
 		autoRoundsLeft={stateGame.autoRoundsDisplay}
-		spinMeterProgress={stateGameDerived.spinMeterProgress}
+		spinMeterProgress={spinMeterProgress}
 		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
 		bonusBallsRemaining={stateGame.bonusBallsRemaining}
 		playDisabled={stateGame.isSubmitting || stateGame.isAnimating || isGameOngoing()}
@@ -495,7 +514,9 @@
 
 			targetSegmentIndex={stateGame.serverFreeSpinSegment}
 
-			onFinished={(result) => onFreeSpinRouletteFinished(result.segmentLabel)}
+			serverAuthoritative={stateGame.authoritativeMeterFlow}
+
+			onFinished={() => onFreeSpinRouletteFinished()}
 
 		/>
 
@@ -509,7 +530,9 @@
 
 			targetFreeBalls={stateGame.serverBonusFreeBalls}
 
-			onResultReady={(result) => onBonusRouletteResultReady(result.freeBallCount)}
+			serverAuthoritative={stateGame.authoritativeMeterFlow}
+
+			onResultReady={() => onBonusRouletteResultReady()}
 
 			onFinished={() => onBonusRouletteFinished()}
 

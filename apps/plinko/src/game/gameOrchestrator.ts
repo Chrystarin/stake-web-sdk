@@ -1,7 +1,8 @@
 import { BONUS_LEVEL_LABELS } from '../game-logic/constants';
+import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
-import { triggerRoulette } from './meterFlow';
+import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
 const BONUS_LEVEL_ACTIVATION_DELAY_MS = 250;
@@ -355,25 +356,33 @@ export function registerBonusBallOutcome(ballId: number, outcome: PlinkoBallOutc
 export function onBallLanded(
 	ballId: number,
 	multiplier: number,
-	isSpinSlot: boolean,
+	_isSpinSlotFromEngine: boolean,
 	slotColor: string,
 ) {
 	const pending = takeExpectedOutcome(ballId);
+	const slotCount = stateGame.coefficients.length;
+	const isSpinSlot = pending
+		? stateGame.authoritativeMeterFlow
+			? pending.hitSpinSlot === true
+			: (pending.hitSpinSlot ??
+				(slotCount > 0 && isSpinSlotRateIndex(pending.rateIndex, slotCount)))
+		: _isSpinSlotFromEngine;
+
+	// Server bonus peg: credit when the ball hits the peg (path emit) or on land as failsafe.
+	if (pending?.hitBonusPeg === true) {
+		onCoinPegHit(ballId);
+	}
+
 	if (pending && !isSpinSlot) {
 		addSettledWinAmount(pending.amount * pending.multiplier);
 	}
 	if (!isSpinSlot) {
-		stateGame.history.push({ result: multiplier, color: slotColor });
+		const displayMultiplier = pending?.multiplier ?? multiplier;
+		stateGame.history.push({ result: displayMultiplier, color: slotColor });
 		if (stateGame.history.length > 8) stateGame.history.shift();
 	}
 	if (isSpinSlot) {
-		meterController.addSpinMeterValue(1, (source) => {
-			if (stateGame.bonusRoundActive) {
-				stateGame.pendingSpinRouletteAfterBonusLevelDepletion = true;
-				return;
-			}
-			triggerRoulette(source);
-		});
+		onSpinSlotLand(ballId);
 	}
 	if (!stateGame.bonusBallsRemaining && stateGame.bonusRoundActive && !isGameOngoing()) {
 		void settleBonusRoundWhenFinished();

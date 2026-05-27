@@ -22,37 +22,47 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
 	const stakePerBall = Math.max(0, Number(stateBet.betAmount) || 0);
 	const coefficientSets = config.defaultCoefficientSets as number[][][];
-	const slotCount =
-		coefficientSets[stateGame.difficultyLevelId]?.[Math.max(0, stateGame.rowCount - 8)]
-			?.length ?? 0;
+	const fallbackCoefficients =
+		coefficientSets[stateGame.difficultyLevelId]?.[Math.max(0, stateGame.rowCount - 8)] ?? [];
 
 	const events = book.events.map((event) => {
 		if (event.type !== 'plinkoDrop') return { ...event };
 
-		const outcomes = resizeOutcomes(event, ballsPerDrop).map((outcome) => ({
-			...outcome,
-			amount: stakePerBall,
-			multiplier:
-				slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount) ? 0 : outcome.multiplier,
-		}));
+		const coefficients = event.coefficients?.length ? event.coefficients : fallbackCoefficients;
+		const slotCount = coefficients.length;
+		const outcomes = resizeOutcomes(event, ballsPerDrop).map((outcome) => {
+			const hitSpinSlot =
+				outcome.hitSpinSlot ??
+				(slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount));
+			return {
+				...outcome,
+				amount: stakePerBall,
+				multiplier: hitSpinSlot ? 0 : outcome.multiplier,
+				hitSpinSlot,
+				hitBonusPeg: outcome.hitBonusPeg ?? false,
+			};
+		});
 
 		return {
 			...event,
 			ballsPerDrop,
 			stakePerBall,
+			coefficients,
 			outcomes,
 		};
 	});
 
-	const plinkoDrop = events.find(
-		(event): event is Extract<typeof event, { type: 'plinkoDrop' }> => event.type === 'plinkoDrop',
-	);
-	const recalculatedWinAmount = plinkoDrop
-		? Math.round(
-				plinkoDrop.outcomes.reduce((sum, outcome) => sum + outcome.amount * outcome.multiplier, 0) *
-					100,
+	const recalculatedWinAmount = Math.round(
+		events
+			.filter(
+				(event): event is Extract<typeof event, { type: 'plinkoDrop' }> => event.type === 'plinkoDrop',
 			)
-		: 0;
+			.reduce(
+				(total, drop) =>
+					total + drop.outcomes.reduce((sum, outcome) => sum + outcome.amount * outcome.multiplier, 0),
+				0,
+			) * 100,
+	);
 
 	const patchedEvents = events.map((event) => {
 		if (event.type === 'setTotalWin' || event.type === 'finalWin') {

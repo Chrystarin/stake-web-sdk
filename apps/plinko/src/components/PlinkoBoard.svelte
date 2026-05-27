@@ -15,7 +15,7 @@
 		animationEnabled?: boolean;
 		animationSpeed?: number;
 		onBallDropped?: (event: BallDroppedEvent) => void;
-		onCoinPegHit?: () => void;
+		onCoinPegHit?: (event: { row: number; col: number; ballId: number }) => void;
 	};
 
 	const props: Props = $props();
@@ -83,7 +83,7 @@
 				eng = new PlinkoEngine({
 					hostElement: el,
 					onBallDropped: handleBallDropped,
-					onCoinPegHit: () => props.onCoinPegHit?.(),
+					onCoinPegHit: (event) => props.onCoinPegHit?.(event),
 				});
 				engine = eng;
 				await bootstrapEngine(eng);
@@ -154,6 +154,7 @@
 		const totalMs = (minSec + Math.random() * (maxSec - minSec)) * 1000;
 		const delays = n <= 1 ? [0] : Array.from({ length: n }, (_, i) => (i / (n - 1)) * totalMs);
 		const targetIndices = outcomes.map((o) => o.rateIndex);
+		const hitBonusPegs = outcomes.map((o) => o.hitBonusPeg === true);
 
 		stateGame.expectedOutcomeByBallId = new Map<number, PlinkoBallOutcome>();
 		stateGame.pendingSpacedSpawnTimers = n;
@@ -165,7 +166,7 @@
 				stateGame.expectedOutcomeByBallId = next;
 			}
 			stateGame.pendingSpacedSpawnTimers = Math.max(0, stateGame.pendingSpacedSpawnTimers - 1);
-		});
+		}, hitBonusPegs, { deterministic: stateGame.authoritativeMeterFlow });
 	}
 </script>
 

@@ -4,6 +4,10 @@ export type PlinkoBallOutcome = {
 	rateIndex: number;
 	multiplier: number;
 	amount: number;
+	/** Server/math: ball path should contact a bonus (coin) peg and fill bonus meter. */
+	hitBonusPeg?: boolean;
+	/** Server/math: ball lands on the center spin pocket and fills spin meter. */
+	hitSpinSlot?: boolean;
 };
 
 type BookEventPlinkoDrop = {
@@ -13,6 +17,12 @@ type BookEventPlinkoDrop = {
 	rowCount: number;
 	ballsPerDrop: number;
 	stakePerBall: number;
+	/** Server-authored slot multipliers for this drop configuration. */
+	coefficients?: number[];
+	/** Server-authored free-spin meter max for this game config. */
+	spinMeterMax?: number;
+	/** Server-authored bonus meter max for this game config. */
+	bonusMeterMax?: number;
 	outcomes: PlinkoBallOutcome[];
 };
 
@@ -29,10 +39,19 @@ type BookEventBonusRoulette = {
 	freeBalls: number;
 };
 
+type BookEventSpinMeter = {
+	index: number;
+	type: 'spinMeter';
+	value: number;
+	max: number;
+};
+
 type BookEventFreeSpinTrigger = {
 	index: number;
 	type: 'freeSpinTrigger';
 	multiplier: number;
+	/** Wheel segment label from math (e.g. `5X`, `BONUS`). */
+	segment?: string;
 };
 
 type BookEventSetTotalWin = {
@@ -51,6 +70,7 @@ export type BookEvent =
 	| BookEventPlinkoDrop
 	| BookEventBonusMeter
 	| BookEventBonusRoulette
+	| BookEventSpinMeter
 	| BookEventFreeSpinTrigger
 	| BookEventSetTotalWin
 	| BookEventFinalWin;

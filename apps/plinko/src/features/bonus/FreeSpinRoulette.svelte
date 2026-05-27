@@ -11,6 +11,8 @@
 
 	type Props = {
 		targetSegmentIndex?: number;
+		/** When true, wheel must land on `targetSegmentIndex` (RGS/math book). */
+		serverAuthoritative?: boolean;
 		onFinished?: (result: FreeSpinRouletteResult) => void;
 	};
 
@@ -40,7 +42,9 @@
 		const winner =
 			props.targetSegmentIndex != null && props.targetSegmentIndex >= 0
 				? props.targetSegmentIndex % FREE_SPIN_SEGMENTS.length
-				: Math.floor(Math.random() * FREE_SPIN_SEGMENTS.length);
+				: props.serverAuthoritative
+					? 0
+					: Math.floor(Math.random() * FREE_SPIN_SEGMENTS.length);
 		const extraRounds = 5 + Math.floor(Math.random() * 3);
 		const targetDeg = wheelRotationDeg + extraRounds * 360 - winner * 45;
 		let settled = false;

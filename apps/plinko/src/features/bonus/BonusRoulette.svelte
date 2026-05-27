@@ -17,6 +17,8 @@
 		messageValue?: string;
 		messageHint?: string;
 		targetFreeBalls?: number;
+		/** When true, wheel outcome must come from `targetFreeBalls` (RGS/math book). */
+		serverAuthoritative?: boolean;
 		onFinished?: (result: BonusRouletteResult) => void;
 		onResultReady?: (result: BonusRouletteResult) => void;
 		onClosed?: () => void;
@@ -72,14 +74,19 @@
 		timers.forEach(clearTimeout);
 	}
 
-	function startSpin() {
-		let winner = Math.floor(Math.random() * segments.length);
+	function resolveWinnerIndex(): number {
 		if (props.targetFreeBalls != null) {
 			const match = BONUS_ROULETTE_SEGMENTS.indexOf(
 				props.targetFreeBalls as (typeof BONUS_ROULETTE_SEGMENTS)[number],
 			);
-			if (match >= 0) winner = match;
+			if (match >= 0) return match;
 		}
+		if (props.serverAuthoritative) return 0;
+		return Math.floor(Math.random() * segments.length);
+	}
+
+	function startSpin() {
+		const winner = resolveWinnerIndex();
 		const extraRounds = 5 + Math.floor(Math.random() * 3);
 		const targetDeg = wheelRotationDeg + extraRounds * 360 - winner * 45;
 		let settled = false;
@@ -109,6 +116,10 @@
 	function afterSpin(winner: number) {
 		wheelSpinClass = false;
 		const landed = segments[winner];
+		const freeBallCount =
+			props.serverAuthoritative && props.targetFreeBalls != null
+				? props.targetFreeBalls
+				: landed.freeBalls;
 		timers.push(
 			setTimeout(() => {
 				labelVisible = false;
@@ -116,10 +127,10 @@
 				markerVisible = false;
 				pendingResult = {
 					segmentIndex: winner,
-					segmentLabel: landed.label,
-					freeBallCount: landed.freeBalls,
+					segmentLabel: String(freeBallCount),
+					freeBallCount,
 				};
-				wonFreeBalls = landed.freeBalls;
+				wonFreeBalls = freeBallCount;
 				startAnnouncementSequence();
 			}, 850),
 		);
