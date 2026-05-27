@@ -980,8 +980,10 @@
 		/* Bonus level track uses frame-relative ratios like meter/marker. */
 		--bonus-level-width-ratio: 0.33;
 		--bonus-level-height-ratio: 0.238182;
-		--bonus-level-top-ratio: -0.06;
-		--bonus-level-left-ratio: 0.505;
+		--bonus-level-top-ratio: -0.055;
+		--bonus-level-left-ratio: 0.51;
+		/* Increase all bonus-level bars uniformly. */
+		--bonus-level-node-size-ratio: 2.5;
 		--mobile-bonus-track-width: 65vw;
 		--mobile-bonus-track-height: 33.6vw;
 

@@ -56,8 +56,16 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 	}
 	.bonus-level-node {
 		position: absolute;
-		width: calc(var(--bonus-level-node-width, 70) * var(--bonus-level-bar-scale));
-		height: calc(var(--bonus-level-node-height, 62) * var(--bonus-level-bar-scale));
+		width: calc(
+			var(--bonus-level-node-width, 70) *
+			var(--bonus-level-bar-scale) *
+			var(--bonus-level-node-size-ratio, 1)
+		);
+		height: calc(
+			var(--bonus-level-node-height, 62) *
+			var(--bonus-level-bar-scale) *
+			var(--bonus-level-node-size-ratio, 1)
+		);
 		transform: translate(-50%, -50%);
 		background-position: center;
 		background-repeat: no-repeat;
