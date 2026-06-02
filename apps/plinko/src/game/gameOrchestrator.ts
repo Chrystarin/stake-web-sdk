@@ -56,28 +56,24 @@ export function addSettledWinAmount(amount: number) {
 	stateGame.winAmount = stateGame.pendingDropWinAmount;
 }
 
-export function isGameOngoing(): boolean {
+/** True while spawned balls are still in flight (not the `isAnimating` UI flag). */
+export function isDropBatchPending(): boolean {
 	return (
-		stateGame.isAnimating ||
-		stateGame.expectedOutcomeByBallId.size > 0 ||
-		stateGame.pendingSpacedSpawnTimers > 0
+		stateGame.expectedOutcomeByBallId.size > 0 || stateGame.pendingSpacedSpawnTimers > 0
 	);
 }
 
+export function isGameOngoing(): boolean {
+	return stateGame.isAnimating || isDropBatchPending();
+}
+
 export function isPlayActionBlockedByFreeSpinRoulette(): boolean {
-	if (stateGame.freeSpinRouletteOpen) return true;
-	return (
-		stateGame.activeRouletteSource === 'spin' || stateGame.pendingRouletteSource === 'spin'
-	);
+	return stateGame.freeSpinRouletteOpen;
 }
 
 export function isPlayActionBlockedByBonusRoulette(): boolean {
 	if (stateGame.bonusRoundActive) return false;
-	if (stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus') {
-		return true;
-	}
-	const max = stateGame.bonusMeterMax || 20;
-	return stateGame.bonusMeterValue >= max;
+	return stateGame.bonusRouletteOpen;
 }
 
 export function isBonusPlayButtonDisabled(): boolean {
@@ -92,11 +88,45 @@ export function isBonusPlayButtonDisabled(): boolean {
 export function isBetControlsLocked(): boolean {
 	return (
 		stateGame.isSubmitting ||
-		isGameOngoing() ||
-		stateGame.bonusRoundActive ||
-		isPlayActionBlockedByBonusRoulette() ||
-		isPlayActionBlockedByFreeSpinRoulette()
+		stateGame.dropRoundActive ||
+		stateGame.bonusBallsRemaining > 0 ||
+		stateGame.freeSpinRouletteOpen ||
+		stateGame.bonusRouletteOpen
 	);
+}
+
+/** Load math `bonusRound` outcomes and grant remaining free balls (no client RNG). */
+export function startAuthoritativeBonusRound(
+	freeBalls: number,
+	outcomes: PlinkoBallOutcome[],
+	level: number,
+	ballsPlayed = 0,
+) {
+	const played = Math.max(0, Math.floor(ballsPlayed || 0));
+	stateGame.authoritativeBonusOutcomes = outcomes.map((outcome) => ({
+		...outcome,
+		hitBonusPeg: false,
+		hitSpinSlot: false,
+	}));
+	stateGame.authoritativeBonusOutcomeIndex = played;
+	const remaining = Math.max(0, Math.floor(freeBalls || 0) - played);
+	if (level > 0) {
+		stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level);
+	}
+	if (remaining <= 0) return;
+	if (!stateGame.bonusRoundActive) {
+		awardBonusBalls(remaining);
+		return;
+	}
+	stateGame.bonusBallsRemaining = remaining;
+}
+
+export function takeAuthoritativeBonusOutcome(): PlinkoBallOutcome | undefined {
+	const outcomes = stateGame.authoritativeBonusOutcomes;
+	const index = stateGame.authoritativeBonusOutcomeIndex;
+	if (!outcomes.length || index >= outcomes.length) return undefined;
+	stateGame.authoritativeBonusOutcomeIndex = index + 1;
+	return outcomes[index];
 }
 
 export function awardBonusBalls(count: number) {
@@ -251,10 +281,11 @@ function showBonusLevelUpOverlay(levelNumber: number, addedBalls: number) {
 	}, BONUS_LEVEL_UP_OVERLAY_DURATION_MS);
 }
 
-export function waitForDropBatchCompletion(): Promise<void> {
+export function waitForDropBatchCompletion(maxMs = 30_000): Promise<void> {
 	return new Promise((resolve) => {
+		const started = Date.now();
 		const check = () => {
-			if (!isGameOngoing()) resolve();
+			if (!isDropBatchPending() || Date.now() - started >= maxMs) resolve();
 			else requestAnimationFrame(check);
 		};
 		check();
@@ -298,6 +329,8 @@ export function resetBonusRoundVisualState() {
 	stateGame.deferredBonusLevelUpCount = 0;
 	stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
 	stateGame.bonusSessionWinAmount = 0;
+	stateGame.authoritativeBonusOutcomes = [];
+	stateGame.authoritativeBonusOutcomeIndex = 0;
 }
 
 export function onBonusEndAnnouncementClosed() {
@@ -381,7 +414,7 @@ export function onBallLanded(
 		stateGame.history.push({ result: displayMultiplier, color: slotColor });
 		if (stateGame.history.length > 8) stateGame.history.shift();
 	}
-	if (isSpinSlot) {
+	if (pending && isSpinSlot) {
 		onSpinSlotLand(ballId);
 	}
 	if (!stateGame.bonusBallsRemaining && stateGame.bonusRoundActive && !isGameOngoing()) {

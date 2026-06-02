@@ -52,6 +52,18 @@ type BookEventFreeSpinTrigger = {
 	multiplier: number;
 	/** Wheel segment label from math (e.g. `5X`, `BONUS`). */
 	segment?: string;
+	/** Authoritative free-spin payout in stake currency units (wager × segment multiplier). */
+	amount?: number;
+};
+
+type BookEventBonusRound = {
+	index: number;
+	type: 'bonusRound';
+	freeBalls: number;
+	outcomes: PlinkoBallOutcome[];
+	level: number;
+	/** Balls already played when resuming a stateful round. */
+	ballsPlayed?: number;
 };
 
 type BookEventSetTotalWin = {
@@ -72,6 +84,7 @@ export type BookEvent =
 	| BookEventBonusRoulette
 	| BookEventSpinMeter
 	| BookEventFreeSpinTrigger
+	| BookEventBonusRound
 	| BookEventSetTotalWin
 	| BookEventFinalWin;
 

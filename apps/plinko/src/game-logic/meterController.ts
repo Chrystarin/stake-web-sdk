@@ -76,6 +76,22 @@ export const createMeterController = (
 
 	type RouletteTrigger = 'spin' | 'bonus' | null;
 
+	/** Increment spin meter for UI only — never opens the free-spin wheel. */
+	const bumpSpinMeterVisual = (delta = 1): void => {
+		if (delta <= 0) return;
+		const safeMax = state.spinMeterMax > 0 ? state.spinMeterMax : 10;
+		if (state.spinMeterValue >= safeMax) return;
+		state.spinMeterValue = Math.min(safeMax, state.spinMeterValue + delta);
+	};
+
+	/** Increment bonus meter for UI only — never opens the bonus wheel. */
+	const bumpBonusMeterVisual = (delta = 1): void => {
+		if (delta <= 0) return;
+		const safeMax = state.bonusMeterMax > 0 ? state.bonusMeterMax : 20;
+		if (state.bonusMeterValue >= safeMax) return;
+		state.bonusMeterValue = Math.min(safeMax, state.bonusMeterValue + delta);
+	};
+
 	const addSpinMeterValue = (
 		delta = 1,
 		onTrigger: (source: 'spin') => void,
@@ -127,7 +143,6 @@ export const createMeterController = (
 	const beginRoulette = (source: 'spin' | 'bonus') => {
 		state.rouletteFlowInProgress = true;
 		state.activeRouletteSource = source;
-		if (source === 'spin') state.spinMeterValue = 0;
 	};
 
 	const completeRoulette = (): RouletteTrigger => {
@@ -160,6 +175,8 @@ export const createMeterController = (
 		spinMeterProgress,
 		bonusMeterProgress,
 		setBallPerDrop,
+		bumpSpinMeterVisual,
+		bumpBonusMeterVisual,
 		addSpinMeterValue,
 		addBonusMeterValue,
 		beginRoulette,

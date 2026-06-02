@@ -53,7 +53,18 @@
 	let mobileBetPopupOpen = $state(false);
 
 	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
-	const controlsLocked = $derived(isBetControlsLocked());
+	const controlsLocked = $derived.by(() => {
+		stateGame.isSubmitting;
+		stateGame.isAnimating;
+		stateGame.expectedOutcomeByBallId.size;
+		stateGame.pendingSpacedSpawnTimers;
+		stateGame.bonusBallsRemaining;
+		stateGame.freeSpinRouletteOpen;
+		stateGame.bonusRouletteOpen;
+		stateGame.dropRoundActive;
+		stateGame.rouletteFlowInProgress;
+		return isBetControlsLocked();
+	});
 	const bonusPlayDisabled = $derived(isBonusPlayButtonDisabled() || props.bonusPlayDisabled);
 	const availableBetPresets = $derived(
 		BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet),

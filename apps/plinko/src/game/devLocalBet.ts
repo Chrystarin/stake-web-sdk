@@ -52,24 +52,38 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 		};
 	});
 
-	const recalculatedWinAmount = Math.round(
-		events
-			.filter(
-				(event): event is Extract<typeof event, { type: 'plinkoDrop' }> => event.type === 'plinkoDrop',
-			)
-			.reduce(
-				(total, drop) =>
-					total + drop.outcomes.reduce((sum, outcome) => sum + outcome.amount * outcome.multiplier, 0),
-				0,
-			) * 100,
+	const hasFeatureSettlement = events.some(
+		(event) =>
+			event.type === 'freeSpinTrigger' ||
+			event.type === 'bonusRound' ||
+			event.type === 'bonusRoulette',
 	);
 
-	const patchedEvents = events.map((event) => {
-		if (event.type === 'setTotalWin' || event.type === 'finalWin') {
-			return { ...event, amount: recalculatedWinAmount };
-		}
-		return event;
-	});
+	let patchedEvents = events;
+	if (!hasFeatureSettlement) {
+		const recalculatedWinAmount = Math.round(
+			events
+				.filter(
+					(event): event is Extract<typeof event, { type: 'plinkoDrop' }> =>
+						event.type === 'plinkoDrop',
+				)
+				.reduce(
+					(total, drop) =>
+						total +
+						drop.outcomes.reduce(
+							(sum, outcome) => sum + outcome.amount * outcome.multiplier,
+							0,
+						),
+					0,
+				) * 100,
+		);
+		patchedEvents = events.map((event) => {
+			if (event.type === 'setTotalWin' || event.type === 'finalWin') {
+				return { ...event, amount: recalculatedWinAmount };
+			}
+			return event;
+		});
+	}
 
 	return { ...book, events: patchedEvents };
 };

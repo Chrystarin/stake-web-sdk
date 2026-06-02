@@ -3,7 +3,7 @@
 
 	import { PlinkoEngine, type BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 	import { getContext } from '../game/context';
-	import { registerBonusBallOutcome } from '../game/gameOrchestrator';
+	import { registerBonusBallOutcome, takeAuthoritativeBonusOutcome } from '../game/gameOrchestrator';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import config from '../game/config';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
@@ -121,6 +121,19 @@
 		},
 		bonusBallDrop: ({ stake }) => {
 			if (!engine) return;
+			const authoredOutcome =
+				stateGame.authoritativeMeterFlow && stateGame.authoritativeBonusOutcomes.length > 0
+					? takeAuthoritativeBonusOutcome()
+					: undefined;
+			if (authoredOutcome) {
+				const dropped = engine.dropBall(authoredOutcome.rateIndex, {
+					hitBonusPeg: false,
+					deterministic: true,
+				});
+				if (!dropped) return;
+				registerBonusBallOutcome(dropped.ballId, authoredOutcome);
+				return;
+			}
 			const dropped = engine.dropBall(-1);
 			if (!dropped) return;
 			const isSpinSlot = isSpinSlotRateIndex(dropped.targetIndex, props.coefficients.length);
@@ -146,6 +159,18 @@
 
 	function spawnOutcomes(outcomes: PlinkoBallOutcome[]) {
 		if (!engine) return;
+
+		const coeffs =
+			props.coefficients.length > 0
+				? props.coefficients
+				: stateGame.coefficients.length > 0
+					? stateGame.coefficients
+					: [];
+		if (!coeffs.length) {
+			stateGame.pendingSpacedSpawnTimers = 0;
+			console.warn('[PlinkoBoard] drop skipped — no coefficients loaded yet');
+			return;
+		}
 
 		const n = outcomes.length;
 		const ballsPerDrop = Math.max(1, stateGame.ballPerDrop);

@@ -69,6 +69,13 @@ export const stateGame = $state({
 	serverBonusFreeBalls: undefined as number | undefined,
 	serverFreeSpinSegment: undefined as number | undefined,
 	serverFreeSpinSegmentLabel: undefined as string | undefined,
+	/** Math-authored free-spin payout for the current wheel (stake currency units). */
+	serverFreeSpinWinAmount: undefined as number | undefined,
+	/** Stake per ball from the current book's `plinkoDrop` (for scaling feature payouts). */
+	lastBookStakePerBall: 1,
+	/** Precomputed bonus-round ball outcomes from `bonusRound` book events. */
+	authoritativeBonusOutcomes: [] as PlinkoBallOutcome[],
+	authoritativeBonusOutcomeIndex: 0,
 	bonusLevelUpOverlayOpen: false,
 	bonusLevelUpOverlayVisible: false,
 	bonusLevelUpLevel: 0,
@@ -83,6 +90,8 @@ export const stateGame = $state({
 	autoRoundsLeft: 5,
 	autoRoundsDisplay: 5,
 	pendingSpacedSpawnTimers: 0,
+	/** True while a book-driven drop round is playing. */
+	dropRoundActive: false,
 	nextBallSpawnAtMs: 0,
 	infoModalOpen: false,
 	infoModalTab: 'rules' as InfoModalTab,

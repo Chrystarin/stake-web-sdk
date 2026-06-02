@@ -11,6 +11,7 @@
 	import config from '../game/config';
 
 	import { playDevLocalBook } from '../game/devLocalBet';
+	import { installPlinkoDevDebug } from '../game/devDebug';
 
 	import { getContext } from '../game/context';
 
@@ -43,6 +44,8 @@
 		onCoinPegHit,
 
 		onFreeSpinRouletteFinished,
+
+		releaseRoundInteractionLocks,
 
 		syncBallPerDropTier,
 
@@ -105,6 +108,10 @@
 
 	});
 
+	const boardCoefficients = $derived(
+		stateGame.coefficients.length > 0 ? stateGame.coefficients : coefficients,
+	);
+
 	/** Track `stateGame` meter fields directly — getters on `stateGameDerived` are not reactive. */
 	const bonusMeterProgress = $derived(
 		stateGame.bonusMeterMax > 0
@@ -127,6 +134,8 @@
 	);
 
 	onMount(() => {
+
+		installPlinkoDevDebug();
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
 			stateGame.coefficients = coefficients;
@@ -184,7 +193,7 @@
 
 	async function placeBet() {
 
-		if (stateGame.isSubmitting || stateGame.isAnimating || isGameOngoing()) return;
+		if (stateGame.isSubmitting || stateGame.dropRoundActive) return;
 
 		stateGame.isSubmitting = true;
 
@@ -200,7 +209,7 @@
 
 			} finally {
 
-				stateGame.isSubmitting = false;
+				releaseRoundInteractionLocks();
 
 			}
 
@@ -450,7 +459,7 @@
 				{#if mobile}
 					<div class="pixi-stage-wrap">
 						<PlinkoBoard
-							{coefficients}
+							coefficients={boardCoefficients}
 							rows={stateGame.rowCount}
 							animationEnabled={stateGame.animationEnabled}
 							animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
@@ -460,7 +469,7 @@
 					</div>
 				{:else}
 					<PlinkoBoard
-						{coefficients}
+						coefficients={boardCoefficients}
 						rows={stateGame.rowCount}
 						animationEnabled={stateGame.animationEnabled}
 						animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
@@ -489,7 +498,7 @@
 		spinMeterProgress={spinMeterProgress}
 		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
 		bonusBallsRemaining={stateGame.bonusBallsRemaining}
-		playDisabled={stateGame.isSubmitting || stateGame.isAnimating || isGameOngoing()}
+		playDisabled={stateGame.isSubmitting || stateGame.dropRoundActive || isGameOngoing()}
 		bonusPlayDisabled={stateGame.bonusRouletteOpen}
 		{mobile}
 		onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}

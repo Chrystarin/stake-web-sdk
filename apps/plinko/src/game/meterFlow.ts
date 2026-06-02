@@ -5,6 +5,7 @@ import {
 	clearBonusMeterDrainTimer,
 	onBonusMeterFilledDuringRound,
 	scheduleBonusMeterDrainDuringRoll,
+	showResultOverlay,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
 import { plinkoWagerAmount } from './plinkoBet';
@@ -14,11 +15,11 @@ import { stateGame } from './stateGame.svelte';
 export type RouletteSource = 'spin' | 'bonus';
 
 let rouletteCloseWaiters: Array<() => void> = [];
+/** Bumped when a round ends so in-flight `triggerRoulette` openers are ignored. */
+let rouletteOpenGeneration = 0;
 
 const isDropPipelineBusy = () =>
-	stateGame.isAnimating ||
-	stateGame.expectedOutcomeByBallId.size > 0 ||
-	stateGame.pendingSpacedSpawnTimers > 0;
+	stateGame.expectedOutcomeByBallId.size > 0 || stateGame.pendingSpacedSpawnTimers > 0;
 
 const waitForDropPipelineIdle = (): Promise<void> =>
 	new Promise((resolve) => {
@@ -38,6 +39,38 @@ function notifyRouletteClosed() {
 	rouletteCloseWaiters = [];
 }
 
+/** Drop stale roulette locks when a round ends without an active wheel overlay. */
+export function releaseStuckRouletteFlow() {
+	if (stateGame.freeSpinRouletteOpen || stateGame.bonusRouletteOpen) return;
+	meterController.completeRoulette();
+	stateGame.showFreeSpinRoulette = false;
+	stateGame.showBonusRoulette = false;
+	stateGame.autoPlayPausedByFreeSpin = false;
+	notifyRouletteClosed();
+}
+
+/** Force-clear all betting-panel lock flags (safe after a book round finishes). */
+export function forceUnlockBettingControls() {
+	rouletteOpenGeneration += 1;
+	stateGame.dropRoundActive = false;
+	stateGame.isSubmitting = false;
+	stateGame.isAnimating = false;
+	stateGame.pendingSpacedSpawnTimers = 0;
+	stateGame.expectedOutcomeByBallId = new Map();
+	stateGame.freeSpinRouletteOpen = false;
+	stateGame.bonusRouletteOpen = false;
+	stateGame.showFreeSpinRoulette = false;
+	stateGame.showBonusRoulette = false;
+	stateGame.autoPlayPausedByFreeSpin = false;
+	meterController.completeRoulette();
+	notifyRouletteClosed();
+}
+
+/** @deprecated alias — always performs a synchronous force-unlock. */
+export function releaseRoundInteractionLocks() {
+	forceUnlockBettingControls();
+}
+
 export function triggerRoulette(source: RouletteSource) {
 	if (stateGame.rouletteFlowInProgress) {
 		stateGame.pendingRouletteSource = source;
@@ -48,11 +81,14 @@ export function triggerRoulette(source: RouletteSource) {
 		else stateGame.autoPlayStopping = true;
 	}
 	meterController.beginRoulette(source);
+	const openGeneration = rouletteOpenGeneration;
 	void (async () => {
 		await waitForDropPipelineIdle();
+		if (openGeneration !== rouletteOpenGeneration) return;
 		// Ignore stale opener attempts if roulette source changed in-between.
 		if (!stateGame.rouletteFlowInProgress || stateGame.activeRouletteSource !== source) return;
 		if (source === 'spin') {
+			stateGame.spinMeterValue = 0;
 			stateGame.freeSpinRouletteOpen = true;
 			return;
 		}
@@ -63,8 +99,15 @@ export function triggerRoulette(source: RouletteSource) {
 }
 
 export function onCoinPegHit(ballId: number) {
+	if (stateGame.authoritativeMeterFlow && !stateGame.dropRoundActive) return;
 	if (stateGame.bonusPegMeterCreditedBallIds.has(ballId)) return;
+	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'bonus') return;
 	stateGame.bonusPegMeterCreditedBallIds.add(ballId);
+
+	if (stateGame.authoritativeMeterFlow) {
+		meterController.bumpBonusMeterVisual(1);
+		return;
+	}
 
 	const onMeterFull = (source: RouletteSource) => {
 		if (stateGame.rouletteFlowInProgress) {
@@ -81,9 +124,17 @@ export function onCoinPegHit(ballId: number) {
 }
 
 export function onSpinSlotLand(ballId?: number) {
+	if (stateGame.authoritativeMeterFlow && !stateGame.dropRoundActive) return;
+	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin') return;
+	if (stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax) return;
 	if (ballId != null) {
 		if (stateGame.spinSlotMeterCreditedBallIds.has(ballId)) return;
 		stateGame.spinSlotMeterCreditedBallIds.add(ballId);
+	}
+
+	if (stateGame.authoritativeMeterFlow) {
+		meterController.bumpSpinMeterVisual(1);
+		return;
 	}
 
 	const onSpinMeterFull = (source: RouletteSource) => {
@@ -115,6 +166,7 @@ export function isFreeSpinBonusSegment(segmentLabel: string): boolean {
 }
 
 export function onFreeSpinRouletteFinished(_wheelSegmentLabel?: string) {
+	const hadOpenWheel = stateGame.freeSpinRouletteOpen;
 	stateGame.freeSpinRouletteOpen = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
 	const segmentLabel = stateGame.authoritativeMeterFlow
@@ -122,16 +174,27 @@ export function onFreeSpinRouletteFinished(_wheelSegmentLabel?: string) {
 			FREE_SPIN_SEGMENTS[stateGame.serverFreeSpinSegment ?? 0] ??
 			'')
 		: (_wheelSegmentLabel ?? '');
-	if (!stateGame.authoritativeMeterFlow) {
+	if (stateGame.authoritativeMeterFlow) {
+		const serverWin = stateGame.serverFreeSpinWinAmount ?? 0;
+		if (serverWin > 0) {
+			addSettledWinAmount(serverWin);
+			showResultOverlay(serverWin, serverWin / Math.max(plinkoWagerAmount(), 0.000_001));
+		}
+		stateGame.serverFreeSpinWinAmount = undefined;
+	} else {
 		const numericMultiplier = Number.parseFloat(String(segmentLabel).replace(/[^0-9.]/g, ''));
 		if (Number.isFinite(numericMultiplier) && numericMultiplier > 0) {
 			addSettledWinAmount(plinkoWagerAmount() * numericMultiplier);
 		}
 	}
-	const landedOnBonus = !stateGame.authoritativeMeterFlow && isFreeSpinBonusSegment(segmentLabel);
+	const landedOnBonus = isFreeSpinBonusSegment(
+		stateGame.authoritativeMeterFlow
+			? (stateGame.serverFreeSpinSegmentLabel ?? segmentLabel)
+			: segmentLabel,
+	);
 	let queued = meterController.completeRoulette();
 	if (landedOnBonus) queued = 'bonus';
-	if (stateGame.showFreeSpinRoulette) {
+	if (stateGame.showFreeSpinRoulette || hadOpenWheel) {
 		stateGame.showFreeSpinRoulette = false;
 		stateGame.serverFreeSpinSegment = undefined;
 		stateGame.serverFreeSpinSegmentLabel = undefined;
@@ -143,9 +206,9 @@ export function onFreeSpinRouletteFinished(_wheelSegmentLabel?: string) {
 export function onBonusRouletteResultReady(_wheelFreeBallCount?: number) {
 	if (stateGame.activeRouletteSource !== 'bonus') return;
 	if (stateGame.bonusRouletteResultAppliedEarly) return;
-	const freeBallCount = stateGame.authoritativeMeterFlow
-		? Math.max(1, Math.floor(stateGame.serverBonusFreeBalls ?? 0))
-		: Math.max(1, Math.floor(_wheelFreeBallCount ?? 0));
+	// Authoritative bonus balls are granted from the following `bonusRound` book event.
+	if (stateGame.authoritativeMeterFlow) return;
+	const freeBallCount = Math.max(1, Math.floor(_wheelFreeBallCount ?? 0));
 	if (freeBallCount <= 0) return;
 	stateGame.bonusRouletteResultAppliedEarly = true;
 	void (async () => {
@@ -158,6 +221,7 @@ export function onBonusRouletteResultReady(_wheelFreeBallCount?: number) {
 }
 
 export function onBonusRouletteFinished() {
+	const hadOpenWheel = stateGame.bonusRouletteOpen;
 	clearBonusMeterDrainTimer();
 	stateGame.bonusRouletteOpen = false;
 	if (
@@ -172,7 +236,7 @@ export function onBonusRouletteFinished() {
 		queued = 'spin';
 	}
 	stateGame.pendingSpinRouletteAfterQueuedBonus = false;
-	if (stateGame.showBonusRoulette) {
+	if (stateGame.showBonusRoulette || hadOpenWheel) {
 		stateGame.showBonusRoulette = false;
 		stateGame.serverBonusFreeBalls = undefined;
 		notifyRouletteClosed();
