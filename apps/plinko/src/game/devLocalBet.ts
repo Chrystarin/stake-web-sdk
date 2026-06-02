@@ -5,6 +5,7 @@ import { stateBet } from 'state-shared';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import config from './config';
 import { stateGame } from './stateGame.svelte';
+import { getSessionMetersForBet } from './plinkoSessionMeters';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
 
@@ -43,11 +44,16 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 			};
 		});
 
+		const sessionMeters = getSessionMetersForBet();
+
 		return {
 			...event,
 			ballsPerDrop,
 			stakePerBall,
 			coefficients,
+			spinMeterStart: event.spinMeterStart ?? sessionMeters.spinMeter,
+			bonusMeterStart: event.bonusMeterStart ?? sessionMeters.bonusMeter,
+			bonusLevelStart: event.bonusLevelStart ?? sessionMeters.bonusLevel,
 			outcomes,
 		};
 	});

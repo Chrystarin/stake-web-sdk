@@ -8,6 +8,10 @@ import {
 	applyAuthoritativeMeterConfig,
 	applyAuthoritativeSpinMeterMax,
 } from './plinkoMeterConfig';
+import {
+	persistSessionMetersAfterBet,
+	resolvePlinkoDropMeterStarts,
+} from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
 import {
 	freeSpinSegmentIndexForSegment,
@@ -30,12 +34,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGame.coefficients = [...bookEvent.coefficients];
 		}
 		if (hasAuthoritativeOutcomes) {
+			const meterStarts = resolvePlinkoDropMeterStarts(bookEvent);
 			applyAuthoritativeMeterConfig({
 				spinMeterMax: bookEvent.spinMeterMax,
 				bonusMeterMax: bookEvent.bonusMeterMax,
-				spinMeterStart: bookEvent.spinMeterStart ?? 0,
-				bonusMeterStart: bookEvent.bonusMeterStart ?? 0,
-				bonusLevelStart: bookEvent.bonusLevelStart,
+				...meterStarts,
 			});
 		} else {
 			if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
@@ -203,6 +206,7 @@ export const playBet = async (bet: { state: BookEvent[] }) => {
 	try {
 		await playBookEvents(bet.state);
 	} finally {
+		persistSessionMetersAfterBet(bet.state);
 		stateGame.authoritativeMeterFlow = false;
 		if (!stateGame.bonusRoundActive) {
 			stateGame.authoritativeBonusOutcomes = [];
