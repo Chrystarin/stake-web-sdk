@@ -536,7 +536,7 @@
 
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
 
-			onFinished={() => onFreeSpinRouletteFinished()}
+			onFinished={() => void onFreeSpinRouletteFinished()}
 
 		/>
 

@@ -10,6 +10,7 @@ import {
 } from './gameOrchestrator';
 import { plinkoWagerAmount } from './plinkoBet';
 import { meterController } from './stateGame.svelte';
+import { resetSpinMeterSession } from './plinkoSessionMeters';
 import { stateGame } from './stateGame.svelte';
 
 export type RouletteSource = 'spin' | 'bonus';
@@ -88,7 +89,6 @@ export function triggerRoulette(source: RouletteSource) {
 		// Ignore stale opener attempts if roulette source changed in-between.
 		if (!stateGame.rouletteFlowInProgress || stateGame.activeRouletteSource !== source) return;
 		if (source === 'spin') {
-			stateGame.spinMeterValue = 0;
 			stateGame.freeSpinRouletteOpen = true;
 			return;
 		}
@@ -166,7 +166,7 @@ export function isFreeSpinBonusSegment(segmentLabel: string): boolean {
 	return normalized === 'FREEBONUS' || normalized === 'BONUS';
 }
 
-export function onFreeSpinRouletteFinished(_wheelSegmentLabel?: string) {
+export async function onFreeSpinRouletteFinished(_wheelSegmentLabel?: string) {
 	const hadOpenWheel = stateGame.freeSpinRouletteOpen;
 	stateGame.freeSpinRouletteOpen = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
@@ -175,19 +175,23 @@ export function onFreeSpinRouletteFinished(_wheelSegmentLabel?: string) {
 			FREE_SPIN_SEGMENTS[stateGame.serverFreeSpinSegment ?? 0] ??
 			'')
 		: (_wheelSegmentLabel ?? '');
+	const roundWager = plinkoWagerAmount();
 	if (stateGame.authoritativeMeterFlow) {
 		const serverWin = stateGame.serverFreeSpinWinAmount ?? 0;
 		if (serverWin > 0) {
 			addSettledWinAmount(serverWin);
-			showResultOverlay(serverWin, serverWin / Math.max(plinkoWagerAmount(), 0.000_001));
+			showResultOverlay(serverWin, serverWin / Math.max(roundWager, 0.000_001));
 		}
 		stateGame.serverFreeSpinWinAmount = undefined;
 	} else {
 		const numericMultiplier = Number.parseFloat(String(segmentLabel).replace(/[^0-9.]/g, ''));
 		if (Number.isFinite(numericMultiplier) && numericMultiplier > 0) {
-			addSettledWinAmount(plinkoWagerAmount() * numericMultiplier);
+			const win = roundWager * numericMultiplier;
+			addSettledWinAmount(win);
+			showResultOverlay(win, numericMultiplier);
 		}
 	}
+	await resetSpinMeterSession();
 	const landedOnBonus = isFreeSpinBonusSegment(
 		stateGame.authoritativeMeterFlow
 			? (stateGame.serverFreeSpinSegmentLabel ?? segmentLabel)

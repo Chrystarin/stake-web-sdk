@@ -83,12 +83,48 @@ export function applySpinMeterDisplay(spinMeter: number): void {
 	stateGame.spinMeterValue = Math.min(Math.max(0, spinMeter), max);
 }
 
+/** Persist a session spin meter value to RGS (or dev mirror). */
+export async function persistSpinMeterValue(spinMeter: number): Promise<void> {
+	const value = Math.max(0, Math.floor(spinMeter));
+	if (PUBLIC_CHROMATIC || stateUrlDerived.replay()) return;
+
+	if (!hasActiveRgsSession()) {
+		devRgsSpinMeter = value;
+		return;
+	}
+
+	try {
+		await requestBetAction({
+			rgsUrl: stateUrlDerived.rgsUrl(),
+			sessionID: stateUrlDerived.sessionID(),
+			action: RGS_SESSION_METERS_ACTION,
+			meta: {
+				spin_meter: value,
+				spinMeter: value,
+			},
+		});
+	} catch (error) {
+		console.error('[plinko] failed to persist spin meter to RGS', error);
+	}
+}
+
+/** Reset spin meter to 0 on HUD and RGS after a free-spin award. */
+export async function resetSpinMeterSession(): Promise<void> {
+	applySpinMeterDisplay(0);
+	await persistSpinMeterValue(0);
+}
+
 /** Apply a `spinMeter` book event to the HUD (session-absolute, never regress mid-bet). */
 export function applySpinMeterBookEvent(bookValue: number): void {
 	const betStart = stateGame.betSpinMeterStart;
 	const betRelative = stateGame.spinMeterBookValuesAreBetRelative;
 	const sessionValue = spinMeterSessionValueFromBook(bookValue, betStart, betRelative);
-	const capped = Math.min(sessionValue, stateGame.spinMeterMax);
+	const max = stateGame.spinMeterMax > 0 ? stateGame.spinMeterMax : sessionValue;
+	const capped = Math.min(sessionValue, max);
+	if (capped >= max) {
+		stateGame.spinMeterValue = max;
+		return;
+	}
 	// Intermediate book steps can lag visual bumps — never snap the meter down mid-round.
 	stateGame.spinMeterValue = Math.max(stateGame.spinMeterValue, capped);
 }
@@ -99,27 +135,7 @@ export function applySpinMeterBookEvent(bookValue: number): void {
 export async function syncSpinMeterAfterBet(events: BookEvent[]): Promise<void> {
 	const spinMeter = deriveSpinMeterFromBookEvents(events);
 	applySpinMeterDisplay(spinMeter);
-
-	if (PUBLIC_CHROMATIC || stateUrlDerived.replay()) return;
-
-	if (!hasActiveRgsSession()) {
-		devRgsSpinMeter = spinMeter;
-		return;
-	}
-
-	try {
-		await requestBetAction({
-			rgsUrl: stateUrlDerived.rgsUrl(),
-			sessionID: stateUrlDerived.sessionID(),
-			action: RGS_SESSION_METERS_ACTION,
-			meta: {
-				spin_meter: spinMeter,
-				spinMeter,
-			},
-		});
-	} catch (error) {
-		console.error('[plinko] failed to persist spin meter to RGS', error);
-	}
+	await persistSpinMeterValue(spinMeter);
 }
 
 /** Offset lookup-table `spinMeter` events when injecting session carry-over (local dev). */
