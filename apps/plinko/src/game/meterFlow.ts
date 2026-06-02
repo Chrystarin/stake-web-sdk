@@ -9,6 +9,11 @@ import {
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
 import { plinkoWagerAmount } from './plinkoBet';
+import {
+	freeSpinMultiplierFromSegment,
+	isFreeSpinBonusWheelSegment,
+} from './plinkoFreeSpinPayout';
+import { stateBet } from 'state-shared';
 import { meterController } from './stateGame.svelte';
 import { resetSpinMeterSession } from './plinkoSessionMeters';
 import { stateGame } from './stateGame.svelte';
@@ -160,43 +165,36 @@ export function onSpinSlotLand(ballId?: number) {
 }
 
 export function isFreeSpinBonusSegment(segmentLabel: string): boolean {
-	const normalized = String(segmentLabel || '')
-		.toUpperCase()
-		.replace(/[^A-Z0-9]/g, '');
-	return normalized === 'FREEBONUS' || normalized === 'BONUS';
+	return isFreeSpinBonusWheelSegment(segmentLabel);
 }
 
-export async function onFreeSpinRouletteFinished(_wheelSegmentLabel?: string) {
+export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 	const hadOpenWheel = stateGame.freeSpinRouletteOpen;
 	stateGame.freeSpinRouletteOpen = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
-	const segmentLabel = stateGame.authoritativeMeterFlow
-		? (stateGame.serverFreeSpinSegmentLabel ??
-			FREE_SPIN_SEGMENTS[stateGame.serverFreeSpinSegment ?? 0] ??
-			'')
-		: (_wheelSegmentLabel ?? '');
-	const roundWager = plinkoWagerAmount();
-	if (stateGame.authoritativeMeterFlow) {
-		const serverWin = stateGame.serverFreeSpinWinAmount ?? 0;
-		if (serverWin > 0) {
-			addSettledWinAmount(serverWin);
-			showResultOverlay(serverWin, serverWin / Math.max(roundWager, 0.000_001));
-		}
-		stateGame.serverFreeSpinWinAmount = undefined;
-	} else {
-		const numericMultiplier = Number.parseFloat(String(segmentLabel).replace(/[^0-9.]/g, ''));
-		if (Number.isFinite(numericMultiplier) && numericMultiplier > 0) {
-			const win = roundWager * numericMultiplier;
-			addSettledWinAmount(win);
-			showResultOverlay(win, numericMultiplier);
-		}
+	const segmentLabel =
+		wheelSegmentLabel ??
+		stateGame.serverFreeSpinSegmentLabel ??
+		FREE_SPIN_SEGMENTS[stateGame.serverFreeSpinSegment ?? 0] ??
+		'';
+
+	const roundWager =
+		stateBet.wageredBetAmount > 0 ? stateBet.wageredBetAmount : plinkoWagerAmount();
+	let win = stateGame.serverFreeSpinWinAmount ?? 0;
+
+	if (win <= 0 && segmentLabel && !isFreeSpinBonusWheelSegment(segmentLabel)) {
+		const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
+		if (multiplier > 0) win = roundWager * multiplier;
 	}
+
+	if (win > 0) {
+		addSettledWinAmount(win);
+		showResultOverlay(win, win / Math.max(roundWager, 0.000_001));
+	}
+	stateGame.serverFreeSpinWinAmount = undefined;
+
 	await resetSpinMeterSession();
-	const landedOnBonus = isFreeSpinBonusSegment(
-		stateGame.authoritativeMeterFlow
-			? (stateGame.serverFreeSpinSegmentLabel ?? segmentLabel)
-			: segmentLabel,
-	);
+	const landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
 	let queued = meterController.completeRoulette();
 	if (landedOnBonus) queued = 'bonus';
 	if (stateGame.showFreeSpinRoulette || hadOpenWheel) {

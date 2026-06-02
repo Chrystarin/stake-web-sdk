@@ -3,7 +3,7 @@ import { stateUrlDerived } from 'state-shared';
 import { requestBetAction } from 'rgs-requests';
 
 import { eventEmitter } from './eventEmitter';
-import { plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
+import { applyFreeSpinActionBalance, resolveFreeSpinPayoutAmount } from './plinkoFreeSpinPayout';
 import {
 	freeSpinSegmentIndexForSegment,
 	triggerRoulette,
@@ -31,10 +31,7 @@ export function sessionSpinMeterReachedMax(events: BookEvent[]): boolean {
 type FreeSpinTriggerPayload = Pick<
 	BookEventOfType<'freeSpinTrigger'>,
 	'segment' | 'multiplier' | 'amount'
-> & {
-	/** When false, wheel is display-only (no client-computed payout). */
-	authoritative?: boolean;
-};
+>;
 
 function parseFreeSpinTriggerFromActionResponse(data: unknown): FreeSpinTriggerPayload | null {
 	const round = (data as { action?: { state?: unknown; meta?: unknown } })?.action;
@@ -89,6 +86,7 @@ async function requestRgsFreeSpinTrigger(): Promise<FreeSpinTriggerPayload | nul
 				spinMeterFull: true,
 			},
 		});
+		applyFreeSpinActionBalance(response);
 		return parseFreeSpinTriggerFromActionResponse(response);
 	} catch (error) {
 		console.warn('[plinko] RGS free-spin action unavailable; wheel is presentation-only', error);
@@ -96,13 +94,12 @@ async function requestRgsFreeSpinTrigger(): Promise<FreeSpinTriggerPayload | nul
 	}
 }
 
-/** Presentation fallback when lookup-table books fill the session meter without `freeSpinTrigger`. */
+/** Fallback wheel segment when lookup books omit `freeSpinTrigger` and RGS action is unavailable. */
 function presentationOnlyFreeSpinTrigger(): FreeSpinTriggerPayload {
 	return {
 		segment: '5X',
 		multiplier: 5,
 		amount: 0,
-		authoritative: false,
 	};
 }
 
@@ -113,16 +110,7 @@ export async function runFreeSpinTriggerFlow(payload: FreeSpinTriggerPayload): P
 	stateGame.freeSpinAwardedThisRound = true;
 	stateGame.serverFreeSpinSegmentLabel = segment;
 	stateGame.serverFreeSpinSegment = freeSpinSegmentIndexForSegment(segment);
-	const bookStake = stateGame.lastBookStakePerBall > 0 ? stateGame.lastBookStakePerBall : 1;
-	const stakeScale = plinkoStakePerBall() / bookStake;
-	const authoredAmount = payload.amount ?? 0;
-	const fromBook = payload.authoritative !== false;
-	stateGame.serverFreeSpinWinAmount =
-		authoredAmount > 0
-			? authoredAmount * stakeScale
-			: fromBook && payload.multiplier > 0
-				? plinkoWagerAmount() * payload.multiplier
-				: 0;
+	stateGame.serverFreeSpinWinAmount = resolveFreeSpinPayoutAmount(payload);
 	stateGame.showFreeSpinRoulette = true;
 	triggerRoulette('spin');
 	await eventEmitter.broadcastAsync({
