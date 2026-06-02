@@ -40,6 +40,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGame.betSpinMeterStart = spinMeterStart;
 			stateGame.spinMeterBookValuesAreBetRelative = spinMeterBookValuesAreBetRelative(
 				stateGame.activeBookEvents,
+				spinMeterStart,
 			);
 			applyAuthoritativeMeterConfig({
 				spinMeterMax: bookEvent.spinMeterMax,

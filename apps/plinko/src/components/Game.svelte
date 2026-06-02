@@ -13,6 +13,10 @@
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
+	import {
+		applyCachedSpinMeterToDisplay,
+		hydrateSessionSpinMeterCache,
+	} from '../game/plinkoSessionMeters';
 
 	import { getContext } from '../game/context';
 
@@ -139,6 +143,8 @@
 		installPlinkoDevDebug();
 
 		applyClientMeterDefaults(config.spinMeterMax, config.bonusMeterMax);
+		hydrateSessionSpinMeterCache();
+		applyCachedSpinMeterToDisplay();
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
 			stateGame.coefficients = coefficients;

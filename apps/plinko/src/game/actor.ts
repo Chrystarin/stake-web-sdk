@@ -5,6 +5,7 @@ import { stateGame } from './stateGame.svelte';
 import { canAffordPlinkoWager, plinkoWagerAmount } from './plinkoBet';
 import {
 	applySpinMeterDisplay,
+	buildBetMetaSpinMeter,
 	deriveSpinMeterFromBookEvents,
 } from './plinkoSessionMeters';
 import type { Bet } from './typesBookEvent';
@@ -25,11 +26,12 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onPlayGame: async (bet) => await playBet(bet),
 	checkIsBonusGame: () => stateGame.bonusRoundActive,
 	getBetMeta: () => ({
-		// UI preferences only — spin meter is owned by RGS (returned on book + saved via /bet/action).
 		ballsPerDrop: stateGame.ballPerDrop,
 		stakePerBall: stateBet.betAmount,
 		rowCount: stateGame.rowCount,
 		difficulty: stateGame.difficultyLevelId,
+		// Hint for RGS to inject `plinkoDrop.spinMeterStart` on the served book.
+		...buildBetMetaSpinMeter(),
 	}),
 	getWagerAmount: plinkoWagerAmount,
 });

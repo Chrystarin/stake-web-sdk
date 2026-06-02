@@ -6,6 +6,10 @@
 	import { stateBet, stateConfig } from 'state-shared';
 	import { BET_PER_BALL_PRESETS } from '../game-logic/constants';
 	import config from '../game/config';
+	import {
+		applyCachedSpinMeterToDisplay,
+		hydrateSessionSpinMeterCache,
+	} from '../game/plinkoSessionMeters';
 
 	type Props = { children: Snippet };
 
@@ -32,6 +36,8 @@
 			stateConfig.betMenuOptions = [...opts];
 		}
 
+		hydrateSessionSpinMeterCache();
+		applyCachedSpinMeterToDisplay();
 	}
 
 	$effect(() => {
