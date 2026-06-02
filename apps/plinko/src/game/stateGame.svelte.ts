@@ -98,6 +98,8 @@ export const stateGame = $state({
 	pendingSpacedSpawnTimers: 0,
 	/** True while a book-driven drop round is playing. */
 	dropRoundActive: false,
+	/** Set when free-spin wheel ran this round (book or session-meter fallback). */
+	freeSpinAwardedThisRound: false,
 	nextBallSpawnAtMs: 0,
 	infoModalOpen: false,
 	infoModalTab: 'rules' as InfoModalTab,

@@ -214,9 +214,11 @@ export function applySpinMeterBookEvent(bookValue: number): void {
 /** After a bet book finishes: display RGS result and persist spin meter to RGS. */
 export async function syncSpinMeterAfterBet(events: BookEvent[]): Promise<void> {
 	const derived = deriveSpinMeterFromBookEvents(events);
-	const hadFreeSpinReset = events.some((event) => event.type === 'freeSpinTrigger');
+	const hadFreeSpinReset =
+		events.some((event) => event.type === 'freeSpinTrigger') ||
+		stateGame.freeSpinAwardedThisRound;
 	const spinMeter = hadFreeSpinReset
-		? derived
+		? 0
 		: Math.max(derived, stateGame.spinMeterValue, getSessionSpinMeterCarryOver());
 	applySpinMeterDisplay(spinMeter);
 	await persistSpinMeterValue(spinMeter);

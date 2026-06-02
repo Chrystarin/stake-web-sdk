@@ -15,12 +15,8 @@ import {
 	syncSpinMeterAfterBet,
 } from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
-import {
-	freeSpinSegmentIndexForSegment,
-	releaseRoundInteractionLocks,
-	triggerRoulette,
-	waitForRouletteClose,
-} from './meterFlow';
+import { ensureFreeSpinWhenSessionMeterFull, runFreeSpinTriggerFlow } from './freeSpinFeature';
+import { releaseRoundInteractionLocks, triggerRoulette, waitForRouletteClose } from './meterFlow';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
@@ -129,27 +125,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
-		const segment =
-			bookEvent.segment ??
-			(bookEvent.multiplier > 0 ? `${bookEvent.multiplier}X` : 'BONUS');
-		stateGame.serverFreeSpinSegmentLabel = segment;
-		stateGame.serverFreeSpinSegment = freeSpinSegmentIndexForSegment(segment);
-		const bookStake = stateGame.lastBookStakePerBall > 0 ? stateGame.lastBookStakePerBall : 1;
-		const stakeScale = plinkoStakePerBall() / bookStake;
-		const authoredAmount = bookEvent.amount ?? 0;
-		stateGame.serverFreeSpinWinAmount =
-			authoredAmount > 0
-				? authoredAmount * stakeScale
-				: bookEvent.multiplier > 0
-					? plinkoWagerAmount() * bookEvent.multiplier
-					: 0;
-		stateGame.showFreeSpinRoulette = true;
-		triggerRoulette('spin');
-		await eventEmitter.broadcastAsync({
-			type: 'freeSpinShow',
-			multiplier: bookEvent.multiplier,
-		});
-		await waitForRouletteClose();
+		await runFreeSpinTriggerFlow(bookEvent);
 	},
 	bonusRound: async (bookEvent: BookEventOfType<'bonusRound'>) => {
 		const bookStake =
@@ -198,6 +174,7 @@ export const playBet = async (bet: { state: BookEvent[] }) => {
 	stateGame.bonusPegMeterCreditedBallIds = new Set();
 	stateGame.spinSlotMeterCreditedBallIds = new Set();
 	stateGame.serverFreeSpinWinAmount = undefined;
+	stateGame.freeSpinAwardedThisRound = false;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
 	stateGame.activeBookEvents = bet.state;
@@ -215,6 +192,7 @@ export const playBet = async (bet: { state: BookEvent[] }) => {
 	);
 	try {
 		await playBookEvents(bet.state);
+		await ensureFreeSpinWhenSessionMeterFull(bet.state);
 	} finally {
 		await syncSpinMeterAfterBet(bet.state);
 		stateGame.authoritativeMeterFlow = false;
