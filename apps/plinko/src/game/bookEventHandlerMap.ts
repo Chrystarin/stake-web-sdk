@@ -4,6 +4,10 @@ import { createPlayBookUtils, type BookEventHandlerMap } from 'utils-book';
 import { eventEmitter } from './eventEmitter';
 import { plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { startAuthoritativeBonusRound, waitForDropBatchCompletion } from './gameOrchestrator';
+import {
+	applyAuthoritativeMeterConfig,
+	applyAuthoritativeSpinMeterMax,
+} from './plinkoMeterConfig';
 import { meterController, stateGame } from './stateGame.svelte';
 import {
 	freeSpinSegmentIndexForSegment,
@@ -15,23 +19,37 @@ import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEv
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	plinkoDrop: async (bookEvent: BookEventOfType<'plinkoDrop'>) => {
-		stateGame.authoritativeMeterFlow = bookEvent.outcomes.some(
+		const hasAuthoritativeOutcomes = bookEvent.outcomes.some(
 			(outcome) => outcome.hitBonusPeg != null || outcome.hitSpinSlot != null,
 		);
+		stateGame.authoritativeMeterFlow = hasAuthoritativeOutcomes;
 		stateGame.difficultyLevelId = bookEvent.difficulty;
 		stateGame.rowCount = bookEvent.rowCount;
 		stateGame.ballPerDrop = bookEvent.ballsPerDrop;
 		if (bookEvent.coefficients?.length) {
 			stateGame.coefficients = [...bookEvent.coefficients];
 		}
-		if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
-			stateGame.spinMeterBaseMax = bookEvent.spinMeterMax;
+		if (hasAuthoritativeOutcomes) {
+			applyAuthoritativeMeterConfig({
+				spinMeterMax: bookEvent.spinMeterMax,
+				bonusMeterMax: bookEvent.bonusMeterMax,
+				spinMeterStart: bookEvent.spinMeterStart ?? 0,
+				bonusMeterStart: bookEvent.bonusMeterStart ?? 0,
+				bonusLevelStart: bookEvent.bonusLevelStart,
+			});
+		} else {
+			if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
+				stateGame.spinMeterBaseMax = bookEvent.spinMeterMax;
+				stateGame.spinMeterMax = bookEvent.spinMeterMax;
+			}
+			if (bookEvent.bonusMeterMax && bookEvent.bonusMeterMax > 0) {
+				stateGame.bonusMeterBaseMax = bookEvent.bonusMeterMax;
+				stateGame.bonusMeterMax = bookEvent.bonusMeterMax;
+			}
+			if (!stateGame.serverMeterLimitsActive) {
+				meterController.setBallPerDrop(stateGame.ballPerDrop);
+			}
 		}
-		if (bookEvent.bonusMeterMax && bookEvent.bonusMeterMax > 0) {
-			stateGame.bonusMeterBaseMax = bookEvent.bonusMeterMax;
-		}
-		// Recompute tier-scaled maxima after any server-provided meter configuration.
-		meterController.setBallPerDrop(stateGame.ballPerDrop);
 		const bookStake = bookEvent.stakePerBall > 0 ? bookEvent.stakePerBall : 1;
 		stateGame.lastBookStakePerBall = bookStake;
 		const stakeScale = plinkoStakePerBall() / bookStake;
@@ -83,15 +101,19 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	spinMeter: async (bookEvent: BookEventOfType<'spinMeter'>) => {
 		const nextValue = bookEvent.value;
 		if (stateGame.authoritativeMeterFlow) {
-			stateGame.spinMeterValue = nextValue;
+			stateGame.spinMeterValue = Math.min(nextValue, stateGame.spinMeterMax);
 		} else {
 			const shouldIgnoreDecrease =
 				!stateGame.rouletteFlowInProgress && nextValue < stateGame.spinMeterValue;
 			if (!shouldIgnoreDecrease) stateGame.spinMeterValue = nextValue;
 		}
 		if (bookEvent.max > 0) {
-			stateGame.spinMeterBaseMax = bookEvent.max;
-			meterController.setBallPerDrop(stateGame.ballPerDrop);
+			if (stateGame.authoritativeMeterFlow) {
+				applyAuthoritativeSpinMeterMax(bookEvent.max);
+			} else {
+				stateGame.spinMeterBaseMax = bookEvent.max;
+				meterController.setBallPerDrop(stateGame.ballPerDrop);
+			}
 		}
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {

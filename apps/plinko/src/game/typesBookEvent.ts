@@ -23,6 +23,12 @@ type BookEventPlinkoDrop = {
 	spinMeterMax?: number;
 	/** Server-authored bonus meter max for this game config. */
 	bonusMeterMax?: number;
+	/** Session spin meter value at the start of this drop (RGS carry-over). */
+	spinMeterStart?: number;
+	/** Session bonus meter value at the start of this drop. */
+	bonusMeterStart?: number;
+	/** Bonus feature level at the start of this drop. */
+	bonusLevelStart?: number;
 	outcomes: PlinkoBallOutcome[];
 };
 

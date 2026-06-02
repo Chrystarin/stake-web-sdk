@@ -60,6 +60,8 @@ export const stateGame = $state({
 	bonusSessionWinAmount: 0,
 	/** When true, meter fills and roulettes follow RGS book events / outcome flags only. */
 	authoritativeMeterFlow: false,
+	/** When true, meter maxima come from config/books — do not tier-scale by balls-per-drop. */
+	serverMeterLimitsActive: false,
 	showBonusRoulette: false,
 	showFreeSpinRoulette: false,
 	freeSpinRouletteOpen: false,

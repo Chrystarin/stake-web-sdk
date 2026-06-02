@@ -12,6 +12,7 @@
 
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
+	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
 
 	import { getContext } from '../game/context';
 
@@ -136,6 +137,8 @@
 	onMount(() => {
 
 		installPlinkoDevDebug();
+
+		applyClientMeterDefaults(config.spinMeterMax, config.bonusMeterMax);
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
 			stateGame.coefficients = coefficients;

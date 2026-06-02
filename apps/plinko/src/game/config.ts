@@ -31,4 +31,7 @@ export default {
 		tierTable(HARD_14),
 		tierTable(EXPERT_14),
 	] as number[][][],
+	/** Default meter maxima (overridden by `plinkoDrop.spinMeterMax` / `bonusMeterMax` from math). */
+	spinMeterMax: 10,
+	bonusMeterMax: 20,
 };

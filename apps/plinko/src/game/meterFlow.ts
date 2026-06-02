@@ -274,5 +274,6 @@ export function freeSpinSegmentIndexForMultiplier(multiplier: number): number {
 }
 
 export function syncBallPerDropTier() {
+	if (stateGame.authoritativeMeterFlow || stateGame.serverMeterLimitsActive) return;
 	meterController.setBallPerDrop(stateGame.ballPerDrop);
 }
