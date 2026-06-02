@@ -52,6 +52,26 @@ export const requestEndEvent = async (options: {
 	return data;
 };
 
+/** Persist game-specific session state (e.g. meter carry-over) on the RGS. */
+export const requestBetAction = async (options: {
+	sessionID: string;
+	rgsUrl: string;
+	action: string;
+	meta?: Record<string, unknown>;
+}) => {
+	const data = await rgsFetcher.post({
+		rgsUrl: options.rgsUrl,
+		url: '/bet/action',
+		variables: {
+			sessionID: options.sessionID,
+			action: options.action,
+			...(options.meta ? { meta: options.meta } : {}),
+		},
+	});
+
+	return data;
+};
+
 export const requestBet = async (options: {
 	sessionID: string;
 	currency: string;

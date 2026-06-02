@@ -5,7 +5,7 @@ import { stateBet } from 'state-shared';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import config from './config';
 import { stateGame } from './stateGame.svelte';
-import { getSessionMetersForBet } from './plinkoSessionMeters';
+import { getDevRgsSpinMeter, offsetBetRelativeSpinMeterEvents } from './plinkoSessionMeters';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
 
@@ -44,16 +44,14 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 			};
 		});
 
-		const sessionMeters = getSessionMetersForBet();
+		const sessionMeters = getDevRgsSpinMeter();
 
 		return {
 			...event,
 			ballsPerDrop,
 			stakePerBall,
 			coefficients,
-			spinMeterStart: event.spinMeterStart ?? sessionMeters.spinMeter,
-			bonusMeterStart: event.bonusMeterStart ?? sessionMeters.bonusMeter,
-			bonusLevelStart: event.bonusLevelStart ?? sessionMeters.bonusLevel,
+			spinMeterStart: event.spinMeterStart ?? sessionMeters,
 			outcomes,
 		};
 	});
@@ -89,6 +87,14 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 			}
 			return event;
 		});
+	}
+
+	const drop = patchedEvents.find(
+		(event): event is PlinkoDropEvent => event.type === 'plinkoDrop',
+	);
+	const spinMeterStart = drop?.spinMeterStart ?? getDevRgsSpinMeter();
+	if (spinMeterStart > 0) {
+		patchedEvents = offsetBetRelativeSpinMeterEvents(patchedEvents, spinMeterStart);
 	}
 
 	return { ...book, events: patchedEvents };

@@ -1,152 +1,135 @@
+import { PUBLIC_CHROMATIC } from 'envs';
 import { stateUrlDerived } from 'state-shared';
+import { requestBetAction } from 'rgs-requests';
 
-import config from './config';
-import {
-	applyAuthoritativeMeterConfig,
-	type PlinkoDropMeterConfig,
-} from './plinkoMeterConfig';
 import { stateGame } from './stateGame.svelte';
 import type { BookEvent } from './typesBookEvent';
 
-export type PlinkoSessionMeters = {
-	spinMeter: number;
-	bonusMeter: number;
-	bonusLevel: number;
-};
+/** Dev-only mirror of RGS session spin meter when no live session is configured. */
+let devRgsSpinMeter = 0;
 
-const STORAGE_PREFIX = 'plinko_session_meters_';
+const RGS_SESSION_METERS_ACTION = 'sessionMeters';
 
-const emptyMeters = (): PlinkoSessionMeters => ({
-	spinMeter: 0,
-	bonusMeter: 0,
-	bonusLevel: 0,
-});
-
-export function sessionMetersStorageKey(sessionID?: string): string {
-	const id = sessionID?.trim() || stateUrlDerived.sessionID()?.trim() || 'local-dev';
-	return `${STORAGE_PREFIX}${id}`;
+export function hasActiveRgsSession(): boolean {
+	return !!(stateUrlDerived.rgsUrl()?.trim() && stateUrlDerived.sessionID()?.trim());
 }
 
-export function loadSessionMeters(sessionID?: string): PlinkoSessionMeters {
-	if (typeof sessionStorage === 'undefined') return emptyMeters();
-	try {
-		const raw = sessionStorage.getItem(sessionMetersStorageKey(sessionID));
-		if (!raw) return emptyMeters();
-		const parsed = JSON.parse(raw) as Partial<PlinkoSessionMeters>;
-		return {
-			spinMeter: Math.max(0, Math.floor(Number(parsed.spinMeter) || 0)),
-			bonusMeter: Math.max(0, Math.floor(Number(parsed.bonusMeter) || 0)),
-			bonusLevel: Math.max(0, Math.floor(Number(parsed.bonusLevel) || 0)),
-		};
-	} catch {
-		return emptyMeters();
-	}
+/** Read spin meter start for local dev (simulates RGS session store). */
+export function getDevRgsSpinMeter(): number {
+	return devRgsSpinMeter;
 }
 
-export function saveSessionMeters(meters: PlinkoSessionMeters, sessionID?: string): void {
-	if (typeof sessionStorage === 'undefined') return;
-	try {
-		sessionStorage.setItem(sessionMetersStorageKey(sessionID), JSON.stringify(meters));
-	} catch {
-		// Ignore quota / private-mode errors.
-	}
-}
-
-/** Meters to send on the next RGS `play` request (session carry-over). */
-export function getSessionMetersForBet(sessionID?: string): PlinkoSessionMeters {
-	return loadSessionMeters(sessionID);
-}
-
-/** Meta fields for `/wallet/play` — RGS reads these as math `conditions` (see crimson_plinko INTEGRATION.md). */
-export function buildBetMetaMeters(sessionID?: string): Record<string, number> {
-	const meters = getSessionMetersForBet(sessionID);
-	return {
-		spin_meter_start: meters.spinMeter,
-		spinMeter: meters.spinMeter,
-		bonus_meter_start: meters.bonusMeter,
-		bonusMeter: meters.bonusMeter,
-		bonus_level_start: meters.bonusLevel,
-		bonusLevel: meters.bonusLevel,
-	};
-}
-
-export function readMetersFromGameState(): PlinkoSessionMeters {
-	return {
-		spinMeter: Math.max(0, Math.floor(stateGame.spinMeterValue)),
-		bonusMeter: Math.max(0, Math.floor(stateGame.bonusMeterValue)),
-		bonusLevel: Math.max(0, Math.floor(stateGame.bonusMeterLevel)),
-	};
-}
-
-export function applySessionMetersToGameState(
-	meters: PlinkoSessionMeters,
-	options?: { spinMeterMax?: number; bonusMeterMax?: number },
-): void {
-	const spinMax = options?.spinMeterMax ?? stateGame.spinMeterMax ?? config.spinMeterMax;
-	const bonusMax = options?.bonusMeterMax ?? stateGame.bonusMeterMax ?? config.bonusMeterMax;
-	applyAuthoritativeMeterConfig({
-		spinMeterMax: spinMax,
-		bonusMeterMax: bonusMax,
-		spinMeterStart: Math.min(meters.spinMeter, spinMax),
-		bonusMeterStart: Math.min(meters.bonusMeter, bonusMax),
-		bonusLevelStart: meters.bonusLevel,
-	});
-}
-
-/** Derive end-of-round meter values from a played book (for session persistence). */
-export function deriveMetersFromBookEvents(events: BookEvent[]): PlinkoSessionMeters {
-	const meters = emptyMeters();
-	for (const event of events) {
-		if (event.type === 'plinkoDrop') {
-			if (event.spinMeterStart != null) meters.spinMeter = event.spinMeterStart;
-			if (event.bonusMeterStart != null) meters.bonusMeter = event.bonusMeterStart;
-			if (event.bonusLevelStart != null) meters.bonusLevel = event.bonusLevelStart;
-		}
-		if (event.type === 'spinMeter') meters.spinMeter = event.value;
-		if (event.type === 'freeSpinTrigger') meters.spinMeter = 0;
-		if (event.type === 'bonusMeter') {
-			meters.bonusMeter = event.value;
-			meters.bonusLevel = event.level;
-		}
-	}
-	return {
-		spinMeter: Math.max(0, Math.floor(meters.spinMeter)),
-		bonusMeter: Math.max(0, Math.floor(meters.bonusMeter)),
-		bonusLevel: Math.max(0, Math.floor(meters.bonusLevel)),
-	};
-}
-
-/** Load persisted session meters into HUD state (before first bet / after auth). */
-export function hydrateSessionMetersFromStorage(sessionID?: string): PlinkoSessionMeters {
-	const meters = loadSessionMeters(sessionID);
-	applySessionMetersToGameState(meters);
-	return meters;
-}
-
-/** Persist meters after a completed bet — prefer live game state, fall back to book replay. */
-export function persistSessionMetersAfterBet(
-	events: BookEvent[],
-	sessionID?: string,
-): PlinkoSessionMeters {
-	const fromState = readMetersFromGameState();
-	const fromBook = deriveMetersFromBookEvents(events);
-	const meters: PlinkoSessionMeters =
-		stateGame.authoritativeMeterFlow || events.some((e) => e.type === 'spinMeter')
-			? fromState
-			: fromBook;
-	saveSessionMeters(meters, sessionID);
-	return meters;
-}
-
-/** Resolve plinkoDrop start values: book/RGS authoritative, else session carry-over. */
-export function resolvePlinkoDropMeterStarts(
+/** Spin meter at bet start — RGS book field only; dev mirror when offline. */
+export function resolveRgsSpinMeterStart(
 	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
-	sessionID?: string,
-): Pick<PlinkoDropMeterConfig, 'spinMeterStart' | 'bonusMeterStart' | 'bonusLevelStart'> {
-	const session = getSessionMetersForBet(sessionID);
-	return {
-		spinMeterStart: bookEvent.spinMeterStart ?? session.spinMeter,
-		bonusMeterStart: bookEvent.bonusMeterStart ?? session.bonusMeter,
-		bonusLevelStart: bookEvent.bonusLevelStart ?? session.bonusLevel,
-	};
+): number {
+	if (bookEvent.spinMeterStart != null) return bookEvent.spinMeterStart;
+	if (!hasActiveRgsSession()) return devRgsSpinMeter;
+	return 0;
+}
+
+type PlinkoDropEvent = Extract<BookEvent, { type: 'plinkoDrop' }>;
+
+const getPlinkoDrop = (events: BookEvent[]): PlinkoDropEvent | undefined =>
+	events.find((event): event is PlinkoDropEvent => event.type === 'plinkoDrop');
+
+/**
+ * Lookup-table books encode `spinMeter.value` cumulative from 0 for this bet only.
+ * Live RGS/math books with matching `spinMeterStart` use session-absolute values.
+ */
+export function spinMeterBookValuesAreBetRelative(events: BookEvent[]): boolean {
+	const drop = getPlinkoDrop(events);
+	if (!drop) return false;
+	const betStart = drop.spinMeterStart ?? 0;
+	if (betStart === 0) return false;
+
+	const firstSpinMeter = events.find(
+		(event): event is Extract<BookEvent, { type: 'spinMeter' }> => event.type === 'spinMeter',
+	);
+	if (!firstSpinMeter) return false;
+
+	return firstSpinMeter.value <= betStart;
+}
+
+/** Map a book `spinMeter.value` to the session-absolute meter reading. */
+export function spinMeterSessionValueFromBook(
+	bookValue: number,
+	betStart: number,
+	betRelative: boolean,
+): number {
+	const raw = betRelative ? betStart + bookValue : bookValue;
+	return Math.max(0, Math.floor(raw));
+}
+
+/** Derive authoritative session spin meter from RGS book events. */
+export function deriveSpinMeterFromBookEvents(events: BookEvent[]): number {
+	const drop = getPlinkoDrop(events);
+	const betStart = drop?.spinMeterStart ?? 0;
+	const betRelative = spinMeterBookValuesAreBetRelative(events);
+
+	let spinMeter = betStart;
+	for (const event of events) {
+		if (event.type === 'spinMeter') {
+			spinMeter = spinMeterSessionValueFromBook(event.value, betStart, betRelative);
+		}
+		if (event.type === 'freeSpinTrigger') spinMeter = 0;
+	}
+	return Math.max(0, Math.floor(spinMeter));
+}
+
+/** Update HUD display only — does not persist or author outcomes. */
+export function applySpinMeterDisplay(spinMeter: number): void {
+	const max = stateGame.spinMeterMax > 0 ? stateGame.spinMeterMax : spinMeter;
+	stateGame.spinMeterValue = Math.min(Math.max(0, spinMeter), max);
+}
+
+/** Apply a `spinMeter` book event to the HUD (session-absolute, never regress mid-bet). */
+export function applySpinMeterBookEvent(bookValue: number): void {
+	const betStart = stateGame.betSpinMeterStart;
+	const betRelative = stateGame.spinMeterBookValuesAreBetRelative;
+	const sessionValue = spinMeterSessionValueFromBook(bookValue, betStart, betRelative);
+	const capped = Math.min(sessionValue, stateGame.spinMeterMax);
+	// Intermediate book steps can lag visual bumps — never snap the meter down mid-round.
+	stateGame.spinMeterValue = Math.max(stateGame.spinMeterValue, capped);
+}
+
+/**
+ * After a bet book finishes: display RGS result and persist spin meter to RGS.
+ */
+export async function syncSpinMeterAfterBet(events: BookEvent[]): Promise<void> {
+	const spinMeter = deriveSpinMeterFromBookEvents(events);
+	applySpinMeterDisplay(spinMeter);
+
+	if (PUBLIC_CHROMATIC || stateUrlDerived.replay()) return;
+
+	if (!hasActiveRgsSession()) {
+		devRgsSpinMeter = spinMeter;
+		return;
+	}
+
+	try {
+		await requestBetAction({
+			rgsUrl: stateUrlDerived.rgsUrl(),
+			sessionID: stateUrlDerived.sessionID(),
+			action: RGS_SESSION_METERS_ACTION,
+			meta: {
+				spin_meter: spinMeter,
+				spinMeter,
+			},
+		});
+	} catch (error) {
+		console.error('[plinko] failed to persist spin meter to RGS', error);
+	}
+}
+
+/** Offset lookup-table `spinMeter` events when injecting session carry-over (local dev). */
+export function offsetBetRelativeSpinMeterEvents(
+	events: BookEvent[],
+	spinMeterStart: number,
+): BookEvent[] {
+	if (spinMeterStart <= 0) return events;
+	return events.map((event) => {
+		if (event.type !== 'spinMeter') return event;
+		return { ...event, value: event.value + spinMeterStart };
+	});
 }

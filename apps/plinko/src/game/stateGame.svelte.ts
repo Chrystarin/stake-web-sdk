@@ -62,6 +62,10 @@ export const stateGame = $state({
 	authoritativeMeterFlow: false,
 	/** When true, meter maxima come from config/books — do not tier-scale by balls-per-drop. */
 	serverMeterLimitsActive: false,
+	/** Session spin meter at the start of the current book (from RGS `plinkoDrop`). */
+	betSpinMeterStart: 0,
+	/** True when book `spinMeter` values are bet-relative (lookup-table) not session-absolute. */
+	spinMeterBookValuesAreBetRelative: false,
 	showBonusRoulette: false,
 	showFreeSpinRoulette: false,
 	freeSpinRouletteOpen: false,

@@ -9,8 +9,10 @@ import {
 	applyAuthoritativeSpinMeterMax,
 } from './plinkoMeterConfig';
 import {
-	persistSessionMetersAfterBet,
-	resolvePlinkoDropMeterStarts,
+	applySpinMeterBookEvent,
+	resolveRgsSpinMeterStart,
+	spinMeterBookValuesAreBetRelative,
+	syncSpinMeterAfterBet,
 } from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
 import {
@@ -34,11 +36,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			stateGame.coefficients = [...bookEvent.coefficients];
 		}
 		if (hasAuthoritativeOutcomes) {
-			const meterStarts = resolvePlinkoDropMeterStarts(bookEvent);
+			const spinMeterStart = resolveRgsSpinMeterStart(bookEvent);
+			stateGame.betSpinMeterStart = spinMeterStart;
+			stateGame.spinMeterBookValuesAreBetRelative = spinMeterBookValuesAreBetRelative(
+				stateGame.activeBookEvents,
+			);
 			applyAuthoritativeMeterConfig({
 				spinMeterMax: bookEvent.spinMeterMax,
 				bonusMeterMax: bookEvent.bonusMeterMax,
-				...meterStarts,
+				spinMeterStart,
+				bonusMeterStart: bookEvent.bonusMeterStart ?? 0,
+				bonusLevelStart: bookEvent.bonusLevelStart,
 			});
 		} else {
 			if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
@@ -104,7 +112,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	spinMeter: async (bookEvent: BookEventOfType<'spinMeter'>) => {
 		const nextValue = bookEvent.value;
 		if (stateGame.authoritativeMeterFlow) {
-			stateGame.spinMeterValue = Math.min(nextValue, stateGame.spinMeterMax);
+			applySpinMeterBookEvent(nextValue);
 		} else {
 			const shouldIgnoreDecrease =
 				!stateGame.rouletteFlowInProgress && nextValue < stateGame.spinMeterValue;
@@ -191,6 +199,7 @@ export const playBet = async (bet: { state: BookEvent[] }) => {
 	stateGame.serverFreeSpinWinAmount = undefined;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
+	stateGame.activeBookEvents = bet.state;
 	stateGame.authoritativeMeterFlow = bet.state.some(
 		(event) =>
 			event.type === 'spinMeter' ||
@@ -206,7 +215,7 @@ export const playBet = async (bet: { state: BookEvent[] }) => {
 	try {
 		await playBookEvents(bet.state);
 	} finally {
-		persistSessionMetersAfterBet(bet.state);
+		await syncSpinMeterAfterBet(bet.state);
 		stateGame.authoritativeMeterFlow = false;
 		if (!stateGame.bonusRoundActive) {
 			stateGame.authoritativeBonusOutcomes = [];

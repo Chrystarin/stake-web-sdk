@@ -3,14 +3,17 @@ import { createPrimaryMachines, createIntermediateMachines, createGameActor } fr
 
 import { stateGame } from './stateGame.svelte';
 import { canAffordPlinkoWager, plinkoWagerAmount } from './plinkoBet';
-import { buildBetMetaMeters, deriveMetersFromBookEvents, applySessionMetersToGameState } from './plinkoSessionMeters';
+import {
+	applySpinMeterDisplay,
+	deriveSpinMeterFromBookEvents,
+} from './plinkoSessionMeters';
 import type { Bet } from './typesBookEvent';
 import { playBet } from './bookEventHandlerMap';
 
 const primaryMachines = createPrimaryMachines<Bet>({
 	onResumeGameActive: async (betToResume) => {
 		if (betToResume.state?.length) {
-			applySessionMetersToGameState(deriveMetersFromBookEvents(betToResume.state));
+			applySpinMeterDisplay(deriveSpinMeterFromBookEvents(betToResume.state));
 		}
 		return betToResume;
 	},
@@ -22,13 +25,11 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onPlayGame: async (bet) => await playBet(bet),
 	checkIsBonusGame: () => stateGame.bonusRoundActive,
 	getBetMeta: () => ({
-		// UI-selected bet configuration used by the game server to build the book.
+		// UI preferences only — spin meter is owned by RGS (returned on book + saved via /bet/action).
 		ballsPerDrop: stateGame.ballPerDrop,
 		stakePerBall: stateBet.betAmount,
 		rowCount: stateGame.rowCount,
 		difficulty: stateGame.difficultyLevelId,
-		// Session meter carry-over for RGS (authoritative meter state lives on server).
-		...buildBetMetaMeters(),
 	}),
 	getWagerAmount: plinkoWagerAmount,
 });

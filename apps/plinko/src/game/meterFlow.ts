@@ -133,6 +133,7 @@ export function onSpinSlotLand(ballId?: number) {
 	}
 
 	if (stateGame.authoritativeMeterFlow) {
+		// Provisional animation only — authoritative value comes from RGS `spinMeter` book events.
 		meterController.bumpSpinMeterVisual(1);
 		return;
 	}
