@@ -9,11 +9,12 @@ import {
 	triggerRoulette,
 	waitForRouletteClose,
 } from './meterFlow';
+import { fallbackFreeSpinSegmentFromRound } from './plinkoFreeSpinWallet';
 import { deriveSpinMeterFromBookEvents, hasActiveRgsSession } from './plinkoSessionMeters';
 import { stateGame } from './stateGame.svelte';
-import type { BookEvent, BookEventOfType } from './typesBookEvent';
+import type { BookEvent, BookEventOfType, Bet } from './typesBookEvent';
 
-const RGS_FREE_SPIN_ACTION = 'freeSpinTrigger';
+const RGS_FREE_SPIN_ACTIONS = ['freeSpinTrigger', 'free_spin_trigger', 'freeSpinSettle'] as const;
 
 export function bookHasFreeSpinTrigger(events: BookEvent[]): boolean {
 	return events.some((event) => event.type === 'freeSpinTrigger');
@@ -76,31 +77,25 @@ function parseFreeSpinTriggerFromActionResponse(data: unknown): FreeSpinTriggerP
 /** Ask RGS for an authoritative free-spin wheel result when lookup books omit the event. */
 async function requestRgsFreeSpinTrigger(): Promise<FreeSpinTriggerPayload | null> {
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay() || !hasActiveRgsSession()) return null;
-	try {
-		const response = await requestBetAction({
-			rgsUrl: stateUrlDerived.rgsUrl(),
-			sessionID: stateUrlDerived.sessionID(),
-			action: RGS_FREE_SPIN_ACTION,
-			meta: {
-				spin_meter_full: true,
-				spinMeterFull: true,
-			},
-		});
-		applyFreeSpinActionBalance(response);
-		return parseFreeSpinTriggerFromActionResponse(response);
-	} catch (error) {
-		console.warn('[plinko] RGS free-spin action unavailable; wheel is presentation-only', error);
-		return null;
+	for (const action of RGS_FREE_SPIN_ACTIONS) {
+		try {
+			const response = await requestBetAction({
+				rgsUrl: stateUrlDerived.rgsUrl(),
+				sessionID: stateUrlDerived.sessionID(),
+				action,
+				meta: {
+					spin_meter_full: true,
+					spinMeterFull: true,
+				},
+			});
+			applyFreeSpinActionBalance(response);
+			const parsed = parseFreeSpinTriggerFromActionResponse(response);
+			if (parsed) return parsed;
+		} catch {
+			// Try next action name.
+		}
 	}
-}
-
-/** Fallback wheel segment when lookup books omit `freeSpinTrigger` and RGS action is unavailable. */
-function presentationOnlyFreeSpinTrigger(): FreeSpinTriggerPayload {
-	return {
-		segment: '5X',
-		multiplier: 5,
-		amount: 0,
-	};
+	return null;
 }
 
 export async function runFreeSpinTriggerFlow(payload: FreeSpinTriggerPayload): Promise<void> {
@@ -124,11 +119,21 @@ export async function runFreeSpinTriggerFlow(payload: FreeSpinTriggerPayload): P
  * Lookup-table books only emit `freeSpinTrigger` when the meter fills from 0 within one bet.
  * When session carry-over fills the meter, run the wheel + reset from RGS or a safe fallback.
  */
-export async function ensureFreeSpinWhenSessionMeterFull(events: BookEvent[]): Promise<void> {
+export async function ensureFreeSpinWhenSessionMeterFull(
+	events: BookEvent[],
+	bet?: Bet,
+): Promise<void> {
 	if (!stateGame.authoritativeMeterFlow) return;
 	if (bookHasFreeSpinTrigger(events)) return;
 	if (!sessionSpinMeterReachedMax(events)) return;
 
-	const payload = (await requestRgsFreeSpinTrigger()) ?? presentationOnlyFreeSpinTrigger();
+	const roundBet = bet ?? stateGame.activeRoundBet;
+	const rgsPayload = await requestRgsFreeSpinTrigger();
+	const fallback = fallbackFreeSpinSegmentFromRound(roundBet);
+	const payload: FreeSpinTriggerPayload = rgsPayload ?? {
+		segment: fallback.segment,
+		multiplier: fallback.multiplier,
+		amount: fallback.amount,
+	};
 	await runFreeSpinTriggerFlow(payload);
 }

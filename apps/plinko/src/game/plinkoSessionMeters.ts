@@ -1,5 +1,5 @@
 import { PUBLIC_CHROMATIC } from 'envs';
-import { stateUrlDerived } from 'state-shared';
+import { stateBet, stateUrlDerived } from 'state-shared';
 import { requestBetAction } from 'rgs-requests';
 
 import { stateGame } from './stateGame.svelte';
@@ -86,13 +86,30 @@ export function resolveRgsSpinMeterStart(
 	return cached;
 }
 
-/** Meta for `/wallet/play` so RGS can inject `spinMeterStart` on the served book. */
-export function buildBetMetaSpinMeter(): Record<string, number> {
+/**
+ * Meta for `/wallet/play` — Stake Engine maps this to math distribution `conditions`
+ * (`spin_meter_start`, etc.) and serves a book with matching `plinkoDrop.spinMeterStart`
+ * and authoritative `freeSpinTrigger` / payout. Required for session meter carry-over.
+ */
+export function buildBetMetaPlayConditions(): Record<string, number> {
 	const spinMeter = getSessionSpinMeterCarryOver();
 	return {
 		spin_meter_start: spinMeter,
 		spinMeter: spinMeter,
+		bonus_meter_start: Math.max(0, Math.floor(stateGame.bonusMeterValue)),
+		bonusMeter: Math.max(0, Math.floor(stateGame.bonusMeterValue)),
+		bonus_level_start: Math.max(0, Math.floor(stateGame.bonusMeterLevel)),
+		bonusLevel: Math.max(0, Math.floor(stateGame.bonusMeterLevel)),
+		difficulty: Math.max(0, Math.floor(stateGame.difficultyLevelId)),
+		row_count: Math.max(8, Math.floor(stateGame.rowCount)),
+		balls_per_drop: Math.max(1, Math.floor(stateGame.ballPerDrop)),
+		stake_per_ball: Math.max(0, Number(stateBet.betAmount) || 0),
 	};
+}
+
+/** @deprecated Use `buildBetMetaPlayConditions` */
+export function buildBetMetaSpinMeter(): Record<string, number> {
+	return buildBetMetaPlayConditions();
 }
 
 /** Apply cached session meter to HUD on load (display only until next book). */

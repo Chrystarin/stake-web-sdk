@@ -9,6 +9,8 @@ import {
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
 import { plinkoWagerAmount } from './plinkoBet';
+import { hasActiveRgsSession } from './plinkoSessionMeters';
+import { queuePendingFreeSpinWalletCredit } from './plinkoWalletSync';
 import {
 	freeSpinMultiplierFromSegment,
 	isFreeSpinBonusWheelSegment,
@@ -191,7 +193,24 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 		addSettledWinAmount(win);
 		showResultOverlay(win, win / Math.max(roundWager, 0.000_001));
 	}
+
+	// Only when the served book omitted `freeSpinTrigger` (old math). Books from republished
+	// math include the event and payout; `/bet/action` is a best-effort fallback.
+	const needsRgsFreeSpinCredit =
+		hasActiveRgsSession() &&
+		stateGame.freeSpinAwardedThisRound &&
+		!stateGame.freeSpinSettledFromBook;
+	if (win > 0 && needsRgsFreeSpinCredit) {
+		const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
+		queuePendingFreeSpinWalletCredit({
+			segment: segmentLabel,
+			multiplier,
+			winAmount: win,
+		});
+	}
+
 	stateGame.serverFreeSpinWinAmount = undefined;
+	stateGame.freeSpinSettledFromBook = false;
 
 	await resetSpinMeterSession();
 	const landedOnBonus = isFreeSpinBonusSegment(segmentLabel);

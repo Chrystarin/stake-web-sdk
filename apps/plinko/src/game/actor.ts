@@ -5,9 +5,11 @@ import { stateGame } from './stateGame.svelte';
 import { canAffordPlinkoWager, plinkoWagerAmount } from './plinkoBet';
 import {
 	applySpinMeterDisplay,
-	buildBetMetaSpinMeter,
+	buildBetMetaPlayConditions,
 	deriveSpinMeterFromBookEvents,
 } from './plinkoSessionMeters';
+import { checkIsPlinkoDeferredSettlement } from './plinkoRoundSettlement';
+import { getPlinkoBetType, syncPlinkoWalletAfterRound } from './plinkoWalletSync';
 import type { Bet } from './typesBookEvent';
 import { playBet } from './bookEventHandlerMap';
 
@@ -24,14 +26,19 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	},
 	onNewGameError: () => {},
 	onPlayGame: async (bet) => await playBet(bet),
-	checkIsBonusGame: () => stateGame.bonusRoundActive,
+	checkIsBonusGame: (bet) =>
+		stateGame.bonusRoundActive || checkIsPlinkoDeferredSettlement(bet),
+	getBetType: ({ bet }) => getPlinkoBetType(bet),
+	afterEndGameSettle: async ({ bet }) => {
+		await syncPlinkoWalletAfterRound(bet);
+	},
 	getBetMeta: () => ({
 		ballsPerDrop: stateGame.ballPerDrop,
 		stakePerBall: stateBet.betAmount,
 		rowCount: stateGame.rowCount,
 		difficulty: stateGame.difficultyLevelId,
-		// Hint for RGS to inject `plinkoDrop.spinMeterStart` on the served book.
-		...buildBetMetaSpinMeter(),
+		// Maps to math `conditions` so published books match session meters (see math INTEGRATION.md).
+		...buildBetMetaPlayConditions(),
 	}),
 	getWagerAmount: plinkoWagerAmount,
 });

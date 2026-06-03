@@ -1,5 +1,5 @@
 import { stateBet } from 'state-shared';
-import { createPlayBookUtils, type BookEventHandlerMap } from 'utils-book';
+import { createPlayBookUtils, recordBookEvent, type BookEventHandlerMap } from 'utils-book';
 
 import { eventEmitter } from './eventEmitter';
 import { plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
@@ -17,7 +17,12 @@ import {
 import { meterController, stateGame } from './stateGame.svelte';
 import { ensureFreeSpinWhenSessionMeterFull, runFreeSpinTriggerFlow } from './freeSpinFeature';
 import { releaseRoundInteractionLocks, triggerRoulette, waitForRouletteClose } from './meterFlow';
-import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
+import { checkIsPlinkoDeferredSettlement } from './plinkoRoundSettlement';
+import {
+	flushPendingFreeSpinWalletBeforeEndRound,
+	snapshotBalanceAfterPlay,
+} from './plinkoWalletSync';
+import type { Bet, BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	plinkoDrop: async (bookEvent: BookEventOfType<'plinkoDrop'>) => {
@@ -125,6 +130,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
+		recordBookEvent({ bookEvent });
+		stateGame.freeSpinSettledFromBook = true;
 		await runFreeSpinTriggerFlow(bookEvent);
 	},
 	bonusRound: async (bookEvent: BookEventOfType<'bonusRound'>) => {
@@ -150,6 +157,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateBet.winBookEventAmount = bookEvent.amount;
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
+		recordBookEvent({ bookEvent });
 		stateBet.winBookEventAmount = bookEvent.amount;
 		const payoutMultiplier = bookEvent.amount / 100;
 		if (payoutMultiplier > 0) {
@@ -165,7 +173,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEventHandlerMap });
 
-export const playBet = async (bet: { state: BookEvent[] }) => {
+export const playBet = async (bet: Bet) => {
+	snapshotBalanceAfterPlay();
+	stateGame.activeRoundBet = bet;
 	stateBet.winBookEventAmount = 0;
 	stateBet.wageredBetAmount = plinkoWagerAmount();
 	stateGame.pendingDropWinAmount = 0;
@@ -175,8 +185,11 @@ export const playBet = async (bet: { state: BookEvent[] }) => {
 	stateGame.spinSlotMeterCreditedBallIds = new Set();
 	stateGame.serverFreeSpinWinAmount = undefined;
 	stateGame.freeSpinAwardedThisRound = false;
+	stateGame.freeSpinSettledFromBook = false;
+	stateGame.pendingFreeSpinWalletCredit = undefined;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
+	stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(bet);
 	stateGame.activeBookEvents = bet.state;
 	stateGame.authoritativeMeterFlow = bet.state.some(
 		(event) =>
@@ -192,14 +205,16 @@ export const playBet = async (bet: { state: BookEvent[] }) => {
 	);
 	try {
 		await playBookEvents(bet.state);
-		await ensureFreeSpinWhenSessionMeterFull(bet.state);
+		await ensureFreeSpinWhenSessionMeterFull(bet.state, bet);
 	} finally {
 		await syncSpinMeterAfterBet(bet.state);
+		await flushPendingFreeSpinWalletBeforeEndRound();
 		stateGame.authoritativeMeterFlow = false;
 		if (!stateGame.bonusRoundActive) {
 			stateGame.authoritativeBonusOutcomes = [];
 			stateGame.authoritativeBonusOutcomeIndex = 0;
 		}
 		await releaseRoundInteractionLocks();
+		stateGame.activeRoundBet = undefined;
 	}
 };

@@ -134,6 +134,18 @@ Turbo usually builds `^build` dependencies automatically when you build or dev p
 - Book handlers: `src/game/bookEventHandlerMap.ts`
 - Pixi board: `src/plinko-engine/PlinkoEngine.ts`, `src/components/PlinkoBoard.svelte`
 
+## Free-spin balance (must use published math)
+
+The **wallet only changes from RGS** (`/wallet/play`, `/wallet/end-round`). The client cannot safely add free-spin money in the browser.
+
+Session spin-meter carry-over is sent on each bet via `buildBetMetaPlayConditions()` (`spin_meter_start`, `bonus_meter_start`, `difficulty`, `row_count`, etc.). Stake Engine uses that to pick math books where `plinkoDrop.spinMeterStart` matches and `freeSpinTrigger` + `payoutMultiplier` include the wheel win.
+
+If free spin shows a prize but balance does not move:
+
+1. Regenerate and **publish** math with meter-stratified distributions (`stake-math-sdk/games/crimson_plinko` — see `INTEGRATION.md` § Free-spin payout).
+2. Re-upload `apps/plinko/build/` after `pnpm run build --filter=plinko`.
+3. Confirm **game ID** in ACP matches your math package and web `config.ts`.
+
 ## Related repos
 
 | Repo | Role |

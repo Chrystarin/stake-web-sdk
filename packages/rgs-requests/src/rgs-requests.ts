@@ -20,6 +20,21 @@ export const requestAuthenticate = async (options: {
 	return data;
 };
 
+export const requestWalletBalance = async (options: {
+	sessionID: string;
+	rgsUrl: string;
+}) => {
+	const data = await rgsFetcher.post({
+		rgsUrl: options.rgsUrl,
+		url: '/wallet/balance',
+		variables: {
+			sessionID: options.sessionID,
+		},
+	});
+
+	return data;
+};
+
 export const requestEndRound = async (options: {
 	sessionID: string;
 	rgsUrl: string;

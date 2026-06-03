@@ -5,6 +5,7 @@ import { stateBet } from 'state-shared';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import config from './config';
 import { stateGame } from './stateGame.svelte';
+import { injectFreeSpinTriggerIfMeterFull } from './plinkoBookAugmentation';
 import { getDevRgsSpinMeter, offsetBetRelativeSpinMeterEvents } from './plinkoSessionMeters';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
@@ -17,41 +18,6 @@ const resizeOutcomes = (event: PlinkoDropEvent, targetCount: number): PlinkoDrop
 	if (source.length > n) return source.slice(0, n);
 	const expanded = Array.from({ length: n }, (_, i) => source[i % source.length]);
 	return expanded;
-};
-
-/** Dev-only: append `freeSpinTrigger` when adapted book fills the spin meter (lookup tables omit it). */
-const injectFreeSpinTriggerIfMeterFull = (
-	events: BookEvent[],
-	spinMeterMax: number,
-	ballsPerDrop: number,
-	stakePerBall: number,
-): BookEvent[] => {
-	if (events.some((event) => event.type === 'freeSpinTrigger')) return events;
-	const peakSpin = events.reduce((peak, event) => {
-		if (event.type !== 'spinMeter') return peak;
-		return Math.max(peak, event.value);
-	}, 0);
-	if (peakSpin < spinMeterMax) return events;
-
-	const segment = '5X';
-	const multiplier = 5;
-	const roundWager = stakePerBall * ballsPerDrop;
-	const amount = roundWager * multiplier;
-	const trigger: BookEvent = {
-		index: 0,
-		type: 'freeSpinTrigger',
-		segment,
-		multiplier,
-		amount,
-	};
-
-	const settlementIndex = events.findIndex(
-		(event) => event.type === 'setTotalWin' || event.type === 'finalWin',
-	);
-	const insertAt = settlementIndex >= 0 ? settlementIndex : events.length;
-	const next = [...events];
-	next.splice(insertAt, 0, trigger);
-	return next.map((event, index) => ({ ...event, index }));
 };
 
 const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet & { events: Bet['state'] } => {
@@ -133,11 +99,13 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 	}
 
 	const spinMeterMax = drop?.spinMeterMax ?? config.spinMeterMax;
+	const roundWager = stakePerBall * ballsPerDrop;
 	patchedEvents = injectFreeSpinTriggerIfMeterFull(
 		patchedEvents,
 		spinMeterMax,
 		ballsPerDrop,
 		stakePerBall,
+		{ segment: '5X', multiplier: 5, amount: roundWager * 5 },
 	);
 
 	return { ...book, events: patchedEvents };

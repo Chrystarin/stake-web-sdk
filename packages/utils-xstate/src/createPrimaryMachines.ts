@@ -79,6 +79,8 @@ const handleUpdateBalance = ({ balanceAmountFromApi }: { balanceAmountFromApi: n
 	stateBet.balanceAmount = balanceAmountFromApi / API_AMOUNT_MULTIPLIER;
 };
 
+type BetTypeKey = 'noWin' | 'singleRoundWin' | 'bonusWin';
+
 type Options<TBet extends BaseBet> = {
 	onResumeGameActive: (betToResume: TBet) => TBet;
 	onResumeGameInactive: (betToResume: TBet) => void;
@@ -86,6 +88,10 @@ type Options<TBet extends BaseBet> = {
 	onNewGameError: () => any;
 	onPlayGame: (bet: TBet) => Promise<void>;
 	checkIsBonusGame: (bet: TBet) => boolean;
+	/** Override default bet-type routing (e.g. defer end-round until after feature animations). */
+	getBetType?: (args: { bet: TBet }) => BetTypeKey;
+	/** Called after standard end-round settlement in `endGame` (game-specific wallet fixes). */
+	afterEndGameSettle?: (args: { bet: TBet }) => Promise<void>;
 	getBetMeta?: () => Record<string, unknown> | undefined;
 	getWagerAmount?: () => number;
 };
@@ -98,6 +104,8 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		onNewGameError,
 		onPlayGame,
 		checkIsBonusGame,
+		getBetType: getBetTypeOverride,
+		afterEndGameSettle,
 		getBetMeta,
 		getWagerAmount,
 	} = options;
@@ -107,7 +115,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 	const BET_TYPE_METHODS_MAP = {
 		noWin: {
 			newGame: async () => undefined,
-			endGame: async () => undefined,
+			endGame: async (_bet: TBet) => undefined,
 		},
 		singleRoundWin: {
 			newGame: async () => {
@@ -116,26 +124,30 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 					balanceAmountFromApiHolder = endRoundData.balance.amount;
 				}
 			},
-			endGame: async () => {
+			endGame: async (bet: TBet) => {
 				if (balanceAmountFromApiHolder !== null) {
 					handleUpdateBalance({ balanceAmountFromApi: balanceAmountFromApiHolder });
 					balanceAmountFromApiHolder = null;
 				}
+				await runAfterEndGameSettle(bet);
 			},
 		},
 		bonusWin: {
 			newGame: async () => undefined,
-			endGame: async () => {
+			endGame: async (bet: TBet) => {
 				const data = await handleRequestEndRound();
 				if (data?.balance) {
 					handleUpdateBalance({ balanceAmountFromApi: data.balance.amount });
 					balanceAmountFromApiHolder = null;
 				}
+				await runAfterEndGameSettle(bet);
 			},
 		},
 	} as const;
 
-	const getBetType: (args: { bet: TBet }) => keyof typeof BET_TYPE_METHODS_MAP = ({ bet }) => {
+	const getBetType: (args: { bet: TBet }) => BetTypeKey = ({ bet }) => {
+		if (getBetTypeOverride) return getBetTypeOverride({ bet });
+
 		const isBonusGame = checkIsBonusGame(bet);
 
 		if (bet.active === true) {
@@ -148,6 +160,15 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 		}
 
 		return 'noWin';
+	};
+
+	const runAfterEndGameSettle = async (bet: TBet) => {
+		if (!afterEndGameSettle) return;
+		try {
+			await afterEndGameSettle({ bet });
+		} catch (error) {
+			console.error('[createPrimaryMachines] afterEndGameSettle failed', error);
+		}
 	};
 
 	// newGame
@@ -209,7 +230,7 @@ function createPrimaryMachines<TBet extends BaseBet>(options: Options<TBet>) {
 			const targetBet = input.rawBet || input.bet;
 			if (targetBet) {
 				const betType = getBetType({ bet: targetBet });
-				await BET_TYPE_METHODS_MAP[betType].endGame();
+				await BET_TYPE_METHODS_MAP[betType].endGame(targetBet);
 			}
 		},
 	);

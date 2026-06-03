@@ -1,0 +1,64 @@
+import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
+import { PUBLIC_CHROMATIC } from 'envs';
+import { stateBet, stateUrlDerived } from 'state-shared';
+import { requestWalletBalance } from 'rgs-requests';
+
+import { settleFreeSpinWalletCredit, type FreeSpinWalletSettlement } from './plinkoFreeSpinWallet';
+import { applyFreeSpinActionBalance } from './plinkoFreeSpinPayout';
+import { bookWillReachSpinMeterMax } from './plinkoRoundSettlement';
+import { hasActiveRgsSession } from './plinkoSessionMeters';
+import { stateGame } from './stateGame.svelte';
+import type { Bet } from './typesBookEvent';
+
+export type PendingFreeSpinWalletCredit = FreeSpinWalletSettlement;
+
+/** Route all paying / feature rounds through deferred end-round (after animations). */
+export function getPlinkoBetType(bet: Bet): 'noWin' | 'singleRoundWin' | 'bonusWin' {
+	if (bet.active === true) return 'bonusWin';
+	if ((bet.payoutMultiplier ?? 0) > 0) return 'bonusWin';
+	if (bookWillReachSpinMeterMax(bet.state ?? [])) return 'bonusWin';
+	return 'noWin';
+}
+
+export function queuePendingFreeSpinWalletCredit(credit: PendingFreeSpinWalletCredit): void {
+	if (credit.winAmount <= 0) return;
+	stateGame.pendingFreeSpinWalletCredit = credit;
+}
+
+/** Snapshot balance after `/wallet/play` (wager already deducted). */
+export function snapshotBalanceAfterPlay(): void {
+	stateGame.balanceAfterPlayApi = Math.round(stateBet.balanceAmount * API_AMOUNT_MULTIPLIER);
+}
+
+/**
+ * Must run in `playBet` finally BEFORE xstate `endGame` calls `/wallet/end-round`.
+ * Otherwise the round closes without the free-spin feature payout.
+ */
+export async function flushPendingFreeSpinWalletBeforeEndRound(): Promise<void> {
+	const pending = stateGame.pendingFreeSpinWalletCredit;
+	if (!pending || pending.winAmount <= 0) return;
+	await settleFreeSpinWalletCredit(pending);
+	stateGame.pendingFreeSpinWalletCredit = undefined;
+}
+
+/** Pull the latest balance from RGS (fallback when end-round omits balance). */
+export async function refreshWalletBalanceFromRgs(): Promise<void> {
+	if (PUBLIC_CHROMATIC || stateUrlDerived.replay() || !hasActiveRgsSession()) return;
+	try {
+		const data = await requestWalletBalance({
+			rgsUrl: stateUrlDerived.rgsUrl(),
+			sessionID: stateUrlDerived.sessionID(),
+		});
+		applyFreeSpinActionBalance(data);
+	} catch (error) {
+		console.warn('[plinko] wallet balance refresh failed', error);
+	}
+}
+
+/** After end-round: use the latest RGS wallet balance (do not overwrite with stale `round.payout`). */
+export async function syncPlinkoWalletAfterRound(bet: Bet): Promise<void> {
+	if (PUBLIC_CHROMATIC || stateUrlDerived.replay() || !hasActiveRgsSession()) return;
+
+	void bet;
+	await refreshWalletBalanceFromRgs();
+}
