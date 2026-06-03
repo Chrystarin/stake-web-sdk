@@ -410,8 +410,9 @@
 }
 
 .bp-btn-play {
-	flex: 0 0 var(--bp-item-height);
-	width: var(--bp-item-height);
+	flex: 0 0 auto;
+	width: 7vw;
+	aspect-ratio: 1;
 	min-width: 0;
 	align-self: stretch;
 	height: auto;
