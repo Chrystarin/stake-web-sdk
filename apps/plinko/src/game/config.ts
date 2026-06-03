@@ -9,7 +9,7 @@ const HARD_14 = [110, 41, 10, 5, 3, 1.5, 0.5, 1.5, 3, 5, 10, 41, 110];
 const EXPERT_14 = [170, 67, 20, 7, 2, 0.2, 0.2, 0.2, 2, 7, 20, 67, 170];
 
 export default {
-	providerName: 'one_eyed_willy',
+	providerName: 'casino_tv',
 	gameName: 'one_eyed_willys_plinko',
 	gameID: 'one_eyed_willys_plinko',
 	rtp: 0.97,

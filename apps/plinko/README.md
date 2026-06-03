@@ -130,7 +130,7 @@ Turbo usually builds `^build` dependencies automatically when you build or dev p
 
 ## Game config
 
-- Provider / game IDs: `src/game/config.ts` (`one_eyed_willy` / `one_eyed_willys_plinko`)
+- Provider / game IDs: `src/game/config.ts` (`casino_tv` / `one_eyed_willys_plinko`)
 - Book handlers: `src/game/bookEventHandlerMap.ts`
 - Pixi board: `src/plinko-engine/PlinkoEngine.ts`, `src/components/PlinkoBoard.svelte`
 
