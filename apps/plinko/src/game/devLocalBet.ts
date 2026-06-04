@@ -2,6 +2,7 @@ import { playBet } from './utils';
 import type { Bet, BookEvent } from './typesBookEvent';
 import books from '../stories/data/base_books';
 import { stateBet } from 'state-shared';
+import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { coefficientsForRowCount } from '../game-logic/constants';
 import config from './config';
@@ -32,18 +33,23 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 	const events = book.events.map((event) => {
 		if (event.type !== 'plinkoDrop') return { ...event };
 
-		const coefficients = event.coefficients?.length ? event.coefficients : fallbackCoefficients;
+		const coefficients = alignCoefficientSet(
+			event.coefficients?.length ? event.coefficients : fallbackCoefficients,
+		);
 		const slotCount = coefficients.length;
 		const outcomes = resizeOutcomes(event, ballsPerDrop).map((outcome) => {
 			const hitSpinSlot =
 				outcome.hitSpinSlot ??
 				(slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount));
-			return {
+			const normalized = {
 				...outcome,
 				amount: stakePerBall,
-				multiplier: hitSpinSlot ? 0 : outcome.multiplier,
 				hitSpinSlot,
 				hitBonusPeg: outcome.hitBonusPeg ?? false,
+			};
+			return {
+				...normalized,
+				multiplier: hitSpinSlot ? 0 : resolveOutcomeMultiplier(normalized, coefficients),
 			};
 		});
 
@@ -53,7 +59,7 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 			...event,
 			ballsPerDrop,
 			stakePerBall,
-			coefficients,
+			coefficients: alignCoefficientSet(coefficients),
 			spinMeterStart: event.spinMeterStart ?? sessionMeters,
 			outcomes,
 		};

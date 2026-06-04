@@ -1,13 +1,13 @@
-const SLOT_COLORS = [
-	'#da3dbe',
-	'#fb6287',
-	'#f96f65',
-	'#f58f61',
-	'#feae62',
-	'#fbcb67',
-	'#fee663',
-	'#21a7d9',
-];
+/** Center (0.7×) → edge (25×) multiplier slot colors. */
+export const SLOT_MULTIPLIER_COLORS = [
+	'#52FF82',
+	'#EDFC42',
+	'#EEFF37',
+	'#FFB801',
+	'#FF5700',
+	'#FF4B84',
+	'#CC2A88',
+] as const;
 
 function interpolateHex(a: string, b: string, t: number): string {
 	const parse = (hex: string) => {
@@ -22,15 +22,23 @@ function interpolateHex(a: string, b: string, t: number): string {
 	return `rgb(${r},${g},${bl})`;
 }
 
-export function slotColorForMultiplier(coefficients: number[], multiplier: number): string {
-	const index = coefficients.indexOf(multiplier);
-	if (index === -1) return '#64748b';
+function slotColorForIndex(coefficients: number[], index: number): string {
+	if (index < 0 || index >= coefficients.length) return '#64748b';
 	const mid = (coefficients.length - 1) / 2;
 	const maxDist = Math.max(1, mid);
 	const distFromCenter = Math.abs(index - mid);
-	const t = 1 - Math.min(1, distFromCenter / maxDist);
-	const scaled = t * (SLOT_COLORS.length - 1);
+	const centerToEdgeT = Math.min(1, distFromCenter / maxDist);
+	const scaled = centerToEdgeT * (SLOT_MULTIPLIER_COLORS.length - 1);
 	const low = Math.floor(scaled);
-	const high = Math.min(SLOT_COLORS.length - 1, low + 1);
-	return interpolateHex(SLOT_COLORS[low], SLOT_COLORS[high], scaled - low);
+	const high = Math.min(SLOT_MULTIPLIER_COLORS.length - 1, low + 1);
+	return interpolateHex(SLOT_MULTIPLIER_COLORS[low], SLOT_MULTIPLIER_COLORS[high], scaled - low);
+}
+
+export function slotColorForRateIndex(coefficients: number[], rateIndex: number): string {
+	return slotColorForIndex(coefficients, rateIndex);
+}
+
+export function slotColorForMultiplier(coefficients: number[], multiplier: number): string {
+	const index = coefficients.indexOf(multiplier);
+	return slotColorForIndex(coefficients, index);
 }

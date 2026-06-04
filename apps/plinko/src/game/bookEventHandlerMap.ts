@@ -1,6 +1,7 @@
 import { stateBet } from 'state-shared';
 import { createPlayBookUtils, recordBookEvent, type BookEventHandlerMap } from 'utils-book';
 
+import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { eventEmitter } from './eventEmitter';
 import { plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { startAuthoritativeBonusRound, waitForDropBatchCompletion } from './gameOrchestrator';
@@ -34,7 +35,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.rowCount = bookEvent.rowCount;
 		stateGame.ballPerDrop = bookEvent.ballsPerDrop;
 		if (bookEvent.coefficients?.length) {
-			stateGame.coefficients = [...bookEvent.coefficients];
+			stateGame.coefficients = alignCoefficientSet(bookEvent.coefficients);
 		}
 		if (hasAuthoritativeOutcomes) {
 			const spinMeterStart = resolveRgsSpinMeterStart(bookEvent);
@@ -68,9 +69,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const stakeScale = plinkoStakePerBall() / bookStake;
 		stateGame.bonusPegMeterCreditedBallIds = new Set();
 		stateGame.spinSlotMeterCreditedBallIds = new Set();
+		const coeffs = stateGame.coefficients;
 		stateGame.pendingOutcomes = bookEvent.outcomes.map((outcome) => ({
 			...outcome,
 			amount: outcome.amount * stakeScale,
+			multiplier: resolveOutcomeMultiplier(outcome, coeffs),
 		}));
 		stateGame.isAnimating = true;
 		stateGame.showWinPopup = false;
@@ -142,9 +145,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 					? stateGame.lastBookStakePerBall
 					: 1;
 		const stakeScale = plinkoStakePerBall() / bookStake;
+		const coeffs = stateGame.coefficients;
 		const scaledOutcomes = bookEvent.outcomes.map((outcome) => ({
 			...outcome,
 			amount: outcome.amount * stakeScale,
+			multiplier: resolveOutcomeMultiplier(outcome, coeffs),
 		}));
 		startAuthoritativeBonusRound(
 			bookEvent.freeBalls,

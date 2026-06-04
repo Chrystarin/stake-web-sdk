@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
+import { slotColorForMultiplier } from '../game-logic/slotColors';
 import { formatCoefficientLabel, isMobile } from '../lib/format';
 import { staticUrl } from '../lib/staticUrl';
 
@@ -1792,50 +1793,7 @@ export class PlinkoEngine {
   }
 
   getSlotColor(coefficient: number): string {
-    const outerToCenterColors = [
-      '#da3dbe',
-      '#fb6287',
-      '#f96f65',
-      '#f58f61',
-      '#feae62',
-      '#fbcb67',
-      '#fee663',
-      '#21a7d9'
-    ];
-    const index = this.coefficients.indexOf(coefficient);
-    if (index === -1) return '#64748b';
-    const mid = (this.coefficients.length - 1) / 2;
-    const maxDist = Math.max(1, mid);
-    const distFromCenter = Math.abs(index - mid);
-    const outerToCenterT = 1 - Math.min(1, distFromCenter / maxDist);
-
-    const scaled = outerToCenterT * (outerToCenterColors.length - 1);
-    const low = Math.floor(scaled);
-    const high = Math.min(outerToCenterColors.length - 1, low + 1);
-    const localT = scaled - low;
-
-    return this.interpolateHexColor(outerToCenterColors[low], outerToCenterColors[high], localT);
-  }
-
-  private interpolateHexColor(startHex: string, endHex: string, t: number): string {
-    const clampT = Math.max(0, Math.min(1, t));
-    const start = this.hexToRgb(startHex);
-    const end = this.hexToRgb(endHex);
-    const r = Math.round(start.r + (end.r - start.r) * clampT);
-    const g = Math.round(start.g + (end.g - start.g) * clampT);
-    const b = Math.round(start.b + (end.b - start.b) * clampT);
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-
-  private hexToRgb(hex: string): { r: number; g: number; b: number } {
-    const normalized = hex.replace('#', '');
-    const full = normalized.length === 3 ? normalized.split('').map((c) => c + c).join('') : normalized;
-    const value = parseInt(full, 16);
-    return {
-      r: (value >> 16) & 255,
-      g: (value >> 8) & 255,
-      b: value & 255
-    };
+    return slotColorForMultiplier(this.coefficients, coefficient);
   }
 
   dropRandomBall(): { coefficient: number; index: number } {

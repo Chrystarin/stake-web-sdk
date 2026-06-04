@@ -3,6 +3,7 @@
 
 	import config from '../game/config';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
+	import { formatHistoryMultiplier } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
@@ -18,6 +19,17 @@
 
 	function setTab(tab: InfoModalTab) {
 		stateGame.infoModalTab = tab;
+	}
+
+	const currencySign = $derived(
+		stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `,
+	);
+
+	/** Newest entries are stored first (index 0 = top of table). */
+	const historyRows = $derived(stateGame.history);
+
+	function formatMoney(value: number) {
+		return `${currencySign}${value.toFixed(2)}`;
 	}
 </script>
 
@@ -48,7 +60,10 @@
 						onclick={() => setTab('history')}>History</button
 					>
 				</div>
-				<div class="info-modal-body">
+				<div
+					class="info-modal-body"
+					class:info-modal-body--history={stateGame.infoModalTab === 'history'}
+				>
 					{#if stateGame.infoModalTab === 'rules'}
 						<p><strong>Bet limits</strong></p>
 						<p>Min bet: {config.minBet} {stateBet.currency}</p>
@@ -70,19 +85,43 @@
 						<p><strong>Next server seed SHA256:</strong></p>
 						<div class="info-seed-box">e814403c4e1eb875b3cb6c2944a69829ce5214a35697176</div>
 					{:else}
-						<table class="info-history-table">
-							<thead>
-								<tr><th>Result</th><th>Color</th></tr>
-							</thead>
-							<tbody>
-								{#each stateGame.history as row}
+						<div class="info-history-pane">
+							<table class="info-history-table info-history-table--head">
+								<thead>
 									<tr>
-										<td>{row.result}×</td>
-										<td><span style:background={row.color} class="pill"></span></td>
+										<th>Date</th>
+										<th>Bet</th>
+										<th>Mult.</th>
+										<th>Win</th>
 									</tr>
-								{/each}
-							</tbody>
-						</table>
+								</thead>
+							</table>
+							<div class="info-history-scroll">
+								<table class="info-history-table info-history-table--body">
+									<tbody>
+										{#each historyRows as row, index (`${row.date}-${row.bet}-${row.multiplier}-${index}`)}
+											<tr>
+												<td>{row.date}</td>
+												<td>{formatMoney(row.bet)}</td>
+												<td>
+													<span
+														class="info-mult-pill"
+														style:background={row.color}
+													>
+														{formatHistoryMultiplier(row.multiplier)}
+													</span>
+												</td>
+												<td>{formatMoney(row.win)}</td>
+											</tr>
+										{:else}
+											<tr>
+												<td colspan="4" class="info-history-empty">No bets yet</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						</div>
 					{/if}
 				</div>
 			</div>
@@ -102,7 +141,9 @@
 	.info-modal-wrap {
 		position: relative;
 		width: min(92vw, 640px);
-		max-height: 80vh;
+		max-height: min(80vh, 720px);
+		display: flex;
+		flex-direction: column;
 	}
 	.info-modal-close {
 		position: absolute;
@@ -122,6 +163,11 @@
 		border-radius: 12px;
 		overflow: hidden;
 		color: #d6e8f7;
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-height: 0;
+		max-height: inherit;
 	}
 	.info-modal-close img {
 		display: block;
@@ -147,10 +193,32 @@
 	}
 	.info-modal-body {
 		padding: 20px;
-		max-height: 50vh;
-		overflow: auto;
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
 		font-size: 14px;
 		line-height: 1.5;
+	}
+	.info-modal-body--history {
+		padding: 0;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+	.info-history-pane {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.info-history-scroll {
+		flex: 1;
+		min-height: 0;
+		overflow-x: hidden;
+		overflow-y: auto;
+		padding: 0 20px 20px;
+		-webkit-overflow-scrolling: touch;
 	}
 	.info-seed-box {
 		padding: 10px;
@@ -161,17 +229,77 @@
 	}
 	.info-history-table {
 		width: 100%;
-		border-collapse: collapse;
+		table-layout: fixed;
+		border-collapse: separate;
+		border-spacing: 0;
 	}
-	.info-history-table th,
+	.info-history-table--head {
+		flex-shrink: 0;
+		border-spacing: 0;
+	}
+	.info-history-table--head th {
+		text-align: left;
+		font-size: 12px;
+		color: #e9eff9;
+		padding: 8px 10px;
+		margin: 0;
+		font-weight: 600;
+		background: #0f1a28;
+		box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+	}
+	.info-history-table--body {
+		border-spacing: 0 6px;
+	}
+	.info-history-table--head th:nth-child(1),
+	.info-history-table--body td:nth-child(1) {
+		width: 32%;
+	}
+	.info-history-table--head th:nth-child(2),
+	.info-history-table--body td:nth-child(2) {
+		width: 22%;
+	}
+	.info-history-table--head th:nth-child(3),
+	.info-history-table--body td:nth-child(3) {
+		width: 22%;
+	}
+	.info-history-table--head th:nth-child(4),
+	.info-history-table--body td:nth-child(4) {
+		width: 24%;
+	}
+	.info-history-empty {
+		text-align: center;
+		color: #9ab8d0;
+		font-weight: 500;
+		background: transparent !important;
+	}
 	.info-history-table td {
-		padding: 8px;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		padding: 8px 10px;
+		background: rgba(106, 124, 160, 0.45);
+		color: #f2f7ff;
+		font-size: 13px;
+		font-weight: 600;
+		vertical-align: middle;
 	}
-	.pill {
-		display: inline-block;
-		width: 24px;
-		height: 12px;
-		border-radius: 999px;
+	.info-history-table tr td:first-child {
+		border-top-left-radius: 8px;
+		border-bottom-left-radius: 8px;
+	}
+	.info-history-table tr td:last-child {
+		border-top-right-radius: 8px;
+		border-bottom-right-radius: 8px;
+	}
+	.info-mult-pill {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 48px;
+		height: 26px;
+		padding: 0 8px;
+		border-radius: 8px;
+		color: #fff;
+		font-size: 13px;
+		font-weight: 700;
+		line-height: 1;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 	}
 </style>

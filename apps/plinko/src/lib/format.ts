@@ -26,3 +26,15 @@ export const formatAmount = (value: number, currency = ''): string => {
 	});
 	return currency ? `${currency}${formatted}` : formatted;
 };
+
+/** `HH:mm DD-MM-YY` — matches legacy Plinko bet history. */
+export const formatHistoryDate = (date: Date): string => {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${pad(date.getHours())}:${pad(date.getMinutes())} ${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${String(date.getFullYear()).slice(-2)}`;
+};
+
+/** Board multiplier label (coefficients are canonical board values). */
+export const formatHistoryMultiplier = (value: number): string => {
+	const label = formatCoefficientLabel(value);
+	return label ? `x${label}` : 'x0';
+};

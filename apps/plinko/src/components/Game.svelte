@@ -63,7 +63,6 @@
 	import { isPortraitGameLayout } from '../lib/format';
 	import { toggleGameFullscreen } from '../lib/fullscreen';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
-	import { slotColorForMultiplier } from '../game-logic/slotColors';
 
 	import Background from './Background.svelte';
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
@@ -254,11 +253,7 @@
 
 
 	function onBallDropped(event: BallDroppedEvent) {
-
-		const slotColor = slotColorForMultiplier(coefficients, event.multiplier);
-
-		onBallLanded(event.ballId, event.multiplier, event.isSpinSlot, slotColor);
-
+		onBallLanded(event.ballId, event.multiplier, event.isSpinSlot, event.slotIndex);
 	}
 
 	function handleCoinPegHit(event: { ballId: number }) {

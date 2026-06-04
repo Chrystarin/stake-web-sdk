@@ -1,5 +1,10 @@
+import { stateBet } from 'state-shared';
+
 import { BONUS_LEVEL_LABELS } from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
+import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
+import { formatHistoryDate } from '../lib/format';
+import { slotColorForRateIndex } from '../game-logic/slotColors';
 import { meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
@@ -390,7 +395,7 @@ export function onBallLanded(
 	ballId: number,
 	multiplier: number,
 	_isSpinSlotFromEngine: boolean,
-	slotColor: string,
+	slotIndex = -1,
 ) {
 	const pending = takeExpectedOutcome(ballId);
 	const slotCount = stateGame.coefficients.length;
@@ -406,13 +411,30 @@ export function onBallLanded(
 		onCoinPegHit(ballId);
 	}
 
+	const coeffs =
+		stateGame.coefficients.length > 0 ? stateGame.coefficients : [];
+	const rateIndex = pending?.rateIndex ?? slotIndex;
+	const resolvedMultiplier = pending
+		? resolveOutcomeMultiplier(pending, coeffs)
+		: coeffs.length > 0 && slotIndex >= 0
+			? boardMultiplierAtIndex(slotIndex, coeffs)
+			: multiplier;
+
 	if (pending && !isSpinSlot) {
-		addSettledWinAmount(pending.amount * pending.multiplier);
+		addSettledWinAmount(pending.amount * resolvedMultiplier);
 	}
 	if (!isSpinSlot) {
-		const displayMultiplier = pending?.multiplier ?? multiplier;
-		stateGame.history.push({ result: displayMultiplier, color: slotColor });
-		if (stateGame.history.length > 8) stateGame.history.shift();
+		const bet = pending?.amount ?? stateBet.betAmount;
+		stateGame.history.unshift({
+			date: formatHistoryDate(new Date()),
+			bet,
+			multiplier: resolvedMultiplier,
+			win: bet * resolvedMultiplier,
+			color:
+				coeffs.length && rateIndex >= 0
+					? slotColorForRateIndex(coeffs, rateIndex)
+					: '#64748b',
+		});
 	}
 	if (pending && isSpinSlot) {
 		onSpinSlotLand(ballId);

@@ -10,7 +10,13 @@ import type { FreeSpinWalletSettlement } from '../features/freeSpin';
 import type { Bet, PlinkoBallOutcome } from './typesBookEvent';
 import { plinkoWagerAmount } from './plinkoBet';
 
-export type HistoryEntry = { result: number; color: string };
+export type HistoryEntry = {
+	date: string;
+	bet: number;
+	multiplier: number;
+	win: number;
+	color: string;
+};
 export type InfoModalTab = 'rules' | 'fair' | 'history';
 export type MsgBoxConfig = {
 	text: string;

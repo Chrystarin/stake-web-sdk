@@ -1,12 +1,11 @@
+import { BOARD_SLOT_MULTIPLIERS } from '../game-logic/boardMultipliers';
+
 /** One row-tier table (13 slots) repeated for row counts 8–20. */
 const tierTable = (coefficients: number[]): number[][] =>
 	Array.from({ length: 13 }, () => [...coefficients]);
 
-/** Calibrated with stake-math-sdk plinko_data (default drop RTP ~97%). */
-const DEFAULT_SLOT_MULTIPLIERS = [
-	24.99, 4.44, 2.22, 1.53, 1.39, 0.69, 0.42, 0.69, 1.39, 1.53, 2.22, 4.44, 24.99,
-];
-
+/** Board-display multipliers (0.7× … 25×); books resolve payout via `rateIndex` into this table. */
+const DEFAULT_SLOT_MULTIPLIERS = [...BOARD_SLOT_MULTIPLIERS];
 export default {
 	providerName: 'casino_tv',
 	gameName: 'one_eyed_willys_plinko',
