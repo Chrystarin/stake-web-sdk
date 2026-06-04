@@ -1,8 +1,8 @@
 import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet } from 'state-shared';
 
-import { plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
-import { stateGame } from './stateGame.svelte';
+import { plinkoStakePerBall, plinkoWagerAmount } from '../../game/plinkoBet';
+import { stateGame } from '../../game/stateGame.svelte';
 
 export function isFreeSpinBonusWheelSegment(segmentLabel: string): boolean {
 	const normalized = String(segmentLabel || '')

@@ -6,7 +6,7 @@ import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { coefficientsForRowCount } from '../game-logic/constants';
 import config from './config';
 import { stateGame } from './stateGame.svelte';
-import { injectFreeSpinTriggerIfMeterFull } from './plinkoBookAugmentation';
+import { injectFreeSpinTriggerIfMeterFull } from '../features/freeSpin';
 import { getDevRgsSpinMeter, offsetBetRelativeSpinMeterEvents } from './plinkoSessionMeters';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;

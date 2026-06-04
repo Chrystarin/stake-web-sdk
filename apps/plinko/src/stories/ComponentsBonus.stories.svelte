@@ -9,8 +9,8 @@
 <script lang="ts">
 	import { StoryLocale } from 'components-storybook';
 
-	import { BonusLevel, BonusRoulette, FreeSpinRoulette } from '../features/bonus';
-	import { BonusMeter, FreeSpinMeter } from '../features/meters';
+	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
+	import { FreeSpinMeter, FreeSpinRoulette } from '../features/freeSpin';
 </script>
 
 <Story name="Bonus meter">

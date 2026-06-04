@@ -22,7 +22,7 @@
 	import { canAffordPlinkoWager } from '../game/plinkoBet';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { getContext } from '../game/context';
-	import { FreeSpinMeter } from '../features/meters';
+	import { FreeSpinMeter } from '../features/freeSpin';
 	import { staticUrl } from '../lib/staticUrl';
 
 	import './GameHud.scss';

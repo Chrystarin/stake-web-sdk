@@ -2,23 +2,19 @@ import { PUBLIC_CHROMATIC } from 'envs';
 import { stateUrlDerived } from 'state-shared';
 import { requestBetAction } from 'rgs-requests';
 
-import { eventEmitter } from './eventEmitter';
-import { applyFreeSpinActionBalance, resolveFreeSpinPayoutAmount } from './plinkoFreeSpinPayout';
-import {
-	freeSpinSegmentIndexForSegment,
-	triggerRoulette,
-	waitForRouletteClose,
-} from './meterFlow';
-import { fallbackFreeSpinSegmentFromRound } from './plinkoFreeSpinWallet';
-import { deriveSpinMeterFromBookEvents, hasActiveRgsSession } from './plinkoSessionMeters';
-import { stateGame } from './stateGame.svelte';
-import type { BookEvent, BookEventOfType, Bet } from './typesBookEvent';
+import { eventEmitter } from '../../game/eventEmitter';
+import { triggerRoulette, waitForRouletteClose } from '../../game/meterFlow';
+import { deriveSpinMeterFromBookEvents, hasActiveRgsSession } from '../../game/plinkoSessionMeters';
+import { stateGame } from '../../game/stateGame.svelte';
+import type { BookEvent, BookEventOfType, Bet } from '../../game/typesBookEvent';
+import { bookHasFreeSpinTrigger } from './bookAugmentation';
+import { applyFreeSpinActionBalance, resolveFreeSpinPayoutAmount } from './payout';
+import { freeSpinSegmentIndexForSegment } from './rouletteFlow';
+import { fallbackFreeSpinSegmentFromRound } from './wallet';
 
 const RGS_FREE_SPIN_ACTIONS = ['freeSpinTrigger', 'free_spin_trigger', 'freeSpinSettle'] as const;
 
-export function bookHasFreeSpinTrigger(events: BookEvent[]): boolean {
-	return events.some((event) => event.type === 'freeSpinTrigger');
-}
+export { bookHasFreeSpinTrigger };
 
 export function sessionSpinMeterReachedMax(events: BookEvent[]): boolean {
 	const max = stateGame.spinMeterMax > 0 ? stateGame.spinMeterMax : 10;

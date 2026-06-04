@@ -2,11 +2,11 @@
  * Dev / fallback helpers only. Production wallet payout comes from republished math books
  * selected via play `meta` (`buildBetMetaPlayConditions`) — see crimson_plinko INTEGRATION.md.
  */
-import { plinkoWagerAmount } from './plinkoBet';
-import { bookWillReachSpinMeterMax } from './plinkoRoundSettlement';
-import { resolveFreeSpinPayoutAmount } from './plinkoFreeSpinPayout';
-import { fallbackFreeSpinSegmentFromRound } from './plinkoFreeSpinWallet';
-import type { Bet, BookEvent } from './typesBookEvent';
+import { plinkoWagerAmount } from '../../game/plinkoBet';
+import { bookWillReachSpinMeterMax } from '../../game/plinkoRoundSettlement';
+import type { Bet, BookEvent } from '../../game/typesBookEvent';
+import { resolveFreeSpinPayoutAmount } from './payout';
+import { fallbackFreeSpinSegmentFromRound } from './wallet';
 
 export function bookHasFreeSpinTrigger(events: BookEvent[]): boolean {
 	return events.some((event) => event.type === 'freeSpinTrigger');

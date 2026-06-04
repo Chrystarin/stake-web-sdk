@@ -9,8 +9,8 @@ const DEFAULT_SLOT_MULTIPLIERS = [
 
 export default {
 	providerName: 'casino_tv',
-	gameName: 'Crimson Plinko',
-	gameID: 'crimson_plinko',
+	gameName: 'one_eyed_willys_plinko',
+	gameID: 'one_eyed_willys_plinko',
 	rtp: 0.97,
 	minBet: 0.01,
 	maxBet: 1000,

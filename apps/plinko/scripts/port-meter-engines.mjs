@@ -51,10 +51,10 @@ function portMeter(sourcePath, className, outPath) {
 portMeter(
 	join(legacyAngularSource, 'bonus-meter/bonus-meter.component.ts'),
 	'BonusMeterComponent',
-	join(root, 'src/features/meters/BonusMeterEngine.ts'),
+	join(root, 'src/features/bonus/BonusMeterEngine.ts'),
 );
 portMeter(
 	join(legacyAngularSource, 'free-spin-meter/free-spin-meter.component.ts'),
 	'FreeSpinMeterComponent',
-	join(root, 'src/features/meters/FreeSpinMeterEngine.ts'),
+	join(root, 'src/features/freeSpin/FreeSpinMeterEngine.ts'),
 );

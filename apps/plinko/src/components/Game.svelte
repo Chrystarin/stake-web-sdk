@@ -49,8 +49,6 @@
 
 		onCoinPegHit,
 
-		onFreeSpinRouletteFinished,
-
 		releaseRoundInteractionLocks,
 
 		syncBallPerDropTier,
@@ -59,9 +57,8 @@
 
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 
-	import { BonusLevel, BonusRoulette, FreeSpinRoulette } from '../features/bonus';
-
-	import { BonusMeter, FreeSpinMeter } from '../features/meters';
+	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
+	import { FreeSpinMeter, FreeSpinRoulette, onFreeSpinRouletteFinished } from '../features/freeSpin';
 
 	import { isPortraitGameLayout } from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';

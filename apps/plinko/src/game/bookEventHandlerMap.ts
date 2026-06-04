@@ -15,13 +15,14 @@ import {
 	syncSpinMeterAfterBet,
 } from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
-import { ensureFreeSpinWhenSessionMeterFull, runFreeSpinTriggerFlow } from './freeSpinFeature';
+import {
+	ensureFreeSpinWhenSessionMeterFull,
+	flushPendingFreeSpinWalletBeforeEndRound,
+	runFreeSpinTriggerFlow,
+} from '../features/freeSpin';
 import { releaseRoundInteractionLocks, triggerRoulette, waitForRouletteClose } from './meterFlow';
 import { checkIsPlinkoDeferredSettlement } from './plinkoRoundSettlement';
-import {
-	flushPendingFreeSpinWalletBeforeEndRound,
-	snapshotBalanceAfterPlay,
-} from './plinkoWalletSync';
+import { snapshotBalanceAfterPlay } from './plinkoWalletSync';
 import type { Bet, BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {

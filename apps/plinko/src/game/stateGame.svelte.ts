@@ -6,7 +6,7 @@ import {
 	SIM_SPEED,
 } from '../game-logic/constants';
 import { createMeterController } from '../game-logic/meterController';
-import type { FreeSpinWalletSettlement } from './plinkoFreeSpinWallet';
+import type { FreeSpinWalletSettlement } from '../features/freeSpin';
 import type { Bet, PlinkoBallOutcome } from './typesBookEvent';
 import { plinkoWagerAmount } from './plinkoBet';
 

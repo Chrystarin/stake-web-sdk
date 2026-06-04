@@ -3,14 +3,14 @@ import { PUBLIC_CHROMATIC } from 'envs';
 import { stateUrlDerived } from 'state-shared';
 import { requestBetAction } from 'rgs-requests';
 
-import { FREE_SPIN_SEGMENTS } from '../game-logic/constants';
+import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
+import { hasActiveRgsSession } from '../../game/plinkoSessionMeters';
+import type { Bet } from '../../game/typesBookEvent';
 import {
 	applyFreeSpinActionBalance,
 	freeSpinMultiplierFromSegment,
 	isFreeSpinBonusWheelSegment,
-} from './plinkoFreeSpinPayout';
-import { hasActiveRgsSession } from './plinkoSessionMeters';
-import type { Bet } from './typesBookEvent';
+} from './payout';
 
 const RGS_FREE_SPIN_SETTLE_ACTIONS = [
 	'freeSpinTrigger',
