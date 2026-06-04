@@ -160,6 +160,7 @@
 	}
 
 	function selectBetPerBallOption(value: number) {
+		if (controlsLocked) return;
 		props.onBetAmountChange(value);
 		betPresetOpen = false;
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
@@ -511,7 +512,6 @@
 
 					<div
 						class="bp-field bp-field--bet bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
-						class:bp-field-disabled={controlsLocked}
 					>
 						{@render bettingFieldFrame()}
 						<span class="bp-field-label">{context.i18nDerived.t('Bet per ball')}</span>
@@ -567,6 +567,7 @@
 										type="button"
 										class="bp-bet-presets-option"
 										class:bp-bet-presets-option--active={props.betAmount === preset}
+										disabled={controlsLocked}
 										onclick={() => selectBetPerBallOption(preset)}
 									>
 										{preset.toFixed(2)}
@@ -576,10 +577,7 @@
 						{/if}
 					</div>
 
-					<div
-						class="bp-field bp-field--select bp-field--bet-controls"
-						class:bp-field-disabled={controlsLocked}
-					>
+					<div class="bp-field bp-field--select bp-field--bet-controls">
 						{@render bettingFieldFrame()}
 						<span class="bp-field-label">{context.i18nDerived.t('Ball per drop')}</span>
 						<div class="bp-bet-input-wrap">
