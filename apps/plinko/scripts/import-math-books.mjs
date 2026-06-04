@@ -41,18 +41,8 @@ const books = (
 		: JSON.parse(raw)
 ).slice(0, limit);
 
-const eventsByType = {};
-for (const book of books) {
-	for (const ev of book.events ?? []) {
-		if (!eventsByType[ev.type]) eventsByType[ev.type] = { ...ev, index: 0 };
-	}
-}
-
 writeFileSync(join(outDir, 'base_books.ts'), `export default ${JSON.stringify(books, null, '\t')} as const;\n`);
-writeFileSync(
-	join(outDir, 'base_events.ts'),
-	`export default ${JSON.stringify(eventsByType, null, '\t')} as const;\n`,
-);
 
+const eventTypes = [...new Set(books.flatMap((book) => (book.events ?? []).map((ev) => ev.type)))];
 console.log(`Wrote ${books.length} books to src/stories/data/base_books.ts`);
-console.log(`Event types: ${Object.keys(eventsByType).join(', ')}`);
+console.log(`Event types: ${eventTypes.join(', ')}`);
