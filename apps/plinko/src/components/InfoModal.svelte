@@ -3,6 +3,7 @@
 
 	import config from '../game/config';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
+	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
 		onClose?: () => void;
@@ -23,7 +24,9 @@
 {#if stateGame.infoModalOpen}
 	<div class="info-modal-backdrop" onclick={close} role="presentation">
 		<div class="info-modal-wrap" onclick={(e) => e.stopPropagation()} role="dialog">
-			<button type="button" class="info-modal-close" onclick={close} aria-label="Close"></button>
+			<button type="button" class="info-modal-close" onclick={close} aria-label="Close">
+				<img src={staticUrl('img/close_btn.png')} alt="" aria-hidden="true" />
+			</button>
 			<div class="info-modal">
 				<div class="info-modal-tabs">
 					<button
@@ -103,16 +106,15 @@
 	}
 	.info-modal-close {
 		position: absolute;
-		right: 8px;
-		top: 8px;
-		width: 32px;
-		height: 32px;
+		top: 0;
+		right: 0;
+		z-index: 2;
+		padding: 0;
 		border: none;
-		border-radius: 50%;
-		background: rgba(255, 255, 255, 0.15);
-		color: #fff;
+		background: transparent;
 		cursor: pointer;
-		z-index: 1;
+		line-height: 0;
+		transform: translate(42%, -42%);
 	}
 	.info-modal {
 		background: #0f1a28;
@@ -120,6 +122,12 @@
 		border-radius: 12px;
 		overflow: hidden;
 		color: #d6e8f7;
+	}
+	.info-modal-close img {
+		display: block;
+		width: 36px;
+		height: 36px;
+		object-fit: contain;
 	}
 	.info-modal-tabs {
 		display: flex;
