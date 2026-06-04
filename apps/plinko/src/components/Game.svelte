@@ -4,7 +4,7 @@
 
 
 
-	import { stateBet, stateUrlDerived } from 'state-shared';
+	import { stateBet, stateConfig, stateUrlDerived } from 'state-shared';
 
 
 
@@ -61,6 +61,7 @@
 	import { FreeSpinMeter, FreeSpinRoulette, onFreeSpinRouletteFinished } from '../features/freeSpin';
 
 	import { isPortraitGameLayout } from '../lib/format';
+	import { toggleGameFullscreen } from '../lib/fullscreen';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { slotColorForMultiplier } from '../game-logic/slotColors';
 
@@ -92,6 +93,10 @@
 	const context = getContext();
 
 	const mobile = isPortraitGameLayout();
+
+	let gameRootEl = $state<HTMLElement | undefined>(undefined);
+
+	const fullscreenAllowed = $derived(!stateConfig.jurisdiction.disabledFullscreen);
 
 
 
@@ -262,14 +267,18 @@
 
 
 
-	function toggleFullscreen() {
-
-		if (!document.fullscreenElement) void document.documentElement.requestFullscreen();
-
-		else void document.exitFullscreen();
-
+	async function toggleFullscreen() {
+		if (!fullscreenAllowed) {
+			stateGame.menuOpen = false;
+			return;
+		}
+		const target = gameRootEl ?? document.documentElement;
+		try {
+			await toggleGameFullscreen(target);
+		} catch {
+			// Blocked by browser, iframe policy, or unsupported environment.
+		}
 		stateGame.menuOpen = false;
-
 	}
 
 
@@ -306,7 +315,7 @@
 
 
 
-<main class="game-root" class:game-root--mobile={mobile}>
+<main class="game-root" class:game-root--mobile={mobile} bind:this={gameRootEl}>
 
 	<div class="bg-layer">
 		<Background />
@@ -328,7 +337,9 @@
 				{#if stateGame.menuOpen}
 					<div class="hud-menu-popup">
 
-					<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
+					{#if fullscreenAllowed}
+						<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
+					{/if}
 
 					<button type="button" onclick={() => openInfo('fair')}>Provably fair</button>
 
@@ -380,7 +391,9 @@
 
 	{#if mobile && stateGame.menuOpen}
 		<div class="hud-menu-popup hud-menu-popup--mobile">
-			<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
+			{#if fullscreenAllowed}
+				<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
+			{/if}
 			<button type="button" onclick={() => openInfo('fair')}>Provably fair</button>
 			<button type="button" onclick={() => openInfo('rules')}>Game rules</button>
 			<button type="button" onclick={() => openInfo('history')}>Bet history</button>
