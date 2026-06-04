@@ -1,5 +1,5 @@
 /** Bet amount presets shown in the HUD (filtered by min/max at runtime). */
-export const BET_PER_BALL_PRESETS = [0.01, 0.1, 0.2, 0.5, 1, 5, 10] as const;
+export const BET_PER_BALL_PRESETS = [0.01, 0.1, 0.2, 0.5, 1, 5, 10, 20] as const;
 
 /** Balls released per drop tier selector. */
 export const BALL_PER_DROP_TIERS = [10, 20, 50] as const;
