@@ -17,8 +17,18 @@ export const ROW_COUNT_OPTIONS = [10, 14, 20] as const;
 /** Default pyramid row count. */
 export const DEFAULT_ROW_COUNT = 14;
 
-/** Difficulty labels (index matches server `difficulty` field). */
-export const DIFFICULTY_LABELS = ['Easy', 'Medium', 'Hard', 'Expert'] as const;
+/** Serialized on `plinkoDrop.difficulty` for RGS / published math (single default board). */
+export const PLINKO_DEFAULT_VARIANT_ID = 0;
+
+/** Row tier index 0..12 for pyramid row counts 8..20. */
+export function rowTierIndex(rowCount: number): number {
+	return Math.max(0, Math.min(rowCount - 8, 12));
+}
+
+/** Slot multipliers for a row count from `config.coefficientSets`. */
+export function coefficientsForRowCount(sets: number[][], rowCount: number): number[] {
+	return sets[rowTierIndex(rowCount)] ?? [];
+}
 
 /** Auto-bet round count options. */
 export const AUTO_BET_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100] as const;

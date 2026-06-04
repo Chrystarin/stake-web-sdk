@@ -13,6 +13,7 @@ export type PlinkoBallOutcome = {
 type BookEventPlinkoDrop = {
 	index: number;
 	type: 'plinkoDrop';
+	/** Legacy wire name; always default variant (`PLINKO_DEFAULT_VARIANT_ID`). */
 	difficulty: number;
 	rowCount: number;
 	ballsPerDrop: number;

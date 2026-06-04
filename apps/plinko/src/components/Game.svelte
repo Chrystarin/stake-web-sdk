@@ -8,6 +8,7 @@
 
 
 
+	import { coefficientsForRowCount } from '../game-logic/constants';
 	import config from '../game/config';
 
 	import { playDevLocalBook } from '../game/devLocalBet';
@@ -97,21 +98,9 @@
 
 
 
-	const coefficients = $derived.by(() => {
-
-		const sets = config.defaultCoefficientSets as number[][][];
-
-		return stateGameDerived.coefficientsForDifficulty(
-
-			stateGame.difficultyLevelId,
-
-			stateGame.rowCount,
-
-			sets,
-
-		);
-
-	});
+	const coefficients = $derived.by(() =>
+		coefficientsForRowCount(config.coefficientSets as number[][], stateGame.rowCount),
+	);
 
 	const boardCoefficients = $derived(
 		stateGame.coefficients.length > 0 ? stateGame.coefficients : coefficients,

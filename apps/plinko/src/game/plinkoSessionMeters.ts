@@ -2,6 +2,7 @@ import { PUBLIC_CHROMATIC } from 'envs';
 import { stateBet, stateUrlDerived } from 'state-shared';
 import { requestBetAction } from 'rgs-requests';
 
+import { PLINKO_DEFAULT_VARIANT_ID } from '../game-logic/constants';
 import { stateGame } from './stateGame.svelte';
 import type { BookEvent } from './typesBookEvent';
 
@@ -100,7 +101,7 @@ export function buildBetMetaPlayConditions(): Record<string, number> {
 		bonusMeter: Math.max(0, Math.floor(stateGame.bonusMeterValue)),
 		bonus_level_start: Math.max(0, Math.floor(stateGame.bonusMeterLevel)),
 		bonusLevel: Math.max(0, Math.floor(stateGame.bonusMeterLevel)),
-		difficulty: Math.max(0, Math.floor(stateGame.difficultyLevelId)),
+		difficulty: PLINKO_DEFAULT_VARIANT_ID,
 		row_count: Math.max(8, Math.floor(stateGame.rowCount)),
 		balls_per_drop: Math.max(1, Math.floor(stateGame.ballPerDrop)),
 		stake_per_ball: Math.max(0, Number(stateBet.betAmount) || 0),

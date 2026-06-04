@@ -3,6 +3,7 @@ import type { Bet, BookEvent } from './typesBookEvent';
 import books from '../stories/data/base_books';
 import { stateBet } from 'state-shared';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
+import { coefficientsForRowCount } from '../game-logic/constants';
 import config from './config';
 import { stateGame } from './stateGame.svelte';
 import { injectFreeSpinTriggerIfMeterFull } from './plinkoBookAugmentation';
@@ -23,9 +24,10 @@ const resizeOutcomes = (event: PlinkoDropEvent, targetCount: number): PlinkoDrop
 const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet & { events: Bet['state'] } => {
 	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
 	const stakePerBall = Math.max(0, Number(stateBet.betAmount) || 0);
-	const coefficientSets = config.defaultCoefficientSets as number[][][];
-	const fallbackCoefficients =
-		coefficientSets[stateGame.difficultyLevelId]?.[Math.max(0, stateGame.rowCount - 8)] ?? [];
+	const fallbackCoefficients = coefficientsForRowCount(
+		config.coefficientSets as number[][],
+		stateGame.rowCount,
+	);
 
 	const events = book.events.map((event) => {
 		if (event.type !== 'plinkoDrop') return { ...event };

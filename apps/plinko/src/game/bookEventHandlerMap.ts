@@ -30,7 +30,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			(outcome) => outcome.hitBonusPeg != null || outcome.hitSpinSlot != null,
 		);
 		stateGame.authoritativeMeterFlow = hasAuthoritativeOutcomes;
-		stateGame.difficultyLevelId = bookEvent.difficulty;
 		stateGame.rowCount = bookEvent.rowCount;
 		stateGame.ballPerDrop = bookEvent.ballsPerDrop;
 		if (bookEvent.coefficients?.length) {

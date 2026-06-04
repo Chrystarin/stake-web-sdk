@@ -47,7 +47,7 @@
 		skipLoadingScreen: true,
 		data: {},
 		action: async () => {
-			const coefficients = config.defaultCoefficientSets[0]?.[6] ?? [];
+			const coefficients = config.coefficientSets[6] ?? [];
 			const outcomes = coefficients.map((multiplier, rateIndex) => ({
 				rateIndex,
 				multiplier,

@@ -36,8 +36,6 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		ballsPerDrop: stateGame.ballPerDrop,
 		stakePerBall: stateBet.betAmount,
 		rowCount: stateGame.rowCount,
-		difficulty: stateGame.difficultyLevelId,
-		// Maps to math `conditions` so published books match session meters (see math INTEGRATION.md).
 		...buildBetMetaPlayConditions(),
 	}),
 	getWagerAmount: plinkoWagerAmount,

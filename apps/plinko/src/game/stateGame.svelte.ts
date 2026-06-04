@@ -21,7 +21,6 @@ export type MsgBoxConfig = {
 };
 
 export const stateGame = $state({
-	difficultyLevelId: 0,
 	rowCount: DEFAULT_ROW_COUNT,
 	ballPerDrop: BALL_PER_DROP_TIERS[0],
 	coefficients: [] as number[],
@@ -162,9 +161,5 @@ export const stateGameDerived = {
 	},
 	get bonusLevelLabels(): readonly number[] {
 		return BONUS_LEVEL_LABELS;
-	},
-	coefficientsForDifficulty(difficulty: number, rowCount: number, sets: number[][][]): number[] {
-		const rowIndex = Math.max(0, Math.min(rowCount - 8, 12));
-		return sets[difficulty]?.[rowIndex] ?? [];
 	},
 };

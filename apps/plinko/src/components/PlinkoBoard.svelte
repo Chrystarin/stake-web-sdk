@@ -4,9 +4,10 @@
 	import { PlinkoEngine, type BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 	import { getContext } from '../game/context';
 	import { registerBonusBallOutcome, takeAuthoritativeBonusOutcome } from '../game/gameOrchestrator';
+	import { coefficientsForRowCount } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import config from '../game/config';
-	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
+	import { stateGame } from '../game/stateGame.svelte';
 	import type { PlinkoBallOutcome } from '../game/typesBookEvent';
 
 	type Props = {
@@ -33,15 +34,10 @@
 	function syncEngineScene() {
 		if (!engine) return;
 
-		const sets = config.defaultCoefficientSets as number[][][];
 		const coeffs =
 			props.coefficients.length > 0
 				? props.coefficients
-				: stateGameDerived.coefficientsForDifficulty(
-						stateGame.difficultyLevelId,
-						stateGame.rowCount,
-						sets,
-					);
+				: coefficientsForRowCount(config.coefficientSets as number[][], stateGame.rowCount);
 
 		engine.updateScene(coeffs, props.rows || stateGame.rowCount, props.animationEnabled ?? true);
 		engine.refreshLayoutSync();

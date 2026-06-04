@@ -138,7 +138,7 @@ Turbo usually builds `^build` dependencies automatically when you build or dev p
 
 The **wallet only changes from RGS** (`/wallet/play`, `/wallet/end-round`). The client cannot safely add free-spin money in the browser.
 
-Session spin-meter carry-over is sent on each bet via `buildBetMetaPlayConditions()` (`spin_meter_start`, `bonus_meter_start`, `difficulty`, `row_count`, etc.). Stake Engine uses that to pick math books where `plinkoDrop.spinMeterStart` matches and `freeSpinTrigger` + `payoutMultiplier` include the wheel win.
+Session spin-meter carry-over is sent on each bet via `buildBetMetaPlayConditions()` (`spin_meter_start`, `bonus_meter_start`, `row_count`, etc.). Stake Engine uses that to pick math books where `plinkoDrop.spinMeterStart` matches and `freeSpinTrigger` + `payoutMultiplier` include the wheel win.
 
 If free spin shows a prize but balance does not move:
 

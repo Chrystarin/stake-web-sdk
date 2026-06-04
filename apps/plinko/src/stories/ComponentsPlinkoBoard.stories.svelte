@@ -15,7 +15,7 @@
 
 	setContext();
 
-	const coefficients = (config.defaultCoefficientSets[0]?.[6] ?? []) as number[];
+	const coefficients = (config.coefficientSets[6] ?? []) as number[];
 </script>
 
 <Story name="board">
