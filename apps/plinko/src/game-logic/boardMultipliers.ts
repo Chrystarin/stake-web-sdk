@@ -2,7 +2,7 @@ import { formatCoefficientLabel } from '../lib/format';
 
 /** Canonical slot multipliers shown on the board (13 pockets, symmetric). */
 export const BOARD_SLOT_MULTIPLIERS = [
-	25.0, 4.4, 2.2, 1.5, 1.4, 0.7, 0.4, 0.7, 1.4, 1.5, 2.2, 4.4, 25.0,
+	25.0, 4.4, 2.2, 1.5, 1.4, 0.7, 0, 0.7, 1.4, 1.5, 2.2, 4.4, 25.0,
 ] as const;
 
 /** Align server/config coefficients to the board table (same labels → board values). */
