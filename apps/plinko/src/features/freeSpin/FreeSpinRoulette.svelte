@@ -18,13 +18,34 @@
 
 	const props: Props = $props();
 
+	/** Shared wheel diameter from viewport; label/base/marker derive from this. */
+	const ROULETTE_SIZE_VW = 0.72;
+	const LABEL_HEIGHT_TO_WIDTH = 462 / 1925;
+	const BASE_TO_WHEEL = 624 / 1348;
+	const MARKER_WIDTH_TO_WHEEL = (151 / 1348) * 0.65;
+	const MARKER_HEIGHT_TO_WHEEL = (435 / 1348) * 0.65;
+
 	let overlayVisible = $state(false);
 	let wheelVisible = $state(false);
 	let markerVisible = $state(false);
 	let wheelSpinClass = $state(false);
 	let wheelRotationDeg = $state(0);
 	let wheelEl = $state<HTMLImageElement | undefined>(undefined);
+	let stageEl = $state<HTMLDivElement | undefined>(undefined);
+	let rouletteSizePx = $state(0);
 	const timers: ReturnType<typeof setTimeout>[] = [];
+
+	function updateRouletteLayout() {
+		const stage = stageEl;
+		if (!stage) return;
+		const rect = stage.getBoundingClientRect();
+		if (rect.width <= 0 || rect.height <= 0) return;
+		const labelGapPx = Math.min(Math.max(window.innerWidth * 0.015, 4), 16);
+		const vwCap = window.innerWidth * ROULETTE_SIZE_VW;
+		const maxWidth = Math.min(vwCap, rect.width);
+		const fromHeight = Math.max(0, rect.height - labelGapPx) / (1 + LABEL_HEIGHT_TO_WIDTH);
+		rouletteSizePx = Math.max(0, Math.floor(Math.min(maxWidth, fromHeight)));
+	}
 
 	onMount(() => {
 		requestAnimationFrame(() => (overlayVisible = true));
@@ -37,6 +58,35 @@
 		timers.push(setTimeout(() => startSpin(), 520));
 		return () => timers.forEach(clearTimeout);
 	});
+
+	$effect(() => {
+		const stage = stageEl;
+		if (!stage) return;
+		const observer = new ResizeObserver(() => updateRouletteLayout());
+		observer.observe(stage);
+		const onResize = () => updateRouletteLayout();
+		window.addEventListener('resize', onResize);
+		updateRouletteLayout();
+		return () => {
+			observer.disconnect();
+			window.removeEventListener('resize', onResize);
+		};
+	});
+
+	const labelWidthPx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
+	const stackSizePx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
+	const baseWidthPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * BASE_TO_WHEEL)}px` : undefined,
+	);
+	const markerWidthPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_WIDTH_TO_WHEEL)}px` : undefined,
+	);
+	const markerHeightPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_HEIGHT_TO_WHEEL)}px` : undefined,
+	);
+	const markerYOffsetPx = $derived(
+		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5)}px` : undefined,
+	);
 
 	function startSpin() {
 		const winner =
@@ -96,24 +146,39 @@
 	aria-label="Free spin wheel"
 >
 	<div class="free-spin-content">
-		<img class="free-spin-label" src={staticUrl('img/free-spin-label.png')} alt="Free spin" />
-		<div class="free-spin-wheel-block">
+		<div class="free-spin-stage" bind:this={stageEl}>
 			<img
-				class="free-spin-marker"
-				class:free-spin-marker--visible={markerVisible}
-				src={staticUrl('img/free-spin-roulette-marker.png')}
-				alt=""
+				class="free-spin-label"
+				style:width={labelWidthPx}
+				src={staticUrl('img/free-spin-label.png')}
+				alt="Free spin"
 			/>
-			<img
-				bind:this={wheelEl}
-				class="free-spin-wheel"
-				class:free-spin-wheel--animating={wheelSpinClass}
-				class:free-spin-wheel--visible={wheelVisible}
-				style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-				src={staticUrl('img/free-spin-roulette-wheel.png')}
-				alt=""
-			/>
-			<img class="free-spin-center-base" src={staticUrl('img/free-spin-roulette-base.png')} alt="" />
+			<div class="free-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>
+				<img
+					class="free-spin-marker"
+					class:free-spin-marker--visible={markerVisible}
+					style:width={markerWidthPx}
+					style:height={markerHeightPx}
+					style:--marker-y-offset={markerYOffsetPx}
+					src={staticUrl('img/free-spin-roulette-marker.png')}
+					alt=""
+				/>
+				<img
+					bind:this={wheelEl}
+					class="free-spin-wheel"
+					class:free-spin-wheel--animating={wheelSpinClass}
+					class:free-spin-wheel--visible={wheelVisible}
+					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
+					src={staticUrl('img/free-spin-roulette-wheel.png')}
+					alt=""
+				/>
+				<img
+					class="free-spin-center-base"
+					style:width={baseWidthPx}
+					src={staticUrl('img/free-spin-roulette-base.png')}
+					alt=""
+				/>
+			</div>
 		</div>
 	</div>
 </div>
@@ -143,42 +208,62 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
-		min-height: 100%;
-		padding: clamp(0.5rem, 3vh, 2rem) clamp(0.75rem, 4vw, 2rem);
+		justify-content: flex-start;
+		height: 100%;
+		min-height: 0;
+		box-sizing: border-box;
+		overflow: hidden;
+		padding: clamp(0.5rem, 2vw, 1.5rem) clamp(0.75rem, 4vw, 2rem) clamp(0.5rem, 2vw, 1.5rem);
+	}
+	.free-spin-stage {
+		flex: 1;
+		min-height: 0;
+		width: 100%;
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		justify-items: center;
 	}
 	.free-spin-label {
-		width: min(82vw, 760px);
-		margin-bottom: clamp(0.3rem, 2vh, 1.2rem);
+		width: min(72vw, 100%);
+		max-width: 100%;
+		height: auto;
+		flex-shrink: 0;
+		object-fit: contain;
+		margin-bottom: clamp(0.25rem, 1.5vw, 1rem);
 		filter: drop-shadow(0 0 16px rgba(255, 215, 96, 0.25));
 	}
-	.free-spin-wheel-block {
+	.free-spin-wheel-stack {
 		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100%;
+		width: min(72vw, 100%);
+		height: min(72vw, 100%);
+		max-width: 100%;
+		max-height: 100%;
+		flex-shrink: 0;
+		place-self: center;
 	}
 	.free-spin-marker {
-		--marker-y-offset: calc(-1 * min(40vw, min(34vh, 310px)));
 		position: absolute;
 		left: 50%;
 		top: 50%;
+		object-fit: contain;
 		transform: translate(-50%, -50%) translateY(-150vh);
-		width: min(4vw, 48px);
+		transform-origin: 50% 50%;
 		z-index: 2;
 		opacity: 0;
+		pointer-events: none;
 		transition:
 			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
 			opacity 0.34s ease;
 	}
 	.free-spin-marker--visible {
-		transform: translate(-50%, -50%) translateY(var(--marker-y-offset));
+		transform: translate(-50%, -50%) translateY(var(--marker-y-offset, 0px));
 		opacity: 1;
 	}
 	.free-spin-wheel {
-		width: min(80vw, min(68vh, 620px));
-		height: min(80vw, min(68vh, 620px));
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 		transform-origin: 50% 50%;
 		--wheel-rotation-deg: 0deg;
 		transform: translateY(125vh) rotate(var(--wheel-rotation-deg));
@@ -198,7 +283,8 @@
 		position: absolute;
 		left: 50%;
 		top: 50%;
-		width: min(36vw, min(30vh, 300px));
+		height: auto;
+		object-fit: contain;
 		transform: translate(-50%, -50%);
 		z-index: 3;
 		pointer-events: none;
