@@ -17,6 +17,27 @@ export function freeSpinMultiplierFromSegment(segmentLabel: string): number {
 	return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
 }
 
+export type FreeSpinRoundWinResult = {
+	multiplier: number;
+	roundWin: number;
+	totalWin: number;
+};
+
+/** Multiply the current round's settled drop win by the landed free-spin segment. */
+export function multiplyRoundWinByFreeSpinSegment(
+	segmentLabel: string,
+	roundWin = stateGame.pendingDropWinAmount,
+): FreeSpinRoundWinResult {
+	if (isFreeSpinBonusWheelSegment(segmentLabel)) {
+		return { multiplier: 0, roundWin, totalWin: roundWin };
+	}
+	const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
+	if (multiplier <= 0 || roundWin <= 0) {
+		return { multiplier, roundWin, totalWin: roundWin };
+	}
+	return { multiplier, roundWin, totalWin: roundWin * multiplier };
+}
+
 type FreeSpinPayoutInput = {
 	amount?: number;
 	multiplier?: number;

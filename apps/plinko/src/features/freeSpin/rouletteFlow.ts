@@ -1,17 +1,11 @@
-import { stateBet } from 'state-shared';
-
 import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
-import {
-	addSettledWinAmount,
-	showResultOverlay,
-} from '../../game/gameOrchestrator';
-import { plinkoWagerAmount } from '../../game/plinkoBet';
+import { eventEmitter } from '../../game/eventEmitter';
 import { hasActiveRgsSession, resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
 import {
-	freeSpinMultiplierFromSegment,
 	isFreeSpinBonusWheelSegment,
+	multiplyRoundWinByFreeSpinSegment,
 } from './payout';
 import { queuePendingFreeSpinWalletCredit } from './walletSync';
 
@@ -20,7 +14,6 @@ export function isFreeSpinBonusSegment(segmentLabel: string): boolean {
 }
 
 export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
-	const hadOpenWheel = stateGame.freeSpinRouletteOpen;
 	stateGame.freeSpinRouletteOpen = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
 	const segmentLabel =
@@ -29,49 +22,71 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 		FREE_SPIN_SEGMENTS[stateGame.serverFreeSpinSegment ?? 0] ??
 		'';
 
-	const roundWager =
-		stateBet.wageredBetAmount > 0 ? stateBet.wageredBetAmount : plinkoWagerAmount();
-	let win = stateGame.serverFreeSpinWinAmount ?? 0;
+	let landedOnBonus = false;
+	let queuedRoulette: ReturnType<typeof meterController.completeRoulette> = null;
 
-	if (win <= 0 && segmentLabel && !isFreeSpinBonusWheelSegment(segmentLabel)) {
-		const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
-		if (multiplier > 0) win = roundWager * multiplier;
-	}
+	try {
+		const { multiplier, roundWin, totalWin } = multiplyRoundWinByFreeSpinSegment(segmentLabel);
 
-	if (win > 0) {
-		addSettledWinAmount(win);
-		showResultOverlay(win, win / Math.max(roundWager, 0.000_001));
-	}
+		if (multiplier > 0 && roundWin > 0) {
+			stateGame.pendingDropWinAmount = totalWin;
+			if (stateGame.bonusRoundActive) {
+				stateGame.bonusSessionWinAmount = totalWin;
+			}
+			stateGame.winAmount = stateGame.bonusRoundActive
+				? stateGame.bonusSessionWinAmount
+				: totalWin;
+			stateGame.freeSpinWinMultiplier = multiplier;
+			stateGame.winPopupAmount = totalWin;
+			stateGame.winPopupMultiplier = multiplier;
+			const wasWinPopupVisible = stateGame.showWinPopup;
+			stateGame.showWinPopup = true;
+			stateGame.deferWinPopupForFreeSpin = false;
+			if (!wasWinPopupVisible) {
+				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+			}
+		}
 
-	// Only when the served book omitted `freeSpinTrigger` (old math). Books from republished
-	// math include the event and payout; `/bet/action` is a best-effort fallback.
-	const needsRgsFreeSpinCredit =
-		hasActiveRgsSession() &&
-		stateGame.freeSpinAwardedThisRound &&
-		!stateGame.freeSpinSettledFromBook;
-	if (win > 0 && needsRgsFreeSpinCredit) {
-		const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
-		queuePendingFreeSpinWalletCredit({
-			segment: segmentLabel,
-			multiplier,
-			winAmount: win,
-		});
-	}
+		// Only when the served book omitted `freeSpinTrigger` (old math). Books from republished
+		// math include the event and payout; `/bet/action` is a best-effort fallback.
+		const needsRgsFreeSpinCredit =
+			hasActiveRgsSession() &&
+			stateGame.freeSpinAwardedThisRound &&
+			!stateGame.freeSpinSettledFromBook;
+		const featureCredit = totalWin - roundWin;
+		if (featureCredit > 0 && needsRgsFreeSpinCredit) {
+			queuePendingFreeSpinWalletCredit({
+				segment: segmentLabel,
+				multiplier,
+				winAmount: featureCredit,
+			});
+		}
 
-	stateGame.serverFreeSpinWinAmount = undefined;
-	stateGame.freeSpinSettledFromBook = false;
+		if (stateGame.deferWinPopupForFreeSpin && stateGame.winPopupAmount > 0) {
+			stateGame.showWinPopup = true;
+			stateGame.deferWinPopupForFreeSpin = false;
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+		}
 
-	await resetSpinMeterSession();
-	const landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
-	let queued = meterController.completeRoulette();
-	if (landedOnBonus) queued = 'bonus';
-	if (stateGame.showFreeSpinRoulette || hadOpenWheel) {
+		landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
+	} finally {
+		stateGame.serverFreeSpinWinAmount = undefined;
+		stateGame.freeSpinSettledFromBook = false;
+		queuedRoulette = meterController.completeRoulette();
+		if (landedOnBonus) queuedRoulette = 'bonus';
 		stateGame.showFreeSpinRoulette = false;
 		stateGame.serverFreeSpinSegment = undefined;
 		stateGame.serverFreeSpinSegmentLabel = undefined;
+		// Always unblock book playback / playBet even if payout logic throws.
 		notifyRouletteClosed();
 	}
-	if (!stateGame.authoritativeMeterFlow && queued) triggerRoulette(queued);
+
+	if (!stateGame.authoritativeMeterFlow && queuedRoulette) {
+		triggerRoulette(queuedRoulette);
+	}
+
+	// Persist meter reset without blocking roulette close or round unlock.
+	void resetSpinMeterSession();
 }
 
 /** Map math/RGS free-spin wheel segment label to wheel index (no client RNG). */

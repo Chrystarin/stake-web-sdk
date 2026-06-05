@@ -95,6 +95,10 @@ export const stateGame = $state({
 	showWinPopup: false,
 	winPopupAmount: 0,
 	winPopupMultiplier: 0,
+	/** Landed free-spin segment multiplier applied to the round win (e.g. 5 for `5X`). */
+	freeSpinWinMultiplier: 0,
+	/** Hold win popup until session-meter free spin finishes (book omits `freeSpinTrigger`). */
+	deferWinPopupForFreeSpin: false,
 	autoMode: false,
 	autoPlayStarted: false,
 	autoPlayStopping: false,

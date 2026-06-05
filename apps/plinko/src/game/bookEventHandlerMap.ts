@@ -17,9 +17,11 @@ import {
 } from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
 import {
+	bookHasFreeSpinTrigger,
 	ensureFreeSpinWhenSessionMeterFull,
 	flushPendingFreeSpinWalletBeforeEndRound,
 	runFreeSpinTriggerFlow,
+	sessionSpinMeterReachedMax,
 } from '../features/freeSpin';
 import { releaseRoundInteractionLocks, triggerRoulette, waitForRouletteClose } from './meterFlow';
 import { checkIsPlinkoDeferredSettlement } from './plinkoRoundSettlement';
@@ -169,9 +171,19 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			await waitForDropBatchCompletion();
 			stateGame.winPopupAmount =
 				stateGame.pendingDropWinAmount || payoutMultiplier * stateBet.wageredBetAmount;
-			stateGame.winPopupMultiplier = payoutMultiplier;
-			stateGame.showWinPopup = true;
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+			stateGame.winPopupMultiplier =
+				stateGame.freeSpinWinMultiplier > 0
+					? stateGame.freeSpinWinMultiplier
+					: payoutMultiplier;
+			const deferForSessionFreeSpin =
+				stateGame.authoritativeMeterFlow &&
+				!bookHasFreeSpinTrigger(stateGame.activeBookEvents) &&
+				sessionSpinMeterReachedMax(stateGame.activeBookEvents);
+			stateGame.deferWinPopupForFreeSpin = deferForSessionFreeSpin;
+			if (!deferForSessionFreeSpin && !stateGame.showWinPopup) {
+				stateGame.showWinPopup = true;
+				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+			}
 		}
 	},
 };
@@ -185,6 +197,8 @@ export const playBet = async (bet: Bet) => {
 	stateBet.wageredBetAmount = plinkoWagerAmount();
 	stateGame.pendingDropWinAmount = 0;
 	stateGame.winAmount = 0;
+	stateGame.freeSpinWinMultiplier = 0;
+	stateGame.deferWinPopupForFreeSpin = false;
 	stateGame.dropRoundActive = true;
 	stateGame.bonusPegMeterCreditedBallIds = new Set();
 	stateGame.spinSlotMeterCreditedBallIds = new Set();
