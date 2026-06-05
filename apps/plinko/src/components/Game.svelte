@@ -134,6 +134,15 @@
 		`${winPopupCurrencySign}${stateGame.winPopupAmount.toFixed(2)}`,
 	);
 
+	$effect(() => {
+		if (!stateGame.showWinPopup) return;
+		stateGame.winPopupAmount;
+		const timer = setTimeout(() => {
+			stateGame.showWinPopup = false;
+		}, 3000);
+		return () => clearTimeout(timer);
+	});
+
 	onMount(() => {
 
 		installPlinkoDevDebug();
@@ -216,6 +225,7 @@
 			return;
 		}
 
+		stateGame.showWinPopup = false;
 		stateGame.isSubmitting = true;
 
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'bet' });
@@ -537,8 +547,6 @@
 				<p>{context.i18nDerived.t('Win')}</p>
 
 				<strong>{winPopupAmountDisplay}</strong>
-
-				<button type="button" onclick={() => (stateGame.showWinPopup = false)}>OK</button>
 
 			</div>
 
@@ -1274,11 +1282,11 @@
 
 	.win-card p {
 
-		color: #fff;
+		color: #54f917;
 
-		font-size: 1.75rem;
+		font-size: 1.375rem;
 
-		font-weight: 700;
+		font-weight: 400;
 
 		margin: 0;
 
@@ -1288,31 +1296,13 @@
 
 		display: block;
 
-		font-size: 2rem;
+		font-size: 1.625rem;
 
-		margin: 12px 0 20px;
+		margin: 10px 0 0;
+
+		font-weight: 400;
 
 		color: #54f917;
-
-	}
-
-	.win-card button {
-
-		border: none;
-
-		background: linear-gradient(180deg, #2a8fd4, #155a8a);
-
-		color: #fff;
-
-		padding: 10px 28px;
-
-		border-radius: 999px;
-
-		cursor: pointer;
-
-		font-weight: 700;
-
-		font-size: 1.125rem;
 
 	}
 
