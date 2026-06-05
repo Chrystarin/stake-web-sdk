@@ -19,6 +19,9 @@ let bonusMeterDrainTimer: ReturnType<typeof setTimeout> | null = null;
 let bonusLevelUpOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 let bonusLevelUpOverlayHideTimer: ReturnType<typeof setTimeout> | null = null;
 let autoBetTimer: ReturnType<typeof setTimeout> | null = null;
+const AUTO_BET_INTER_ROUND_DELAY_MS = 200;
+const AUTO_BET_ROUND_START_TIMEOUT_MS = 5000;
+const AUTO_BET_ROUND_IDLE_TIMEOUT_MS = 120_000;
 
 type DropRequest = { type: 'bonusBall'; stake: number };
 
@@ -444,13 +447,64 @@ export function onBallLanded(
 	}
 }
 
+function isAutoBetRoundBusy(): boolean {
+	return (
+		stateGame.dropRoundActive ||
+		isGameOngoing() ||
+		stateGame.freeSpinRouletteOpen ||
+		stateGame.bonusRouletteOpen ||
+		stateGame.rouletteFlowInProgress
+	);
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function autoBetDelay(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		autoBetTimer = setTimeout(() => {
+			autoBetTimer = null;
+			resolve();
+		}, ms);
+	});
+}
+
+/** Wait until the current autobet round fully settles (balls, wheels, wallet). */
+async function waitForAutoBetRoundIdle(): Promise<boolean> {
+	const started = Date.now();
+	let sawActiveRound = false;
+
+	while (Date.now() - started < AUTO_BET_ROUND_IDLE_TIMEOUT_MS) {
+		if (isAutoBetRoundBusy()) sawActiveRound = true;
+		if (sawActiveRound && !isAutoBetRoundBusy()) {
+			await autoBetDelay(AUTO_BET_INTER_ROUND_DELAY_MS);
+			if (!isAutoBetRoundBusy()) return true;
+		}
+		if (!sawActiveRound && Date.now() - started >= AUTO_BET_ROUND_START_TIMEOUT_MS) {
+			return false;
+		}
+		await sleep(60);
+	}
+	return false;
+}
+
+async function placeAutoBetRound(onBet: () => void): Promise<boolean> {
+	if (isAutoBetRoundBusy()) return false;
+	onBet();
+	return waitForAutoBetRoundIdle();
+}
+
 export function startAutoBet(onBet: () => void) {
 	if (isGameOngoing()) return;
 	stateGame.autoPlayStarted = true;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
+	const selected = stateGame.autoRoundsLeft <= 0 ? 99999 : stateGame.autoRoundsLeft;
+	stateGame.autoRoundsDisplay = selected;
 	showToast('Autobet Started');
-	playAutoRounds(stateGame.autoRoundsLeft === 0 ? 99999 : stateGame.autoRoundsLeft, onBet);
+	const firstRoundLeft = selected >= 1000 ? selected : selected - 1;
+	void playAutoRounds(firstRoundLeft, onBet);
 }
 
 export function stopAutoBet() {
@@ -458,30 +512,54 @@ export function stopAutoBet() {
 	stateGame.autoMode = false;
 }
 
-function playAutoRounds(roundsLeft: number, onBet: () => void) {
-	if (autoBetTimer) clearTimeout(autoBetTimer);
+async function playAutoRounds(roundsLeft: number, onBet: () => void): Promise<void> {
+	if (autoBetTimer) {
+		clearTimeout(autoBetTimer);
+		autoBetTimer = null;
+	}
 	if (!stateGame.autoPlayStarted || stateGame.autoPlayStopping) {
 		finishAutoBet();
 		return;
 	}
-	stateGame.autoRoundsDisplay = roundsLeft;
-	onBet();
-	const next = roundsLeft - 1;
-	autoBetTimer = setTimeout(() => {
-		if (!stateGame.autoPlayStarted) return;
-		if (stateGame.autoPlayPausedByFreeSpin || stateGame.freeSpinRouletteOpen) {
-			playAutoRounds(roundsLeft, onBet);
-			return;
-		}
-		if (next <= 0 || stateGame.autoPlayStopping) {
-			finishAutoBet();
-			return;
-		}
-		playAutoRounds(next, onBet);
-	}, 400);
+	if (stateGame.autoPlayPausedByFreeSpin || stateGame.freeSpinRouletteOpen) {
+		await autoBetDelay(AUTO_BET_INTER_ROUND_DELAY_MS);
+		void playAutoRounds(roundsLeft, onBet);
+		return;
+	}
+
+	const placed = await placeAutoBetRound(onBet);
+	if (!stateGame.autoPlayStarted || stateGame.autoPlayStopping) {
+		finishAutoBet();
+		return;
+	}
+	if (!placed) {
+		finishAutoBet();
+		return;
+	}
+
+	if (roundsLeft < 1000) {
+		stateGame.autoRoundsLeft = roundsLeft;
+		stateGame.autoRoundsDisplay = roundsLeft;
+	}
+
+	if (roundsLeft <= 0 || stateGame.autoPlayStopping) {
+		finishAutoBet();
+		return;
+	}
+
+	await autoBetDelay(AUTO_BET_INTER_ROUND_DELAY_MS);
+	if (!stateGame.autoPlayStarted || stateGame.autoPlayStopping) {
+		finishAutoBet();
+		return;
+	}
+	void playAutoRounds(roundsLeft - 1, onBet);
 }
 
 function finishAutoBet() {
+	if (autoBetTimer) {
+		clearTimeout(autoBetTimer);
+		autoBetTimer = null;
+	}
 	stateGame.autoPlayStarted = false;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;

@@ -87,7 +87,9 @@
 	);
 
 	const mobileAutoCountDisplay = $derived(
-		props.autoPlayStarted ? '■' : String(props.autoRoundsLeft || stateGame.autoRoundsLeft),
+		props.autoMode || props.autoPlayStarted
+			? String(props.autoRoundsLeft ?? stateGame.autoRoundsDisplay)
+			: String(stateGame.autoRoundsLeft),
 	);
 
 	function formatMoney(value: number) {
@@ -182,6 +184,7 @@
 	function selectAutoBetCount(count: number) {
 		if (controlsLocked && !props.autoPlayStarted) return;
 		stateGame.autoRoundsLeft = count;
+		stateGame.autoRoundsDisplay = count;
 		stateGame.autoMode = true;
 		autoPanelOpen = false;
 		if (!props.autoPlayStarted && props.betAmount > 0 && !isGameOngoing()) {
