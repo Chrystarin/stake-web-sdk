@@ -4,8 +4,11 @@ import { hasActiveRgsSession, resetSpinMeterSession } from '../../game/plinkoSes
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
 import {
+	hasMeaningfulFreeSpinWalletCredit,
 	isFreeSpinBonusWheelSegment,
 	multiplyRoundWinByFreeSpinSegment,
+	resolveFreeSpinFeatureCredit,
+	roundIncludesFreeSpinInRgsPayout,
 } from './payout';
 import { queuePendingFreeSpinWalletCredit } from './walletSync';
 
@@ -47,14 +50,20 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 			}
 		}
 
-		// Only when the served book omitted `freeSpinTrigger` (old math). Books from republished
-		// math include the event and payout; `/bet/action` is a best-effort fallback.
+		// Credit via `/bet/action` when end-round payout does not already include the feature.
+		const featureCredit = resolveFreeSpinFeatureCredit(segmentLabel, roundWin);
+		const bookAlreadySettlesFreeSpin = roundIncludesFreeSpinInRgsPayout(
+			stateGame.activeRoundBet,
+			roundWin,
+		);
+		// Production Stake RGS does not expose `/bet/action` for this game — wallet credits on end-round.
 		const needsRgsFreeSpinCredit =
 			hasActiveRgsSession() &&
 			stateGame.freeSpinAwardedThisRound &&
-			!stateGame.freeSpinSettledFromBook;
-		const featureCredit = totalWin - roundWin;
-		if (featureCredit > 0 && needsRgsFreeSpinCredit) {
+			!isFreeSpinBonusWheelSegment(segmentLabel) &&
+			!bookAlreadySettlesFreeSpin &&
+			hasMeaningfulFreeSpinWalletCredit(featureCredit);
+		if (needsRgsFreeSpinCredit) {
 			queuePendingFreeSpinWalletCredit({
 				segment: segmentLabel,
 				multiplier,
@@ -71,7 +80,6 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 		landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
 	} finally {
 		stateGame.serverFreeSpinWinAmount = undefined;
-		stateGame.freeSpinSettledFromBook = false;
 		queuedRoulette = meterController.completeRoulette();
 		if (landedOnBonus) queuedRoulette = 'bonus';
 		stateGame.showFreeSpinRoulette = false;

@@ -1,10 +1,11 @@
+import { hasMeaningfulFreeSpinWalletCredit, roundIncludesFreeSpinInRgsPayout } from './payout';
 import { settleFreeSpinWalletCredit, type FreeSpinWalletSettlement } from './wallet';
 import { stateGame } from '../../game/stateGame.svelte';
 
 export type PendingFreeSpinWalletCredit = FreeSpinWalletSettlement;
 
 export function queuePendingFreeSpinWalletCredit(credit: PendingFreeSpinWalletCredit): void {
-	if (credit.winAmount <= 0) return;
+	if (!hasMeaningfulFreeSpinWalletCredit(credit.winAmount)) return;
 	stateGame.pendingFreeSpinWalletCredit = credit;
 }
 
@@ -14,7 +15,11 @@ export function queuePendingFreeSpinWalletCredit(credit: PendingFreeSpinWalletCr
  */
 export async function flushPendingFreeSpinWalletBeforeEndRound(): Promise<void> {
 	const pending = stateGame.pendingFreeSpinWalletCredit;
-	if (!pending || pending.winAmount <= 0) return;
+	if (!pending || !hasMeaningfulFreeSpinWalletCredit(pending.winAmount)) return;
+	if (roundIncludesFreeSpinInRgsPayout(stateGame.activeRoundBet)) {
+		stateGame.pendingFreeSpinWalletCredit = undefined;
+		return;
+	}
 	await settleFreeSpinWalletCredit(pending);
 	stateGame.pendingFreeSpinWalletCredit = undefined;
 }

@@ -11,6 +11,8 @@
 	import { coefficientsForRowCount } from '../game-logic/constants';
 	import config from '../game/config';
 
+	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
+	import { canAffordPlinkoWager, plinkoWagerAmount } from '../game/plinkoBet';
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
@@ -34,6 +36,8 @@
 		onPageHidden,
 
 		setDropRequestHandler,
+
+		showToast,
 
 		startAutoBet,
 
@@ -68,8 +72,10 @@
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
 
 	import { EnableHotkey } from 'components-shared';
+	import { GameVersion, Modals } from 'components-ui-html';
 
 	import EnableGameActor from './EnableGameActor.svelte';
+	import ResumeBet from './ResumeBet.svelte';
 
 	import EnableSound from './EnableSound.svelte';
 
@@ -191,8 +197,24 @@
 
 
 	async function placeBet() {
-
 		if (stateGame.isSubmitting || stateGame.dropRoundActive) return;
+
+		if (hasActiveRoundToResume()) {
+			showToast('Finishing your previous round…', 'info');
+			context.eventEmitter.broadcast({ type: 'resumeBet' });
+			return;
+		}
+
+		if (!canAffordPlinkoWager()) {
+			const wager = plinkoWagerAmount();
+			showToast(
+				wager <= 0
+					? 'Set a valid bet amount'
+					: `Insufficient balance (need ${wager.toFixed(2)})`,
+				'error',
+			);
+			return;
+		}
 
 		stateGame.isSubmitting = true;
 
@@ -201,25 +223,15 @@
 		const hasRgsSession = Boolean(stateUrlDerived.rgsUrl() && stateUrlDerived.sessionID());
 
 		if (import.meta.env.DEV && !hasRgsSession) {
-
 			try {
-
 				await playDevLocalBook();
-
 			} finally {
-
 				releaseRoundInteractionLocks();
-
 			}
-
 			return;
-
 		}
 
 		context.eventEmitter.broadcast({ type: 'bet' });
-
-		stateGame.isSubmitting = false;
-
 	}
 
 
@@ -294,9 +306,17 @@
 
 <EnableGameActor />
 
+<ResumeBet />
+
 <EnableSound />
 
 <EnableHotkey />
+
+<Modals>
+	{#snippet version()}
+		<GameVersion version="0.0.0" />
+	{/snippet}
+</Modals>
 
 <MsgBox />
 

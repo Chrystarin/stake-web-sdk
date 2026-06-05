@@ -11,7 +11,7 @@ const handleRequestBet = async ({
 	getMeta,
 	getWagerAmount,
 }: {
-	onError: () => void;
+	onError: (error?: unknown) => void;
 	getMeta?: () => Record<string, unknown> | undefined;
 	getWagerAmount?: () => number;
 }) => {
@@ -41,7 +41,7 @@ const handleRequestBet = async ({
 			};
 		}
 	} catch (error) {
-		onError();
+		onError(error);
 		stateBet.autoSpinsCounter = 0;
 		stateModal.modal = { name: 'error', error };
 		console.error(error);
@@ -85,7 +85,7 @@ type Options<TBet extends BaseBet> = {
 	onResumeGameActive: (betToResume: TBet) => TBet;
 	onResumeGameInactive: (betToResume: TBet) => void;
 	onNewGameStart: () => Promise<void> | undefined;
-	onNewGameError: () => any;
+	onNewGameError: (error?: unknown) => any;
 	onPlayGame: (bet: TBet) => Promise<void>;
 	checkIsBonusGame: (bet: TBet) => boolean;
 	/** Override default bet-type routing (e.g. defer end-round until after feature animations). */

@@ -9,8 +9,12 @@ import type { Bet } from '../../game/typesBookEvent';
 import {
 	applyFreeSpinActionBalance,
 	freeSpinMultiplierFromSegment,
+	hasMeaningfulFreeSpinWalletCredit,
 	isFreeSpinBonusWheelSegment,
+	multiplyRoundWinByFreeSpinSegment,
+	roundIncludesFreeSpinInRgsPayout,
 } from './payout';
+import { stateGame } from '../../game/stateGame.svelte';
 
 const RGS_FREE_SPIN_SETTLE_ACTIONS = [
 	'freeSpinTrigger',
@@ -44,7 +48,8 @@ export function fallbackFreeSpinSegmentFromRound(bet?: Bet): FreeSpinWalletSettl
 			: (['5X'] as const);
 	const segment = labels[Math.abs(roundKey) % labels.length] ?? '5X';
 	const multiplier = freeSpinMultiplierFromSegment(segment);
-	return { segment, multiplier, winAmount: 0 };
+	const { totalWin } = multiplyRoundWinByFreeSpinSegment(segment, stateGame.pendingDropWinAmount);
+	return { segment, multiplier, winAmount: totalWin };
 }
 
 /**
@@ -54,7 +59,10 @@ export async function settleFreeSpinWalletCredit(
 	settlement: FreeSpinWalletSettlement,
 ): Promise<boolean> {
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay() || !hasActiveRgsSession()) return false;
-	if (settlement.winAmount <= 0) return false;
+	if (!hasMeaningfulFreeSpinWalletCredit(settlement.winAmount)) return false;
+	if (roundIncludesFreeSpinInRgsPayout(stateGame.activeRoundBet)) {
+		return true;
+	}
 
 	const amountApi = Math.round(settlement.winAmount * API_AMOUNT_MULTIPLIER);
 	const multiplier =

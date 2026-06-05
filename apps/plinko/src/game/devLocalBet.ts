@@ -9,18 +9,9 @@ import config from './config';
 import { stateGame } from './stateGame.svelte';
 import { injectFreeSpinTriggerIfMeterFull } from '../features/freeSpin';
 import { getDevRgsSpinMeter, offsetBetRelativeSpinMeterEvents } from './plinkoSessionMeters';
+import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
-
-const resizeOutcomes = (event: PlinkoDropEvent, targetCount: number): PlinkoDropEvent['outcomes'] => {
-	const source = event.outcomes ?? [];
-	const n = Math.max(1, Math.floor(targetCount || 1));
-	if (!source.length) return [];
-	if (source.length === n) return source;
-	if (source.length > n) return source.slice(0, n);
-	const expanded = Array.from({ length: n }, (_, i) => source[i % source.length]);
-	return expanded;
-};
 
 const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet & { events: Bet['state'] } => {
 	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
@@ -37,7 +28,7 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 			event.coefficients?.length ? event.coefficients : fallbackCoefficients,
 		);
 		const slotCount = coefficients.length;
-		const outcomes = resizeOutcomes(event, ballsPerDrop).map((outcome) => {
+		const outcomes = resizePlinkoDropOutcomes(event.outcomes ?? [], ballsPerDrop).map((outcome) => {
 			const hitSpinSlot =
 				outcome.hitSpinSlot ??
 				(slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount));

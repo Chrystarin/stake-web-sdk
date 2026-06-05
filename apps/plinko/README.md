@@ -178,11 +178,11 @@ When `plinkoDrop.outcomes` include `hitBonusPeg` / `hitSpinSlot`, **`authoritati
 
 ## Free spin & wallet
 
-The **wallet only changes through RGS** (`/wallet/play`, `/bet/action`, `/wallet/end-round`). The client cannot safely credit wins in the browser.
+The **wallet only changes through RGS** (`/wallet/play`, `/wallet/end-round`). The client cannot safely credit wins in the browser.
 
-- Session **spin meter carry-over** is sent on each bet via `buildBetMetaPlayConditions()` (`spin_meter_start`, `bonus_meter_start`, `row_count`, …). Math selects books where `plinkoDrop.spinMeterStart` matches and includes `freeSpinTrigger` + payout when the meter fills.
-- If the served book omits `freeSpinTrigger` but the session meter is full, `ensureFreeSpinWhenSessionMeterFull()` may call RGS `/bet/action` or use a deterministic fallback segment (`features/freeSpin/`).
-- Pending free-spin credits are flushed in `playBet` **before** end-round (`flushPendingFreeSpinWalletBeforeEndRound`).
+- **Free-spin payout** is included in the math book `payoutMultiplier` and credited on **`/wallet/end-round`** (deferred until after the wheel animation). Stake production RGS returns **404** for `/bet/action` on this game — do not rely on it.
+- Session **spin meter carry-over** is sent on each bet via `buildBetMetaPlayConditions()` (`spin_meter_start`, `balls_per_drop`, …). Math must publish strata with matching `spin_meter_start` and `freeSpinTrigger` so the LUT book payout includes the feature.
+- If the served book omits `freeSpinTrigger`, the wheel may still run (presentation fallback) but **no extra wallet credit** occurs unless you republish math with the right strata.
 
 If the wheel shows a prize but balance does not move:
 

@@ -192,6 +192,8 @@ export async function persistSpinMeterValue(spinMeter: number): Promise<void> {
 		return;
 	}
 
+	// Session meter carry-over is sent on the next `/wallet/play` via `buildBetMetaPlayConditions`.
+	// `/bet/action` is optional and returns 404 on Stake production RGS for this game.
 	try {
 		await requestBetAction({
 			rgsUrl: stateUrlDerived.rgsUrl(),
@@ -202,8 +204,8 @@ export async function persistSpinMeterValue(spinMeter: number): Promise<void> {
 				spinMeter: value,
 			},
 		});
-	} catch (error) {
-		console.error('[plinko] failed to persist spin meter to RGS', error);
+	} catch {
+		// Ignore — meta on the next play is authoritative.
 	}
 }
 

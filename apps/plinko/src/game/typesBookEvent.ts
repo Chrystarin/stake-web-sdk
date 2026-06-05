@@ -59,7 +59,7 @@ type BookEventFreeSpinTrigger = {
 	multiplier: number;
 	/** Wheel segment label from math (e.g. `5X`, `BONUS`). */
 	segment?: string;
-	/** Authoritative free-spin payout in stake currency units (wager × segment multiplier). */
+	/** Authoritative scaled drop win after the segment (round drop win × segment multiplier). */
 	amount?: number;
 };
 

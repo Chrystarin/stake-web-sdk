@@ -10,8 +10,11 @@ export {
 } from './freeSpinFeature';
 export {
 	applyFreeSpinActionBalance,
+	bookRoundPayoutIncludesFreeSpin,
 	freeSpinMultiplierFromSegment,
+	hasMeaningfulFreeSpinWalletCredit,
 	isFreeSpinBonusWheelSegment,
+	resolveFreeSpinFeatureCredit,
 	resolveFreeSpinPayoutAmount,
 } from './payout';
 export {

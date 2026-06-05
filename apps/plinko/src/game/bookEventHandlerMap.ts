@@ -3,7 +3,8 @@ import { createPlayBookUtils, recordBookEvent, type BookEventHandlerMap } from '
 
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { eventEmitter } from './eventEmitter';
-import { plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
+import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
+import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import { startAuthoritativeBonusRound, waitForDropBatchCompletion } from './gameOrchestrator';
 import {
 	applyAuthoritativeMeterConfig,
@@ -30,12 +31,13 @@ import type { Bet, BookEvent, BookEventOfType, BookEventContext } from './typesB
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	plinkoDrop: async (bookEvent: BookEventOfType<'plinkoDrop'>) => {
-		const hasAuthoritativeOutcomes = bookEvent.outcomes.some(
+		const outcomes = Array.isArray(bookEvent.outcomes) ? bookEvent.outcomes : [];
+		const hasAuthoritativeOutcomes = outcomes.some(
 			(outcome) => outcome.hitBonusPeg != null || outcome.hitSpinSlot != null,
 		);
+		const ballsPerDrop = plinkoBallsPerDrop();
 		stateGame.authoritativeMeterFlow = hasAuthoritativeOutcomes;
 		stateGame.rowCount = bookEvent.rowCount;
-		stateGame.ballPerDrop = bookEvent.ballsPerDrop;
 		if (bookEvent.coefficients?.length) {
 			stateGame.coefficients = alignCoefficientSet(bookEvent.coefficients);
 		}
@@ -63,7 +65,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 				stateGame.bonusMeterMax = bookEvent.bonusMeterMax;
 			}
 			if (!stateGame.serverMeterLimitsActive) {
-				meterController.setBallPerDrop(stateGame.ballPerDrop);
+				meterController.setBallPerDrop(ballsPerDrop);
 			}
 		}
 		const bookStake = bookEvent.stakePerBall > 0 ? bookEvent.stakePerBall : 1;
@@ -72,7 +74,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.bonusPegMeterCreditedBallIds = new Set();
 		stateGame.spinSlotMeterCreditedBallIds = new Set();
 		const coeffs = stateGame.coefficients;
-		stateGame.pendingOutcomes = bookEvent.outcomes.map((outcome) => ({
+		const scaledOutcomes = resizePlinkoDropOutcomes(outcomes, ballsPerDrop);
+		stateGame.pendingOutcomes = scaledOutcomes.map((outcome) => ({
 			...outcome,
 			amount: outcome.amount * stakeScale,
 			multiplier: resolveOutcomeMultiplier(outcome, coeffs),
@@ -130,7 +133,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 				applyAuthoritativeSpinMeterMax(bookEvent.max);
 			} else {
 				stateGame.spinMeterBaseMax = bookEvent.max;
-				meterController.setBallPerDrop(stateGame.ballPerDrop);
+				meterController.setBallPerDrop(plinkoBallsPerDrop());
 			}
 		}
 	},
@@ -190,9 +193,28 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 
 export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEventHandlerMap });
 
+function bookEventsUseAuthoritativeMeterFlow(events: BookEvent[]): boolean {
+	return events.some(
+		(event) =>
+			event.type === 'spinMeter' ||
+			event.type === 'bonusMeter' ||
+			event.type === 'bonusRoulette' ||
+			event.type === 'bonusRound' ||
+			event.type === 'freeSpinTrigger' ||
+			(event.type === 'plinkoDrop' &&
+				Array.isArray(event.outcomes) &&
+				event.outcomes.some(
+					(outcome) => outcome.hitBonusPeg != null || outcome.hitSpinSlot != null,
+				)),
+	);
+}
+
 export const playBet = async (bet: Bet) => {
+	const events = Array.isArray(bet.state) ? bet.state : [];
+	const normalizedBet: Bet = { ...bet, state: events };
+
 	snapshotBalanceAfterPlay();
-	stateGame.activeRoundBet = bet;
+	stateGame.activeRoundBet = normalizedBet;
 	stateBet.winBookEventAmount = 0;
 	stateBet.wageredBetAmount = plinkoWagerAmount();
 	stateGame.pendingDropWinAmount = 0;
@@ -208,26 +230,20 @@ export const playBet = async (bet: Bet) => {
 	stateGame.pendingFreeSpinWalletCredit = undefined;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
-	stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(bet);
-	stateGame.activeBookEvents = bet.state;
-	stateGame.authoritativeMeterFlow = bet.state.some(
-		(event) =>
-			event.type === 'spinMeter' ||
-			event.type === 'bonusMeter' ||
-			event.type === 'bonusRoulette' ||
-			event.type === 'bonusRound' ||
-			event.type === 'freeSpinTrigger' ||
-			(event.type === 'plinkoDrop' &&
-				event.outcomes.some(
-					(outcome) => outcome.hitBonusPeg != null || outcome.hitSpinSlot != null,
-				)),
-	);
+
 	try {
-		await playBookEvents(bet.state);
-		await ensureFreeSpinWhenSessionMeterFull(bet.state, bet);
+		stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(normalizedBet);
+		stateGame.activeBookEvents = events;
+		stateGame.authoritativeMeterFlow = bookEventsUseAuthoritativeMeterFlow(events);
+
+		if (events.length > 0) {
+			await playBookEvents(events);
+			await ensureFreeSpinWhenSessionMeterFull(events, normalizedBet);
+		}
 	} finally {
-		await syncSpinMeterAfterBet(bet.state);
+		await syncSpinMeterAfterBet(events);
 		await flushPendingFreeSpinWalletBeforeEndRound();
+		stateGame.freeSpinSettledFromBook = false;
 		stateGame.authoritativeMeterFlow = false;
 		if (!stateGame.bonusRoundActive) {
 			stateGame.authoritativeBonusOutcomes = [];

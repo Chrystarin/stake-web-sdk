@@ -5,16 +5,21 @@ import { stateBet, stateUrlDerived } from 'state-shared';
 import { stateGame } from './stateGame.svelte';
 import { requestWalletBalance } from 'rgs-requests';
 
+import { bookHasFreeSpinTrigger } from '../features/freeSpin/bookAugmentation';
 import { applyFreeSpinActionBalance } from '../features/freeSpin/payout';
-import { bookWillReachSpinMeterMax } from './plinkoRoundSettlement';
+import { bookHasFeatureSettlement, bookWillReachSpinMeterMax } from './plinkoRoundSettlement';
 import { hasActiveRgsSession } from './plinkoSessionMeters';
 import type { Bet } from './typesBookEvent';
 
 /** Route all paying / feature rounds through deferred end-round (after animations). */
 export function getPlinkoBetType(bet: Bet): 'noWin' | 'singleRoundWin' | 'bonusWin' {
+	const events = bet.state ?? [];
 	if (bet.active === true) return 'bonusWin';
 	if ((bet.payoutMultiplier ?? 0) > 0) return 'bonusWin';
-	if (bookWillReachSpinMeterMax(bet.state ?? [])) return 'bonusWin';
+	if (bookHasFeatureSettlement(events)) return 'bonusWin';
+	if (bookHasFreeSpinTrigger(events)) return 'bonusWin';
+	if (stateGame.freeSpinAwardedThisRound) return 'bonusWin';
+	if (bookWillReachSpinMeterMax(events)) return 'bonusWin';
 	return 'noWin';
 }
 

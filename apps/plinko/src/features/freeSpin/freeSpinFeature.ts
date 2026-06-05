@@ -1,18 +1,12 @@
-import { PUBLIC_CHROMATIC } from 'envs';
-import { stateUrlDerived } from 'state-shared';
-import { requestBetAction } from 'rgs-requests';
-
 import { eventEmitter } from '../../game/eventEmitter';
 import { triggerRoulette, waitForRouletteClose } from '../../game/meterFlow';
-import { deriveSpinMeterFromBookEvents, hasActiveRgsSession } from '../../game/plinkoSessionMeters';
+import { deriveSpinMeterFromBookEvents } from '../../game/plinkoSessionMeters';
 import { stateGame } from '../../game/stateGame.svelte';
 import type { BookEvent, BookEventOfType, Bet } from '../../game/typesBookEvent';
 import { bookHasFreeSpinTrigger } from './bookAugmentation';
-import { applyFreeSpinActionBalance, resolveFreeSpinPayoutAmount } from './payout';
+import { multiplyRoundWinByFreeSpinSegment, resolveFreeSpinPayoutAmount } from './payout';
 import { freeSpinSegmentIndexForSegment } from './rouletteFlow';
 import { fallbackFreeSpinSegmentFromRound } from './wallet';
-
-const RGS_FREE_SPIN_ACTIONS = ['freeSpinTrigger', 'free_spin_trigger', 'freeSpinSettle'] as const;
 
 export { bookHasFreeSpinTrigger };
 
@@ -29,70 +23,6 @@ type FreeSpinTriggerPayload = Pick<
 	BookEventOfType<'freeSpinTrigger'>,
 	'segment' | 'multiplier' | 'amount'
 >;
-
-function parseFreeSpinTriggerFromActionResponse(data: unknown): FreeSpinTriggerPayload | null {
-	const round = (data as { action?: { state?: unknown; meta?: unknown } })?.action;
-	const state = round?.state;
-	if (Array.isArray(state)) {
-		const event = state.find(
-			(item): item is BookEventOfType<'freeSpinTrigger'> =>
-				typeof item === 'object' &&
-				item != null &&
-				(item as BookEvent).type === 'freeSpinTrigger',
-		);
-		if (event) {
-			return {
-				segment: event.segment,
-				multiplier: event.multiplier,
-				amount: event.amount,
-			};
-		}
-	}
-
-	const meta = (round?.meta ?? (data as { meta?: unknown })?.meta) as
-		| Record<string, unknown>
-		| undefined;
-	if (!meta) return null;
-
-	const segment =
-		(typeof meta.segment === 'string' && meta.segment) ||
-		(typeof meta.free_spin_segment === 'string' && meta.free_spin_segment) ||
-		undefined;
-	const multiplier = Number(meta.multiplier ?? meta.free_spin_multiplier);
-	const amount = Number(meta.amount ?? meta.free_spin_amount);
-	if (segment || (Number.isFinite(multiplier) && multiplier > 0)) {
-		return {
-			segment,
-			multiplier: Number.isFinite(multiplier) ? multiplier : 0,
-			amount: Number.isFinite(amount) ? amount : undefined,
-		};
-	}
-	return null;
-}
-
-/** Ask RGS for an authoritative free-spin wheel result when lookup books omit the event. */
-async function requestRgsFreeSpinTrigger(): Promise<FreeSpinTriggerPayload | null> {
-	if (PUBLIC_CHROMATIC || stateUrlDerived.replay() || !hasActiveRgsSession()) return null;
-	for (const action of RGS_FREE_SPIN_ACTIONS) {
-		try {
-			const response = await requestBetAction({
-				rgsUrl: stateUrlDerived.rgsUrl(),
-				sessionID: stateUrlDerived.sessionID(),
-				action,
-				meta: {
-					spin_meter_full: true,
-					spinMeterFull: true,
-				},
-			});
-			applyFreeSpinActionBalance(response);
-			const parsed = parseFreeSpinTriggerFromActionResponse(response);
-			if (parsed) return parsed;
-		} catch {
-			// Try next action name.
-		}
-	}
-	return null;
-}
 
 export async function runFreeSpinTriggerFlow(payload: FreeSpinTriggerPayload): Promise<void> {
 	const segment =
@@ -124,12 +54,14 @@ export async function ensureFreeSpinWhenSessionMeterFull(
 	if (!sessionSpinMeterReachedMax(events)) return;
 
 	const roundBet = bet ?? stateGame.activeRoundBet;
-	const rgsPayload = await requestRgsFreeSpinTrigger();
+	// Stake production RGS does not implement `/bet/action` for this game. Use a deterministic
+	// presentation fallback; wallet payout requires a republished math book with `freeSpinTrigger`.
 	const fallback = fallbackFreeSpinSegmentFromRound(roundBet);
-	const payload: FreeSpinTriggerPayload = rgsPayload ?? {
+	const fallbackScaledWin = multiplyRoundWinByFreeSpinSegment(fallback.segment).totalWin;
+	const payload: FreeSpinTriggerPayload = {
 		segment: fallback.segment,
 		multiplier: fallback.multiplier,
-		amount: fallback.amount,
+		amount: fallbackScaledWin,
 	};
 	await runFreeSpinTriggerFlow(payload);
 }
