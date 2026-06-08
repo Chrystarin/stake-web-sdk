@@ -17,7 +17,9 @@
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
 	import {
+		applyCachedBonusMeterToDisplay,
 		applyCachedSpinMeterToDisplay,
+		hydrateSessionBonusMeterCache,
 		hydrateSessionSpinMeterCache,
 	} from '../game/plinkoSessionMeters';
 
@@ -149,7 +151,9 @@
 
 		applyClientMeterDefaults(config.spinMeterMax, config.bonusMeterMax);
 		hydrateSessionSpinMeterCache();
+		hydrateSessionBonusMeterCache();
 		applyCachedSpinMeterToDisplay();
+		applyCachedBonusMeterToDisplay();
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
 			stateGame.coefficients = coefficients;

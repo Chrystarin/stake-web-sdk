@@ -8,7 +8,13 @@ import { coefficientsForRowCount } from '../game-logic/constants';
 import config from './config';
 import { stateGame } from './stateGame.svelte';
 import { injectFreeSpinTriggerIfMeterFull } from '../features/freeSpin';
-import { getDevRgsSpinMeter, offsetBetRelativeSpinMeterEvents } from './plinkoSessionMeters';
+import {
+	getDevRgsBonusLevel,
+	getDevRgsBonusMeter,
+	getDevRgsSpinMeter,
+	offsetBetRelativeBonusMeterEvents,
+	offsetBetRelativeSpinMeterEvents,
+} from './plinkoSessionMeters';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
@@ -44,14 +50,18 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 			};
 		});
 
-		const sessionMeters = getDevRgsSpinMeter();
+		const sessionSpinMeter = getDevRgsSpinMeter();
+		const sessionBonusMeter = getDevRgsBonusMeter();
+		const sessionBonusLevel = getDevRgsBonusLevel();
 
 		return {
 			...event,
 			ballsPerDrop,
 			stakePerBall,
 			coefficients: alignCoefficientSet(coefficients),
-			spinMeterStart: event.spinMeterStart ?? sessionMeters,
+			spinMeterStart: event.spinMeterStart ?? sessionSpinMeter,
+			bonusMeterStart: event.bonusMeterStart ?? sessionBonusMeter,
+			bonusLevelStart: event.bonusLevelStart ?? sessionBonusLevel,
 			outcomes,
 		};
 	});
@@ -95,6 +105,11 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 	const spinMeterStart = drop?.spinMeterStart ?? getDevRgsSpinMeter();
 	if (spinMeterStart > 0) {
 		patchedEvents = offsetBetRelativeSpinMeterEvents(patchedEvents, spinMeterStart);
+	}
+
+	const bonusMeterStart = drop?.bonusMeterStart ?? getDevRgsBonusMeter();
+	if (bonusMeterStart > 0) {
+		patchedEvents = offsetBetRelativeBonusMeterEvents(patchedEvents, bonusMeterStart);
 	}
 
 	const spinMeterMax = drop?.spinMeterMax ?? config.spinMeterMax;

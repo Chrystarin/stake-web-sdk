@@ -70,8 +70,13 @@ export const stateGame = $state({
 	serverMeterLimitsActive: false,
 	/** Session spin meter at the start of the current book (from RGS `plinkoDrop`). */
 	betSpinMeterStart: 0,
+	/** Session bonus meter / level at the start of the current book (from RGS `plinkoDrop`). */
+	betBonusMeterStart: 0,
+	betBonusLevelStart: 0,
 	/** True when book `spinMeter` values are bet-relative (lookup-table) not session-absolute. */
 	spinMeterBookValuesAreBetRelative: false,
+	/** True when book `bonusMeter` values are bet-relative (lookup-table) not session-absolute. */
+	bonusMeterBookValuesAreBetRelative: false,
 	showBonusRoulette: false,
 	showFreeSpinRoulette: false,
 	freeSpinRouletteOpen: false,

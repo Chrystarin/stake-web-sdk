@@ -9,7 +9,9 @@
 	import { plinkoWagerAmount } from '../game/plinkoBet';
 	import { stateGame } from '../game/stateGame.svelte';
 	import {
+		applyCachedBonusMeterToDisplay,
 		applyCachedSpinMeterToDisplay,
+		hydrateSessionBonusMeterCache,
 		hydrateSessionSpinMeterCache,
 	} from '../game/plinkoSessionMeters';
 
@@ -69,7 +71,9 @@
 
 		stateBet.wageredBetAmount = stateBet.wageredBetAmount || stateBet.betAmount;
 		hydrateSessionSpinMeterCache();
+		hydrateSessionBonusMeterCache();
 		applyCachedSpinMeterToDisplay();
+		applyCachedBonusMeterToDisplay();
 	}
 
 	function seedLocalDevSession(): void {

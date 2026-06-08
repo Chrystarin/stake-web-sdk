@@ -11,9 +11,14 @@ import {
 	applyAuthoritativeSpinMeterMax,
 } from './plinkoMeterConfig';
 import {
+	applyBonusMeterBookEvent,
 	applySpinMeterBookEvent,
+	bonusMeterBookValuesAreBetRelative,
+	resolveRgsBonusLevelStart,
+	resolveRgsBonusMeterStart,
 	resolveRgsSpinMeterStart,
 	spinMeterBookValuesAreBetRelative,
+	syncBonusMeterAfterBet,
 	syncSpinMeterAfterBet,
 } from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
@@ -43,17 +48,25 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		}
 		if (hasAuthoritativeOutcomes) {
 			const spinMeterStart = resolveRgsSpinMeterStart(bookEvent);
+			const bonusMeterStart = resolveRgsBonusMeterStart(bookEvent);
+			const bonusLevelStart = resolveRgsBonusLevelStart(bookEvent);
 			stateGame.betSpinMeterStart = spinMeterStart;
+			stateGame.betBonusMeterStart = bonusMeterStart;
+			stateGame.betBonusLevelStart = bonusLevelStart;
 			stateGame.spinMeterBookValuesAreBetRelative = spinMeterBookValuesAreBetRelative(
 				stateGame.activeBookEvents,
 				spinMeterStart,
+			);
+			stateGame.bonusMeterBookValuesAreBetRelative = bonusMeterBookValuesAreBetRelative(
+				stateGame.activeBookEvents,
+				bonusMeterStart,
 			);
 			applyAuthoritativeMeterConfig({
 				spinMeterMax: bookEvent.spinMeterMax,
 				bonusMeterMax: bookEvent.bonusMeterMax,
 				spinMeterStart,
-				bonusMeterStart: bookEvent.bonusMeterStart ?? 0,
-				bonusLevelStart: bookEvent.bonusLevelStart,
+				bonusMeterStart,
+				bonusLevelStart,
 			});
 		} else {
 			if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
@@ -94,7 +107,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	bonusMeter: async (bookEvent: BookEventOfType<'bonusMeter'>) => {
 		const nextValue = bookEvent.value;
 		if (stateGame.authoritativeMeterFlow) {
-			stateGame.bonusMeterValue = nextValue;
+			applyBonusMeterBookEvent(nextValue, bookEvent.level);
 		} else {
 			const shouldIgnoreDecrease =
 				!stateGame.rouletteFlowInProgress &&
@@ -242,6 +255,7 @@ export const playBet = async (bet: Bet) => {
 		}
 	} finally {
 		await syncSpinMeterAfterBet(events);
+		await syncBonusMeterAfterBet(events);
 		await flushPendingFreeSpinWalletBeforeEndRound();
 		stateGame.freeSpinSettledFromBook = false;
 		stateGame.authoritativeMeterFlow = false;
