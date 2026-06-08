@@ -118,12 +118,12 @@
 		bonusBallDrop: ({ stake }) => {
 			if (!engine) return;
 			const authoredOutcome =
-				stateGame.authoritativeMeterFlow && stateGame.authoritativeBonusOutcomes.length > 0
+				stateGame.authoritativeBonusOutcomeIndex < stateGame.authoritativeBonusOutcomes.length
 					? takeAuthoritativeBonusOutcome()
 					: undefined;
 			if (authoredOutcome) {
 				const dropped = engine.dropBall(authoredOutcome.rateIndex, {
-					hitBonusPeg: false,
+					hitBonusPeg: authoredOutcome.hitBonusPeg === true,
 					deterministic: true,
 				});
 				if (!dropped) return;

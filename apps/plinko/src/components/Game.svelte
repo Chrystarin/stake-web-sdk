@@ -580,9 +580,9 @@
 
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
 
-			onResultReady={() => onBonusRouletteResultReady()}
+			onResultReady={(result) => onBonusRouletteResultReady(result.freeBallCount)}
 
-			onFinished={() => onBonusRouletteFinished()}
+			onFinished={(result) => onBonusRouletteFinished(result.freeBallCount)}
 
 		/>
 

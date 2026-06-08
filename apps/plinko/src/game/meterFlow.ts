@@ -8,6 +8,11 @@ import {
 import { meterController } from './stateGame.svelte';
 import { stateGame } from './stateGame.svelte';
 
+function resetBonusMeterForRouletteIfNeeded() {
+	if (stateGame.bonusRoundActive) return;
+	meterController.resetBonusMeterForRoulette();
+}
+
 export type RouletteSource = 'spin' | 'bonus';
 
 let rouletteCloseWaiters: Array<() => void> = [];
@@ -88,7 +93,6 @@ export function triggerRoulette(source: RouletteSource) {
 			return;
 		}
 		stateGame.bonusRouletteOpen = true;
-		if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
 		scheduleBonusMeterDrainDuringRoll();
 	})();
 }
@@ -154,32 +158,32 @@ export function onSpinSlotLand(ballId?: number) {
 	meterController.addSpinMeterValue(1, onSpinMeterFull);
 }
 
-export function onBonusRouletteResultReady(_wheelFreeBallCount?: number) {
+export function onBonusRouletteResultReady(wheelFreeBallCount?: number) {
 	if (stateGame.activeRouletteSource !== 'bonus') return;
 	if (stateGame.bonusRouletteResultAppliedEarly) return;
-	// Authoritative bonus balls are granted from the following `bonusRound` book event.
-	if (stateGame.authoritativeMeterFlow) return;
-	const freeBallCount = Math.max(1, Math.floor(_wheelFreeBallCount ?? 0));
+	const freeBallCount = Math.max(
+		1,
+		Math.floor(stateGame.serverBonusFreeBalls ?? wheelFreeBallCount ?? 0),
+	);
 	if (freeBallCount <= 0) return;
+	// Activate bonus mode as soon as the wheel announcement is shown (crimson parity).
+	resetBonusMeterForRouletteIfNeeded();
+	awardBonusBalls(freeBallCount);
 	stateGame.bonusRouletteResultAppliedEarly = true;
-	void (async () => {
-		await waitForDropBatchCompletion();
-		// Ignore stale activation attempts if roulette source changed.
-		if (stateGame.activeRouletteSource !== 'bonus') return;
-		if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
-		awardBonusBalls(freeBallCount);
-	})();
 }
 
-export function onBonusRouletteFinished() {
+export function onBonusRouletteFinished(wheelFreeBallCount?: number) {
+	const source = stateGame.activeRouletteSource;
 	const hadOpenWheel = stateGame.bonusRouletteOpen;
 	clearBonusMeterDrainTimer();
 	stateGame.bonusRouletteOpen = false;
-	if (
-		stateGame.activeRouletteSource === 'bonus' &&
-		!stateGame.bonusRouletteResultAppliedEarly
-	) {
-		if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
+	if (source === 'bonus' && !stateGame.bonusRouletteResultAppliedEarly) {
+		resetBonusMeterForRouletteIfNeeded();
+		const freeBallCount = Math.max(
+			1,
+			Math.floor(stateGame.serverBonusFreeBalls ?? wheelFreeBallCount ?? 0),
+		);
+		if (freeBallCount > 0) awardBonusBalls(freeBallCount);
 	}
 	stateGame.bonusRouletteResultAppliedEarly = false;
 	let queued = meterController.completeRoulette();

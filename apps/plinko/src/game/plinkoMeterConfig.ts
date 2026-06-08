@@ -1,4 +1,4 @@
-import { stateGame } from './stateGame.svelte';
+import { meterController, stateGame } from './stateGame.svelte';
 
 export type PlinkoDropMeterConfig = {
 	spinMeterMax?: number;
@@ -30,16 +30,12 @@ export function applyAuthoritativeMeterConfig(config: PlinkoDropMeterConfig) {
 	}
 }
 
-/** Client-only defaults before the first book (flat max from config, no tier scaling). */
+/** Client-only defaults before the first book (tier scaling via `setBallPerDrop`, like crimson). */
 export function applyClientMeterDefaults(spinMeterMax: number, bonusMeterMax: number) {
 	if (stateGame.authoritativeMeterFlow) return;
-	stateGame.serverMeterLimitsActive = true;
 	stateGame.spinMeterBaseMax = spinMeterMax;
 	stateGame.bonusMeterBaseMax = bonusMeterMax;
-	stateGame.spinMeterMax = spinMeterMax;
-	stateGame.bonusMeterMax = bonusMeterMax;
-	stateGame.spinMeterValue = Math.min(stateGame.spinMeterValue, spinMeterMax);
-	stateGame.bonusMeterValue = Math.min(stateGame.bonusMeterValue, bonusMeterMax);
+	meterController.setBallPerDrop(stateGame.ballPerDrop);
 }
 
 /** Update spin meter max from a `spinMeter` book event (server `max` field). */

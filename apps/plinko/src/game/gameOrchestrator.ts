@@ -5,7 +5,7 @@ import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatHistoryDate } from '../lib/format';
 import { slotColorForRateIndex } from '../game-logic/slotColors';
-import { meterController } from './stateGame.svelte';
+import { isBonusMeterFull, meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import type { PlinkoBallOutcome } from './typesBookEvent';
@@ -76,12 +76,16 @@ export function isGameOngoing(): boolean {
 }
 
 export function isPlayActionBlockedByFreeSpinRoulette(): boolean {
-	return stateGame.freeSpinRouletteOpen;
+	if (stateGame.freeSpinRouletteOpen) return true;
+	return stateGame.activeRouletteSource === 'spin' || stateGame.pendingRouletteSource === 'spin';
 }
 
 export function isPlayActionBlockedByBonusRoulette(): boolean {
 	if (stateGame.bonusRoundActive) return false;
-	return stateGame.bonusRouletteOpen;
+	if (stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus') {
+		return true;
+	}
+	return isBonusMeterFull();
 }
 
 export function isBonusPlayButtonDisabled(): boolean {
@@ -111,12 +115,17 @@ export function startAuthoritativeBonusRound(
 	ballsPlayed = 0,
 ) {
 	const played = Math.max(0, Math.floor(ballsPlayed || 0));
-	stateGame.authoritativeBonusOutcomes = outcomes.map((outcome) => ({
-		...outcome,
-		hitBonusPeg: false,
-		hitSpinSlot: false,
-	}));
-	stateGame.authoritativeBonusOutcomeIndex = played;
+	if (played > 0) {
+		stateGame.authoritativeBonusOutcomes = outcomes.map((outcome) => ({
+			...outcome,
+			hitSpinSlot: false,
+		}));
+		stateGame.authoritativeBonusOutcomeIndex = played;
+	} else {
+		// Fresh bonus entry: random drops like crimson; book outcomes are for resume only.
+		stateGame.authoritativeBonusOutcomes = [];
+		stateGame.authoritativeBonusOutcomeIndex = 0;
+	}
 	const remaining = Math.max(0, Math.floor(freeBalls || 0) - played);
 	if (level > 0) {
 		stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level);
@@ -350,7 +359,7 @@ export function scheduleBonusMeterDrainDuringRoll() {
 	bonusMeterDrainTimer = setTimeout(() => {
 		bonusMeterDrainTimer = null;
 		if (!stateGame.bonusRouletteOpen || stateGame.activeRouletteSource !== 'bonus') return;
-		if (!stateGame.bonusRoundActive) meterController.resetBonusMeterForRoulette();
+		meterController.resetBonusMeterForRoulette();
 	}, BONUS_METER_DRAIN_DELAY_MS);
 }
 

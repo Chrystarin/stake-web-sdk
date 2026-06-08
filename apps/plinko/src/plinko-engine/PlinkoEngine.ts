@@ -1015,6 +1015,281 @@ export class PlinkoEngine {
     return this.pegs.find((peg) => peg.row === row && peg.col === col) ?? null;
   }
 
+  private isFeaturedPeg(peg: Peg): boolean {
+    return this.featuredPegKeys.has(`${peg.row}:${peg.col}`);
+  }
+
+  private rowHasFeaturedPeg(row: number): boolean {
+    if (row < 0) return false;
+    const rowPegs = this.pegsByRow.get(row) ?? [];
+    return rowPegs.some((peg) => this.isFeaturedPeg(peg));
+  }
+
+  private smoothstep(t: number): number {
+    const clamped = Math.max(0, Math.min(1, t));
+    return clamped * clamped * (3 - 2 * clamped);
+  }
+
+  /** Pure Galton lane positions (one per peg row) toward the target slot. */
+  private buildGaltonLane(turns: number[], startX: number): number[] {
+    const lane: number[] = [];
+    let currentX = startX;
+    const shift = this.pegSpacingX / 2;
+    for (let row = 0; row < this.rows; row++) {
+      currentX += turns[row] * shift;
+      lane.push(currentX);
+    }
+    return lane;
+  }
+
+  private getFeaturedClusterSpan(row: number): { minX: number; maxX: number } | null {
+    const featured = (this.pegsByRow.get(row) ?? []).filter((peg) => this.isFeaturedPeg(peg));
+    if (!featured.length) return null;
+    return {
+      minX: Math.min(...featured.map((peg) => peg.x)),
+      maxX: Math.max(...featured.map((peg) => peg.x)),
+    };
+  }
+
+  private galtonLaneThreatensFeaturedCluster(row: number, laneX: number): boolean {
+    const span = this.getFeaturedClusterSpan(row);
+    if (!span) return false;
+    const buffer = this.pegSpacingX * 0.36;
+    return laneX >= span.minX - buffer && laneX <= span.maxX + buffer;
+  }
+
+  /** Regular peg immediately beside the bonus cluster on the given side (not in the gap). */
+  private pickFlankBouncePeg(row: number, side: -1 | 1): Peg | null {
+    const span = this.getFeaturedClusterSpan(row);
+    if (!span) return null;
+    const regular = (this.pegsByRow.get(row) ?? []).filter((peg) => !this.isFeaturedPeg(peg));
+    if (side < 0) {
+      const candidates = regular.filter((peg) => peg.x < span.minX);
+      if (!candidates.length) return null;
+      return candidates.reduce((best, peg) => (peg.x > best.x ? peg : best));
+    }
+    const candidates = regular.filter((peg) => peg.x > span.maxX);
+    if (!candidates.length) return null;
+    return candidates.reduce((best, peg) => (peg.x < best.x ? peg : best));
+  }
+
+  private isInsideFeaturedClusterGap(row: number, x: number): boolean {
+    const span = this.getFeaturedClusterSpan(row);
+    if (!span) return false;
+    const margin = this.pegSpacingX * 0.14;
+    return x > span.minX - margin && x < span.maxX + margin;
+  }
+
+  /**
+   * Route around the full bonus cluster on one flank (never through the gap between bonus pegs).
+   */
+  private planSmoothFeaturedAvoidance(
+    galtonLane: number[],
+    targetSlotX: number,
+  ): { offsets: number[]; flankPegByRow: Map<number, Peg> } {
+    const offsets = new Array<number>(this.rows).fill(0);
+    const flankPegByRow = new Map<number, Peg>();
+    const featuredRows: number[] = [];
+    for (let row = 0; row < this.rows; row++) {
+      if (this.rowHasFeaturedPeg(row)) featuredRows.push(row);
+    }
+    if (!featuredRows.length) return { offsets, flankPegByRow };
+
+    const needsAvoidance = featuredRows.some((row) =>
+      this.galtonLaneThreatensFeaturedCluster(row, galtonLane[row] ?? targetSlotX),
+    );
+    if (!needsAvoidance) return { offsets, flankPegByRow };
+
+    let chosenSide: -1 | 1 = 1;
+    let bestScore = -Infinity;
+    for (const side of [-1, 1] as const) {
+      let score = 0;
+      let valid = true;
+      for (const row of featuredRows) {
+        const flank = this.pickFlankBouncePeg(row, side);
+        if (!flank) {
+          valid = false;
+          break;
+        }
+        const galtonX = galtonLane[row] ?? targetSlotX;
+        score -= Math.abs(flank.x - targetSlotX) * 0.4;
+        score -= Math.abs(flank.x - galtonX) * 0.15;
+      }
+      if (!valid) continue;
+      if (score > bestScore) {
+        bestScore = score;
+        chosenSide = side;
+      }
+    }
+
+    const targetLaneByRow = new Map<number, number>();
+    for (const row of featuredRows) {
+      const flank = this.pickFlankBouncePeg(row, chosenSide);
+      if (!flank) continue;
+      flankPegByRow.set(row, flank);
+      targetLaneByRow.set(row, flank.x);
+    }
+    if (!targetLaneByRow.size) return { offsets, flankPegByRow };
+
+    const firstFeatured = featuredRows[0];
+    const lastFeatured = featuredRows[featuredRows.length - 1];
+    const rampRows = Math.min(5, Math.max(3, firstFeatured));
+    const easeInStart = Math.max(0, firstFeatured - rampRows);
+    const easeOutEnd = Math.min(this.rows - 1, lastFeatured + rampRows);
+
+    for (let row = 0; row < this.rows; row++) {
+      let weight = 0;
+      if (row < easeInStart) {
+        weight = 0;
+      } else if (row <= firstFeatured) {
+        weight = this.smoothstep((row - easeInStart) / Math.max(1, firstFeatured - easeInStart));
+      } else if (row <= lastFeatured) {
+        weight = 1;
+      } else if (row <= easeOutEnd) {
+        weight = 1 - this.smoothstep((row - lastFeatured) / Math.max(1, easeOutEnd - lastFeatured));
+      }
+
+      if (weight <= 0) continue;
+
+      const galtonX = galtonLane[row] ?? targetSlotX;
+      let targetLane = galtonX;
+      if (row >= firstFeatured && row <= lastFeatured && targetLaneByRow.has(row)) {
+        targetLane = targetLaneByRow.get(row)!;
+      } else {
+        const anchorRow = row < firstFeatured ? firstFeatured : lastFeatured;
+        const anchorLane = targetLaneByRow.get(anchorRow);
+        if (anchorLane != null) {
+          targetLane = galtonX + (anchorLane - galtonX) * weight;
+        }
+      }
+      offsets[row] = targetLane - galtonX;
+    }
+
+    return { offsets, flankPegByRow };
+  }
+
+  private pickNearestPeg(
+    pegs: Peg[],
+    x: number,
+    penalizeFeatured = false,
+  ): Peg | null {
+    let closest: Peg | null = null;
+    let minScore = Infinity;
+    for (const peg of pegs) {
+      let score = Math.abs(x - peg.x);
+      if (penalizeFeatured && this.isFeaturedPeg(peg)) {
+        score += this.pegSpacingX * 0.35;
+      }
+      if (score < minScore) {
+        minScore = score;
+        closest = peg;
+      }
+    }
+    return closest;
+  }
+
+  /**
+   * Pick the peg this row should bounce off while keeping the Galton lane natural.
+   */
+  private resolveRowBounce(
+    rowPegs: Peg[],
+    laneX: number,
+    options: {
+      featuredTarget: Peg | null;
+      row: number;
+      targetSlotX: number;
+      excludeFeaturedFromBounce: boolean;
+      steerTowardFeatured: boolean;
+      plannedFlankPeg?: Peg | null;
+      nextRandom: () => number;
+    },
+  ): { pathX: number; closestPeg: Peg | null; bounceIntensity: number } {
+    const {
+      featuredTarget,
+      row,
+      excludeFeaturedFromBounce,
+      steerTowardFeatured,
+      plannedFlankPeg,
+      nextRandom,
+    } = options;
+
+    if (featuredTarget && row === featuredTarget.row) {
+      return {
+        pathX: featuredTarget.x,
+        closestPeg: featuredTarget,
+        bounceIntensity: 0.92,
+      };
+    }
+
+    let pathX = laneX;
+    if (steerTowardFeatured && featuredTarget && row < featuredTarget.row) {
+      const rowsUntil = Math.max(1, featuredTarget.row - row);
+      const biasStrength = Math.min(0.42, 0.16 + 0.05 / rowsUntil);
+      pathX = laneX + (featuredTarget.x - laneX) * biasStrength;
+    }
+
+    const bounceCandidates = excludeFeaturedFromBounce
+      ? rowPegs.filter((peg) => !this.isFeaturedPeg(peg))
+      : rowPegs;
+    if (!bounceCandidates.length) {
+      return { pathX, closestPeg: null, bounceIntensity: 0 };
+    }
+
+    let closestPeg: Peg | null = null;
+    if (excludeFeaturedFromBounce && plannedFlankPeg) {
+      closestPeg = plannedFlankPeg;
+    } else {
+      closestPeg = excludeFeaturedFromBounce
+        ? this.pickNearestPeg(bounceCandidates, pathX, false)
+        : this.pickNearestPeg(bounceCandidates, pathX, true);
+    }
+
+    if (!closestPeg) {
+      return { pathX, closestPeg: null, bounceIntensity: 0 };
+    }
+
+    const maxDistance = this.pegSpacingX / 2;
+    const finalDistance = Math.abs(pathX - closestPeg.x);
+    let bounceIntensity = Math.max(0.45, Math.min(0.95, 1 - finalDistance / maxDistance));
+    bounceIntensity *= 0.82 + nextRandom() * 0.18;
+
+    return { pathX, closestPeg, bounceIntensity };
+  }
+
+  /** Resolve which peg the ball should bounce off at this row (never a bonus peg unless allowed). */
+  private resolveLiveBouncePeg(pathPoint: PathPoint, ball: Ball): Peg | null {
+    if (pathPoint.row < 0) return pathPoint.closestPeg;
+
+    const rowPegs = this.pegsByRow.get(pathPoint.row) ?? [];
+    const regularPegs = rowPegs.filter((peg) => !this.isFeaturedPeg(peg));
+    if (ball.creditBonusPegHit) {
+      return this.pickNearestPeg(rowPegs, ball.x, false) ?? pathPoint.closestPeg;
+    }
+    if (!regularPegs.length) return pathPoint.closestPeg;
+
+    if (this.isInsideFeaturedClusterGap(pathPoint.row, ball.x)) {
+      if (pathPoint.closestPeg && !this.isFeaturedPeg(pathPoint.closestPeg)) {
+        return pathPoint.closestPeg;
+      }
+      const span = this.getFeaturedClusterSpan(pathPoint.row);
+      if (span) {
+        const side = ball.x <= (span.minX + span.maxX) / 2 ? -1 : 1;
+        const flank = this.pickFlankBouncePeg(pathPoint.row, side);
+        if (flank) return flank;
+      }
+    }
+
+    if (pathPoint.closestPeg && !this.isFeaturedPeg(pathPoint.closestPeg)) {
+      const alignedWithPlan =
+        Math.abs(ball.x - pathPoint.closestPeg.x) <= this.pegSpacingX * 0.58 &&
+        ball.y >= pathPoint.closestPeg.y - this.pegRadius * 0.65 &&
+        ball.y <= pathPoint.closestPeg.y + this.pegRadius * 0.8;
+      if (alignedWithPlan) return pathPoint.closestPeg;
+    }
+
+    return this.pickNearestPeg(regularPegs, ball.x, false) ?? pathPoint.closestPeg;
+  }
+
   private calculatePath(
     targetIndex: number,
     pathOptions?: { hitBonusPeg?: boolean; deterministic?: boolean; pathSeed?: number },
@@ -1076,78 +1351,51 @@ export class PlinkoEngine {
     // so we preserve slot targeting and avoid flinging to far slots.
     const spawnLaneBias = spawnDirection * this.pegSpacingX * 0.42;
 
+    const featuredTarget = pathOptions?.hitBonusPeg
+      ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
+      : null;
+    const avoidFeaturedPegs = pathOptions?.deterministic === true && pathOptions?.hitBonusPeg !== true;
+    const galtonLane = this.buildGaltonLane(turns, centerX);
+    const avoidancePlan = avoidFeaturedPegs
+      ? this.planSmoothFeaturedAvoidance(galtonLane, targetX)
+      : { offsets: new Array<number>(this.rows).fill(0), flankPegByRow: new Map<number, Peg>() };
+    const avoidanceOffsets = avoidancePlan.offsets;
+    const flankPegByRow = avoidancePlan.flankPegByRow;
+    const earlyAvoidBias = avoidanceOffsets[0] ?? 0;
+
     const path: PathPoint[] = [];
     path.push({ x: centerX, y: launchY, row: -1, closestPeg: null, bounceIntensity: 0 });
     path.push({
-      x: centerX + spawnLaneBias,
+      x: centerX + spawnLaneBias + earlyAvoidBias * 0.12,
       y: this.topMargin - this.pegSpacing * 0.32,
       row: -1,
       closestPeg: null,
       bounceIntensity: 0
     });
 
-    let currentX = centerX;
-    const featuredTarget = pathOptions?.hitBonusPeg
-      ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
-      : null;
-    const avoidFeaturedPegs = pathOptions?.deterministic === true && pathOptions?.hitBonusPeg !== true;
-
     for (let row = 0; row < this.rows; row++) {
       const rowY = this.topMargin + this.pegSpacing * 0.5 + row * this.pegSpacing;
-      const turn = turns[row];
-      const shift = this.pegSpacingX / 2;
-      // Keep the default path centered in the lane between pegs.
-      currentX += turn * shift;
+      const galtonX = galtonLane[row] ?? centerX;
+      const laneX = galtonX + (avoidanceOffsets[row] ?? 0);
 
       const rowPegs = this.pegsByRow.get(row) ?? [];
-      let closestPeg: Peg | null = null;
-      let minDistance = Infinity;
-      let bounceIntensity = 0;
-
-      if (featuredTarget && row === featuredTarget.row) {
-        currentX = featuredTarget.x;
-        closestPeg = featuredTarget;
-        bounceIntensity = 0.92;
-      } else {
-        if (avoidFeaturedPegs && rowPegs.length) {
-          // In server-authoritative mode, *only* server `hitBonusPeg` balls may contact featured pegs.
-          // If the current lane would intersect a featured peg on this row, nudge it away.
-          for (const peg of rowPegs) {
-            if (!this.featuredPegKeys.has(`${peg.row}:${peg.col}`)) continue;
-            const dx = currentX - peg.x;
-            if (Math.abs(dx) <= this.pegSpacingX * 0.28) {
-              currentX += (dx >= 0 ? 1 : -1) * this.pegSpacingX * 0.62;
-              break;
-            }
-          }
-        }
-
-        rowPegs.forEach((peg) => {
-          if (avoidFeaturedPegs && this.featuredPegKeys.has(`${peg.row}:${peg.col}`)) return;
-          const distance = Math.abs(currentX - peg.x);
-          const featuredPenalty = this.featuredPegKeys.has(`${peg.row}:${peg.col}`)
-            ? this.pegSpacingX * 0.35
-            : 0;
-          const score = distance + featuredPenalty;
-          if (score < minDistance) {
-            minDistance = score;
-            closestPeg = peg;
-          }
-        });
-
-        if (closestPeg) {
-          const maxDistance = this.pegSpacingX / 2;
-          bounceIntensity = Math.max(0.45, Math.min(0.95, 1 - minDistance / maxDistance));
-          bounceIntensity *= pathRng ? 0.82 + nextRandom() * 0.18 : 0.82 + Math.random() * 0.18;
-        }
-      }
+      const { pathX, closestPeg, bounceIntensity } = this.resolveRowBounce(rowPegs, laneX, {
+        featuredTarget,
+        row,
+        targetSlotX: targetX,
+        excludeFeaturedFromBounce:
+          avoidFeaturedPegs || (pathOptions?.hitBonusPeg === true && featuredTarget != null),
+        steerTowardFeatured: pathOptions?.hitBonusPeg === true,
+        plannedFlankPeg: flankPegByRow.get(row),
+        nextRandom,
+      });
 
       path.push({
-        x: currentX,
+        x: pathX,
         y: rowY,
         row,
         closestPeg,
-        bounceIntensity
+        bounceIntensity,
       });
     }
 
@@ -1452,7 +1700,6 @@ export class PlinkoEngine {
     ) {
       const pathPoint = ball.path[i];
       if (
-        !pathPoint.closestPeg ||
         pathPoint.bounceIntensity <= 0 ||
         ball.bouncedRows.has(pathPoint.row) ||
         currentTime - ball.lastBounceTime <= this.pyramidConfig.bounceCooldown
@@ -1460,9 +1707,14 @@ export class PlinkoEngine {
         continue;
       }
 
+      const bouncePeg = this.resolveLiveBouncePeg(pathPoint, ball);
+      if (!bouncePeg || (!ball.creditBonusPegHit && this.isFeaturedPeg(bouncePeg))) {
+        continue;
+      }
+
       // Use top-middle peg contact to avoid "through-center" collisions.
-      const contactX = pathPoint.closestPeg.x;
-      const contactY = pathPoint.closestPeg.y - this.pegRadius * 0.85;
+      const contactX = bouncePeg.x;
+      const contactY = bouncePeg.y - this.pegRadius * 0.85;
       const dx = ball.x - contactX;
       const dy = ball.y - contactY;
       const distanceSq = dx * dx + dy * dy;
@@ -1472,26 +1724,30 @@ export class PlinkoEngine {
       const interactionRadiusSq = interactionRadius * interactionRadius;
       // Fallback only when ball has genuinely reached this peg row/column neighborhood.
       const rowWasCrossed = segmentProgress >= i - 0.02;
-      const approachingFromTop = ball.y <= pathPoint.closestPeg.y + this.ballRadius * 0.2;
-      const nearPegColumn = Math.abs(ball.x - pathPoint.closestPeg.x) <= this.pegSpacingX * 0.34;
+      const approachingFromTop = ball.y <= bouncePeg.y + this.ballRadius * 0.2;
+      const columnTolerance =
+        !ball.creditBonusPegHit && this.rowHasFeaturedPeg(pathPoint.row)
+          ? this.pegSpacingX * 0.58
+          : this.pegSpacingX * 0.34;
+      const nearPegColumn = Math.abs(ball.x - bouncePeg.x) <= columnTolerance;
       const atPegRow =
-        ball.y >= pathPoint.closestPeg.y - this.pegRadius * 0.35 &&
-        ball.y <= pathPoint.closestPeg.y + this.pegRadius * 0.6;
+        ball.y >= bouncePeg.y - this.pegRadius * 0.35 &&
+        ball.y <= bouncePeg.y + this.pegRadius * 0.6;
       const shouldUseFallback = rowWasCrossed && nearPegColumn && atPegRow;
 
       if ((distanceSq < interactionRadiusSq && approachingFromTop) || shouldUseFallback) {
-        pathPoint.closestPeg.bounceEffect = pathPoint.bounceIntensity;
-        pathPoint.closestPeg.bounceTime = currentTime;
-        pathPoint.closestPeg.isTouched = true;
+        bouncePeg.bounceEffect = pathPoint.bounceIntensity;
+        bouncePeg.bounceTime = currentTime;
+        bouncePeg.isTouched = true;
         if (
           ball.creditBonusPegHit &&
           !ball.bonusPegEmitted &&
-          this.featuredPegKeys.has(`${pathPoint.closestPeg.row}:${pathPoint.closestPeg.col}`)
+          this.isFeaturedPeg(bouncePeg)
         ) {
           ball.bonusPegEmitted = true;
           this.onCoinPegHit?.({
-            row: pathPoint.closestPeg.row,
-            col: pathPoint.closestPeg.col,
+            row: bouncePeg.row,
+            col: bouncePeg.col,
             ballId: ball.id,
           });
         }

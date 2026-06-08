@@ -154,8 +154,8 @@ export const createMeterController = (
 	};
 
 	const resetBonusMeterForRoulette = () => {
+		if (state.bonusRoundActive) return;
 		state.bonusMeterValue = 0;
-		state.bonusMeterOverflowValue = 0;
 	};
 
 	const startBonusRound = (freeBalls: number) => {

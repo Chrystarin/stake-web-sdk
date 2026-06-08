@@ -136,6 +136,12 @@ export const stateGame = $state({
 
 export const meterController = createMeterController(stateGame);
 
+export function isBonusMeterFull(): boolean {
+	const max = Number(stateGame.bonusMeterMax);
+	const safeMax = Number.isFinite(max) && max > 0 ? max : 20;
+	return stateGame.bonusMeterValue >= safeMax;
+}
+
 export const stateGameDerived = {
 	get simSpeed(): number {
 		return stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal;
@@ -166,8 +172,11 @@ export const stateGameDerived = {
 		return stateGame.bonusLevelProgress + Math.min(available, levelUpQueued);
 	},
 	get isBonusBackgroundActive(): boolean {
-		// Show bonus visuals only after the bonus wheel is visibly opened, or once bonus mode is active.
-		return stateGame.bonusRouletteOpen || stateGame.bonusRoundActive;
+		if (stateGame.bonusRoundActive) return true;
+		if (isBonusMeterFull()) return true;
+		return (
+			stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus'
+		);
 	},
 	get bonusLevelLabels(): readonly number[] {
 		return BONUS_LEVEL_LABELS;
