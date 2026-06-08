@@ -1262,13 +1262,13 @@
 
 		inset: 0;
 
-		background: rgba(0, 0, 0, 0.55);
-
 		display: grid;
 
 		place-items: center;
 
 		z-index: 20;
+
+		pointer-events: none;
 
 	}
 
