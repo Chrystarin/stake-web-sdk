@@ -1,5 +1,4 @@
 import {
-	BALL_PER_DROP_TIERS,
 	BONUS_LEVEL_LABELS,
 	DEFAULT_ROW_COUNT,
 	MIN_MS_BETWEEN_BALL_SPAWNS,
@@ -28,7 +27,7 @@ export type MsgBoxConfig = {
 
 export const stateGame = $state({
 	rowCount: DEFAULT_ROW_COUNT,
-	ballPerDrop: BALL_PER_DROP_TIERS[0],
+	ballPerDrop: 10,
 	coefficients: [] as number[],
 	fastGameEnabled: false,
 	animationEnabled: true,
