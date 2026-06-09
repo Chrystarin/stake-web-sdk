@@ -5,7 +5,7 @@
 	import { App, Container, SpineProvider, SpineTrack } from 'pixi-svelte';
 
 	import { isPortraitGameLayout } from '../lib/format';
-	import { staticUrl } from '../lib/staticUrl';
+	import BackgroundImageSprite from './BackgroundImageSprite.svelte';
 	import BackgroundPixiResize from './BackgroundPixiResize.svelte';
 	import BackgroundSpineClearSlots from './BackgroundSpineClearSlots.svelte';
 	import BackgroundSpineSlotBlend from './BackgroundSpineSlotBlend.svelte';
@@ -14,13 +14,43 @@
 
 	/** Back → front. Lamps render above waterfalls. */
 	const LANDSCAPE_SPINE_LAYERS = [
-		{ key: 'backgroundLandscape', zIndex: 0 },
-		{ key: 'backgroundWaterfall', zIndex: 1 },
-		{ key: 'backgroundLamp', zIndex: 2 },
+		{ key: 'backgroundLandscape', zIndex: 1 },
+		{ key: 'backgroundWaterfall', zIndex: 2 },
+		{ key: 'backgroundLamp', zIndex: 3 },
 	] as const;
 
 	const LANDSCAPE_REFERENCE_BOUNDS = { x: -1887.31, y: -3.17, width: 3731.67, height: 2007.81 } as const;
 	const PORTRAIT_REFERENCE_BOUNDS = { x: -1194.71, y: -3.78, width: 3045.9, height: 1761 } as const;
+
+	/** Landscape-only zoom; Y is recomputed so the bottom anchor stays on the viewport bottom. */
+	const LANDSCAPE_SCALE_BOOST = 1.12;
+
+	type ReferenceBounds = {
+		x: number;
+		y: number;
+		width: number;
+		height: number;
+	};
+
+	/**
+	 * Shared transform for the JPG and all Spine layers.
+	 * Cover scale with the spine bottom anchor (reference-bounds top → viewport bottom).
+	 */
+	const computeBackgroundTransform = (
+		width: number,
+		height: number,
+		bounds: ReferenceBounds,
+		scaleMultiplier = 1,
+	) => {
+		const scale = Math.max(width / bounds.width, height / bounds.height) * scaleMultiplier;
+
+		return {
+			x: width / 2,
+			y: height - bounds.y * scale,
+			scale,
+			sortableChildren: true,
+		};
+	};
 
 	/** Base landscape export still contains lamp/water slots (low-res atlas). */
 	const LANDSCAPE_HIDDEN_SLOTS = [
@@ -55,8 +85,12 @@
 		return isPortraitGameLayout();
 	});
 
-	const staticImageUrl = $derived(
-		staticUrl(mobile ? 'img/BG_portrait.jpg' : 'img/BG_landscape.jpg'),
+	const referenceBounds = $derived(
+		mobile ? PORTRAIT_REFERENCE_BOUNDS : LANDSCAPE_REFERENCE_BOUNDS,
+	);
+
+	const backgroundImagePath = $derived(
+		mobile ? 'img/BG_portrait.jpg' : 'img/BG_landscape.jpg',
 	);
 
 	let spineHostEl = $state<HTMLDivElement | null>(null);
@@ -83,41 +117,40 @@
 		return () => ro.disconnect();
 	});
 
+	const landscapeScaleBoost = $derived(mobile ? 1 : LANDSCAPE_SCALE_BOOST);
+
+	const backgroundContainerLayout = $derived.by(() =>
+		computeBackgroundTransform(
+			hostWidth,
+			hostHeight,
+			referenceBounds,
+			landscapeScaleBoost,
+		),
+	);
+
 	/**
-	 * Split landscape layers share one root transform so lamp/waterfall bones
-	 * align with the base scenery skeleton coordinates.
+	 * JPG sits in the same container as Spine. With the original spine anchor the
+	 * viewport maps to this local Y band; placing the image here keeps it visible
+	 * while sharing scale/translate with the animation layers.
 	 */
-	const landscapeContainerLayout = $derived.by(() => {
-		const scale = hostWidth / LANDSCAPE_REFERENCE_BOUNDS.width;
+	const backgroundImageLayout = $derived.by(() => {
+		const scale =
+			Math.max(hostWidth / referenceBounds.width, hostHeight / referenceBounds.height) *
+			landscapeScaleBoost;
+		const visibleHeight = hostHeight / scale;
 
 		return {
-			x: hostWidth / 2,
-			y: hostHeight - LANDSCAPE_REFERENCE_BOUNDS.y * scale,
-			scale,
-			sortableChildren: true,
-		};
-	});
-
-	const portraitSpineLayout = $derived.by(() => {
-		const scale = hostWidth / PORTRAIT_REFERENCE_BOUNDS.width;
-
-		return {
-			x: hostWidth / 2,
-			y: hostHeight - PORTRAIT_REFERENCE_BOUNDS.y * scale,
-			width: hostWidth,
+			path: backgroundImagePath,
+			x: referenceBounds.x,
+			y: -visibleHeight,
+			width: referenceBounds.width,
+			height: visibleHeight + referenceBounds.y,
+			zIndex: 0,
 		};
 	});
 </script>
 
 <div class="background">
-	<img
-		class="background__image"
-		class:background__image--bottom={!mobile}
-		src={staticImageUrl}
-		alt=""
-		aria-hidden="true"
-	/>
-
 	<div class="background__spine" bind:this={spineHostEl}>
 		<App>
 			<EnablePixiExtension />
@@ -126,12 +159,16 @@
 				<BackgroundPixiResize host={spineHostEl} />
 			{/if}
 
-			{#if mobile}
-				<SpineProvider key="backgroundPortrait" {...portraitSpineLayout}>
-					<SpineTrack trackIndex={0} animationName={BACKGROUND_ANIMATION} loop />
-				</SpineProvider>
-			{:else}
-				<Container {...landscapeContainerLayout}>
+			<Container {...backgroundContainerLayout}>
+				{#key backgroundImagePath}
+					<BackgroundImageSprite {...backgroundImageLayout} />
+				{/key}
+
+				{#if mobile}
+					<SpineProvider key="backgroundPortrait">
+						<SpineTrack trackIndex={0} animationName={BACKGROUND_ANIMATION} loop />
+					</SpineProvider>
+				{:else}
 					{#each LANDSCAPE_SPINE_LAYERS as layer (layer.key)}
 						<SpineProvider key={layer.key} zIndex={layer.zIndex}>
 							<SpineTrack trackIndex={0} animationName={BACKGROUND_ANIMATION} loop />
@@ -143,8 +180,8 @@
 							{/if}
 						</SpineProvider>
 					{/each}
-				</Container>
-			{/if}
+				{/if}
+			</Container>
 		</App>
 	</div>
 </div>
@@ -157,27 +194,11 @@
 		pointer-events: none;
 	}
 
-	.background__image {
+	.background__spine {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		object-fit: cover;
-		object-position: center;
-		z-index: 0;
-	}
-
-	.background__image--bottom {
-		object-position: center bottom;
-	}
-
-	.background__spine {
-		position: absolute;
-		inset: 0;
-		width: 100vw;
-		height: 100vh;
-		height: 100dvh;
-		z-index: 1;
 		overflow: hidden;
 	}
 
