@@ -9,6 +9,7 @@
 	import { App, SpineProvider, SpineTrack } from 'pixi-svelte';
 
 	import BackgroundPixiResize from './BackgroundPixiResize.svelte';
+	import BackgroundSpineClearSlots from './BackgroundSpineClearSlots.svelte';
 
 
 
@@ -20,34 +21,70 @@
 
 	const BACKGROUND_ANIMATION = 'animation';
 
-	const LANDSCAPE_ASSET_KEY = 'backgroundLandscape';
+	/** Back → front. Lamps must render above waterfalls. */
+	const LANDSCAPE_SPINE_LAYERS = [
+		{ key: 'backgroundLandscape', zIndex: 0 },
+		{ key: 'backgroundWaterfall', zIndex: 1 },
+		{ key: 'backgroundLamp', zIndex: 2 },
+	] as const;
 
 	const PORTRAIT_ASSET_KEY = 'backgroundPortrait';
 
-	/** Skeleton AABB from exported spine JSON (x/y can be negative). */
+	const LANDSCAPE_REFERENCE_BOUNDS = { x: -1887.31, y: -3.17, width: 3731.67, height: 2007.81 } as const;
+
 	const SPINE_DESIGN_BOUNDS = {
-		[LANDSCAPE_ASSET_KEY]: { x: -1887.31, y: -3.17, width: 3731.67, height: 2007.81 },
 		[PORTRAIT_ASSET_KEY]: { x: -1194.71, y: -3.78, width: 3045.9, height: 1761 },
 	} as const;
 
 	/**
-	 * Scale spine to viewport width (`100vw` in px). Height follows aspect ratio;
-	 * bottom of skeleton bounds stays on the viewport bottom.
+	 * Landscape split layers share one root position + scale so lamp/waterfall
+	 * align with the base scenery skeleton coordinates.
 	 */
-	const coverSpineLayout = (
-		viewportWidth: number,
-		viewportHeight: number,
-		bounds: (typeof SPINE_DESIGN_BOUNDS)[keyof typeof SPINE_DESIGN_BOUNDS],
-	) => {
-		const { y: boundsY, width: spineWidth } = bounds;
-		const scale = viewportWidth / spineWidth;
+	const coverLandscapeLayerLayout = (viewportWidth: number, viewportHeight: number) => {
+		const scale = viewportWidth / LANDSCAPE_REFERENCE_BOUNDS.width;
 
 		return {
 			x: viewportWidth / 2,
-			y: viewportHeight - boundsY * scale,
+			y: viewportHeight - LANDSCAPE_REFERENCE_BOUNDS.y * scale,
+			scale,
+		};
+	};
+
+	const coverPortraitSpineLayout = (
+		viewportWidth: number,
+		viewportHeight: number,
+		bounds: (typeof SPINE_DESIGN_BOUNDS)[typeof PORTRAIT_ASSET_KEY],
+	) => {
+		const scale = viewportWidth / bounds.width;
+
+		return {
+			x: viewportWidth / 2,
+			y: viewportHeight - bounds.y * scale,
 			width: viewportWidth,
 		};
 	};
+
+	/** Base landscape export still contains lamp/water slots (low-res atlas). */
+	const LANDSCAPE_HIDDEN_SLOTS = [
+		'lamp2',
+		'lamp3',
+		'light',
+		'light2',
+		'water lines/0',
+		'water lines/2',
+		'water sparkle/0',
+		'water sparkle/2',
+		'waterDrop1',
+		'waterDrop5',
+		'waterDrop2',
+		'waterDrop6',
+		'waterFlow',
+		'waterFlow3',
+		'splash',
+		'splash2',
+		'splash3',
+		'splash4',
+	] as const;
 
 
 
@@ -63,7 +100,7 @@
 
 
 
-	const spineKey = $derived(mobile ? PORTRAIT_ASSET_KEY : LANDSCAPE_ASSET_KEY);
+	const spineKey = $derived(mobile ? PORTRAIT_ASSET_KEY : 'landscape');
 
 
 
@@ -99,9 +136,11 @@
 		return () => ro.disconnect();
 	});
 
-	const spineLayout = $derived(
-		coverSpineLayout(hostWidth, hostHeight, SPINE_DESIGN_BOUNDS[spineKey]),
+	const portraitSpineLayout = $derived(
+		coverPortraitSpineLayout(hostWidth, hostHeight, SPINE_DESIGN_BOUNDS[PORTRAIT_ASSET_KEY]),
 	);
+
+	const landscapeSpineLayout = $derived(coverLandscapeLayerLayout(hostWidth, hostHeight));
 
 </script>
 
@@ -130,13 +169,20 @@
 			{/if}
 
 			{#key spineKey}
-
-				<SpineProvider key={spineKey} {...spineLayout}>
-
-					<SpineTrack trackIndex={0} animationName={BACKGROUND_ANIMATION} loop />
-
-				</SpineProvider>
-
+				{#if mobile}
+					<SpineProvider key={PORTRAIT_ASSET_KEY} {...portraitSpineLayout}>
+						<SpineTrack trackIndex={0} animationName={BACKGROUND_ANIMATION} loop />
+					</SpineProvider>
+				{:else}
+					{#each LANDSCAPE_SPINE_LAYERS as layer (layer.key)}
+						<SpineProvider key={layer.key} zIndex={layer.zIndex} {...landscapeSpineLayout}>
+							<SpineTrack trackIndex={0} animationName={BACKGROUND_ANIMATION} loop />
+							{#if layer.key === 'backgroundLandscape'}
+								<BackgroundSpineClearSlots slotNames={LANDSCAPE_HIDDEN_SLOTS} />
+							{/if}
+						</SpineProvider>
+					{/each}
+				{/if}
 			{/key}
 
 		</App>
@@ -230,4 +276,3 @@
 	}
 
 </style>
-
