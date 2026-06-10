@@ -35,6 +35,8 @@ interface Ball {
   isInBounce: boolean;
   bounceStartTime: number;
   bounceDuration: number;
+  /** Horizontal direction (-1 left, 0 center, 1 right) for the active peg bounce arc. */
+  bounceTravelDir: -1 | 0 | 1;
   currentSegmentIndex: number;
   velocityX: number;
   velocityY: number;
@@ -52,6 +54,15 @@ interface Ball {
   bonusPegEmitRow: number;
   bonusPegEmitCol: number;
   bonusPegEmitted: boolean;
+  /** Per-ball motion variation (small random spread at spawn). */
+  speedMultiplier: number;
+  bounceHeightMultiplier: number;
+  driftMultiplier: number;
+  bounceDurationMultiplier: number;
+  laneOffsetX: number;
+  /** Visual-only separation from other balls (no velocity impulse). */
+  collisionOffsetX: number;
+  collisionOffsetY: number;
 }
 
 interface PathPoint {
@@ -60,6 +71,8 @@ interface PathPoint {
   row: number;
   closestPeg: Peg | null;
   bounceIntensity: number;
+  /** Intended travel direction after bouncing this peg (-1 left, 1 right). */
+  travelDir: -1 | 0 | 1;
 }
 
 interface Peg {
@@ -217,7 +230,7 @@ export class PlinkoEngine {
     const laneSafeRadius = Math.max(1, (this.pegSpacingX - this.pegRadius * 2) * 0.46);
     const raw = Math.min(desiredRadius, laneSafeRadius);
     if (!Number.isFinite(raw) || raw <= 0) return 2;
-    return Math.max(2, raw);
+    return Math.max(2, raw) * 0.9;
   }
 
   get slotBounceHeight(): number {
@@ -289,7 +302,11 @@ export class PlinkoEngine {
     bounceLift: 0.58,
     verticalGravity: 0.13,
     verticalDamping: 0.988,
-    belowBounceChance: 0.42
+    belowBounceChance: 0.42,
+    /** Minimum center-to-center gap between balls as a multiple of diameter. */
+    ballSeparationFactor: 1.12,
+    /** Gentle repulsion impulse when balls overlap. */
+    ballRepulsionScale: 0.038,
   };
 
   destroy(): void {
@@ -745,6 +762,9 @@ export class PlinkoEngine {
       ball.prevY *= sy;
       ball.velocityX *= sx;
       ball.velocityY *= sy;
+      ball.laneOffsetX *= sx;
+      ball.collisionOffsetX *= sx;
+      ball.collisionOffsetY *= sy;
 
       for (const point of ball.path) {
         point.x *= sx;
@@ -1364,13 +1384,14 @@ export class PlinkoEngine {
     const earlyAvoidBias = avoidanceOffsets[0] ?? 0;
 
     const path: PathPoint[] = [];
-    path.push({ x: centerX, y: launchY, row: -1, closestPeg: null, bounceIntensity: 0 });
+    path.push({ x: centerX, y: launchY, row: -1, closestPeg: null, bounceIntensity: 0, travelDir: 0 });
     path.push({
       x: centerX + spawnLaneBias + earlyAvoidBias * 0.12,
       y: this.topMargin - this.pegSpacing * 0.32,
       row: -1,
       closestPeg: null,
-      bounceIntensity: 0
+      bounceIntensity: 0,
+      travelDir: 0,
     });
 
     for (let row = 0; row < this.rows; row++) {
@@ -1390,12 +1411,23 @@ export class PlinkoEngine {
         nextRandom,
       });
 
+      const nextLookaheadX =
+        featuredTarget && row + 1 === featuredTarget.row
+          ? featuredTarget.x
+          : row + 1 < this.rows
+            ? (galtonLane[row + 1] ?? targetX) + (avoidanceOffsets[row + 1] ?? 0)
+            : targetX;
+      const pegX = closestPeg?.x ?? pathX;
+      const travelDir =
+        bounceIntensity > 0 ? this.resolveTravelDir(pegX, nextLookaheadX, targetX) : 0;
+
       path.push({
         x: pathX,
         y: rowY,
         row,
         closestPeg,
         bounceIntensity,
+        travelDir,
       });
     }
 
@@ -1404,7 +1436,8 @@ export class PlinkoEngine {
       y: targetSlot.y + this.slotHeight / 2,
       row: this.rows,
       closestPeg: null,
-      bounceIntensity: 0
+      bounceIntensity: 0,
+      travelDir: 0,
     });
 
     return path;
@@ -1438,6 +1471,9 @@ export class PlinkoEngine {
         )
       : -1;
     const bonusPeg = bonusPegPathIndex >= 0 ? path[bonusPegPathIndex]?.closestPeg : null;
+    const traitSeed =
+      dropOptions?.pathSeed != null ? dropOptions.pathSeed * 7919 + targetIndex : undefined;
+    const traits = this.createBallVariationTraits(traitSeed);
 
     const ball: Ball = {
       id: this.nextBallId++,
@@ -1456,6 +1492,7 @@ export class PlinkoEngine {
       isInBounce: false,
       bounceStartTime: 0,
       bounceDuration: this.pyramidConfig.bounceDuration,
+      bounceTravelDir: 0,
       currentSegmentIndex: 0,
       velocityX: 0,
       velocityY: 0,
@@ -1468,6 +1505,9 @@ export class PlinkoEngine {
       bonusPegEmitRow: bonusPeg?.row ?? -1,
       bonusPegEmitCol: bonusPeg?.col ?? -1,
       bonusPegEmitted: false,
+      collisionOffsetX: 0,
+      collisionOffsetY: 0,
+      ...traits,
     };
 
     this.balls.push(ball);
@@ -1539,8 +1579,10 @@ export class PlinkoEngine {
         if (segmentIndex < pathLength - 1) {
           const pointA = ball.path[segmentIndex];
           const pointB = ball.path[segmentIndex + 1];
-          baseX = pointA.x + (pointB.x - pointA.x) * segmentFraction;
-          baseY = pointA.y + (pointB.y - pointA.y) * segmentFraction;
+          const laneT = this.easeSmoothstep(segmentFraction);
+          const fallT = this.easeInQuad(segmentFraction);
+          baseX = pointA.x + (pointB.x - pointA.x) * laneT;
+          baseY = pointA.y + (pointB.y - pointA.y) * fallT;
         } else {
           const lastPoint = ball.path[pathLength - 1];
           baseX = lastPoint.x;
@@ -1549,23 +1591,52 @@ export class PlinkoEngine {
 
         if (ball.isInBounce) {
           const bounceElapsed = currentTime - ball.bounceStartTime;
-          const bounceProgress = bounceElapsed / ball.bounceDuration;
+          const bounceProgress = Math.min(1, bounceElapsed / ball.bounceDuration);
           if (bounceProgress >= 1) {
             ball.isInBounce = false;
-            // Keep some side momentum after impact for less scripted-looking pathing.
+            ball.bounceTravelDir = 0;
             ball.velocityX *= 0.78;
+            ball.x =
+              baseX +
+              ball.velocityX * this.pyramidConfig.laneCentering +
+              ball.laneOffsetX +
+              ball.collisionOffsetX;
+            ball.y = baseY + ball.velocityY + ball.collisionOffsetY;
           } else {
-            // Peg-to-peg parabolic arc: visible bounce while still continuous with gravity offset.
-            const parabolicT = 4 * bounceProgress * (1 - bounceProgress);
-            const arcHeight = this.pyramidConfig.bounceAmplitude * this.elementScale * 0.95 * parabolicT;
-            ball.x = baseX + ball.velocityX * this.pyramidConfig.laneCentering;
-            ball.y = baseY + ball.velocityY - arcHeight;
+            const arcHeight =
+              this.pyramidConfig.bounceAmplitude *
+              ball.bounceHeightMultiplier *
+              Math.sin(bounceProgress * Math.PI) *
+              this.elementScale;
+            const directedDrift =
+              ball.bounceTravelDir *
+              this.pyramidConfig.bounceAmplitude *
+              ball.driftMultiplier *
+              0.132 *
+              this.elementScale *
+              Math.sin(bounceProgress * Math.PI);
+            const wobble =
+              this.pyramidConfig.horizontalDrift *
+              ball.driftMultiplier *
+              0.18 *
+              Math.sin(bounceProgress * Math.PI * 2) *
+              this.elementScale;
+            ball.x =
+              baseX +
+              ball.velocityX * this.pyramidConfig.laneCentering +
+              directedDrift +
+              wobble +
+              ball.laneOffsetX +
+              ball.collisionOffsetX;
+            ball.y = baseY + ball.velocityY - arcHeight + ball.collisionOffsetY;
           }
-        }
-        if (!ball.isInBounce) {
-          // Continuous gravity-driven vertical motion around the path baseline.
-          ball.x = baseX + ball.velocityX * this.pyramidConfig.laneCentering;
-          ball.y = baseY + ball.velocityY;
+        } else {
+          ball.x =
+            baseX +
+            ball.velocityX * this.pyramidConfig.laneCentering +
+            ball.laneOffsetX +
+            ball.collisionOffsetX;
+          ball.y = baseY + ball.velocityY + ball.collisionOffsetY;
         }
 
         ball.prevX = previousX;
@@ -1593,6 +1664,8 @@ export class PlinkoEngine {
         if (ball.scale < 0.05) ball.scale = 0;
       }
     }
+
+    this.resolveBallCollisions();
 
     const heavyLoad = this.balls.length >= 8;
     const shouldRedrawEffectLayers = !heavyLoad || this.frameTick % 2 === 0;
@@ -1643,6 +1716,82 @@ export class PlinkoEngine {
     return false;
   }
 
+  private createBallVariationTraits(seed?: number): Pick<
+    Ball,
+    | 'speedMultiplier'
+    | 'bounceHeightMultiplier'
+    | 'driftMultiplier'
+    | 'bounceDurationMultiplier'
+    | 'laneOffsetX'
+  > {
+    const rng = seed != null ? this.createPathRng(seed) : Math.random;
+    return {
+      speedMultiplier: 1.3,
+      bounceHeightMultiplier: 0.86 + rng() * 0.28,
+      driftMultiplier: 0.72 + rng() * 0.56,
+      bounceDurationMultiplier: 1,
+      laneOffsetX: (rng() - 0.5) * this.pegSpacingX * 0.07,
+    };
+  }
+
+  /** Separate overlapping balls and apply a slight repulsion away from each other. */
+  private resolveBallCollisions(): void {
+    const dropping = this.balls.filter((b) => b.isDropping && b.scale > 0);
+    if (dropping.length < 2) return;
+
+    const minSep = this.ballRadius * 2 * this.pyramidConfig.ballSeparationFactor;
+    const minSepSq = minSep * minSep;
+    const maxPush = this.ballRadius * 0.38;
+    const repulsion = this.pyramidConfig.ballRepulsionScale * this.elementScale;
+    const passes = dropping.length >= 4 ? 3 : 2;
+
+    for (let pass = 0; pass < passes; pass++) {
+      for (let i = 0; i < dropping.length; i++) {
+        const a = dropping[i];
+        for (let j = i + 1; j < dropping.length; j++) {
+          const b = dropping[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq >= minSepSq) continue;
+
+          let nx: number;
+          let ny: number;
+          let overlap: number;
+          if (distSq < 0.0001) {
+            nx = a.id < b.id ? -1 : 1;
+            ny = -0.25;
+            const len = Math.hypot(nx, ny) || 1;
+            nx /= len;
+            ny /= len;
+            overlap = minSep;
+          } else {
+            const dist = Math.sqrt(distSq);
+            nx = dx / dist;
+            ny = dy / dist;
+            overlap = minSep - dist;
+          }
+
+          const push = Math.min(overlap * 0.54, maxPush);
+          a.collisionOffsetX -= nx * push;
+          b.collisionOffsetX += nx * push;
+          a.collisionOffsetY -= ny * push * 0.45;
+          b.collisionOffsetY += ny * push * 0.45;
+          a.x -= nx * push;
+          a.y -= ny * push * 0.55;
+          b.x += nx * push;
+          b.y += ny * push * 0.55;
+
+          const repulse = repulsion * overlap;
+          a.velocityX -= nx * repulse;
+          b.velocityX += nx * repulse;
+          a.velocityY -= ny * repulse * 0.18;
+          b.velocityY += ny * repulse * 0.18;
+        }
+      }
+    }
+  }
+
   private updateBallPhysics(ball: Ball, currentTime: number): void {
     let baseSpeed = this.pyramidConfig.normalSpeed * this.animationSpeed;
     baseSpeed += this.pyramidConfig.gravityEffect * (ball.currentPoint + 0.5);
@@ -1675,20 +1824,80 @@ export class PlinkoEngine {
 
     const maxLaneDrift = this.pegSpacingX * 0.28;
     ball.velocityX = Math.max(-maxLaneDrift, Math.min(maxLaneDrift, ball.velocityX));
-    // Integrate vertical offset with gravity so rise/fall is smooth and physically continuous.
-    ball.velocityY += this.pyramidConfig.verticalGravity * this.elementScale;
-    ball.velocityY *= this.pyramidConfig.verticalDamping;
-    const maxVerticalOffset = this.pyramidConfig.bounceAmplitude * this.elementScale;
-    ball.velocityY = Math.max(-maxVerticalOffset, Math.min(maxVerticalOffset, ball.velocityY));
+    if (!ball.isInBounce) {
+      ball.velocityY += this.pyramidConfig.verticalGravity * this.elementScale;
+      ball.velocityY *= this.pyramidConfig.verticalDamping;
+      const maxVerticalOffset = this.pyramidConfig.bounceAmplitude * this.elementScale * 0.4;
+      ball.velocityY = Math.max(-maxVerticalOffset, Math.min(maxVerticalOffset, ball.velocityY));
+    } else {
+      ball.velocityY *= 0.9;
+    }
 
     if (Math.abs(ball.velocityX) > 0.1) {
       ball.velocityX *= this.pyramidConfig.lateralFriction;
     } else {
       ball.velocityX = 0;
     }
+
+    ball.collisionOffsetX *= 0.91;
+    ball.collisionOffsetY *= 0.91;
+    const maxCollisionX = this.pegSpacingX * 0.26;
+    const maxCollisionY = this.pegSpacing * 0.1;
+    ball.collisionOffsetX = Math.max(-maxCollisionX, Math.min(maxCollisionX, ball.collisionOffsetX));
+    ball.collisionOffsetY = Math.max(-maxCollisionY, Math.min(maxCollisionY, ball.collisionOffsetY));
+  }
+
+  private easeSmoothstep(t: number): number {
+    const c = Math.max(0, Math.min(1, t));
+    return c * c * (3 - 2 * c);
+  }
+
+  private easeInQuad(t: number): number {
+    const c = Math.max(0, Math.min(1, t));
+    return c * c;
+  }
+
+  private resolveTravelDir(pegX: number, lookAheadX: number, targetX: number): -1 | 0 | 1 {
+    const delta = lookAheadX - pegX;
+    const centerThreshold = this.pegSpacingX * 0.09;
+    if (Math.abs(delta) <= centerThreshold) return 0;
+    return delta < 0 ? -1 : 1;
+  }
+
+  /** Contact on the peg crown only: top, top-left, or top-right (never side/bottom). */
+  private getDirectionalPegContact(
+    bouncePeg: Peg,
+    travelDir: -1 | 0 | 1,
+  ): { x: number; y: number } {
+    const crownY = bouncePeg.y - this.pegRadius * 0.92;
+    if (travelDir === 0) {
+      return { x: bouncePeg.x, y: crownY };
+    }
+    const crownXOffset = this.pegRadius * 0.4;
+    return {
+      x: bouncePeg.x + travelDir * crownXOffset,
+      y: crownY,
+    };
+  }
+
+  private inferBounceTravelDir(
+    ball: Ball,
+    pathIndex: number,
+    pathPoint: PathPoint,
+    bouncePeg: Peg,
+  ): -1 | 0 | 1 {
+    if (pathPoint.travelDir === -1 || pathPoint.travelDir === 0 || pathPoint.travelDir === 1) {
+      return pathPoint.travelDir;
+    }
+    const nextPoint = ball.path[pathIndex + 1];
+    const targetX = ball.path[ball.path.length - 1]?.x ?? bouncePeg.x;
+    const lookAheadX = nextPoint?.closestPeg?.x ?? nextPoint?.x ?? targetX;
+    return this.resolveTravelDir(bouncePeg.x, lookAheadX, targetX);
   }
 
   private checkForBounce(ball: Ball, currentTime: number): void {
+    if (ball.isInBounce) return;
+
     const pathLength = ball.path.length;
     const segmentProgress = ball.currentPoint * (pathLength - 1);
     const segmentIndex = Math.floor(segmentProgress);
@@ -1712,30 +1921,32 @@ export class PlinkoEngine {
         continue;
       }
 
-      // Use top-middle peg contact to avoid "through-center" collisions.
-      const contactX = bouncePeg.x;
-      const contactY = bouncePeg.y - this.pegRadius * 0.85;
+      // Contact on the peg crown only (top / top-left / top-right).
+      const travelDir = this.inferBounceTravelDir(ball, i, pathPoint, bouncePeg);
+      const contact = this.getDirectionalPegContact(bouncePeg, travelDir);
+      const contactX = contact.x;
+      const contactY = contact.y;
       const dx = ball.x - contactX;
       const dy = ball.y - contactY;
       const distanceSq = dx * dx + dy * dy;
-      // Use inner peg body for collision so glow/outer visual doesn't trigger bounce.
-      const innerPegRadius = this.pegRadius * 0.72;
-      const interactionRadius = innerPegRadius + this.ballRadius * 0.78;
+      const interactionRadius = this.ballRadius * 0.95;
       const interactionRadiusSq = interactionRadius * interactionRadius;
-      // Fallback only when ball has genuinely reached this peg row/column neighborhood.
       const rowWasCrossed = segmentProgress >= i - 0.02;
-      const approachingFromTop = ball.y <= bouncePeg.y + this.ballRadius * 0.2;
+      const descendingOntoPeg = ball.y >= ball.prevY - 0.5;
+      const approachingFromTop =
+        ball.y <= bouncePeg.y - this.pegRadius * 0.08 && descendingOntoPeg;
       const columnTolerance =
         !ball.creditBonusPegHit && this.rowHasFeaturedPeg(pathPoint.row)
-          ? this.pegSpacingX * 0.58
-          : this.pegSpacingX * 0.34;
+          ? this.pegSpacingX * 0.52
+          : this.pegSpacingX * 0.32;
       const nearPegColumn = Math.abs(ball.x - bouncePeg.x) <= columnTolerance;
-      const atPegRow =
-        ball.y >= bouncePeg.y - this.pegRadius * 0.35 &&
-        ball.y <= bouncePeg.y + this.pegRadius * 0.6;
-      const shouldUseFallback = rowWasCrossed && nearPegColumn && atPegRow;
+      const inCrownZone =
+        ball.y <= bouncePeg.y &&
+        ball.y >= bouncePeg.y - this.pegRadius * 1.25;
+      const shouldUseFallback =
+        rowWasCrossed && nearPegColumn && inCrownZone && approachingFromTop;
 
-      if ((distanceSq < interactionRadiusSq && approachingFromTop) || shouldUseFallback) {
+      if ((distanceSq < interactionRadiusSq && approachingFromTop && inCrownZone) || shouldUseFallback) {
         bouncePeg.bounceEffect = pathPoint.bounceIntensity;
         bouncePeg.bounceTime = currentTime;
         bouncePeg.isTouched = true;
@@ -1753,22 +1964,20 @@ export class PlinkoEngine {
         }
         ball.isInBounce = true;
         ball.bounceStartTime = currentTime;
-        ball.bounceDuration = this.pyramidConfig.bounceDuration * (0.85 + Math.random() * 0.3);
+        ball.bounceDuration =
+          this.pyramidConfig.bounceDuration *
+          ball.bounceDurationMultiplier *
+          (0.85 + Math.random() * 0.3);
+        ball.bounceTravelDir = travelDir;
+        ball.x = contactX + (ball.x - contactX) * 0.15;
+        ball.y = Math.min(ball.y, contactY);
 
-        const distance = Math.max(0.0001, Math.sqrt(distanceSq));
-        const nxRaw = dx / distance;
-        const nyRaw = dy / distance;
-        // If fallback is used, keep the normal pointing upward to ensure visible peg impact.
-        const nx = shouldUseFallback && distanceSq >= interactionRadiusSq ? Math.sign(nxRaw || (Math.random() < 0.5 ? -1 : 1)) : nxRaw;
-        const ny = shouldUseFallback && distanceSq >= interactionRadiusSq ? -1 : nyRaw;
         const impulseScale =
           this.pyramidConfig.bounceImpulseMin +
           Math.random() * (this.pyramidConfig.bounceImpulseMax - this.pyramidConfig.bounceImpulseMin);
         const force = pathPoint.bounceIntensity * impulseScale * this.elementScale;
-        const belowBounce = Math.random() < this.pyramidConfig.belowBounceChance;
-        const lateralMultiplier = belowBounce ? 1.1 : 2.9;
-        ball.velocityX = ball.velocityX * 0.35 + nx * force * lateralMultiplier;
-        ball.velocityY = Math.min(0, ball.velocityY * 0.2 + ny * force * this.pyramidConfig.bounceLift);
+        ball.velocityX = travelDir * force * 2.82;
+        ball.velocityY = Math.min(0, -force * this.pyramidConfig.bounceLift * 0.52);
 
         ball.bouncedRows.add(pathPoint.row);
         ball.lastBounceTime = currentTime;

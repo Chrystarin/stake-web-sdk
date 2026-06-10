@@ -11,6 +11,21 @@ const FEATURE_EVENT_TYPES = new Set([
 	'bonusRoulette',
 ]);
 
+const SETTLEMENT_EVENT_TYPES = new Set(['setTotalWin', 'finalWin']);
+
+/** Split book events so feature wins (free-spin wheel) can finish before settlement. */
+export function splitBookEventsBeforeSettlement(events: BookEvent[]): {
+	prelude: BookEvent[];
+	settlement: BookEvent[];
+} {
+	const settlementIndex = events.findIndex((event) => SETTLEMENT_EVENT_TYPES.has(event.type));
+	if (settlementIndex < 0) return { prelude: events, settlement: [] };
+	return {
+		prelude: events.slice(0, settlementIndex),
+		settlement: events.slice(settlementIndex),
+	};
+}
+
 /** Book includes feature events that must finish before RGS wallet settlement. */
 export function bookHasFeatureSettlement(events: BookEvent[]): boolean {
 	return events.some((event) => FEATURE_EVENT_TYPES.has(event.type));

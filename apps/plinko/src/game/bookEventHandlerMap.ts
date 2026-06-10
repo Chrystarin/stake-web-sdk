@@ -30,7 +30,10 @@ import {
 	sessionSpinMeterReachedMax,
 } from '../features/freeSpin';
 import { releaseRoundInteractionLocks, triggerRoulette, waitForRouletteClose } from './meterFlow';
-import { checkIsPlinkoDeferredSettlement } from './plinkoRoundSettlement';
+import {
+	checkIsPlinkoDeferredSettlement,
+	splitBookEventsBeforeSettlement,
+} from './plinkoRoundSettlement';
 import { snapshotBalanceAfterPlay } from './plinkoWalletSync';
 import type { Bet, BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
@@ -185,14 +188,19 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const payoutMultiplier = bookEvent.amount / 100;
 		if (payoutMultiplier > 0) {
 			await waitForDropBatchCompletion();
+			const bookTotalWin = payoutMultiplier * stateBet.wageredBetAmount;
+			// After free-spin wheel, pendingDropWinAmount is round drop win × segment multiplier.
 			stateGame.winPopupAmount =
-				stateGame.pendingDropWinAmount || payoutMultiplier * stateBet.wageredBetAmount;
+				stateGame.freeSpinAwardedThisRound && stateGame.pendingDropWinAmount > 0
+					? stateGame.pendingDropWinAmount
+					: stateGame.pendingDropWinAmount || bookTotalWin;
 			stateGame.winPopupMultiplier =
 				stateGame.freeSpinWinMultiplier > 0
 					? stateGame.freeSpinWinMultiplier
 					: payoutMultiplier;
 			const deferForSessionFreeSpin =
 				stateGame.authoritativeMeterFlow &&
+				!stateGame.freeSpinAwardedThisRound &&
 				!bookHasFreeSpinTrigger(stateGame.activeBookEvents) &&
 				sessionSpinMeterReachedMax(stateGame.activeBookEvents);
 			stateGame.deferWinPopupForFreeSpin = deferForSessionFreeSpin;
@@ -250,8 +258,14 @@ export const playBet = async (bet: Bet) => {
 		stateGame.authoritativeMeterFlow = bookEventsUseAuthoritativeMeterFlow(events);
 
 		if (events.length > 0) {
-			await playBookEvents(events);
+			const { prelude, settlement } = splitBookEventsBeforeSettlement(events);
+			// Base drops + meter/feature events first, then free-spin wheel when the meter fills,
+			// then settlement (combined base × multiplier payout before end-round).
+			await playBookEvents(prelude);
 			await ensureFreeSpinWhenSessionMeterFull(events, normalizedBet);
+			if (settlement.length > 0) {
+				await playBookEvents(settlement);
+			}
 		}
 	} finally {
 		await syncSpinMeterAfterBet(events);
