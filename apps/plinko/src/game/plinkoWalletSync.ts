@@ -7,6 +7,7 @@ import { requestWalletBalance } from 'rgs-requests';
 
 import { bookHasFreeSpinTrigger } from '../features/freeSpin/bookAugmentation';
 import { applyFreeSpinActionBalance } from '../features/freeSpin/payout';
+import { bookEventsReachBonusMeterMax } from '../features/bonus';
 import { bookHasFeatureSettlement, bookWillReachSpinMeterMax } from './plinkoRoundSettlement';
 import { hasActiveRgsSession } from './plinkoSessionMeters';
 import type { Bet } from './typesBookEvent';
@@ -17,8 +18,10 @@ export function getPlinkoBetType(bet: Bet): 'noWin' | 'singleRoundWin' | 'bonusW
 	if (bet.active === true) return 'bonusWin';
 	if ((bet.payoutMultiplier ?? 0) > 0) return 'bonusWin';
 	if (bookHasFeatureSettlement(events)) return 'bonusWin';
+	if (bookEventsReachBonusMeterMax(events)) return 'bonusWin';
 	if (bookHasFreeSpinTrigger(events)) return 'bonusWin';
 	if (stateGame.freeSpinAwardedThisRound) return 'bonusWin';
+	if (stateGame.bonusAwardedThisRound) return 'bonusWin';
 	if (bookWillReachSpinMeterMax(events)) return 'bonusWin';
 	return 'noWin';
 }

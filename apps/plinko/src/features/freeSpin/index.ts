@@ -10,12 +10,16 @@ export {
 } from './freeSpinFeature';
 export {
 	applyFreeSpinActionBalance,
+	bookPayoutMultiplierDecimal,
 	bookRoundPayoutIncludesFreeSpin,
 	freeSpinMultiplierFromSegment,
+	getBookRoundPayoutAmount,
+	getFreeSpinBaseRoundWin,
 	hasMeaningfulFreeSpinWalletCredit,
 	isFreeSpinBonusWheelSegment,
 	resolveFreeSpinFeatureCredit,
 	resolveFreeSpinPayoutAmount,
+	resolveFreeSpinRoundTotalWin,
 } from './payout';
 export {
 	freeSpinSegmentIndexForMultiplier,

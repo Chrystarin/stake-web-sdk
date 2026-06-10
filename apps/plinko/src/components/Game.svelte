@@ -63,7 +63,12 @@
 
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 
-	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
+	import {
+		BonusLevel,
+		BonusMeter,
+		BonusRoulette,
+		scheduleBonusRouletteIfMeterFullIdle,
+	} from '../features/bonus';
 	import { FreeSpinMeter, FreeSpinRoulette, onFreeSpinRouletteFinished } from '../features/freeSpin';
 
 	import { isPortraitGameLayout } from '../lib/format';
@@ -154,6 +159,7 @@
 		hydrateSessionBonusMeterCache();
 		applyCachedSpinMeterToDisplay();
 		applyCachedBonusMeterToDisplay();
+		scheduleBonusRouletteIfMeterFullIdle();
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
 			stateGame.coefficients = coefficients;
@@ -197,6 +203,13 @@
 
 		syncBallPerDropTier();
 
+	});
+
+	$effect(() => {
+		stateGame.bonusMeterValue;
+		stateGame.bonusMeterMax;
+		stateGame.dropRoundActive;
+		scheduleBonusRouletteIfMeterFullIdle();
 	});
 
 

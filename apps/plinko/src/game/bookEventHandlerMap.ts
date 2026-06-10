@@ -5,7 +5,12 @@ import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boa
 import { eventEmitter } from './eventEmitter';
 import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
-import { startAuthoritativeBonusRound, waitForDropBatchCompletion } from './gameOrchestrator';
+import {
+	getCombinedRoundWinAmount,
+	startAuthoritativeBonusRound,
+	waitForBonusRoundCompletion,
+	waitForDropBatchCompletion,
+} from './gameOrchestrator';
 import {
 	applyAuthoritativeMeterConfig,
 	applyAuthoritativeSpinMeterMax,
@@ -26,11 +31,18 @@ import {
 	bookHasFreeSpinTrigger,
 	ensureFreeSpinWhenSessionMeterFull,
 	flushPendingFreeSpinWalletBeforeEndRound,
+	resolveFreeSpinRoundTotalWin,
 	runFreeSpinTriggerFlow,
 	sessionSpinMeterReachedMax,
 } from '../features/freeSpin';
-import { releaseRoundInteractionLocks, triggerRoulette, waitForRouletteClose } from './meterFlow';
 import {
+	ensureBonusWhenSessionMeterFull,
+	runBonusRouletteFlow,
+	scheduleBonusRouletteIfMeterFullIdle,
+} from '../features/bonus';
+import { releaseRoundInteractionLocks } from './meterFlow';
+import {
+	bookRequiresBonusPlayCompletion,
 	checkIsPlinkoDeferredSettlement,
 	splitBookEventsBeforeSettlement,
 } from './plinkoRoundSettlement';
@@ -126,14 +138,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		});
 	},
 	bonusRoulette: async (bookEvent: BookEventOfType<'bonusRoulette'>) => {
-		stateGame.serverBonusFreeBalls = bookEvent.freeBalls;
-		stateGame.showBonusRoulette = true;
-		triggerRoulette('bonus');
-		await eventEmitter.broadcastAsync({
-			type: 'bonusRouletteShow',
-			freeBalls: bookEvent.freeBalls,
-		});
-		await waitForRouletteClose();
+		await runBonusRouletteFlow(bookEvent.freeBalls);
 	},
 	spinMeter: async (bookEvent: BookEventOfType<'spinMeter'>) => {
 		const nextValue = bookEvent.value;
@@ -189,11 +194,28 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (payoutMultiplier > 0) {
 			await waitForDropBatchCompletion();
 			const bookTotalWin = payoutMultiplier * stateBet.wageredBetAmount;
-			// After free-spin wheel, pendingDropWinAmount is round drop win × segment multiplier.
+			let clientRoundWin = stateGame.pendingDropWinAmount;
+			if (stateGame.bonusAwardedThisRound) {
+				clientRoundWin = getCombinedRoundWinAmount();
+			} else if (stateGame.freeSpinAwardedThisRound) {
+				const segment =
+					stateGame.freeSpinTriggerPayload?.segment ??
+					stateGame.serverFreeSpinSegmentLabel ??
+					'';
+				clientRoundWin = resolveFreeSpinRoundTotalWin(
+					segment,
+					stateGame.freeSpinTriggerPayload,
+					stateGame.freeSpinBaseRoundWin,
+				);
+			}
 			stateGame.winPopupAmount =
-				stateGame.freeSpinAwardedThisRound && stateGame.pendingDropWinAmount > 0
-					? stateGame.pendingDropWinAmount
-					: stateGame.pendingDropWinAmount || bookTotalWin;
+				stateGame.freeSpinAwardedThisRound && bookTotalWin > 0
+					? bookTotalWin
+					: stateGame.freeSpinSettledFromBook && bookTotalWin > 0
+						? bookTotalWin
+						: clientRoundWin > 0
+							? clientRoundWin
+							: bookTotalWin;
 			stateGame.winPopupMultiplier =
 				stateGame.freeSpinWinMultiplier > 0
 					? stateGame.freeSpinWinMultiplier
@@ -239,8 +261,13 @@ export const playBet = async (bet: Bet) => {
 	stateBet.winBookEventAmount = 0;
 	stateBet.wageredBetAmount = plinkoWagerAmount();
 	stateGame.pendingDropWinAmount = 0;
+	stateGame.baseRoundDropWinAmount = 0;
+	stateGame.bonusAwardedThisRound = false;
 	stateGame.winAmount = 0;
+	stateGame.bonusSessionWinAmount = 0;
 	stateGame.freeSpinWinMultiplier = 0;
+	stateGame.freeSpinBaseRoundWin = 0;
+	stateGame.freeSpinTriggerPayload = undefined;
 	stateGame.deferWinPopupForFreeSpin = false;
 	stateGame.dropRoundActive = true;
 	stateGame.bonusPegMeterCreditedBallIds = new Set();
@@ -262,6 +289,14 @@ export const playBet = async (bet: Bet) => {
 			// Base drops + meter/feature events first, then free-spin wheel when the meter fills,
 			// then settlement (combined base × multiplier payout before end-round).
 			await playBookEvents(prelude);
+			await ensureBonusWhenSessionMeterFull(events, normalizedBet);
+			const needsBonusCompletion =
+				stateGame.bonusBallsRemaining > 0 ||
+				stateGame.bonusRoundActive ||
+				bookRequiresBonusPlayCompletion(events);
+			if (needsBonusCompletion) {
+				await waitForBonusRoundCompletion();
+			}
 			await ensureFreeSpinWhenSessionMeterFull(events, normalizedBet);
 			if (settlement.length > 0) {
 				await playBookEvents(settlement);
@@ -270,6 +305,7 @@ export const playBet = async (bet: Bet) => {
 	} finally {
 		await syncSpinMeterAfterBet(events);
 		await syncBonusMeterAfterBet(events);
+		scheduleBonusRouletteIfMeterFullIdle();
 		await flushPendingFreeSpinWalletBeforeEndRound();
 		stateGame.freeSpinSettledFromBook = false;
 		stateGame.authoritativeMeterFlow = false;
@@ -277,6 +313,8 @@ export const playBet = async (bet: Bet) => {
 			stateGame.authoritativeBonusOutcomes = [];
 			stateGame.authoritativeBonusOutcomeIndex = 0;
 		}
+		stateGame.baseRoundDropWinAmount = 0;
+		stateGame.bonusAwardedThisRound = false;
 		await releaseRoundInteractionLocks();
 		stateGame.activeRoundBet = undefined;
 	}

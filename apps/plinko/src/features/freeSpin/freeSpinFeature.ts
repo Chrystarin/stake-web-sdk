@@ -4,7 +4,11 @@ import { deriveSpinMeterFromBookEvents } from '../../game/plinkoSessionMeters';
 import { stateGame } from '../../game/stateGame.svelte';
 import type { BookEvent, BookEventOfType, Bet } from '../../game/typesBookEvent';
 import { bookHasFreeSpinTrigger } from './bookAugmentation';
-import { multiplyRoundWinByFreeSpinSegment, resolveFreeSpinPayoutAmount } from './payout';
+import {
+	getFreeSpinBaseRoundWin,
+	multiplyRoundWinByFreeSpinSegment,
+	resolveFreeSpinPayoutAmount,
+} from './payout';
 import { freeSpinSegmentIndexForSegment } from './rouletteFlow';
 import { fallbackFreeSpinSegmentFromRound } from './wallet';
 
@@ -28,10 +32,19 @@ export async function runFreeSpinTriggerFlow(payload: FreeSpinTriggerPayload): P
 	const segment =
 		payload.segment ??
 		(payload.multiplier > 0 ? `${payload.multiplier}X` : 'BONUS');
+	stateGame.freeSpinBaseRoundWin = getFreeSpinBaseRoundWin();
+	stateGame.freeSpinTriggerPayload = {
+		segment,
+		multiplier: payload.multiplier,
+		amount: payload.amount,
+	};
 	stateGame.freeSpinAwardedThisRound = true;
 	stateGame.serverFreeSpinSegmentLabel = segment;
 	stateGame.serverFreeSpinSegment = freeSpinSegmentIndexForSegment(segment);
-	stateGame.serverFreeSpinWinAmount = resolveFreeSpinPayoutAmount(payload);
+	stateGame.serverFreeSpinWinAmount = resolveFreeSpinPayoutAmount(
+		stateGame.freeSpinTriggerPayload,
+		stateGame.freeSpinBaseRoundWin,
+	);
 	stateGame.showFreeSpinRoulette = true;
 	triggerRoulette('spin');
 	await eventEmitter.broadcastAsync({
@@ -57,7 +70,10 @@ export async function ensureFreeSpinWhenSessionMeterFull(
 	// Stake production RGS does not implement `/bet/action` for this game. Use a deterministic
 	// presentation fallback; wallet payout requires a republished math book with `freeSpinTrigger`.
 	const fallback = fallbackFreeSpinSegmentFromRound(roundBet);
-	const fallbackScaledWin = multiplyRoundWinByFreeSpinSegment(fallback.segment).totalWin;
+	const fallbackScaledWin = multiplyRoundWinByFreeSpinSegment(
+		fallback.segment,
+		getFreeSpinBaseRoundWin(),
+	).totalWin;
 	const payload: FreeSpinTriggerPayload = {
 		segment: fallback.segment,
 		multiplier: fallback.multiplier,

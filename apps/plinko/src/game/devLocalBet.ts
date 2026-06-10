@@ -7,6 +7,7 @@ import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { coefficientsForRowCount } from '../game-logic/constants';
 import config from './config';
 import { stateGame } from './stateGame.svelte';
+import { injectBonusRoundIfMeterFull } from '../features/bonus';
 import { injectFreeSpinTriggerIfMeterFull } from '../features/freeSpin';
 import {
 	getDevRgsBonusLevel,
@@ -113,16 +114,20 @@ const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet
 	}
 
 	const spinMeterMax = drop?.spinMeterMax ?? config.spinMeterMax;
-	const roundWager = stakePerBall * ballsPerDrop;
+	const bonusMeterMax = drop?.bonusMeterMax ?? config.bonusMeterMax;
+	patchedEvents = injectBonusRoundIfMeterFull(patchedEvents, bonusMeterMax, 50);
 	patchedEvents = injectFreeSpinTriggerIfMeterFull(
 		patchedEvents,
 		spinMeterMax,
 		ballsPerDrop,
 		stakePerBall,
-		{ segment: '5X', multiplier: 5, amount: roundWager * 5 },
+		{ segment: '5X', multiplier: 5 },
 	);
 
-	return { ...book, events: patchedEvents };
+	const finalWinEvent = patchedEvents.find((event) => event.type === 'finalWin');
+	const payoutMultiplier = finalWinEvent?.amount ?? book.payoutMultiplier ?? 0;
+
+	return { ...book, payoutMultiplier, events: patchedEvents };
 };
 
 /** Play a math book locally when no RGS session is configured (dev / Storybook-style). */

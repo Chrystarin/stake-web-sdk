@@ -61,8 +61,12 @@ export const stateGame = $state({
 	/** Balls that already credited spin meter from a server spin-slot land this drop. */
 	spinSlotMeterCreditedBallIds: new Set<number>(),
 	pendingDropWinAmount: 0,
+	/** Base-game drop win snapshotted when a bonus round starts (preserved through bonus play). */
+	baseRoundDropWinAmount: 0,
 	winAmount: 0,
 	bonusSessionWinAmount: 0,
+	/** Set when `bonusRoulette` / `bonusRound` awards balls this wager round. */
+	bonusAwardedThisRound: false,
 	/** When true, meter fills and roulettes follow RGS book events / outcome flags only. */
 	authoritativeMeterFlow: false,
 	/** When true, meter maxima come from config/books — do not tier-scale by balls-per-drop. */
@@ -101,6 +105,12 @@ export const stateGame = $state({
 	winPopupMultiplier: 0,
 	/** Landed free-spin segment multiplier applied to the round win (e.g. 5 for `5X`). */
 	freeSpinWinMultiplier: 0,
+	/** Base drop win snapshotted when the free-spin wheel opens (before applying segment multiplier). */
+	freeSpinBaseRoundWin: 0,
+	/** Math/RGS `freeSpinTrigger` payload for the current round (segment + multiplier). */
+	freeSpinTriggerPayload: undefined as
+		| { segment?: string; multiplier?: number; amount?: number }
+		| undefined,
 	/** Hold win popup until session-meter free spin finishes (book omits `freeSpinTrigger`). */
 	deferWinPopupForFreeSpin: false,
 	autoMode: false,

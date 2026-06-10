@@ -51,7 +51,9 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		}
 	},
 	checkIsBonusGame: (bet) =>
-		stateGame.bonusRoundActive || checkIsPlinkoDeferredSettlement(bet),
+		stateGame.bonusRoundActive ||
+		stateGame.bonusAwardedThisRound ||
+		checkIsPlinkoDeferredSettlement(bet),
 	getBetType: ({ bet }) => getPlinkoBetType(bet),
 	afterEndGameSettle: async ({ bet }) => {
 		await syncPlinkoWalletAfterRound(bet);

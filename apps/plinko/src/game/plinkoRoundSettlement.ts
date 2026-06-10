@@ -1,3 +1,4 @@
+import { bookEventsReachBonusMeterMax } from '../features/bonus';
 import type { Bet, BookEvent } from './typesBookEvent';
 import {
 	resolveRgsSpinMeterStart,
@@ -29,6 +30,16 @@ export function splitBookEventsBeforeSettlement(events: BookEvent[]): {
 /** Book includes feature events that must finish before RGS wallet settlement. */
 export function bookHasFeatureSettlement(events: BookEvent[]): boolean {
 	return events.some((event) => FEATURE_EVENT_TYPES.has(event.type));
+}
+
+/** True when the book awards bonus balls the player must still play before settlement. */
+export function bookRequiresBonusPlayCompletion(events: BookEvent[]): boolean {
+	return events.some((event) => {
+		if (event.type !== 'bonusRound') return false;
+		const played = Math.max(0, Math.floor(event.ballsPlayed ?? 0));
+		const freeBalls = Math.max(0, Math.floor(event.freeBalls ?? 0));
+		return freeBalls - played > 0;
+	});
 }
 
 /**
@@ -64,5 +75,6 @@ export function checkIsPlinkoDeferredSettlement(bet: Bet): boolean {
 	const events = bet.state ?? [];
 	if (bet.active === true) return true;
 	if (bookHasFeatureSettlement(events)) return true;
+	if (bookEventsReachBonusMeterMax(events)) return true;
 	return bookWillReachSpinMeterMax(events);
 }

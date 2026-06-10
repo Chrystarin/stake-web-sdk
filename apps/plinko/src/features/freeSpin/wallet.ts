@@ -9,6 +9,7 @@ import type { Bet } from '../../game/typesBookEvent';
 import {
 	applyFreeSpinActionBalance,
 	freeSpinMultiplierFromSegment,
+	getFreeSpinBaseRoundWin,
 	hasMeaningfulFreeSpinWalletCredit,
 	isFreeSpinBonusWheelSegment,
 	multiplyRoundWinByFreeSpinSegment,
@@ -48,7 +49,7 @@ export function fallbackFreeSpinSegmentFromRound(bet?: Bet): FreeSpinWalletSettl
 			: (['5X'] as const);
 	const segment = labels[Math.abs(roundKey) % labels.length] ?? '5X';
 	const multiplier = freeSpinMultiplierFromSegment(segment);
-	const { totalWin } = multiplyRoundWinByFreeSpinSegment(segment, stateGame.pendingDropWinAmount);
+	const { totalWin } = multiplyRoundWinByFreeSpinSegment(segment, getFreeSpinBaseRoundWin());
 	return { segment, multiplier, winAmount: totalWin };
 }
 

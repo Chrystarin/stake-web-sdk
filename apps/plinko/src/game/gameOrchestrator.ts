@@ -52,15 +52,51 @@ export function setBetRequestHandler(handler: () => void) {
 	betRequestHandler = handler;
 }
 
+export function getCombinedRoundWinAmount(): number {
+	if (stateGame.bonusAwardedThisRound || stateGame.bonusRoundActive) {
+		return stateGame.baseRoundDropWinAmount + stateGame.bonusSessionWinAmount;
+	}
+	return stateGame.pendingDropWinAmount;
+}
+
+const BONUS_ROUND_COMPLETION_TIMEOUT_MS = 600_000;
+
+function isBonusRoundBlockingSettlement(): boolean {
+	if (stateGame.bonusBallsRemaining > 0 || stateGame.bonusRoundActive) return true;
+	if (stateGame.bonusEndAnnouncementOpen) return true;
+	if (stateGame.pendingSpinRouletteAfterBonusLevelDepletion) return true;
+	if (stateGame.freeSpinRouletteOpen) return true;
+	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin') {
+		return true;
+	}
+	return false;
+}
+
+/** Wait until bonus balls are played, any follow-up wheel closes, and the end screen is dismissed. */
+export function waitForBonusRoundCompletion(): Promise<void> {
+	if (!isBonusRoundBlockingSettlement()) return Promise.resolve();
+	return new Promise((resolve) => {
+		const started = Date.now();
+		const check = () => {
+			if (!isBonusRoundBlockingSettlement() || Date.now() - started >= BONUS_ROUND_COMPLETION_TIMEOUT_MS) {
+				resolve();
+				return;
+			}
+			requestAnimationFrame(check);
+		};
+		check();
+	});
+}
+
 export function addSettledWinAmount(amount: number) {
 	const safe = Number(amount) || 0;
 	if (safe <= 0) return;
-	stateGame.pendingDropWinAmount += safe;
 	if (stateGame.bonusRoundActive) {
 		stateGame.bonusSessionWinAmount += safe;
-		stateGame.winAmount = stateGame.bonusSessionWinAmount;
+		stateGame.winAmount = getCombinedRoundWinAmount();
 		return;
 	}
+	stateGame.pendingDropWinAmount += safe;
 	stateGame.winAmount = stateGame.pendingDropWinAmount;
 }
 
@@ -149,20 +185,21 @@ export function takeAuthoritativeBonusOutcome(): PlinkoBallOutcome | undefined {
 export function awardBonusBalls(count: number) {
 	const amount = Math.max(1, Math.floor(count || 1));
 	if (!stateGame.bonusRoundActive) {
+		stateGame.bonusAwardedThisRound = true;
+		stateGame.baseRoundDropWinAmount = stateGame.pendingDropWinAmount;
 		stateGame.bonusRoundActive = true;
 		stateGame.bonusLevelProgress = 1;
 		stateGame.spinMeterValue = 0;
 		stateGame.bonusMeterValue = 0;
 		stateGame.bonusMeterOverflowValue = 0;
 		stateGame.bonusSessionWinAmount = 0;
-		stateGame.winAmount = 0;
+		stateGame.winAmount = stateGame.baseRoundDropWinAmount;
 	}
 	if (
 		!stateGameDerived.hasPendingBonusBalls &&
 		!stateGame.bonusRoundSettlementInProgress &&
 		!isGameOngoing()
 	) {
-		stateGame.pendingDropWinAmount = 0;
 		stateGame.expectedOutcomeByBallId = new Map<number, PlinkoBallOutcome>();
 		stateGame.nextBallSpawnAtMs = Date.now();
 		stateGame.pendingSpacedSpawnTimers = 0;
@@ -328,7 +365,7 @@ async function settleBonusRoundWhenFinished() {
 			return;
 		}
 		if (stateGame.bonusBallsRemaining <= 0) {
-			stateGame.bonusEndWinAmount = Math.max(0, stateGame.winAmount);
+			stateGame.bonusEndWinAmount = Math.max(0, getCombinedRoundWinAmount());
 			resetBonusRoundVisualState();
 			stateGame.bonusEndAnnouncementOpen = true;
 		}

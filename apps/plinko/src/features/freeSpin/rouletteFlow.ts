@@ -1,16 +1,15 @@
 import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
 import { eventEmitter } from '../../game/eventEmitter';
-import { hasActiveRgsSession, resetSpinMeterSession } from '../../game/plinkoSessionMeters';
+import { resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
 import {
-	hasMeaningfulFreeSpinWalletCredit,
+	freeSpinMultiplierFromSegment,
+	getBookRoundPayoutAmount,
+	getFreeSpinBaseRoundWin,
 	isFreeSpinBonusWheelSegment,
-	multiplyRoundWinByFreeSpinSegment,
-	resolveFreeSpinFeatureCredit,
-	roundIncludesFreeSpinInRgsPayout,
+	resolveFreeSpinRoundTotalWin,
 } from './payout';
-import { queuePendingFreeSpinWalletCredit } from './walletSync';
 
 export function isFreeSpinBonusSegment(segmentLabel: string): boolean {
 	return isFreeSpinBonusWheelSegment(segmentLabel);
@@ -29,9 +28,19 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 	let queuedRoulette: ReturnType<typeof meterController.completeRoulette> = null;
 
 	try {
-		const { multiplier, roundWin, totalWin } = multiplyRoundWinByFreeSpinSegment(segmentLabel);
+		const baseWin = getFreeSpinBaseRoundWin();
+		const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
+		const bookRoundWin = getBookRoundPayoutAmount(stateGame.activeRoundBet);
+		const totalWin =
+			stateGame.freeSpinSettledFromBook && bookRoundWin > 0
+				? bookRoundWin
+				: resolveFreeSpinRoundTotalWin(
+						segmentLabel,
+						stateGame.freeSpinTriggerPayload,
+						baseWin,
+					);
 
-		if (multiplier > 0 && roundWin > 0) {
+		if (multiplier > 0 && baseWin > 0) {
 			stateGame.pendingDropWinAmount = totalWin;
 			if (stateGame.bonusRoundActive) {
 				stateGame.bonusSessionWinAmount = totalWin;
@@ -48,27 +57,6 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 			if (!wasWinPopupVisible) {
 				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
 			}
-		}
-
-		// Credit via `/bet/action` when end-round payout does not already include the feature.
-		const featureCredit = resolveFreeSpinFeatureCredit(segmentLabel, roundWin);
-		const bookAlreadySettlesFreeSpin = roundIncludesFreeSpinInRgsPayout(
-			stateGame.activeRoundBet,
-			roundWin,
-		);
-		// Production Stake RGS does not expose `/bet/action` for this game — wallet credits on end-round.
-		const needsRgsFreeSpinCredit =
-			hasActiveRgsSession() &&
-			stateGame.freeSpinAwardedThisRound &&
-			!isFreeSpinBonusWheelSegment(segmentLabel) &&
-			!bookAlreadySettlesFreeSpin &&
-			hasMeaningfulFreeSpinWalletCredit(featureCredit);
-		if (needsRgsFreeSpinCredit) {
-			queuePendingFreeSpinWalletCredit({
-				segment: segmentLabel,
-				multiplier,
-				winAmount: featureCredit,
-			});
 		}
 
 		if (stateGame.deferWinPopupForFreeSpin && stateGame.winPopupAmount > 0) {

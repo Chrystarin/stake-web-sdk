@@ -266,6 +266,7 @@ export function spinMeterBookValuesAreBetRelative(
 	betStart?: number,
 ): boolean {
 	const drop = getPlinkoDrop(events);
+	if (drop && resolveRgsSpinMeterStart(drop) > 0) return false;
 	const start =
 		betStart ??
 		stateGame.betSpinMeterStart ??
@@ -399,6 +400,7 @@ export function bonusMeterBookValuesAreBetRelative(
 	betStart?: number,
 ): boolean {
 	const drop = getPlinkoDrop(events);
+	if (drop && resolveRgsBonusMeterStart(drop) > 0) return false;
 	const start =
 		betStart ??
 		stateGame.betBonusMeterStart ??
@@ -530,7 +532,7 @@ function bonusMeterConsumedThisRound(events: BookEvent[]): boolean {
 /** After a bet book finishes: display RGS result and persist bonus meter to RGS. */
 export async function syncBonusMeterAfterBet(events: BookEvent[]): Promise<void> {
 	const derived = deriveBonusMeterFromBookEvents(events);
-	const consumed = bonusMeterConsumedThisRound(events);
+	const consumed = bonusMeterConsumedThisRound(events) || stateGame.bonusAwardedThisRound;
 	const bonusMeter = consumed
 		? derived.value
 		: Math.max(derived.value, stateGame.bonusMeterValue, getSessionBonusMeterCarryOver());
