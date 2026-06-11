@@ -69,7 +69,7 @@
 			}
 		}
 
-		stateBet.wageredBetAmount = stateBet.wageredBetAmount || stateBet.betAmount;
+		stateBet.wageredBetAmount = plinkoWagerAmount() || stateBet.betAmount;
 		hydrateSessionSpinMeterCache();
 		hydrateSessionBonusMeterCache();
 		applyCachedSpinMeterToDisplay();

@@ -1,7 +1,7 @@
 export default [
 	{
 		"id": 0,
-		"payoutMultiplier": 107,
+		"payoutMultiplier": 106,
 		"events": [
 			{
 				"index": 0,
@@ -11,36 +11,36 @@ export default [
 				"ballsPerDrop": 50,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 13,
-				"bonusMeterMax": 25,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -54,21 +54,21 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -82,21 +82,21 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -110,14 +110,14 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -131,7 +131,7 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -145,21 +145,21 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -180,21 +180,21 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -215,28 +215,28 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -250,49 +250,49 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -313,7 +313,7 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -341,21 +341,21 @@ export default [
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -369,7 +369,7 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -387,7 +387,7 @@ export default [
 				"index": 1,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 2,
@@ -399,7 +399,7 @@ export default [
 				"index": 3,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 4,
@@ -417,7 +417,7 @@ export default [
 				"index": 6,
 				"type": "spinMeter",
 				"value": 3,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 7,
@@ -429,13 +429,13 @@ export default [
 				"index": 8,
 				"type": "spinMeter",
 				"value": 4,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 9,
 				"type": "spinMeter",
 				"value": 5,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 10,
@@ -459,13 +459,13 @@ export default [
 				"index": 13,
 				"type": "spinMeter",
 				"value": 6,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 14,
 				"type": "spinMeter",
 				"value": 7,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 15,
@@ -477,100 +477,82 @@ export default [
 				"index": 16,
 				"type": "spinMeter",
 				"value": 8,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 17,
 				"type": "spinMeter",
 				"value": 9,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 18,
 				"type": "spinMeter",
 				"value": 10,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 19,
-				"type": "spinMeter",
-				"value": 11,
-				"max": 13
-			},
-			{
-				"index": 20,
-				"type": "spinMeter",
-				"value": 12,
-				"max": 13
-			},
-			{
-				"index": 21,
-				"type": "spinMeter",
-				"value": 13,
-				"max": 13
-			},
-			{
-				"index": 22,
 				"type": "freeSpinTrigger",
 				"multiplier": 0,
 				"segment": "BONUS",
-				"amount": 1916
+				"amount": 1900
 			},
 			{
-				"index": 23,
+				"index": 20,
 				"type": "bonusRoulette",
 				"freeBalls": 20
 			},
 			{
-				"index": 24,
+				"index": 21,
 				"type": "bonusRound",
 				"freeBalls": 20,
 				"outcomes": [
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -584,21 +566,21 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 10,
-						"multiplier": 2.22,
+						"multiplier": 2.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -619,7 +601,7 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -633,21 +615,21 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -661,7 +643,7 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -671,10 +653,28 @@ export default [
 				"ballsPlayed": 0
 			},
 			{
-				"index": 25,
+				"index": 22,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 13
+				"max": 10
+			},
+			{
+				"index": 23,
+				"type": "spinMeter",
+				"value": 2,
+				"max": 10
+			},
+			{
+				"index": 24,
+				"type": "spinMeter",
+				"value": 3,
+				"max": 10
+			},
+			{
+				"index": 25,
+				"type": "spinMeter",
+				"value": 4,
+				"max": 10
 			},
 			{
 				"index": 26,
@@ -685,8 +685,8 @@ export default [
 			{
 				"index": 27,
 				"type": "spinMeter",
-				"value": 2,
-				"max": 13
+				"value": 5,
+				"max": 10
 			},
 			{
 				"index": 28,
@@ -703,33 +703,33 @@ export default [
 			{
 				"index": 30,
 				"type": "spinMeter",
-				"value": 3,
-				"max": 13
+				"value": 6,
+				"max": 10
 			},
 			{
 				"index": 31,
 				"type": "spinMeter",
-				"value": 4,
-				"max": 13
+				"value": 7,
+				"max": 10
 			},
 			{
 				"index": 32,
 				"type": "setTotalWin",
-				"amount": 107
+				"amount": 106
 			},
 			{
 				"index": 33,
 				"type": "finalWin",
-				"amount": 107
+				"amount": 106
 			}
 		],
 		"criteria": "basegame_balls_50",
-		"baseGameWins": 1.07,
+		"baseGameWins": 1.06,
 		"freeGameWins": 0
 	},
 	{
 		"id": 1,
-		"payoutMultiplier": 126,
+		"payoutMultiplier": 125,
 		"events": [
 			{
 				"index": 0,
@@ -739,22 +739,22 @@ export default [
 				"ballsPerDrop": 10,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
 				"spinMeterMax": 10,
-				"bonusMeterMax": 20,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
@@ -768,63 +768,63 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 10,
-						"multiplier": 2.22,
+						"multiplier": 2.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -852,16 +852,16 @@ export default [
 			{
 				"index": 4,
 				"type": "setTotalWin",
-				"amount": 126
+				"amount": 125
 			},
 			{
 				"index": 5,
 				"type": "finalWin",
-				"amount": 126
+				"amount": 125
 			}
 		],
 		"criteria": "basegame",
-		"baseGameWins": 1.26,
+		"baseGameWins": 1.25,
 		"freeGameWins": 0
 	},
 	{
@@ -876,22 +876,22 @@ export default [
 				"ballsPerDrop": 20,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 11,
-				"bonusMeterMax": 23,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
@@ -905,14 +905,14 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -940,21 +940,21 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -968,63 +968,63 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1042,31 +1042,31 @@ export default [
 				"index": 1,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 2,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 3,
 				"type": "spinMeter",
 				"value": 3,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 4,
 				"type": "spinMeter",
 				"value": 4,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 5,
 				"type": "spinMeter",
 				"value": 5,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 6,
@@ -1090,7 +1090,7 @@ export default [
 				"index": 9,
 				"type": "spinMeter",
 				"value": 6,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 10,
@@ -1109,7 +1109,7 @@ export default [
 	},
 	{
 		"id": 3,
-		"payoutMultiplier": 69,
+		"payoutMultiplier": 70,
 		"events": [
 			{
 				"index": 0,
@@ -1119,29 +1119,29 @@ export default [
 				"ballsPerDrop": 1,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 1,
-				"bonusMeterMax": 2,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1151,21 +1151,21 @@ export default [
 			{
 				"index": 1,
 				"type": "setTotalWin",
-				"amount": 69
+				"amount": 70
 			},
 			{
 				"index": 2,
 				"type": "finalWin",
-				"amount": 69
+				"amount": 70
 			}
 		],
 		"criteria": "basegame_balls_1",
-		"baseGameWins": 0.69,
+		"baseGameWins": 0.7,
 		"freeGameWins": 0
 	},
 	{
 		"id": 4,
-		"payoutMultiplier": 154,
+		"payoutMultiplier": 155,
 		"events": [
 			{
 				"index": 0,
@@ -1175,50 +1175,50 @@ export default [
 				"ballsPerDrop": 50,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 13,
-				"bonusMeterMax": 25,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1232,14 +1232,14 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1260,21 +1260,21 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 11,
-						"multiplier": 4.44,
+						"multiplier": 4.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1288,35 +1288,35 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1330,49 +1330,49 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1400,14 +1400,14 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1421,7 +1421,7 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -1435,7 +1435,7 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1449,14 +1449,14 @@ export default [
 					},
 					{
 						"rateIndex": 2,
-						"multiplier": 2.22,
+						"multiplier": 2.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -1484,14 +1484,14 @@ export default [
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1526,7 +1526,7 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -1540,7 +1540,7 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1557,7 +1557,7 @@ export default [
 				"index": 2,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 3,
@@ -1569,31 +1569,31 @@ export default [
 				"index": 4,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 5,
 				"type": "spinMeter",
 				"value": 3,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 6,
 				"type": "spinMeter",
 				"value": 4,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 7,
 				"type": "spinMeter",
 				"value": 5,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 8,
 				"type": "spinMeter",
 				"value": 6,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 9,
@@ -1605,19 +1605,19 @@ export default [
 				"index": 10,
 				"type": "spinMeter",
 				"value": 7,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 11,
 				"type": "spinMeter",
 				"value": 8,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 12,
 				"type": "spinMeter",
 				"value": 9,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 13,
@@ -1629,52 +1629,28 @@ export default [
 				"index": 14,
 				"type": "spinMeter",
 				"value": 10,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 15,
-				"type": "spinMeter",
-				"value": 11,
-				"max": 13
-			},
-			{
-				"index": 16,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 0
-			},
-			{
-				"index": 17,
-				"type": "spinMeter",
-				"value": 12,
-				"max": 13
-			},
-			{
-				"index": 18,
-				"type": "spinMeter",
-				"value": 13,
-				"max": 13
-			},
-			{
-				"index": 19,
 				"type": "freeSpinTrigger",
 				"multiplier": 0,
 				"segment": "BONUS",
-				"amount": 3812
+				"amount": 3830
 			},
 			{
-				"index": 20,
+				"index": 16,
 				"type": "bonusRoulette",
 				"freeBalls": 50
 			},
 			{
-				"index": 21,
+				"index": 17,
 				"type": "bonusRound",
 				"freeBalls": 50,
 				"outcomes": [
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1695,28 +1671,28 @@ export default [
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1730,7 +1706,7 @@ export default [
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1751,7 +1727,7 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1765,14 +1741,14 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1786,28 +1762,28 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1821,28 +1797,28 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1856,105 +1832,105 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1968,28 +1944,28 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2010,14 +1986,14 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -2027,10 +2003,34 @@ export default [
 				"ballsPlayed": 0
 			},
 			{
-				"index": 22,
+				"index": 18,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 13
+				"max": 10
+			},
+			{
+				"index": 19,
+				"type": "bonusMeter",
+				"value": 5,
+				"level": 1
+			},
+			{
+				"index": 20,
+				"type": "spinMeter",
+				"value": 2,
+				"max": 10
+			},
+			{
+				"index": 21,
+				"type": "spinMeter",
+				"value": 3,
+				"max": 10
+			},
+			{
+				"index": 22,
+				"type": "spinMeter",
+				"value": 4,
+				"max": 10
 			},
 			{
 				"index": 23,
@@ -2041,14 +2041,14 @@ export default [
 			{
 				"index": 24,
 				"type": "spinMeter",
-				"value": 2,
-				"max": 13
+				"value": 5,
+				"max": 10
 			},
 			{
 				"index": 25,
 				"type": "spinMeter",
-				"value": 3,
-				"max": 13
+				"value": 6,
+				"max": 10
 			},
 			{
 				"index": 26,
@@ -2059,8 +2059,8 @@ export default [
 			{
 				"index": 27,
 				"type": "spinMeter",
-				"value": 4,
-				"max": 13
+				"value": 7,
+				"max": 10
 			},
 			{
 				"index": 28,
@@ -2071,8 +2071,8 @@ export default [
 			{
 				"index": 29,
 				"type": "spinMeter",
-				"value": 5,
-				"max": 13
+				"value": 8,
+				"max": 10
 			},
 			{
 				"index": 30,
@@ -2083,27 +2083,27 @@ export default [
 			{
 				"index": 31,
 				"type": "spinMeter",
-				"value": 6,
-				"max": 13
+				"value": 9,
+				"max": 10
 			},
 			{
 				"index": 32,
 				"type": "setTotalWin",
-				"amount": 154
+				"amount": 155
 			},
 			{
 				"index": 33,
 				"type": "finalWin",
-				"amount": 154
+				"amount": 155
 			}
 		],
 		"criteria": "basegame_balls_50",
-		"baseGameWins": 1.54,
+		"baseGameWins": 1.55,
 		"freeGameWins": 0
 	},
 	{
 		"id": 5,
-		"payoutMultiplier": 114,
+		"payoutMultiplier": 115,
 		"events": [
 			{
 				"index": 0,
@@ -2113,127 +2113,127 @@ export default [
 				"ballsPerDrop": 20,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 11,
-				"bonusMeterMax": 23,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 11,
-						"multiplier": 4.44,
+						"multiplier": 4.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 10,
-						"multiplier": 2.22,
+						"multiplier": 2.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2247,14 +2247,14 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2268,7 +2268,7 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -2303,13 +2303,13 @@ export default [
 				"index": 5,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 6,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 7,
@@ -2320,16 +2320,16 @@ export default [
 			{
 				"index": 8,
 				"type": "setTotalWin",
-				"amount": 114
+				"amount": 115
 			},
 			{
 				"index": 9,
 				"type": "finalWin",
-				"amount": 114
+				"amount": 115
 			}
 		],
 		"criteria": "basegame_balls_20",
-		"baseGameWins": 1.14,
+		"baseGameWins": 1.15,
 		"freeGameWins": 0
 	},
 	{
@@ -2344,36 +2344,36 @@ export default [
 				"ballsPerDrop": 50,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 13,
-				"bonusMeterMax": 25,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2394,49 +2394,49 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -2450,7 +2450,7 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2464,14 +2464,14 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2485,56 +2485,56 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2548,28 +2548,28 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2583,14 +2583,14 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2604,7 +2604,7 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2625,14 +2625,14 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2646,7 +2646,7 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2660,35 +2660,35 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -2702,7 +2702,7 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -2720,13 +2720,13 @@ export default [
 				"index": 1,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 2,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 3,
@@ -2750,37 +2750,37 @@ export default [
 				"index": 6,
 				"type": "spinMeter",
 				"value": 3,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 7,
 				"type": "spinMeter",
 				"value": 4,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 8,
 				"type": "spinMeter",
 				"value": 5,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 9,
 				"type": "spinMeter",
 				"value": 6,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 10,
 				"type": "spinMeter",
 				"value": 7,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 11,
 				"type": "spinMeter",
 				"value": 8,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 12,
@@ -2792,7 +2792,7 @@ export default [
 				"index": 13,
 				"type": "spinMeter",
 				"value": 9,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 14,
@@ -2804,44 +2804,44 @@ export default [
 				"index": 15,
 				"type": "spinMeter",
 				"value": 10,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 16,
+				"type": "freeSpinTrigger",
+				"multiplier": 5,
+				"segment": "5X",
+				"amount": 19750
+			},
+			{
+				"index": 17,
 				"type": "bonusMeter",
 				"value": 6,
 				"level": 0
 			},
 			{
-				"index": 17,
-				"type": "spinMeter",
-				"value": 11,
-				"max": 13
-			},
-			{
 				"index": 18,
 				"type": "spinMeter",
-				"value": 12,
-				"max": 13
+				"value": 1,
+				"max": 10
 			},
 			{
 				"index": 19,
+				"type": "spinMeter",
+				"value": 2,
+				"max": 10
+			},
+			{
+				"index": 20,
 				"type": "bonusMeter",
 				"value": 7,
 				"level": 0
 			},
 			{
-				"index": 20,
-				"type": "spinMeter",
-				"value": 13,
-				"max": 13
-			},
-			{
 				"index": 21,
-				"type": "freeSpinTrigger",
-				"multiplier": 5,
-				"segment": "5X",
-				"amount": 19770
+				"type": "spinMeter",
+				"value": 3,
+				"max": 10
 			},
 			{
 				"index": 22,
@@ -2852,8 +2852,8 @@ export default [
 			{
 				"index": 23,
 				"type": "spinMeter",
-				"value": 1,
-				"max": 13
+				"value": 4,
+				"max": 10
 			},
 			{
 				"index": 24,
@@ -2872,7 +2872,7 @@ export default [
 	},
 	{
 		"id": 7,
-		"payoutMultiplier": 92,
+		"payoutMultiplier": 463,
 		"events": [
 			{
 				"index": 0,
@@ -2882,71 +2882,71 @@ export default [
 				"ballsPerDrop": 50,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 13,
-				"bonusMeterMax": 25,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2960,7 +2960,7 @@ export default [
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2974,42 +2974,42 @@ export default [
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3023,42 +3023,42 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3072,28 +3072,28 @@ export default [
 					},
 					{
 						"rateIndex": 10,
-						"multiplier": 2.22,
+						"multiplier": 2.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3114,35 +3114,35 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3163,21 +3163,21 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3191,28 +3191,28 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3226,14 +3226,14 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -3247,7 +3247,7 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3258,13 +3258,13 @@ export default [
 				"index": 1,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 2,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 3,
@@ -3282,25 +3282,25 @@ export default [
 				"index": 5,
 				"type": "spinMeter",
 				"value": 3,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 6,
 				"type": "spinMeter",
 				"value": 4,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 7,
 				"type": "spinMeter",
 				"value": 5,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 8,
 				"type": "spinMeter",
 				"value": 6,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 9,
@@ -3312,7 +3312,7 @@ export default [
 				"index": 10,
 				"type": "spinMeter",
 				"value": 7,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 11,
@@ -3324,7 +3324,7 @@ export default [
 				"index": 12,
 				"type": "spinMeter",
 				"value": 8,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 13,
@@ -3336,39 +3336,46 @@ export default [
 				"index": 14,
 				"type": "spinMeter",
 				"value": 9,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 15,
 				"type": "spinMeter",
 				"value": 10,
-				"max": 13
+				"max": 10
 			},
 			{
 				"index": 16,
+				"type": "freeSpinTrigger",
+				"multiplier": 5,
+				"segment": "5X",
+				"amount": 23150
+			},
+			{
+				"index": 17,
 				"type": "bonusMeter",
 				"value": 6,
 				"level": 0
 			},
 			{
-				"index": 17,
-				"type": "spinMeter",
-				"value": 11,
-				"max": 13
-			},
-			{
 				"index": 18,
-				"type": "setTotalWin",
-				"amount": 92
+				"type": "spinMeter",
+				"value": 1,
+				"max": 10
 			},
 			{
 				"index": 19,
+				"type": "setTotalWin",
+				"amount": 463
+			},
+			{
+				"index": 20,
 				"type": "finalWin",
-				"amount": 92
+				"amount": 463
 			}
 		],
 		"criteria": "basegame_balls_50",
-		"baseGameWins": 0.92,
+		"baseGameWins": 4.63,
 		"freeGameWins": 0
 	},
 	{
@@ -3383,36 +3390,36 @@ export default [
 				"ballsPerDrop": 20,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 11,
-				"bonusMeterMax": 23,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3426,14 +3433,14 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3447,56 +3454,56 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -3510,7 +3517,7 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -3524,21 +3531,21 @@ export default [
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -3549,7 +3556,7 @@ export default [
 				"index": 1,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 2,
@@ -3561,7 +3568,7 @@ export default [
 				"index": 3,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 4,
@@ -3573,7 +3580,7 @@ export default [
 				"index": 5,
 				"type": "spinMeter",
 				"value": 3,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 6,
@@ -3591,7 +3598,7 @@ export default [
 				"index": 8,
 				"type": "spinMeter",
 				"value": 4,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 9,
@@ -3622,7 +3629,7 @@ export default [
 	},
 	{
 		"id": 9,
-		"payoutMultiplier": 85,
+		"payoutMultiplier": 86,
 		"events": [
 			{
 				"index": 0,
@@ -3632,22 +3639,22 @@ export default [
 				"ballsPerDrop": 20,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 11,
-				"bonusMeterMax": 23,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
@@ -3661,7 +3668,7 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3675,84 +3682,84 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3766,21 +3773,21 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3798,13 +3805,13 @@ export default [
 				"index": 1,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 2,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 3,
@@ -3822,27 +3829,27 @@ export default [
 				"index": 5,
 				"type": "spinMeter",
 				"value": 3,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 6,
 				"type": "spinMeter",
 				"value": 4,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 7,
 				"type": "setTotalWin",
-				"amount": 85
+				"amount": 86
 			},
 			{
 				"index": 8,
 				"type": "finalWin",
-				"amount": 85
+				"amount": 86
 			}
 		],
 		"criteria": "basegame_balls_20",
-		"baseGameWins": 0.85,
+		"baseGameWins": 0.86,
 		"freeGameWins": 0
 	},
 	{
@@ -3857,22 +3864,22 @@ export default [
 				"ballsPerDrop": 10,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
 				"spinMeterMax": 10,
-				"bonusMeterMax": 20,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
@@ -3886,7 +3893,7 @@ export default [
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3900,49 +3907,49 @@ export default [
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -3988,36 +3995,36 @@ export default [
 				"ballsPerDrop": 20,
 				"stakePerBall": 1,
 				"coefficients": [
-					24.99,
-					4.44,
-					2.22,
-					1.53,
-					1.39,
-					0.69,
-					0.42,
-					0.69,
-					1.39,
-					1.53,
-					2.22,
-					4.44,
-					24.99
+					25,
+					4.4,
+					2.2,
+					1.5,
+					1.4,
+					0.7,
+					0,
+					0.7,
+					1.4,
+					1.5,
+					2.2,
+					4.4,
+					25
 				],
-				"spinMeterMax": 11,
-				"bonusMeterMax": 23,
+				"spinMeterMax": 10,
+				"bonusMeterMax": 30,
 				"spinMeterStart": 0,
 				"bonusMeterStart": 0,
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -4031,35 +4038,35 @@ export default [
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 3,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -4073,77 +4080,77 @@ export default [
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
-						"multiplier": 1.39,
+						"multiplier": 1.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 5,
-						"multiplier": 0.69,
+						"multiplier": 0.7,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
-						"multiplier": 1.53,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -4160,13 +4167,13 @@ export default [
 				"index": 2,
 				"type": "spinMeter",
 				"value": 1,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 3,
 				"type": "spinMeter",
 				"value": 2,
-				"max": 11
+				"max": 10
 			},
 			{
 				"index": 4,

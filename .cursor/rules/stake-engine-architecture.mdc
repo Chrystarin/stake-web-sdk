@@ -10,9 +10,10 @@ Follow patterns documented in `README.md`. This is a **TurboRepo monorepo** (Sve
 ## Core data flow (RGS → presentation)
 
 1. **Book** — JSON from RGS (math); ordered **`book.events`** array.
-2. **`playBookEvents()`** — runs bookEvents **sequentially** (`sequence()`, not `Promise.all()`). Order matters (e.g. spin before win).
-3. **`bookEventHandlerMap`** — one async handler per `bookEvent.type`; may `broadcast` / `broadcastAsync` emitter events.
-4. **Components** — `subscribeOnMount` on `emitterEventHandlerMap`; keep handlers **small** (single responsibility, task breakdown).
+2. **Authoritative round** — treat the bet from `/wallet/play` (or synced math book in dev) as the single source for settlement and win display; playback-only transforms must not alter `setTotalWin` / `finalWin` / `payoutMultiplier`.
+3. **`playBookEvents()`** — runs bookEvents **sequentially** (`sequence()`, not `Promise.all()`). Order matters (e.g. spin before win).
+4. **`bookEventHandlerMap`** — one async handler per `bookEvent.type`; may `broadcast` / `broadcastAsync` emitter events. Settlement handlers update win display via `rgsRoundWin.ts`, not client-side payout math.
+5. **Components** — `subscribeOnMount` on `emitterEventHandlerMap`; keep handlers **small** (single responsibility, task breakdown).
 
 ## Adding or changing game behavior
 

@@ -45,7 +45,10 @@ export async function refreshWalletBalanceFromRgs(): Promise<void> {
 	}
 }
 
-/** After end-round: use the latest RGS wallet balance (do not overwrite with stale `round.payout`). */
+/**
+ * After end-round: refresh balance from RGS (authoritative).
+ * Never derive balance from client win display or recalculated drop totals.
+ */
 export async function syncPlinkoWalletAfterRound(bet: Bet): Promise<void> {
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay() || !hasActiveRgsSession()) return;
 

@@ -93,11 +93,9 @@ export function addSettledWinAmount(amount: number) {
 	if (safe <= 0) return;
 	if (stateGame.bonusRoundActive) {
 		stateGame.bonusSessionWinAmount += safe;
-		stateGame.winAmount = getCombinedRoundWinAmount();
 		return;
 	}
 	stateGame.pendingDropWinAmount += safe;
-	stateGame.winAmount = stateGame.pendingDropWinAmount;
 }
 
 /** True while spawned balls are still in flight (not the `isAnimating` UI flag). */
@@ -193,7 +191,6 @@ export function awardBonusBalls(count: number) {
 		stateGame.bonusMeterValue = 0;
 		stateGame.bonusMeterOverflowValue = 0;
 		stateGame.bonusSessionWinAmount = 0;
-		stateGame.winAmount = stateGame.baseRoundDropWinAmount;
 	}
 	if (
 		!stateGameDerived.hasPendingBonusBalls &&

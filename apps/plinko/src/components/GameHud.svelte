@@ -3,6 +3,7 @@
 
 	import { OnHotkey } from 'components-shared';
 	import { stateBet } from 'state-shared';
+	import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
 
 	import config from '../game/config';
 	import {
@@ -29,7 +30,7 @@
 
 	type Props = {
 		betAmount: number;
-		winAmount: number;
+		winBookEventAmount: number;
 		totalBetAmount: number;
 		onBetAmountChange: (value: number) => void;
 		onPlay: () => void;
@@ -53,6 +54,9 @@
 	let mobileBetPopupOpen = $state(false);
 
 	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
+	const displayWinAmount = $derived(
+		bookEventAmountToNormalisedAmount(props.winBookEventAmount),
+	);
 	const controlsLocked = $derived.by(() => {
 		stateGame.isSubmitting;
 		stateGame.isAnimating;
@@ -468,7 +472,7 @@
 			<div class="mobile-corner-info mobile-corner-info--left">
 				<img src={staticUrl('img/coin-ico.png')} alt="" aria-hidden="true" />
 				<span class="mobile-corner-label">{context.i18nDerived.t('Win')}:</span>
-				<span class="mobile-corner-value">{formatMoney(props.winAmount)}</span>
+				<span class="mobile-corner-value">{formatMoney(displayWinAmount)}</span>
 			</div>
 			<div class="mobile-corner-info mobile-corner-info--right">
 				<img src={staticUrl('img/wallet-ico.png')} alt="" aria-hidden="true" />
@@ -509,7 +513,7 @@
 						{@render bettingFieldFrame()}
 						<span class="bp-field-label">{context.i18nDerived.t('Win')}</span>
 						<div class="bp-field-value">
-							<span>{formatMoney(props.winAmount)}</span>
+							<span>{formatMoney(displayWinAmount)}</span>
 						</div>
 					</div>
 

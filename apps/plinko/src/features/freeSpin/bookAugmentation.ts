@@ -17,7 +17,10 @@ function dropWinFromEvents(events: BookEvent[]): number {
 			(total, drop) =>
 				total +
 				drop.outcomes.reduce(
-					(sum, outcome) => sum + outcome.amount * (outcome.multiplier ?? 0),
+					(sum, outcome) =>
+						sum +
+						outcome.amount *
+							(outcome.hitSpinSlot ? 0 : (outcome.multiplier ?? 0)),
 					0,
 				),
 			0,

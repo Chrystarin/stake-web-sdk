@@ -4,12 +4,12 @@ export const BET_PER_BALL_PRESETS = [0.01, 0.1, 0.2, 0.5, 1, 5, 10, 20] as const
 /** Balls released per drop tier selector. */
 export const BALL_PER_DROP_TIERS = [1, 10, 20, 50] as const;
 
-/** Bonus meter fill ratios per balls-per-drop tier. */
+/** Meter limits are identical for every balls-per-drop tier (no reward scaling). */
 export const METER_TIER_CONFIG: Record<number, { startRatio: number; maxRatio: number }> = {
-	1: { startRatio: 0, maxRatio: 0.1 },
+	1: { startRatio: 0, maxRatio: 1 },
 	10: { startRatio: 0, maxRatio: 1 },
-	20: { startRatio: 0.125, maxRatio: 1.125 },
-	50: { startRatio: 0.25, maxRatio: 1.25 },
+	20: { startRatio: 0, maxRatio: 1 },
+	50: { startRatio: 0, maxRatio: 1 },
 };
 
 /** Pyramid row counts available in the UI. */

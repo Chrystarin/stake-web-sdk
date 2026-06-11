@@ -30,7 +30,7 @@ export function applyAuthoritativeMeterConfig(config: PlinkoDropMeterConfig) {
 	}
 }
 
-/** Client-only defaults before the first book (tier scaling via `setBallPerDrop`, like crimson). */
+/** Client-only defaults before the first book (`setBallPerDrop` syncs meter state to UI tier). */
 export function applyClientMeterDefaults(spinMeterMax: number, bonusMeterMax: number) {
 	if (stateGame.authoritativeMeterFlow) return;
 	stateGame.spinMeterBaseMax = spinMeterMax;

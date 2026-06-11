@@ -1,14 +1,15 @@
+import { stateBet } from 'state-shared';
+
 import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
 import { eventEmitter } from '../../game/eventEmitter';
 import { resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
+import { applyRgsRoundWinFromBet } from '../../game/rgsRoundWin';
 import {
 	freeSpinMultiplierFromSegment,
-	getBookRoundPayoutAmount,
 	getFreeSpinBaseRoundWin,
 	isFreeSpinBonusWheelSegment,
-	resolveFreeSpinRoundTotalWin,
 } from './payout';
 
 export function isFreeSpinBonusSegment(segmentLabel: string): boolean {
@@ -30,26 +31,14 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 	try {
 		const baseWin = getFreeSpinBaseRoundWin();
 		const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
-		const bookRoundWin = getBookRoundPayoutAmount(stateGame.activeRoundBet);
-		const totalWin =
-			stateGame.freeSpinSettledFromBook && bookRoundWin > 0
-				? bookRoundWin
-				: resolveFreeSpinRoundTotalWin(
-						segmentLabel,
-						stateGame.freeSpinTriggerPayload,
-						baseWin,
-					);
+		const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
 
-		if (multiplier > 0 && baseWin > 0) {
+		if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
 			stateGame.pendingDropWinAmount = totalWin;
 			if (stateGame.bonusRoundActive) {
 				stateGame.bonusSessionWinAmount = totalWin;
 			}
-			stateGame.winAmount = stateGame.bonusRoundActive
-				? stateGame.bonusSessionWinAmount
-				: totalWin;
 			stateGame.freeSpinWinMultiplier = multiplier;
-			stateGame.winPopupAmount = totalWin;
 			stateGame.winPopupMultiplier = multiplier;
 			const wasWinPopupVisible = stateGame.showWinPopup;
 			stateGame.showWinPopup = true;
@@ -59,7 +48,7 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 			}
 		}
 
-		if (stateGame.deferWinPopupForFreeSpin && stateGame.winPopupAmount > 0) {
+		if (stateGame.deferWinPopupForFreeSpin && stateBet.winBookEventAmount > 0) {
 			stateGame.showWinPopup = true;
 			stateGame.deferWinPopupForFreeSpin = false;
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });

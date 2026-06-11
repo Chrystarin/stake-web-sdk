@@ -2,11 +2,11 @@ import { stateBet } from 'state-shared';
 import { createPlayBookUtils, recordBookEvent, type BookEventHandlerMap } from 'utils-book';
 
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
+import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { eventEmitter } from './eventEmitter';
 import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import {
-	getCombinedRoundWinAmount,
 	startAuthoritativeBonusRound,
 	waitForBonusRoundCompletion,
 	waitForDropBatchCompletion,
@@ -31,7 +31,6 @@ import {
 	bookHasFreeSpinTrigger,
 	ensureFreeSpinWhenSessionMeterFull,
 	flushPendingFreeSpinWalletBeforeEndRound,
-	resolveFreeSpinRoundTotalWin,
 	runFreeSpinTriggerFlow,
 	sessionSpinMeterReachedMax,
 } from '../features/freeSpin';
@@ -44,8 +43,14 @@ import { releaseRoundInteractionLocks } from './meterFlow';
 import {
 	bookRequiresBonusPlayCompletion,
 	checkIsPlinkoDeferredSettlement,
-	splitBookEventsBeforeSettlement,
 } from './plinkoRoundSettlement';
+import {
+	authoritativeSettlementEvents,
+	normalizeAuthoritativeBet,
+	preludeEventsForPlayback,
+} from './authoritativeRoundBet';
+import { alignBookForPlayback } from './alignBookForPlayback';
+import { applyRgsRoundWinFromBookEventAmount, seedRgsRoundWinFromBet } from './rgsRoundWin';
 import { snapshotBalanceAfterPlay } from './plinkoWalletSync';
 import type { Bet, BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
@@ -56,6 +61,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			(outcome) => outcome.hitBonusPeg != null || outcome.hitSpinSlot != null,
 		);
 		const ballsPerDrop = plinkoBallsPerDrop();
+		const bookBallsPerDrop = Math.max(1, bookEvent.ballsPerDrop ?? outcomes.length);
+		if (bookBallsPerDrop !== ballsPerDrop) {
+			console.warn(
+				`[plinko] book ballsPerDrop (${bookBallsPerDrop}) does not match UI (${ballsPerDrop}); check play meta / lookup stratum`,
+			);
+		}
 		stateGame.authoritativeMeterFlow = hasAuthoritativeOutcomes;
 		stateGame.rowCount = bookEvent.rowCount;
 		if (bookEvent.coefficients?.length) {
@@ -96,18 +107,32 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 				meterController.setBallPerDrop(ballsPerDrop);
 			}
 		}
+		const stakePerBall = plinkoStakePerBall();
 		const bookStake = bookEvent.stakePerBall > 0 ? bookEvent.stakePerBall : 1;
 		stateGame.lastBookStakePerBall = bookStake;
-		const stakeScale = plinkoStakePerBall() / bookStake;
+		// Playback may scale legacy dev books; settlement stays on the served book.
+		const stakeScale =
+			bookStake > 0 && Math.abs(stakePerBall - bookStake) > 1e-9
+				? stakePerBall / bookStake
+				: 1;
 		stateGame.bonusPegMeterCreditedBallIds = new Set();
 		stateGame.spinSlotMeterCreditedBallIds = new Set();
 		const coeffs = stateGame.coefficients;
 		const scaledOutcomes = resizePlinkoDropOutcomes(outcomes, ballsPerDrop);
-		stateGame.pendingOutcomes = scaledOutcomes.map((outcome) => ({
-			...outcome,
-			amount: outcome.amount * stakeScale,
-			multiplier: resolveOutcomeMultiplier(outcome, coeffs),
-		}));
+		stateGame.pendingOutcomes = scaledOutcomes.map((outcome) => {
+			const hitSpinSlot =
+				outcome.hitSpinSlot ??
+				(coeffs.length > 0 && isSpinSlotRateIndex(outcome.rateIndex, coeffs.length));
+			const normalized = {
+				...outcome,
+				amount: outcome.amount * stakeScale,
+				hitSpinSlot,
+			};
+			return {
+				...normalized,
+				multiplier: hitSpinSlot ? 0 : resolveOutcomeMultiplier(normalized, coeffs),
+			};
+		});
 		stateGame.isAnimating = true;
 		stateGame.showWinPopup = false;
 		await eventEmitter.broadcastAsync({
@@ -185,37 +210,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		);
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
-		stateBet.winBookEventAmount = bookEvent.amount;
+		applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
 		recordBookEvent({ bookEvent });
-		stateBet.winBookEventAmount = bookEvent.amount;
 		const payoutMultiplier = bookEvent.amount / 100;
 		if (payoutMultiplier > 0) {
 			await waitForDropBatchCompletion();
-			const bookTotalWin = payoutMultiplier * stateBet.wageredBetAmount;
-			let clientRoundWin = stateGame.pendingDropWinAmount;
-			if (stateGame.bonusAwardedThisRound) {
-				clientRoundWin = getCombinedRoundWinAmount();
-			} else if (stateGame.freeSpinAwardedThisRound) {
-				const segment =
-					stateGame.freeSpinTriggerPayload?.segment ??
-					stateGame.serverFreeSpinSegmentLabel ??
-					'';
-				clientRoundWin = resolveFreeSpinRoundTotalWin(
-					segment,
-					stateGame.freeSpinTriggerPayload,
-					stateGame.freeSpinBaseRoundWin,
-				);
-			}
-			stateGame.winPopupAmount =
-				stateGame.freeSpinAwardedThisRound && bookTotalWin > 0
-					? bookTotalWin
-					: stateGame.freeSpinSettledFromBook && bookTotalWin > 0
-						? bookTotalWin
-						: clientRoundWin > 0
-							? clientRoundWin
-							: bookTotalWin;
+			applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
 			stateGame.winPopupMultiplier =
 				stateGame.freeSpinWinMultiplier > 0
 					? stateGame.freeSpinWinMultiplier
@@ -253,13 +255,17 @@ function bookEventsUseAuthoritativeMeterFlow(events: BookEvent[]): boolean {
 }
 
 export const playBet = async (bet: Bet) => {
-	const events = Array.isArray(bet.state) ? bet.state : [];
-	const normalizedBet: Bet = { ...bet, state: events };
+	const authoritativeBet = normalizeAuthoritativeBet(bet);
+	const authoritativeEvents = authoritativeBet.state ?? [];
+	const playbackBet = alignBookForPlayback(authoritativeBet);
+	const playbackEvents = playbackBet.state ?? [];
+	const prelude = preludeEventsForPlayback(authoritativeEvents, playbackEvents);
+	const settlement = authoritativeSettlementEvents(authoritativeEvents);
 
 	snapshotBalanceAfterPlay();
-	stateGame.activeRoundBet = normalizedBet;
-	stateBet.winBookEventAmount = 0;
+	stateGame.activeRoundBet = authoritativeBet;
 	stateBet.wageredBetAmount = plinkoWagerAmount();
+	stateBet.winBookEventAmount = 0;
 	stateGame.pendingDropWinAmount = 0;
 	stateGame.baseRoundDropWinAmount = 0;
 	stateGame.bonusAwardedThisRound = false;
@@ -280,31 +286,30 @@ export const playBet = async (bet: Bet) => {
 	stateGame.authoritativeBonusOutcomeIndex = 0;
 
 	try {
-		stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(normalizedBet);
-		stateGame.activeBookEvents = events;
-		stateGame.authoritativeMeterFlow = bookEventsUseAuthoritativeMeterFlow(events);
+		stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(authoritativeBet);
+		stateGame.activeBookEvents = authoritativeEvents;
+		stateGame.authoritativeMeterFlow = bookEventsUseAuthoritativeMeterFlow(authoritativeEvents);
+		seedRgsRoundWinFromBet(authoritativeBet, authoritativeEvents);
 
-		if (events.length > 0) {
-			const { prelude, settlement } = splitBookEventsBeforeSettlement(events);
-			// Base drops + meter/feature events first, then free-spin wheel when the meter fills,
-			// then settlement (combined base × multiplier payout before end-round).
+		if (authoritativeEvents.length > 0) {
+			// Prelude may use dev playback alignment; settlement always from the served book.
 			await playBookEvents(prelude);
-			await ensureBonusWhenSessionMeterFull(events, normalizedBet);
+			await ensureBonusWhenSessionMeterFull(authoritativeEvents, authoritativeBet);
 			const needsBonusCompletion =
 				stateGame.bonusBallsRemaining > 0 ||
 				stateGame.bonusRoundActive ||
-				bookRequiresBonusPlayCompletion(events);
+				bookRequiresBonusPlayCompletion(authoritativeEvents);
 			if (needsBonusCompletion) {
 				await waitForBonusRoundCompletion();
 			}
-			await ensureFreeSpinWhenSessionMeterFull(events, normalizedBet);
+			await ensureFreeSpinWhenSessionMeterFull(authoritativeEvents, authoritativeBet);
 			if (settlement.length > 0) {
 				await playBookEvents(settlement);
 			}
 		}
 	} finally {
-		await syncSpinMeterAfterBet(events);
-		await syncBonusMeterAfterBet(events);
+		await syncSpinMeterAfterBet(authoritativeEvents);
+		await syncBonusMeterAfterBet(authoritativeEvents);
 		scheduleBonusRouletteIfMeterFullIdle();
 		await flushPendingFreeSpinWalletBeforeEndRound();
 		stateGame.freeSpinSettledFromBook = false;
