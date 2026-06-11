@@ -9,7 +9,7 @@ export {
 	sessionSpinMeterReachedMax,
 } from './freeSpinFeature';
 export {
-	applyFreeSpinActionBalance,
+	applyRgsBalanceFromResponse,
 	bookPayoutMultiplierDecimal,
 	bookRoundPayoutIncludesFreeSpin,
 	freeSpinMultiplierFromSegment,
@@ -27,10 +27,5 @@ export {
 	isFreeSpinBonusSegment,
 	onFreeSpinRouletteFinished,
 } from './rouletteFlow';
-export { fallbackFreeSpinSegmentFromRound, settleFreeSpinWalletCredit } from './wallet';
+export { fallbackFreeSpinSegmentFromRound } from './wallet';
 export type { FreeSpinWalletSettlement } from './wallet';
-export {
-	flushPendingFreeSpinWalletBeforeEndRound,
-	queuePendingFreeSpinWalletCredit,
-} from './walletSync';
-export type { PendingFreeSpinWalletCredit } from './walletSync';

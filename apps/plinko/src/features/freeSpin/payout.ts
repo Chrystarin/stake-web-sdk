@@ -186,8 +186,8 @@ export function bookRoundPayoutIncludesFreeSpin(
 }
 
 /**
- * Stake RGS settles free-spin wins via `/wallet/end-round` (book `payoutMultiplier`), not `/bet/action`.
- * When true, skip client-side action credits that return 404 on production RGS.
+ * Stake RGS settles free-spin wins via `/wallet/end-round` (book `payoutMultiplier`).
+ * When true, skip any client-side wallet credits outside RGS round settlement.
  */
 export function roundIncludesFreeSpinInRgsPayout(
 	bet?: Pick<Bet, 'payoutMultiplier' | 'state'> | null,
@@ -202,8 +202,8 @@ export function hasMeaningfulFreeSpinWalletCredit(amount: number): boolean {
 	return Math.abs(amount) > FREE_SPIN_PAYOUT_EPSILON;
 }
 
-/** Apply RGS balance from `/bet/action` when the response includes it. */
-export function applyFreeSpinActionBalance(data: unknown): void {
+/** Apply balance from an RGS wallet response when it includes `balance.amount`. */
+export function applyRgsBalanceFromResponse(data: unknown): void {
 	const balance = (data as { balance?: { amount?: number } })?.balance;
 	if (balance?.amount === undefined) return;
 	stateBet.balanceAmount = balance.amount / API_AMOUNT_MULTIPLIER;

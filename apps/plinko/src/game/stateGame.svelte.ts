@@ -5,7 +5,6 @@ import {
 	SIM_SPEED,
 } from '../game-logic/constants';
 import { createMeterController } from '../game-logic/meterController';
-import type { FreeSpinWalletSettlement } from '../features/freeSpin';
 import type { Bet, PlinkoBallOutcome } from './typesBookEvent';
 import { plinkoWagerAmount } from './plinkoBet';
 
@@ -128,8 +127,6 @@ export const stateGame = $state({
 	freeSpinSettledFromBook: false,
 	/** When true, `/wallet/end-round` runs after this round's animations (see `checkIsPlinkoDeferredSettlement`). */
 	roundDeferredSettlement: false,
-	/** Free-spin win waiting for RGS wallet credit after the round (session-meter path). */
-	pendingFreeSpinWalletCredit: undefined as FreeSpinWalletSettlement | undefined,
 	/** Balance (API units) right after `/wallet/play`; used to reconcile `round.payout`. */
 	balanceAfterPlayApi: undefined as number | undefined,
 	/** Current RGS round book (for deterministic fallback free-spin segment). */

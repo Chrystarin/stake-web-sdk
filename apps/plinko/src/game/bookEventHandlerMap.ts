@@ -30,7 +30,6 @@ import { meterController, stateGame } from './stateGame.svelte';
 import {
 	bookHasFreeSpinTrigger,
 	ensureFreeSpinWhenSessionMeterFull,
-	flushPendingFreeSpinWalletBeforeEndRound,
 	runFreeSpinTriggerFlow,
 	sessionSpinMeterReachedMax,
 } from '../features/freeSpin';
@@ -281,7 +280,6 @@ export const playBet = async (bet: Bet) => {
 	stateGame.serverFreeSpinWinAmount = undefined;
 	stateGame.freeSpinAwardedThisRound = false;
 	stateGame.freeSpinSettledFromBook = false;
-	stateGame.pendingFreeSpinWalletCredit = undefined;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
 
@@ -311,7 +309,6 @@ export const playBet = async (bet: Bet) => {
 		await syncSpinMeterAfterBet(authoritativeEvents);
 		await syncBonusMeterAfterBet(authoritativeEvents);
 		scheduleBonusRouletteIfMeterFullIdle();
-		await flushPendingFreeSpinWalletBeforeEndRound();
 		stateGame.freeSpinSettledFromBook = false;
 		stateGame.authoritativeMeterFlow = false;
 		if (!stateGame.bonusRoundActive) {

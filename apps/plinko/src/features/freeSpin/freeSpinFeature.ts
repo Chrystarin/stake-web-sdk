@@ -67,8 +67,7 @@ export async function ensureFreeSpinWhenSessionMeterFull(
 	if (!sessionSpinMeterReachedMax(events)) return;
 
 	const roundBet = bet ?? stateGame.activeRoundBet;
-	// Stake production RGS does not implement `/bet/action` for this game. Use a deterministic
-	// presentation fallback; wallet payout requires a republished math book with `freeSpinTrigger`.
+	// When the served book omits `freeSpinTrigger`, use a deterministic presentation fallback;
 	const fallback = fallbackFreeSpinSegmentFromRound(roundBet);
 	const fallbackScaledWin = multiplyRoundWinByFreeSpinSegment(
 		fallback.segment,

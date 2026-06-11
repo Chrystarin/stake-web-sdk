@@ -6,7 +6,7 @@ import { stateGame } from './stateGame.svelte';
 import { requestWalletBalance } from 'rgs-requests';
 
 import { bookHasFreeSpinTrigger } from '../features/freeSpin/bookAugmentation';
-import { applyFreeSpinActionBalance } from '../features/freeSpin/payout';
+import { applyRgsBalanceFromResponse } from '../features/freeSpin/payout';
 import { bookEventsReachBonusMeterMax } from '../features/bonus';
 import { bookHasFeatureSettlement, bookWillReachSpinMeterMax } from './plinkoRoundSettlement';
 import { hasActiveRgsSession } from './plinkoSessionMeters';
@@ -39,7 +39,7 @@ export async function refreshWalletBalanceFromRgs(): Promise<void> {
 			rgsUrl: stateUrlDerived.rgsUrl(),
 			sessionID: stateUrlDerived.sessionID(),
 		});
-		applyFreeSpinActionBalance(data);
+		applyRgsBalanceFromResponse(data);
 	} catch (error) {
 		console.warn('[plinko] wallet balance refresh failed', error);
 	}

@@ -1,6 +1,5 @@
 import { PUBLIC_CHROMATIC } from 'envs';
 import { stateBet, stateUrlDerived } from 'state-shared';
-import { requestBetAction } from 'rgs-requests';
 
 import { PLINKO_DEFAULT_VARIANT_ID } from '../game-logic/constants';
 import { stateGame } from './stateGame.svelte';
@@ -12,109 +11,49 @@ let devRgsSpinMeter = 0;
 let devRgsBonusMeter = 0;
 let devRgsBonusLevel = 0;
 
-/** Last persisted session spin meter (RGS `/bet/action` + local cache between bets). */
-let sessionSpinMeterCache = 0;
-/** Last persisted session bonus meter and level (RGS `/bet/action` + local cache between bets). */
-let sessionBonusMeterCache = 0;
-let sessionBonusLevelCache = 0;
-
-const RGS_SESSION_METERS_ACTION = 'sessionMeters';
-const SESSION_SPIN_METER_STORAGE_PREFIX = 'plinko_rgs_spin_meter_';
-const SESSION_BONUS_METER_STORAGE_PREFIX = 'plinko_rgs_bonus_meter_';
-const SESSION_BONUS_LEVEL_STORAGE_PREFIX = 'plinko_rgs_bonus_level_';
+/** In-memory spin meter synced from RGS books; sent on the next `/wallet/play` meta. */
+let rgsSessionSpinMeter = 0;
+/** In-memory bonus meter / level synced from RGS books; sent on the next `/wallet/play` meta. */
+let rgsSessionBonusMeter = 0;
+let rgsSessionBonusLevel = 0;
 
 export function hasActiveRgsSession(): boolean {
 	return !!(stateUrlDerived.rgsUrl()?.trim() && stateUrlDerived.sessionID()?.trim());
 }
 
-function sessionSpinMeterStorageKey(): string {
-	const id = stateUrlDerived.sessionID()?.trim() || 'local-dev';
-	return `${SESSION_SPIN_METER_STORAGE_PREFIX}${id}`;
+export function getRgsSessionSpinMeter(): number {
+	return Math.max(0, Math.floor(rgsSessionSpinMeter));
 }
 
-/** Load cached spin meter from sessionStorage (survives page refresh within same sessionID). */
-export function hydrateSessionSpinMeterCache(): number {
-	if (typeof sessionStorage === 'undefined') return sessionSpinMeterCache;
-	try {
-		const raw = sessionStorage.getItem(sessionSpinMeterStorageKey());
-		if (raw != null) {
-			sessionSpinMeterCache = Math.max(0, Math.floor(Number(raw) || 0));
-		}
-	} catch {
-		// Ignore private-mode / quota errors.
-	}
-	return sessionSpinMeterCache;
+export function setRgsSessionSpinMeter(value: number): void {
+	rgsSessionSpinMeter = Math.max(0, Math.floor(value));
 }
 
-export function getSessionSpinMeterCarryOver(): number {
-	return Math.max(0, Math.floor(sessionSpinMeterCache));
+export function getRgsSessionBonusMeter(): number {
+	return Math.max(0, Math.floor(rgsSessionBonusMeter));
 }
 
-export function setSessionSpinMeterCache(value: number): void {
-	sessionSpinMeterCache = Math.max(0, Math.floor(value));
-	if (typeof sessionStorage === 'undefined') return;
-	try {
-		sessionStorage.setItem(sessionSpinMeterStorageKey(), String(sessionSpinMeterCache));
-	} catch {
-		// Ignore private-mode / quota errors.
-	}
+export function getRgsSessionBonusLevel(): number {
+	return Math.max(0, Math.floor(rgsSessionBonusLevel));
 }
 
-function sessionBonusMeterStorageKey(): string {
-	const id = stateUrlDerived.sessionID()?.trim() || 'local-dev';
-	return `${SESSION_BONUS_METER_STORAGE_PREFIX}${id}`;
-}
-
-function sessionBonusLevelStorageKey(): string {
-	const id = stateUrlDerived.sessionID()?.trim() || 'local-dev';
-	return `${SESSION_BONUS_LEVEL_STORAGE_PREFIX}${id}`;
-}
-
-/** Load cached bonus meter / level from sessionStorage (survives page refresh within same sessionID). */
-export function hydrateSessionBonusMeterCache(): { value: number; level: number } {
-	if (typeof sessionStorage !== 'undefined') {
-		try {
-			const rawMeter = sessionStorage.getItem(sessionBonusMeterStorageKey());
-			if (rawMeter != null) {
-				sessionBonusMeterCache = Math.max(0, Math.floor(Number(rawMeter) || 0));
-			}
-			const rawLevel = sessionStorage.getItem(sessionBonusLevelStorageKey());
-			if (rawLevel != null) {
-				sessionBonusLevelCache = Math.max(0, Math.floor(Number(rawLevel) || 0));
-			}
-		} catch {
-			// Ignore private-mode / quota errors.
-		}
-	}
-	return {
-		value: sessionBonusMeterCache,
-		level: sessionBonusLevelCache,
-	};
-}
-
-export function getSessionBonusMeterCarryOver(): number {
-	return Math.max(0, Math.floor(sessionBonusMeterCache));
-}
-
-export function getSessionBonusLevelCarryOver(): number {
-	return Math.max(0, Math.floor(sessionBonusLevelCache));
-}
-
-export function setSessionBonusMeterCache(value: number, level?: number): void {
-	sessionBonusMeterCache = Math.max(0, Math.floor(value));
+export function setRgsSessionBonusMeter(value: number, level?: number): void {
+	rgsSessionBonusMeter = Math.max(0, Math.floor(value));
 	if (level != null) {
-		sessionBonusLevelCache = Math.max(0, Math.floor(level));
-	}
-	if (typeof sessionStorage === 'undefined') return;
-	try {
-		sessionStorage.setItem(sessionBonusMeterStorageKey(), String(sessionBonusMeterCache));
-		if (level != null) {
-			sessionStorage.setItem(sessionBonusLevelStorageKey(), String(sessionBonusLevelCache));
-		}
-	} catch {
-		// Ignore private-mode / quota errors.
+		rgsSessionBonusLevel = Math.max(0, Math.floor(level));
 	}
 }
+
+/** @deprecated Use `getRgsSessionSpinMeter` */
+export const getSessionSpinMeterCarryOver = getRgsSessionSpinMeter;
+/** @deprecated Use `setRgsSessionSpinMeter` */
+export const setSessionSpinMeterCache = setRgsSessionSpinMeter;
+/** @deprecated Use `getRgsSessionBonusMeter` */
+export const getSessionBonusMeterCarryOver = getRgsSessionBonusMeter;
+/** @deprecated Use `getRgsSessionBonusLevel` */
+export const getSessionBonusLevelCarryOver = getRgsSessionBonusLevel;
+/** @deprecated Use `setRgsSessionBonusMeter` */
+export const setSessionBonusMeterCache = setRgsSessionBonusMeter;
 
 /** Read spin meter start for local dev (simulates RGS session store). */
 export function getDevRgsSpinMeter(): number {
@@ -133,14 +72,14 @@ export function getDevRgsBonusLevel(): number {
 /**
  * Spin meter at bet start.
  * - RGS-injected `spinMeterStart` > 0 (session carry-over from live RGS).
- * - Published lookup-table books always ship `spinMeterStart: 0` — ignore when cache > 0.
- * - Explicit 0 with empty cache (after free spin or first bet).
- * - Field absent: use session cache / dev mirror.
+ * - Published lookup-table books always ship `spinMeterStart: 0` — ignore when session meter > 0.
+ * - Explicit 0 with empty session meter (after free spin or first bet).
+ * - Field absent: use in-memory session meter / dev mirror.
  */
 export function resolveRgsSpinMeterStart(
 	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	const cached = getSessionSpinMeterCarryOver();
+	const sessionMeter = getRgsSessionSpinMeter();
 	const raw = bookEvent.spinMeterStart;
 
 	if (raw != null && raw > 0) {
@@ -148,8 +87,8 @@ export function resolveRgsSpinMeterStart(
 	}
 
 	// Lookup-table publish files bake in spinMeterStart: 0 for every book — not a session reset.
-	if (raw === 0 && cached > 0) {
-		return cached;
+	if (raw === 0 && sessionMeter > 0) {
+		return sessionMeter;
 	}
 
 	if (raw != null) {
@@ -157,28 +96,28 @@ export function resolveRgsSpinMeterStart(
 	}
 
 	if (!hasActiveRgsSession()) return devRgsSpinMeter;
-	return cached;
+	return sessionMeter;
 }
 
 /**
  * Bonus meter at bet start.
  * - RGS-injected `bonusMeterStart` > 0 (session carry-over from live RGS).
- * - Published lookup-table books always ship `bonusMeterStart: 0` — ignore when cache > 0.
- * - Explicit 0 with empty cache (after bonus trigger or first bet).
- * - Field absent: use session cache / dev mirror.
+ * - Published lookup-table books always ship `bonusMeterStart: 0` — ignore when session meter > 0.
+ * - Explicit 0 with empty session meter (after bonus trigger or first bet).
+ * - Field absent: use in-memory session meter / dev mirror.
  */
 export function resolveRgsBonusMeterStart(
 	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	const cached = getSessionBonusMeterCarryOver();
+	const sessionMeter = getRgsSessionBonusMeter();
 	const raw = bookEvent.bonusMeterStart;
 
 	if (raw != null && raw > 0) {
 		return Math.max(0, Math.floor(raw));
 	}
 
-	if (raw === 0 && cached > 0) {
-		return cached;
+	if (raw === 0 && sessionMeter > 0) {
+		return sessionMeter;
 	}
 
 	if (raw != null) {
@@ -186,7 +125,7 @@ export function resolveRgsBonusMeterStart(
 	}
 
 	if (!hasActiveRgsSession()) return devRgsBonusMeter;
-	return cached;
+	return sessionMeter;
 }
 
 /**
@@ -195,15 +134,15 @@ export function resolveRgsBonusMeterStart(
 export function resolveRgsBonusLevelStart(
 	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	const cached = getSessionBonusLevelCarryOver();
+	const sessionLevel = getRgsSessionBonusLevel();
 	const raw = bookEvent.bonusLevelStart;
 
 	if (raw != null && raw > 0) {
 		return Math.max(0, Math.floor(raw));
 	}
 
-	if (raw === 0 && cached > 0) {
-		return cached;
+	if (raw === 0 && sessionLevel > 0) {
+		return sessionLevel;
 	}
 
 	if (raw != null) {
@@ -211,7 +150,7 @@ export function resolveRgsBonusLevelStart(
 	}
 
 	if (!hasActiveRgsSession()) return devRgsBonusLevel;
-	return cached;
+	return sessionLevel;
 }
 
 /**
@@ -220,9 +159,9 @@ export function resolveRgsBonusLevelStart(
  * and authoritative `freeSpinTrigger` / payout. Required for session meter carry-over.
  */
 export function buildBetMetaPlayConditions(): Record<string, number> {
-	const spinMeter = getSessionSpinMeterCarryOver();
-	const bonusMeter = getSessionBonusMeterCarryOver();
-	const bonusLevel = getSessionBonusLevelCarryOver();
+	const spinMeter = getRgsSessionSpinMeter();
+	const bonusMeter = getRgsSessionBonusMeter();
+	const bonusLevel = getRgsSessionBonusLevel();
 	return {
 		spin_meter_start: spinMeter,
 		spinMeter: spinMeter,
@@ -242,14 +181,20 @@ export function buildBetMetaSpinMeter(): Record<string, number> {
 	return buildBetMetaPlayConditions();
 }
 
-/** Apply cached session meter to HUD on load (display only until next book). */
-export function applyCachedSpinMeterToDisplay(): void {
-	applySpinMeterDisplay(getSessionSpinMeterCarryOver());
+/** Apply in-memory RGS session meters to HUD (display only until next book). */
+export function applyRgsSessionMetersToDisplay(): void {
+	applySpinMeterDisplay(getRgsSessionSpinMeter());
+	applyBonusMeterDisplay(getRgsSessionBonusMeter(), getRgsSessionBonusLevel());
 }
 
-/** Apply cached session bonus meter / level to HUD on load (display only until next book). */
+/** @deprecated Use `applyRgsSessionMetersToDisplay` */
+export function applyCachedSpinMeterToDisplay(): void {
+	applySpinMeterDisplay(getRgsSessionSpinMeter());
+}
+
+/** @deprecated Use `applyRgsSessionMetersToDisplay` */
 export function applyCachedBonusMeterToDisplay(): void {
-	applyBonusMeterDisplay(getSessionBonusMeterCarryOver(), getSessionBonusLevelCarryOver());
+	applyBonusMeterDisplay(getRgsSessionBonusMeter(), getRgsSessionBonusLevel());
 }
 
 type PlinkoDropEvent = Extract<BookEvent, { type: 'plinkoDrop' }>;
@@ -270,7 +215,7 @@ export function spinMeterBookValuesAreBetRelative(
 	const start =
 		betStart ??
 		stateGame.betSpinMeterStart ??
-		(drop ? resolveRgsSpinMeterStart(drop) : getSessionSpinMeterCarryOver());
+		(drop ? resolveRgsSpinMeterStart(drop) : getRgsSessionSpinMeter());
 	if (start === 0) return false;
 
 	const firstSpinMeter = events.find(
@@ -296,7 +241,7 @@ export function deriveSpinMeterFromBookEvents(events: BookEvent[]): number {
 	const drop = getPlinkoDrop(events);
 	const betStart =
 		stateGame.betSpinMeterStart ??
-		(drop ? resolveRgsSpinMeterStart(drop) : getSessionSpinMeterCarryOver());
+		(drop ? resolveRgsSpinMeterStart(drop) : getRgsSessionSpinMeter());
 	const betRelative = spinMeterBookValuesAreBetRelative(events, betStart);
 
 	let spinMeter = betStart;
@@ -315,39 +260,22 @@ export function applySpinMeterDisplay(spinMeter: number): void {
 	stateGame.spinMeterValue = Math.min(Math.max(0, spinMeter), max);
 }
 
-/** Persist a session spin meter value to RGS (or dev mirror). */
-export async function persistSpinMeterValue(spinMeter: number): Promise<void> {
+/** Sync in-memory session spin meter from RGS (next play sends it via meta). */
+export function updateRgsSessionSpinMeter(spinMeter: number): void {
 	const value = Math.max(0, Math.floor(spinMeter));
-	setSessionSpinMeterCache(value);
+	setRgsSessionSpinMeter(value);
 
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay()) return;
 
 	if (!hasActiveRgsSession()) {
 		devRgsSpinMeter = value;
-		return;
-	}
-
-	// Session meter carry-over is sent on the next `/wallet/play` via `buildBetMetaPlayConditions`.
-	// `/bet/action` is optional and returns 404 on Stake production RGS for this game.
-	try {
-		await requestBetAction({
-			rgsUrl: stateUrlDerived.rgsUrl(),
-			sessionID: stateUrlDerived.sessionID(),
-			action: RGS_SESSION_METERS_ACTION,
-			meta: {
-				spin_meter: value,
-				spinMeter: value,
-			},
-		});
-	} catch {
-		// Ignore — meta on the next play is authoritative.
 	}
 }
 
-/** Reset spin meter to 0 on HUD and RGS after a free-spin award. */
-export async function resetSpinMeterSession(): Promise<void> {
+/** Reset spin meter to 0 on HUD and in-memory RGS session state after a free-spin award. */
+export function resetSpinMeterSession(): void {
 	applySpinMeterDisplay(0);
-	await persistSpinMeterValue(0);
+	updateRgsSessionSpinMeter(0);
 }
 
 /** Apply a `spinMeter` book event to the HUD (session-absolute, never regress mid-bet). */
@@ -359,14 +287,14 @@ export function applySpinMeterBookEvent(bookValue: number): void {
 	const capped = Math.min(sessionValue, max);
 	if (capped >= max) {
 		stateGame.spinMeterValue = max;
-		setSessionSpinMeterCache(max);
+		setRgsSessionSpinMeter(max);
 		return;
 	}
 	stateGame.spinMeterValue = Math.max(stateGame.spinMeterValue, capped);
-	setSessionSpinMeterCache(stateGame.spinMeterValue);
+	setRgsSessionSpinMeter(stateGame.spinMeterValue);
 }
 
-/** After a bet book finishes: display RGS result and persist spin meter to RGS. */
+/** After a bet book finishes: display RGS result and sync spin meter for the next play meta. */
 export async function syncSpinMeterAfterBet(events: BookEvent[]): Promise<void> {
 	const derived = deriveSpinMeterFromBookEvents(events);
 	const hadFreeSpinReset =
@@ -374,9 +302,9 @@ export async function syncSpinMeterAfterBet(events: BookEvent[]): Promise<void> 
 		stateGame.freeSpinAwardedThisRound;
 	const spinMeter = hadFreeSpinReset
 		? 0
-		: Math.max(derived, stateGame.spinMeterValue, getSessionSpinMeterCarryOver());
+		: Math.max(derived, stateGame.spinMeterValue, getRgsSessionSpinMeter());
 	applySpinMeterDisplay(spinMeter);
-	await persistSpinMeterValue(spinMeter);
+	updateRgsSessionSpinMeter(spinMeter);
 }
 
 /** Offset lookup-table `spinMeter` events when injecting session carry-over (local dev). */
@@ -404,7 +332,7 @@ export function bonusMeterBookValuesAreBetRelative(
 	const start =
 		betStart ??
 		stateGame.betBonusMeterStart ??
-		(drop ? resolveRgsBonusMeterStart(drop) : getSessionBonusMeterCarryOver());
+		(drop ? resolveRgsBonusMeterStart(drop) : getRgsSessionBonusMeter());
 	if (start === 0) return false;
 
 	const firstBonusMeter = events.find(
@@ -432,10 +360,10 @@ export function deriveBonusMeterFromBookEvents(events: BookEvent[]): DerivedBonu
 	const drop = getPlinkoDrop(events);
 	const betStart =
 		stateGame.betBonusMeterStart ??
-		(drop ? resolveRgsBonusMeterStart(drop) : getSessionBonusMeterCarryOver());
+		(drop ? resolveRgsBonusMeterStart(drop) : getRgsSessionBonusMeter());
 	const levelStart =
 		stateGame.betBonusLevelStart ??
-		(drop ? resolveRgsBonusLevelStart(drop) : getSessionBonusLevelCarryOver());
+		(drop ? resolveRgsBonusLevelStart(drop) : getRgsSessionBonusLevel());
 	const betRelative = bonusMeterBookValuesAreBetRelative(events, betStart);
 	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 20;
 
@@ -466,37 +394,17 @@ export function applyBonusMeterDisplay(bonusMeter: number, bonusLevel?: number):
 	}
 }
 
-/** Persist session bonus meter / level to RGS (or dev mirror). */
-export async function persistBonusMeterValue(
-	bonusMeter: number,
-	bonusLevel: number,
-): Promise<void> {
+/** Sync in-memory session bonus meter / level from RGS (next play sends it via meta). */
+export function updateRgsSessionBonusMeter(bonusMeter: number, bonusLevel: number): void {
 	const value = Math.max(0, Math.floor(bonusMeter));
 	const level = Math.max(0, Math.floor(bonusLevel));
-	setSessionBonusMeterCache(value, level);
+	setRgsSessionBonusMeter(value, level);
 
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay()) return;
 
 	if (!hasActiveRgsSession()) {
 		devRgsBonusMeter = value;
 		devRgsBonusLevel = level;
-		return;
-	}
-
-	try {
-		await requestBetAction({
-			rgsUrl: stateUrlDerived.rgsUrl(),
-			sessionID: stateUrlDerived.sessionID(),
-			action: RGS_SESSION_METERS_ACTION,
-			meta: {
-				bonus_meter: value,
-				bonusMeter: value,
-				bonus_level: level,
-				bonusLevel: level,
-			},
-		});
-	} catch {
-		// Ignore — meta on the next play is authoritative.
 	}
 }
 
@@ -510,12 +418,12 @@ export function applyBonusMeterBookEvent(bookValue: number, bookLevel: number): 
 	if (capped >= max) {
 		stateGame.bonusMeterValue = max;
 		stateGame.bonusMeterLevel = bookLevel;
-		setSessionBonusMeterCache(max, bookLevel);
+		setRgsSessionBonusMeter(max, bookLevel);
 		return;
 	}
 	stateGame.bonusMeterValue = Math.max(stateGame.bonusMeterValue, capped);
 	stateGame.bonusMeterLevel = bookLevel;
-	setSessionBonusMeterCache(stateGame.bonusMeterValue, bookLevel);
+	setRgsSessionBonusMeter(stateGame.bonusMeterValue, bookLevel);
 }
 
 function bonusMeterConsumedThisRound(events: BookEvent[]): boolean {
@@ -529,20 +437,20 @@ function bonusMeterConsumedThisRound(events: BookEvent[]): boolean {
 	);
 }
 
-/** After a bet book finishes: display RGS result and persist bonus meter to RGS. */
+/** After a bet book finishes: display RGS result and sync bonus meter for the next play meta. */
 export async function syncBonusMeterAfterBet(events: BookEvent[]): Promise<void> {
 	const derived = deriveBonusMeterFromBookEvents(events);
 	const consumed = bonusMeterConsumedThisRound(events) || stateGame.bonusAwardedThisRound;
 	const bonusMeter = consumed
 		? derived.value
-		: Math.max(derived.value, stateGame.bonusMeterValue, getSessionBonusMeterCarryOver());
+		: Math.max(derived.value, stateGame.bonusMeterValue, getRgsSessionBonusMeter());
 	const bonusLevel = Math.max(
 		derived.level,
 		stateGame.bonusMeterLevel,
-		getSessionBonusLevelCarryOver(),
+		getRgsSessionBonusLevel(),
 	);
 	applyBonusMeterDisplay(bonusMeter, bonusLevel);
-	await persistBonusMeterValue(bonusMeter, bonusLevel);
+	updateRgsSessionBonusMeter(bonusMeter, bonusLevel);
 }
 
 /** Offset lookup-table `bonusMeter` events when injecting session carry-over (local dev). */

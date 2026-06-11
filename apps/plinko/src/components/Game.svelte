@@ -17,12 +17,7 @@
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
-	import {
-		applyCachedBonusMeterToDisplay,
-		applyCachedSpinMeterToDisplay,
-		hydrateSessionBonusMeterCache,
-		hydrateSessionSpinMeterCache,
-	} from '../game/plinkoSessionMeters';
+	import { applyRgsSessionMetersToDisplay } from '../game/plinkoSessionMeters';
 
 	import { getContext } from '../game/context';
 
@@ -152,10 +147,7 @@
 		installPlinkoDevDebug();
 
 		applyClientMeterDefaults(config.spinMeterMax, config.bonusMeterMax);
-		hydrateSessionSpinMeterCache();
-		hydrateSessionBonusMeterCache();
-		applyCachedSpinMeterToDisplay();
-		applyCachedBonusMeterToDisplay();
+		applyRgsSessionMetersToDisplay();
 		scheduleBonusRouletteIfMeterFullIdle();
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
