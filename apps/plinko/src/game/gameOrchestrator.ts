@@ -8,6 +8,7 @@ import { slotColorForRateIndex } from '../game-logic/slotColors';
 import { isBonusMeterFull, meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
+import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
 const BONUS_LEVEL_ACTIVATION_DELAY_MS = 250;
@@ -93,9 +94,10 @@ export function addSettledWinAmount(amount: number) {
 	if (safe <= 0) return;
 	if (stateGame.bonusRoundActive) {
 		stateGame.bonusSessionWinAmount += safe;
-		return;
+	} else {
+		stateGame.pendingDropWinAmount += safe;
 	}
-	stateGame.pendingDropWinAmount += safe;
+	applyRgsRoundWinDisplayFromCurrencyWin(getCombinedRoundWinAmount());
 }
 
 /** True while spawned balls are still in flight (not the `isAnimating` UI flag). */

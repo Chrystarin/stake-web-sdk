@@ -49,7 +49,7 @@ import {
 	preludeEventsForPlayback,
 } from './authoritativeRoundBet';
 import { alignBookForPlayback } from './alignBookForPlayback';
-import { applyRgsRoundWinFromBookEventAmount, seedRgsRoundWinFromBet } from './rgsRoundWin';
+import { applyRgsRoundWinFromBookEventAmount } from './rgsRoundWin';
 import { snapshotBalanceAfterPlay } from './plinkoWalletSync';
 import type { Bet, BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 
@@ -287,7 +287,6 @@ export const playBet = async (bet: Bet) => {
 		stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(authoritativeBet);
 		stateGame.activeBookEvents = authoritativeEvents;
 		stateGame.authoritativeMeterFlow = bookEventsUseAuthoritativeMeterFlow(authoritativeEvents);
-		seedRgsRoundWinFromBet(authoritativeBet, authoritativeEvents);
 
 		if (authoritativeEvents.length > 0) {
 			// Prelude may use dev playback alignment; settlement always from the served book.

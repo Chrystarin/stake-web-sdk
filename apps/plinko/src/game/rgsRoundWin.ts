@@ -2,6 +2,7 @@ import { stateBet } from 'state-shared';
 import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
 
 import { getBookRoundPayoutAmount } from '../features/freeSpin/payout';
+import { plinkoNormalizedSettlementAmount } from './plinkoDropSettlement';
 import { stateGame } from './stateGame.svelte';
 import type { Bet, BookEvent } from './typesBookEvent';
 
@@ -32,6 +33,21 @@ export function resolveRgsRoundWinCurrency(
 	return getBookRoundPayoutAmount(bet);
 }
 
+/**
+ * Update betting panel and HUD win from cumulative served-outcome currency (per-ball lands).
+ * Does not touch the win popup — settlement events own that.
+ */
+export function applyRgsRoundWinDisplayFromCurrencyWin(currencyWin: number): void {
+	const wager = stateBet.wageredBetAmount;
+	if (wager <= 0 || currencyWin <= 0) {
+		stateBet.winBookEventAmount = 0;
+		stateGame.winAmount = 0;
+		return;
+	}
+	stateBet.winBookEventAmount = plinkoNormalizedSettlementAmount(currencyWin, wager);
+	stateGame.winAmount = currencyWin;
+}
+
 /** Sync betting panel, HUD, and win popup from served-book settlement (`setTotalWin` / `finalWin`). */
 export function applyRgsRoundWinFromBookEventAmount(bookEventAmount: number): number {
 	stateBet.winBookEventAmount = bookEventAmount;
@@ -45,11 +61,4 @@ export function applyRgsRoundWinFromBet(bet?: Pick<Bet, 'payoutMultiplier'> | nu
 	const payoutMultiplier = bet?.payoutMultiplier ?? 0;
 	if (payoutMultiplier <= 0) return 0;
 	return applyRgsRoundWinFromBookEventAmount(payoutMultiplier);
-}
-
-export function seedRgsRoundWinFromBet(bet: Bet, events: BookEvent[]): void {
-	const settlementAmount = getSettlementBookEventAmount(events) || bet.payoutMultiplier || 0;
-	if (settlementAmount > 0) {
-		applyRgsRoundWinFromBookEventAmount(settlementAmount);
-	}
 }
