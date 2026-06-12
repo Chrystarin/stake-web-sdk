@@ -914,12 +914,18 @@
 
 		/* Plinko layout ratios track frame (fit-width/height), not viewport vw */
 		--plinko-area-scale: 0.58;
-		--plinko-area-offset-ratio: 0.38;
+		--plinko-area-top-width-scale: .85;
+		--plinko-area-bottom-width-scale: .85;
+		--plinko-area-height-scale: 1.1;
+		--plinko-area-offset-x-ratio: 0.007;
+		--plinko-area-offset-ratio: 0.36;
 
 		/* Bonus meter — desktop proportions vs 96×55 frame (12×7.8 @ top 6) */
-		--bonus-meter-width-ratio: 0.125;
+		--bonus-meter-width-ratio: 0.135;
 		--bonus-meter-height-ratio: 0.141818;
 		--bonus-meter-top-ratio: 0.109091;
+		--bonus-meter-offset-x-ratio: 0.0075;
+		--bonus-meter-offset-y-ratio: 0;
 		/* Bonus level track uses frame-relative ratios like meter/marker. */
 		--bonus-level-width-ratio: 0.33;
 		--bonus-level-height-ratio: 0.238182;
@@ -947,14 +953,22 @@
 			var(--game-area-max-h),
 			calc(var(--game-area-max-w) * var(--game-area-aspect-h) / var(--game-area-aspect-w))
 		);
-		--plinko-host-width: calc(var(--game-area-fit-width) * var(--plinko-area-scale));
-		--plinko-host-height: calc(var(--game-area-fit-height) * var(--plinko-area-scale));
+		--plinko-host-width: calc(
+			var(--game-area-fit-width) * var(--plinko-area-scale) *
+				max(var(--plinko-area-top-width-scale), var(--plinko-area-bottom-width-scale))
+		);
+		--plinko-host-height: calc(
+			var(--game-area-fit-height) * var(--plinko-area-scale) * var(--plinko-area-height-scale)
+		);
 		--plinko-area-offset-y: calc(
 			var(--game-area-fit-height) * var(--plinko-area-offset-ratio)
 		);
 		--bonus-meter-width: calc(var(--game-area-fit-width) * var(--bonus-meter-width-ratio));
 		--bonus-meter-height: calc(var(--game-area-fit-height) * var(--bonus-meter-height-ratio));
-		--bonus-meter-offset-y: calc(var(--game-area-fit-height) * var(--bonus-meter-top-ratio));
+		--bonus-meter-offset-y: calc(
+			var(--game-area-fit-height) *
+				(var(--bonus-meter-top-ratio) + var(--bonus-meter-offset-y-ratio))
+		);
 		--bonus-level-width: calc(var(--game-area-fit-width) * var(--bonus-level-width-ratio));
 		--bonus-level-height: calc(var(--game-area-fit-height) * var(--bonus-level-height-ratio));
 		--bonus-level-offset-y: calc(var(--game-area-fit-height) * var(--bonus-level-top-ratio));
@@ -1028,7 +1042,7 @@
 
 		position: absolute;
 
-		left: 50%;
+		left: calc(50% + var(--bonus-meter-offset-x-ratio, 0) * 100%);
 
 		top: var(--bonus-meter-offset-y);
 
@@ -1241,9 +1255,11 @@
 
 		--plinko-area-scale: 1;
 
-		--plinko-host-width: 100%;
+		--plinko-host-width: calc(
+			100% * max(var(--plinko-area-top-width-scale), var(--plinko-area-bottom-width-scale))
+		);
 
-		--plinko-host-height: 100%;
+		--plinko-host-height: calc(100% * var(--plinko-area-height-scale));
 
 		--plinko-area-offset-y: 0;
 		--bonus-level-left-ratio: 0.415;
@@ -1345,9 +1361,12 @@
 
 	.game-root--mobile .game-area > .container .bonus-meter-wrap {
 
-		top: calc(var(--portrait-px) * 132);
+		top: calc(
+			var(--portrait-px) * 132 +
+				var(--game-area-fit-height) * var(--bonus-meter-offset-y-ratio, 0)
+		);
 
-		left: 51%;
+		left: calc(51% + var(--bonus-meter-offset-x-ratio, 0) * 100%);
 
 		width: calc(var(--portrait-px) * 258);
 

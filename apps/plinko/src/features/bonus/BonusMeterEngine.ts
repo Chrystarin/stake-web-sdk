@@ -25,8 +25,8 @@ export class BonusMeterEngine {
   private fillAlphaData?: Uint8ClampedArray;
   private fillAlphaWidth = 0;
   private fillAlphaHeight = 0;
+  /** Left tip of fill art — used when meter is empty (ray at π hits the bottom edge instead). */
   private fillStartTipLocal?: { x: number; y: number };
-  private fillEndTipLocal?: { x: number; y: number };
   markerLeftPx: number = 0;
   markerTopPx: number = 0;
   markerSizePx: number = 10;
@@ -166,17 +166,16 @@ export class BonusMeterEngine {
       this.setMarkerPosition(this.toWorldX(this.fillStartTipLocal.x), this.toWorldY(this.fillStartTipLocal.y));
       return;
     }
-    if (clampedProgress >= 1 - epsilon && this.fillEndTipLocal) {
-      this.setMarkerPosition(this.toWorldX(this.fillEndTipLocal.x), this.toWorldY(this.fillEndTipLocal.y));
-      return;
-    }
     const sampledPos = this.getMarkerPositionFromFillTexture(markerAngle);
     if (sampledPos) {
       this.setMarkerPosition(sampledPos.x, sampledPos.y);
       return;
     }
     const fallbackRadius = Math.max(0, radius + this.meterNativeHeight * this.markerRadiusOffsetByHeight);
-    this.setMarkerPosition(centerX + fallbackRadius * Math.cos(markerAngle), centerY + fallbackRadius * Math.sin(markerAngle));
+    this.setMarkerPosition(
+      centerX + fallbackRadius * Math.cos(markerAngle),
+      centerY + fallbackRadius * Math.sin(markerAngle),
+    );
   }
 
   private cacheFillAlphaData(texture: Texture): void {
@@ -197,29 +196,24 @@ export class BonusMeterEngine {
       this.fillAlphaData = imageData.data;
       this.fillAlphaWidth = width;
       this.fillAlphaHeight = height;
-      this.cacheFillTipPoints();
+      this.cacheFillStartTip();
     } catch {
       this.fillAlphaData = undefined;
       this.fillAlphaWidth = 0;
       this.fillAlphaHeight = 0;
       this.fillStartTipLocal = undefined;
-      this.fillEndTipLocal = undefined;
     }
   }
 
-  private cacheFillTipPoints(): void {
+  /** Leftmost opaque point on the fill texture (top of left edge = arc start). */
+  private cacheFillStartTip(): void {
     if (!this.fillAlphaData || !this.fillAlphaWidth || !this.fillAlphaHeight) {
       this.fillStartTipLocal = undefined;
-      this.fillEndTipLocal = undefined;
       return;
     }
     const threshold = 20;
     let minX = this.fillAlphaWidth;
-    let maxX = -1;
     let minYAtMinX = this.fillAlphaHeight;
-    let maxYAtMinX = -1;
-    let minYAtMaxX = this.fillAlphaHeight;
-    let maxYAtMaxX = -1;
 
     for (let y = 0; y < this.fillAlphaHeight; y++) {
       for (let x = 0; x < this.fillAlphaWidth; x++) {
@@ -228,29 +222,17 @@ export class BonusMeterEngine {
         if (x < minX) {
           minX = x;
           minYAtMinX = y;
-          maxYAtMinX = y;
-        } else if (x === minX) {
-          if (y < minYAtMinX) minYAtMinX = y;
-          if (y > maxYAtMinX) maxYAtMinX = y;
-        }
-        if (x > maxX) {
-          maxX = x;
-          minYAtMaxX = y;
-          maxYAtMaxX = y;
-        } else if (x === maxX) {
-          if (y < minYAtMaxX) minYAtMaxX = y;
-          if (y > maxYAtMaxX) maxYAtMaxX = y;
+        } else if (x === minX && y < minYAtMinX) {
+          minYAtMinX = y;
         }
       }
     }
 
-    if (maxX < 0 || minX >= this.fillAlphaWidth) {
+    if (minX >= this.fillAlphaWidth) {
       this.fillStartTipLocal = undefined;
-      this.fillEndTipLocal = undefined;
       return;
     }
-    this.fillStartTipLocal = { x: minX, y: (minYAtMinX + maxYAtMinX) / 2 };
-    this.fillEndTipLocal = { x: maxX, y: (minYAtMaxX + maxYAtMaxX) / 2 };
+    this.fillStartTipLocal = { x: minX, y: minYAtMinX };
   }
 
   private getMarkerPositionFromFillTexture(angle: number): { x: number; y: number } | null {
@@ -275,14 +257,13 @@ export class BonusMeterEngine {
       }
     }
     if (firstHit < 0 || lastHit < 0) return null;
-    const centerRadius = (firstHit + lastHit) / 2;
-    const scaleX = this.meterNativeWidth / (this.fillTexture.width || 1);
-    const scaleY = this.meterNativeHeight / (this.fillTexture.height || 1);
-    const localX = cx + dx * centerRadius;
-    const localY = cy + dy * centerRadius;
+    /** Outer edge of fill along the ray — matches the visible fill leading edge. */
+    const edgeRadius = lastHit;
+    const localX = cx + dx * edgeRadius;
+    const localY = cy + dy * edgeRadius;
     return {
       x: this.toWorldX(localX),
-      y: this.toWorldY(localY)
+      y: this.toWorldY(localY),
     };
   }
 

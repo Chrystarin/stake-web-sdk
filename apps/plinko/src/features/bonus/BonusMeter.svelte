@@ -21,9 +21,14 @@
 			syncMarker();
 		});
 
-		const interval = setInterval(syncMarker, 50);
+		let rafId = 0;
+		const tick = () => {
+			syncMarker();
+			rafId = requestAnimationFrame(tick);
+		};
+		rafId = requestAnimationFrame(tick);
 		return () => {
-			clearInterval(interval);
+			cancelAnimationFrame(rafId);
 			engine?.destroy();
 		};
 	});

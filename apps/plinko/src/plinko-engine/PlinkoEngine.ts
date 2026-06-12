@@ -196,6 +196,12 @@ export class PlinkoEngine {
   animationSpeed = 0.7;
   private containerWidth = 0;
   private containerHeight = 0;
+  /** Horizontal width scale at the top peg row (from CSS `--plinko-area-top-width-scale`). */
+  private topWidthScale = 1;
+  /** Horizontal width scale at the bottom peg row (from CSS `--plinko-area-bottom-width-scale`). */
+  private bottomWidthScale = 1;
+  /** Vertical layout scale (from CSS `--plinko-area-height-scale`). */
+  private heightScale = 1;
   private readonly BASE_ROWS = 8;
   private animTickerBound = (): void => this.animateFrame();
   private tickerRegistered = false;
@@ -217,17 +223,22 @@ export class PlinkoEngine {
     return this.BASE_ROWS / this.rows;
   }
 
+  /** Measured host height (includes CSS `--plinko-area-height-scale` on the host element). */
+  private get layoutHeight(): number {
+    return this.containerHeight;
+  }
+
   get pegRadius(): number {
-    const raw = this.containerHeight * 0.0135 * this.elementScale;
+    const raw = this.layoutHeight * 0.0135 * this.elementScale;
     if (!Number.isFinite(raw) || raw <= 0) return 2;
     return Math.max(2, raw);
   }
 
   get ballRadius(): number {
     // Use the same scaling strategy as pegs (container height + elementScale).
-    const desiredRadius = this.containerHeight * 0.0245 * this.elementScale;
+    const desiredRadius = this.layoutHeight * 0.0245 * this.elementScale;
     // Keep enough clearance so a falling ball fits between neighboring pegs.
-    const laneSafeRadius = Math.max(1, (this.pegSpacingX - this.pegRadius * 2) * 0.46);
+    const laneSafeRadius = Math.max(1, (this.minPegSpacingX - this.pegRadius * 2) * 0.46);
     const raw = Math.min(desiredRadius, laneSafeRadius);
     if (!Number.isFinite(raw) || raw <= 0) return 2;
     return Math.max(2, raw) * 0.9;
@@ -235,36 +246,111 @@ export class PlinkoEngine {
 
   get slotBounceHeight(): number {
     // Use the same scaling method as pegs/balls.
-    return this.containerHeight * 0.018 * this.elementScale;
+    return this.layoutHeight * 0.018 * this.elementScale;
   }
 
   get topMargin(): number {
-    return isMobile() ? 0 : Math.max(this.vw(1.56), this.containerHeight * 0.01);
+    return isMobile()
+      ? 0
+      : Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
   }
 
   get bottomMargin(): number {
-    return isMobile() ? 0 : Math.max(this.vw(1.56), this.containerHeight * 0.01);
+    return isMobile()
+      ? 0
+      : Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
   }
 
   get slotHeight(): number {
-    return Math.max(this.vw(1.55), this.containerHeight * 0.075);
+    return Math.max(this.vw(1.55) * this.heightScale, this.layoutHeight * 0.075);
+  }
+
+  private get basePegSpacingY(): number {
+    if (this.rows <= 1) return this.vw(2.1) * this.heightScale;
+    const availableHeight =
+      this.layoutHeight -
+      this.topMargin -
+      this.bottomMargin -
+      this.slotHeight -
+      this.vw(1.05) * this.heightScale;
+    /** Flex can transiently shrink height → negative spacing and invalid peg rows. */
+    const raw = availableHeight / (this.rows + 0.5);
+    if (!Number.isFinite(raw)) return this.vw(2.1) * this.heightScale;
+    const safe = raw > 0 ? raw : this.vw(2.5) * this.heightScale;
+    return Math.max(this.vw(1.05) * this.heightScale, safe);
+  }
+
+  /** Shrinks row spacing when the pyramid is taller than the host. */
+  private get verticalPegSpacingScale(): number {
+    if (this.layoutHeight <= 0 || this.rows <= 0) return 1;
+    const natural =
+      this.topMargin +
+      (this.rows + 0.5) * this.basePegSpacingY +
+      this.slotHeight +
+      this.bottomMargin;
+    const available = this.layoutHeight * 0.99;
+    if (natural <= available || natural <= 0) return 1;
+    return available / natural;
   }
 
   get pegSpacing(): number {
-    if (this.rows <= 1) return this.vw(2.1);
-    const availableHeight =
-      this.containerHeight - this.topMargin - this.bottomMargin - this.slotHeight - this.vw(1.05);
-    /** Flex can transiently shrink height → negative spacing and invalid peg rows. */
-    const raw = availableHeight / (this.rows + 0.5);
-    if (!Number.isFinite(raw)) return this.vw(2.1);
-    const safe = raw > 0 ? raw : this.vw(2.5);
-    return Math.max(this.vw(1.05), safe);
+    return this.basePegSpacingY * this.verticalPegSpacingScale;
   }
 
-  get pegSpacingX(): number {
-    // Horizontal lane multiplier: increasing this widens the pyramid footprint,
-    // especially visible at the bottom rows.
+  private get basePegSpacingX(): number {
     return this.pegSpacing * (isMobile() ? 1.35 : 1.5);
+  }
+
+  /** Interpolate top → bottom width scale across peg rows. */
+  private rowWidthScale(row: number): number {
+    if (this.rows <= 1) return this.bottomWidthScale;
+    const t = Math.max(0, Math.min(1, row / (this.rows - 1)));
+    return this.topWidthScale + (this.bottomWidthScale - this.topWidthScale) * t;
+  }
+
+  /** Shrinks horizontal lane spacing when the widest row exceeds the host width. */
+  private get horizontalPegSpacingScale(): number {
+    if (this.containerWidth <= 0 || this.rows <= 0) return 1;
+    const base = this.basePegSpacingX;
+    const availableWidth = this.containerWidth * 0.99;
+    let maxNaturalSpan = 0;
+    for (let row = 0; row < this.rows; row++) {
+      const pegsInRow = row + 4;
+      maxNaturalSpan = Math.max(maxNaturalSpan, (pegsInRow - 1) * base * this.rowWidthScale(row));
+    }
+    if (maxNaturalSpan <= availableWidth || maxNaturalSpan <= 0) return 1;
+    return availableWidth / maxNaturalSpan;
+  }
+
+  pegSpacingXForRow(row: number): number {
+    return this.basePegSpacingX * this.rowWidthScale(row) * this.horizontalPegSpacingScale;
+  }
+
+  /** Bottom-row spacing — used where a single lane width is needed. */
+  get pegSpacingX(): number {
+    return this.pegSpacingXForRow(Math.max(0, this.rows - 1));
+  }
+
+  private get minPegSpacingX(): number {
+    if (this.rows <= 0) return this.basePegSpacingX;
+    let min = Infinity;
+    for (let row = 0; row < this.rows; row++) {
+      min = Math.min(min, this.pegSpacingXForRow(row));
+    }
+    return Number.isFinite(min) ? min : this.basePegSpacingX;
+  }
+
+  private syncLayoutScalesFromHost(): void {
+    if (typeof window === 'undefined') return;
+    const style = getComputedStyle(this.hostElement);
+    const readScale = (name: string, fallback: number): number => {
+      const raw = style.getPropertyValue(name).trim();
+      const parsed = parseFloat(raw);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    };
+    this.topWidthScale = readScale('--plinko-area-top-width-scale', 1);
+    this.bottomWidthScale = readScale('--plinko-area-bottom-width-scale', 1);
+    this.heightScale = readScale('--plinko-area-height-scale', 1);
   }
 
   get slotWidthScale(): number {
@@ -508,6 +594,8 @@ export class PlinkoEngine {
       }
     }
 
+    this.syncLayoutScalesFromHost();
+
     const layoutW = this.containerWidth;
     const layoutH = this.getRendererHeight();
     const r = this.app.renderer;
@@ -553,6 +641,14 @@ export class PlinkoEngine {
     for (const slot of this.slots) {
       left = Math.min(left, slot.x);
       right = Math.max(right, slot.x + slot.width);
+    }
+    for (let row = 0; row < this.rows; row++) {
+      const rowPegs = this.pegsByRow.get(row);
+      if (!rowPegs?.length) continue;
+      for (const peg of rowPegs) {
+        left = Math.min(left, peg.x - this.pegRadius);
+        right = Math.max(right, peg.x + this.pegRadius);
+      }
     }
     const span = right - left;
     const margin = Math.max(this.pegRadius * 2, 8);
@@ -603,7 +699,7 @@ export class PlinkoEngine {
 
   /** Desktop render offset — board sits lower so spawn airspace stays visible. */
   private getWorldViewportYOffset(): number {
-    return isMobile() ? 0 : this.containerHeight * 0.085;
+    return isMobile() ? 0 : this.layoutHeight * 0.085;
   }
 
   /** Pixi buffer height: host size plus viewport offset so bottom slots are not clipped. */
@@ -916,8 +1012,9 @@ export class PlinkoEngine {
     for (let row = 0; row < this.rows; row++) {
       const rowY = startY + row * this.pegSpacing;
       const pegsInRow = row + 4;
+      const rowSpacingX = this.pegSpacingXForRow(row);
       for (let col = 0; col < pegsInRow; col++) {
-        const pegX = centerX - ((pegsInRow - 1) * this.pegSpacingX) / 2 + col * this.pegSpacingX;
+        const pegX = centerX - ((pegsInRow - 1) * rowSpacingX) / 2 + col * rowSpacingX;
         this.pegs.push({
           x: pegX,
           y: rowY,
@@ -946,7 +1043,8 @@ export class PlinkoEngine {
     const bottomY = this.topMargin + (this.rows + 0.5) * this.pegSpacing - this.vw(0.52);
     const slotsCount = this.coefficients.length;
     const lastRowPegs = this.rows + 3;
-    const totalWidth = (lastRowPegs - 1) * this.pegSpacingX * this.slotWidthScale;
+    const bottomSpacingX = this.pegSpacingXForRow(this.rows - 1);
+    const totalWidth = (lastRowPegs - 1) * bottomSpacingX * this.slotWidthScale;
     const availableWidth = this.containerWidth * 0.99;
     let finalTotalWidth = totalWidth;
     if (totalWidth > availableWidth) {
@@ -1054,9 +1152,8 @@ export class PlinkoEngine {
   private buildGaltonLane(turns: number[], startX: number): number[] {
     const lane: number[] = [];
     let currentX = startX;
-    const shift = this.pegSpacingX / 2;
     for (let row = 0; row < this.rows; row++) {
-      currentX += turns[row] * shift;
+      currentX += turns[row] * (this.pegSpacingXForRow(row) / 2);
       lane.push(currentX);
     }
     return lane;
@@ -1074,7 +1171,7 @@ export class PlinkoEngine {
   private galtonLaneThreatensFeaturedCluster(row: number, laneX: number): boolean {
     const span = this.getFeaturedClusterSpan(row);
     if (!span) return false;
-    const buffer = this.pegSpacingX * 0.36;
+    const buffer = this.pegSpacingXForRow(row) * 0.36;
     return laneX >= span.minX - buffer && laneX <= span.maxX + buffer;
   }
 
@@ -1096,7 +1193,7 @@ export class PlinkoEngine {
   private isInsideFeaturedClusterGap(row: number, x: number): boolean {
     const span = this.getFeaturedClusterSpan(row);
     if (!span) return false;
-    const margin = this.pegSpacingX * 0.14;
+    const margin = this.pegSpacingXForRow(row) * 0.14;
     return x > span.minX - margin && x < span.maxX + margin;
   }
 
@@ -1198,7 +1295,7 @@ export class PlinkoEngine {
     for (const peg of pegs) {
       let score = Math.abs(x - peg.x);
       if (penalizeFeatured && this.isFeaturedPeg(peg)) {
-        score += this.pegSpacingX * 0.35;
+        score += this.pegSpacingXForRow(peg.row) * 0.35;
       }
       if (score < minScore) {
         minScore = score;
@@ -1268,7 +1365,7 @@ export class PlinkoEngine {
       return { pathX, closestPeg: null, bounceIntensity: 0 };
     }
 
-    const maxDistance = this.pegSpacingX / 2;
+    const maxDistance = this.pegSpacingXForRow(options.row) / 2;
     const finalDistance = Math.abs(pathX - closestPeg.x);
     let bounceIntensity = Math.max(0.45, Math.min(0.95, 1 - finalDistance / maxDistance));
     bounceIntensity *= 0.82 + nextRandom() * 0.18;
@@ -1301,7 +1398,7 @@ export class PlinkoEngine {
 
     if (pathPoint.closestPeg && !this.isFeaturedPeg(pathPoint.closestPeg)) {
       const alignedWithPlan =
-        Math.abs(ball.x - pathPoint.closestPeg.x) <= this.pegSpacingX * 0.58 &&
+        Math.abs(ball.x - pathPoint.closestPeg.x) <= this.pegSpacingXForRow(pathPoint.row) * 0.58 &&
         ball.y >= pathPoint.closestPeg.y - this.pegRadius * 0.65 &&
         ball.y <= pathPoint.closestPeg.y + this.pegRadius * 0.8;
       if (alignedWithPlan) return pathPoint.closestPeg;
@@ -1369,7 +1466,7 @@ export class PlinkoEngine {
     }
     // IMPORTANT: only bias the launch segment; do not alter Galton turns
     // so we preserve slot targeting and avoid flinging to far slots.
-    const spawnLaneBias = spawnDirection * this.pegSpacingX * 0.42;
+    const spawnLaneBias = spawnDirection * this.pegSpacingXForRow(0) * 0.42;
 
     const featuredTarget = pathOptions?.hitBonusPeg
       ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
@@ -1730,7 +1827,7 @@ export class PlinkoEngine {
       bounceHeightMultiplier: 0.86 + rng() * 0.28,
       driftMultiplier: 0.72 + rng() * 0.56,
       bounceDurationMultiplier: 1,
-      laneOffsetX: (rng() - 0.5) * this.pegSpacingX * 0.07,
+      laneOffsetX: (rng() - 0.5) * this.pegSpacingXForRow(0) * 0.07,
     };
   }
 
@@ -1822,7 +1919,7 @@ export class PlinkoEngine {
     );
     ball.currentPoint += ball.currentSpeed;
 
-    const maxLaneDrift = this.pegSpacingX * 0.28;
+    const maxLaneDrift = this.minPegSpacingX * 0.28;
     ball.velocityX = Math.max(-maxLaneDrift, Math.min(maxLaneDrift, ball.velocityX));
     if (!ball.isInBounce) {
       ball.velocityY += this.pyramidConfig.verticalGravity * this.elementScale;
@@ -1841,7 +1938,7 @@ export class PlinkoEngine {
 
     ball.collisionOffsetX *= 0.91;
     ball.collisionOffsetY *= 0.91;
-    const maxCollisionX = this.pegSpacingX * 0.26;
+    const maxCollisionX = this.minPegSpacingX * 0.26;
     const maxCollisionY = this.pegSpacing * 0.1;
     ball.collisionOffsetX = Math.max(-maxCollisionX, Math.min(maxCollisionX, ball.collisionOffsetX));
     ball.collisionOffsetY = Math.max(-maxCollisionY, Math.min(maxCollisionY, ball.collisionOffsetY));
@@ -1937,8 +2034,8 @@ export class PlinkoEngine {
         ball.y <= bouncePeg.y - this.pegRadius * 0.08 && descendingOntoPeg;
       const columnTolerance =
         !ball.creditBonusPegHit && this.rowHasFeaturedPeg(pathPoint.row)
-          ? this.pegSpacingX * 0.52
-          : this.pegSpacingX * 0.32;
+          ? this.pegSpacingXForRow(pathPoint.row) * 0.52
+          : this.pegSpacingXForRow(pathPoint.row) * 0.32;
       const nearPegColumn = Math.abs(ball.x - bouncePeg.x) <= columnTolerance;
       const inCrownZone =
         ball.y <= bouncePeg.y &&

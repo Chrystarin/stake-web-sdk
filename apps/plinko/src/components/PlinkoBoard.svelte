@@ -209,7 +209,7 @@
 
 	.plinko-host {
 		position: absolute;
-		left: 50%;
+		left: calc(50% + var(--plinko-area-offset-x-ratio, 0) * 100%);
 		top: var(--plinko-area-offset-y);
 		width: var(--plinko-host-width);
 		height: var(--plinko-host-height);
