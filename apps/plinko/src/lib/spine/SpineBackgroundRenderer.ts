@@ -3,19 +3,66 @@ import {
 	Spine,
 	type SkeletonData,
 } from '@esotericsoftware/spine-pixi-v8';
-import { Application, Assets } from 'pixi.js';
+import { Application, Assets, Sprite, type Texture } from 'pixi.js';
 
 import { readSkeletonData } from './spineSkeletonData';
 import { createWorldBounds, updateWorldBounds } from './spineBounds';
+import {
+	computeBackdropTransform,
+	computeFitTransform,
+	computeSpineOverlayTransform,
+	spineFitConfig,
+} from './spineFit';
 import type { SpineAssetDef } from './types';
+
+const applySpineFit = (
+	spine: Spine,
+	width: number,
+	height: number,
+	bounds: ReturnType<typeof createWorldBounds>,
+	config: ReturnType<typeof spineFitConfig>,
+	backdropTransform?: ReturnType<typeof computeBackdropTransform>,
+	backdropDef?: NonNullable<SpineAssetDef['backdrop']>,
+	backdropTexture?: Texture,
+) => {
+	const transform =
+		backdropTransform && backdropDef && backdropTexture
+			? computeSpineOverlayTransform(
+					width,
+					height,
+					bounds,
+					backdropTransform,
+					backdropTexture,
+					config,
+					backdropDef,
+				)
+			: computeFitTransform(width, height, bounds, config);
+
+	spine.scale.set(transform.scale);
+	spine.position.set(transform.x, transform.y);
+};
+
+const applyBackdropFit = (
+	backdrop: Sprite,
+	width: number,
+	height: number,
+	backdropDef: NonNullable<SpineAssetDef['backdrop']>,
+) => {
+	const texture = backdrop.texture;
+	const { scale, x, y } = computeBackdropTransform(width, height, texture, backdropDef);
+	backdrop.anchor.set(0.5, 1);
+	backdrop.scale.set(scale);
+	backdrop.position.set(x, y);
+};
 
 export class SpineBackgroundRenderer {
 	private hostElement: HTMLElement;
 	private app?: Application;
 	private spine?: Spine;
+	private backdrop?: Sprite;
 	private currentAsset?: SpineAssetDef;
 	private skeletonDataCache = new Map<string, SkeletonData>();
-	private worldBounds = createWorldBounds();
+	private fitBounds = createWorldBounds();
 	private resizeObserver?: ResizeObserver;
 	private fitFrameId = 0;
 
@@ -48,6 +95,8 @@ export class SpineBackgroundRenderer {
 		cancelAnimationFrame(this.fitFrameId);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
+		this.backdrop?.destroy();
+		this.backdrop = undefined;
 		this.spine?.destroy({ children: true });
 		this.spine = undefined;
 		this.app?.destroy(true, { children: true });
@@ -85,13 +134,34 @@ export class SpineBackgroundRenderer {
 		return skeletonData;
 	}
 
+	private async loadBackdrop(asset: SpineAssetDef): Promise<Sprite | undefined> {
+		const backdropDef = asset.backdrop;
+		if (!backdropDef) return undefined;
+
+		const alias = `${asset.id}-backdrop`;
+		Assets.add({ alias, src: backdropDef.src });
+		const texture = await Assets.load(alias);
+		return Sprite.from(texture);
+	}
+
+	private captureFitBounds(spine: Spine, asset: SpineAssetDef): void {
+		spine.skeleton.setupPose();
+		spine.state.apply(spine.skeleton);
+		spine.skeleton.updateWorldTransform(Physics.update);
+		updateWorldBounds(spine.skeleton, asset, this.fitBounds);
+	}
+
 	private async loadAsset(asset: SpineAssetDef): Promise<void> {
 		const app = this.app;
 		if (!app) return;
 
-		const skeletonData = await this.loadSkeletonData(asset);
+		const [skeletonData, backdrop] = await Promise.all([
+			this.loadSkeletonData(asset),
+			this.loadBackdrop(asset),
+		]);
 
 		this.spine?.destroy({ children: true });
+		this.backdrop?.destroy();
 
 		const spine = new Spine({
 			skeletonData,
@@ -99,16 +169,20 @@ export class SpineBackgroundRenderer {
 		});
 		spine.state.data.defaultMix = 0.2;
 		spine.state.setAnimation(0, asset.animation, true);
-		spine.skeleton.setupPose();
-		spine.state.apply(spine.skeleton);
-		spine.skeleton.updateWorldTransform(Physics.update);
 
 		app.stage.removeChildren();
+
+		if (backdrop) {
+			app.stage.addChild(backdrop);
+		}
 		app.stage.addChild(spine);
 
+		this.backdrop = backdrop;
 		this.spine = spine;
 		this.currentAsset = asset;
-		this.scheduleFitSpine();
+
+		this.captureFitBounds(spine, asset);
+		this.fitSpine();
 	}
 
 	private scheduleFitSpine(): void {
@@ -119,44 +193,42 @@ export class SpineBackgroundRenderer {
 	}
 
 	private fitSpine(): void {
-		const app = this.app;
 		const spine = this.spine;
 		const asset = this.currentAsset;
-		if (!app || !spine || !asset) return;
+		if (!this.app || !spine || !asset) return;
 
 		const width = this.hostElement.clientWidth;
 		const height = this.hostElement.clientHeight;
 		if (!width || !height) return;
 
-		updateWorldBounds(spine.skeleton, asset, this.worldBounds);
+		if (!this.fitBounds.size.x || !this.fitBounds.size.y) {
+			this.captureFitBounds(spine, asset);
+		}
 
-		const { offset, size } = this.worldBounds;
+		const { size } = this.fitBounds;
 		if (!size.x || !size.y) return;
 
-		const centerX = offset.x + size.x / 2;
-		const centerY = offset.y + size.y / 2;
+		const backdrop = this.backdrop;
+		const backdropDef = asset.backdrop;
+		const backdropTexture = backdrop?.texture;
+		const backdropTransform =
+			backdrop && backdropDef && backdropTexture
+				? computeBackdropTransform(width, height, backdropTexture, backdropDef)
+				: undefined;
 
-		const scale =
-			asset.widthFillScale != null
-				? (width / size.x) * asset.widthFillScale
-				: Math.max(width / size.x, height / size.y);
-
-		spine.scale.set(scale);
-
-		const offsetX = (asset.offsetXVw ?? 0) * width;
-		const offsetY = (asset.offsetYVh ?? 0) * height;
-
-		if (asset.widthFillScale != null || asset.fitAnchor === 'bottom') {
-			// object-position: center bottom — width fill, bottom pinned, height cropped
-			spine.position.set(
-				width / 2 - centerX * scale + offsetX,
-				height - (offset.y + size.y) * scale + offsetY,
-			);
-		} else {
-			spine.position.set(
-				width / 2 - centerX * scale + offsetX,
-				height / 2 - centerY * scale + offsetY,
-			);
+		if (backdrop && backdropDef && backdropTransform) {
+			applyBackdropFit(backdrop, width, height, backdropDef);
 		}
+
+		applySpineFit(
+			spine,
+			width,
+			height,
+			this.fitBounds,
+			spineFitConfig(asset),
+			backdropTransform,
+			backdropDef,
+			backdropTexture,
+		);
 	}
 }

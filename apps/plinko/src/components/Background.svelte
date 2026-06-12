@@ -15,6 +15,7 @@
 	});
 
 	const portraitImageSrc = $derived(staticUrl('img/BG_portrait.jpg'));
+	/** Shown only while the landscape Spine stack (backdrop + animation) is loading or failed. */
 	const landscapeFallbackSrc = $derived(staticUrl('img/BG_landscape.jpg'));
 
 	let canvasHost = $state<HTMLElement | undefined>();
@@ -107,11 +108,6 @@
 		height: 100%;
 		object-fit: cover;
 		object-position: center bottom;
-	}
-
-	.background__image--landscape {
-		transform: scale(1.12);
-		transform-origin: center bottom;
 	}
 
 	.background__canvas {
