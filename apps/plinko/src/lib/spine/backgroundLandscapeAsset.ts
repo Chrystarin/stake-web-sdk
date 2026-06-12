@@ -14,7 +14,7 @@ export const LANDSCAPE_BACKGROUND_WIDTH_FILL = 1.25;
  * Position nudge for the Spine layer (viewport-relative, like CSS vw/vh).
  * 0.05 = 5% of viewport width/height; negative moves left/up.
  */
-export const LANDSCAPE_BACKGROUND_OFFSET_X_VW = 0.02;
+export const LANDSCAPE_BACKGROUND_OFFSET_X_VW = 0.0325;
 export const LANDSCAPE_BACKGROUND_OFFSET_Y_VH = -0.22;
 
 /**
