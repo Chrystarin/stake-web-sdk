@@ -3,7 +3,6 @@
 
 	import { OnHotkey } from 'components-shared';
 	import { stateBet } from 'state-shared';
-	import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
 
 	import config from '../game/config';
 	import {
@@ -30,7 +29,6 @@
 
 	type Props = {
 		betAmount: number;
-		winBookEventAmount: number;
 		totalBetAmount: number;
 		onBetAmountChange: (value: number) => void;
 		onPlay: () => void;
@@ -54,9 +52,8 @@
 	let mobileBetPopupOpen = $state(false);
 
 	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
-	const displayWinAmount = $derived(
-		bookEventAmountToNormalisedAmount(props.winBookEventAmount),
-	);
+	/** Settlement currency win from the last round — not recalculated from current stake. */
+	const displayWinAmount = $derived(stateGame.winAmount);
 	const controlsLocked = $derived.by(() => {
 		stateGame.isSubmitting;
 		stateGame.isAnimating;

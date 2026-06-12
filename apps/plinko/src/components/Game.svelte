@@ -5,7 +5,7 @@
 
 
 	import { stateBet, stateConfig, stateUrlDerived } from 'state-shared';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from 'utils-shared/amount';
 
 
 
@@ -129,13 +129,11 @@
 			: 0,
 	);
 
-	const winPopupAmountDisplay = $derived(
-		bookEventAmountToCurrencyString(stateBet.winBookEventAmount),
-	);
+	const winPopupAmountDisplay = $derived(numberToCurrencyString(stateGame.winPopupAmount));
 
 	$effect(() => {
 		if (!stateGame.showWinPopup) return;
-		stateBet.winBookEventAmount;
+		stateGame.winPopupAmount;
 		const timer = setTimeout(() => {
 			stateGame.showWinPopup = false;
 		}, 3000);
@@ -527,7 +525,6 @@
 
 	<GameHud
 		betAmount={stateBet.betAmount}
-		winBookEventAmount={stateBet.winBookEventAmount}
 		totalBetAmount={stateBet.betAmount * stateGame.ballPerDrop}
 		onBetAmountChange={handleBetAmountChange}
 		onPlay={handlePlay}
