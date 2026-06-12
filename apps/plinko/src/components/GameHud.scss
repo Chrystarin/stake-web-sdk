@@ -167,7 +167,6 @@
 	--bp-stepper-side: 3.2vw;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	grid-template-rows: auto minmax(0, 1fr);
 	justify-items: center;
 	align-items: stretch;
 	gap: 0;
@@ -191,14 +190,14 @@
 		align-self: start;
 		position: static;
 		min-height: 0;
-		height: 100%;
+		height: auto;
 		width: 100%;
 	}
 
 	.bp-bet-input-mid {
-		height: 100%;
-		align-self: stretch;
-		justify-content: center;
+		height: auto;
+		align-self: start;
+		justify-content: flex-start;
 	}
 
 	/* Position against .bp-field--bet-controls (not .bp-bet-input-wrap) — matches legacy layout */
@@ -223,7 +222,7 @@
 		font-family: 'Poppins', 'Instrument Sans', sans-serif;
 		display: flex;
 		width: 100%;
-		height: 100%;
+		height: auto;
 		align-items: center;
 		justify-content: center;
 		padding: 0;
@@ -232,6 +231,7 @@
 		letter-spacing: -0.02em;
 		line-height: 1;
 		text-align: center;
+		align-self: start;
 	}
 }
 
