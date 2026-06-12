@@ -124,7 +124,7 @@
 	justify-content: flex-start;
 	gap: 0.2vw;
 	font-size: 1.8vw;
-	font-weight: 600;
+	font-weight: 400;
 	font-synthesis: none;
 	letter-spacing: -0.02em;
 	color: #f2f4f6;
@@ -228,7 +228,7 @@
 		justify-content: center;
 		padding: 0;
 		font-size: 1.8vw;
-		font-weight: 600;
+		font-weight: 400;
 		letter-spacing: -0.02em;
 		line-height: 1;
 		text-align: center;
@@ -659,7 +659,7 @@
 .mobile-top-card-value {
 	margin-top: clamp(2px, 0.55vw, 4px);
 	font-size: clamp(12px, 2.7vw, 15px);
-	font-weight: 700;
+	font-weight: 400;
 	line-height: 1;
 	color: #ffffff;
 	max-width: 100%;
@@ -889,7 +889,7 @@
 	margin-top: 0;
 	color: #ffffff;
 	font-size: clamp(20px, 5.1vw, 30px);
-	font-weight: 600;
+	font-weight: 400;
 	letter-spacing: -0.02em;
 	line-height: 1;
 	text-align: center;
@@ -948,7 +948,7 @@
 
 .mobile-corner-value {
 	font-size: clamp(12px, 2.7vw, 15px);
-	font-weight: 700;
+	font-weight: 400;
 	line-height: 1;
 	min-width: 0;
 	overflow: hidden;
