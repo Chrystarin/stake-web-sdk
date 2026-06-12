@@ -15,7 +15,7 @@ export const LANDSCAPE_BACKGROUND_WIDTH_FILL = 1.25;
  * 0.05 = 5% of viewport width/height; negative moves left/up.
  */
 export const LANDSCAPE_BACKGROUND_OFFSET_X_VW = 0.02;
-export const LANDSCAPE_BACKGROUND_OFFSET_Y_VH = 0;
+export const LANDSCAPE_BACKGROUND_OFFSET_Y_VH = -0.22;
 
 /**
  * Width fill multiplier for the static JPG behind the Spine animation.
@@ -27,7 +27,7 @@ export const LANDSCAPE_BACKGROUND_IMAGE_WIDTH_FILL = 1.275;
  * Position nudge for the static JPG backdrop (viewport-relative, like CSS vw/vh).
  */
 export const LANDSCAPE_BACKGROUND_IMAGE_OFFSET_X_VW = -0.045;
-export const LANDSCAPE_BACKGROUND_IMAGE_OFFSET_Y_VH = 0;
+export const LANDSCAPE_BACKGROUND_IMAGE_OFFSET_Y_VH = 0.22;
 
 export const getBackgroundLandscapeAsset = (): SpineAssetDef => ({
 	id: 'background_landscape',
