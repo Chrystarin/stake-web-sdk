@@ -10,6 +10,9 @@ const joinBase = (path: string): string => {
 	return `${base}/${clean}`.replace(/\/{2,}/g, '/');
 };
 
+/** Base-relative path for Pixi/Spine asset loaders (same-origin, no absolute URL). */
+export const staticAssetPath = (path: string): string => joinBase(path);
+
 /**
  * Absolute URL for static assets (img src, CSS custom properties, inline styles).
  * In the browser, resolves against the current page so CDN subpaths work.

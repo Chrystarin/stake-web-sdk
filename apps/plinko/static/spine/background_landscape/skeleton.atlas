@@ -1,0 +1,336 @@
+skeleton.png
+size:2044,2036
+filter:Linear,Linear
+pma:true
+scale:0.5
+cloud1
+bounds:56,1999,115,35
+cloud2
+bounds:460,1688,257,71
+cloud3
+bounds:798,1977,146,57
+cloud4
+bounds:646,1987,150,47
+cloud5
+bounds:520,1988,124,46
+flag
+bounds:1898,1651,144,121
+lamp1
+bounds:2,2002,32,52
+rotate:90
+light
+bounds:1862,1959,75,76
+rotate:90
+oceanAnim/0
+bounds:719,1651,391,95
+oceanAnim/1
+bounds:1112,1651,391,95
+oceanAnim/10
+bounds:1505,1651,391,95
+oceanAnim/11
+bounds:2,1609,391,95
+oceanAnim/12
+bounds:395,1554,391,95
+oceanAnim/13
+bounds:788,1554,391,95
+oceanAnim/14
+bounds:1181,1554,391,95
+oceanAnim/15
+bounds:1574,1554,391,95
+oceanAnim/16
+bounds:2,1512,391,95
+oceanAnim/17
+bounds:395,1457,391,95
+oceanAnim/18
+bounds:788,1457,391,95
+oceanAnim/19
+bounds:1181,1457,391,95
+oceanAnim/2
+bounds:1574,1457,391,95
+oceanAnim/20
+bounds:2,1415,391,95
+oceanAnim/21
+bounds:395,1360,391,95
+oceanAnim/22
+bounds:788,1360,391,95
+oceanAnim/23
+bounds:1181,1360,391,95
+oceanAnim/24
+bounds:1574,1360,391,95
+oceanAnim/25
+bounds:2,1318,391,95
+oceanAnim/26
+bounds:395,1263,391,95
+oceanAnim/27
+bounds:788,1263,391,95
+oceanAnim/28
+bounds:1181,1263,391,95
+oceanAnim/29
+bounds:1574,1263,391,95
+oceanAnim/3
+bounds:2,1221,391,95
+oceanAnim/30
+bounds:395,1166,391,95
+oceanAnim/31
+bounds:788,1166,391,95
+oceanAnim/32
+bounds:1181,1166,391,95
+oceanAnim/33
+bounds:1574,1166,391,95
+oceanAnim/34
+bounds:2,1124,391,95
+oceanAnim/35
+bounds:395,1069,391,95
+oceanAnim/36
+bounds:788,1069,391,95
+oceanAnim/37
+bounds:1181,1069,391,95
+oceanAnim/38
+bounds:1574,1069,391,95
+oceanAnim/39
+bounds:2,1027,391,95
+oceanAnim/4
+bounds:395,972,391,95
+oceanAnim/40
+bounds:788,972,391,95
+oceanAnim/41
+bounds:1181,972,391,95
+oceanAnim/42
+bounds:1574,972,391,95
+oceanAnim/43
+bounds:2,930,391,95
+oceanAnim/44
+bounds:395,875,391,95
+oceanAnim/45
+bounds:788,875,391,95
+oceanAnim/46
+bounds:1181,875,391,95
+oceanAnim/47
+bounds:1574,875,391,95
+oceanAnim/48
+bounds:2,833,391,95
+oceanAnim/49
+bounds:395,778,391,95
+oceanAnim/5
+bounds:788,778,391,95
+oceanAnim/50
+bounds:1181,778,391,95
+oceanAnim/51
+bounds:1574,778,391,95
+oceanAnim/52
+bounds:2,736,391,95
+oceanAnim/53
+bounds:395,681,391,95
+oceanAnim/54
+bounds:788,681,391,95
+oceanAnim/55
+bounds:1181,681,391,95
+oceanAnim/56
+bounds:1574,681,391,95
+oceanAnim/57
+bounds:2,639,391,95
+oceanAnim/58
+bounds:395,584,391,95
+oceanAnim/59
+bounds:788,584,391,95
+oceanAnim/6
+bounds:1181,584,391,95
+oceanAnim/60
+bounds:1574,584,391,95
+oceanAnim/61
+bounds:2,542,391,95
+oceanAnim/62
+bounds:395,487,391,95
+oceanAnim/63
+bounds:788,487,391,95
+oceanAnim/64
+bounds:1181,487,391,95
+oceanAnim/65
+bounds:1574,487,391,95
+oceanAnim/66
+bounds:2,445,391,95
+oceanAnim/67
+bounds:395,390,391,95
+oceanAnim/68
+bounds:788,390,391,95
+oceanAnim/69
+bounds:1181,390,391,95
+oceanAnim/7
+bounds:1574,390,391,95
+oceanAnim/70
+bounds:2,348,391,95
+oceanAnim/71
+bounds:395,293,391,95
+oceanAnim/72
+bounds:788,293,391,95
+oceanAnim/73
+bounds:1181,293,391,95
+oceanAnim/74
+bounds:1574,293,391,95
+oceanAnim/75
+bounds:2,251,391,95
+oceanAnim/76
+bounds:395,196,391,95
+oceanAnim/77
+bounds:788,196,391,95
+oceanAnim/78
+bounds:1181,196,391,95
+oceanAnim/79
+bounds:1574,196,391,95
+oceanAnim/8
+bounds:2,154,391,95
+oceanAnim/80
+bounds:395,99,391,95
+oceanAnim/81
+bounds:788,99,391,95
+oceanAnim/82
+bounds:1181,99,391,95
+oceanAnim/83
+bounds:1574,99,391,95
+oceanAnim/84
+bounds:2,57,391,95
+oceanAnim/85
+bounds:395,2,391,95
+oceanAnim/86
+bounds:788,2,391,95
+oceanAnim/87
+bounds:1181,2,391,95
+oceanAnim/88
+bounds:1574,2,391,95
+ship
+bounds:1934,1774,100,138
+splash
+bounds:292,1994,226,40
+water sparkle/0
+bounds:946,1964,227,70
+water sparkle/1
+bounds:1175,1964,227,70
+water sparkle/10
+bounds:1404,1964,227,70
+water sparkle/11
+bounds:1633,1964,227,70
+water sparkle/12
+bounds:2,1923,227,70
+water sparkle/13
+bounds:231,1922,227,70
+water sparkle/14
+bounds:460,1915,227,70
+water sparkle/15
+bounds:689,1905,227,70
+water sparkle/16
+bounds:918,1892,227,70
+water sparkle/17
+bounds:1147,1892,227,70
+water sparkle/18
+bounds:1376,1892,227,70
+water sparkle/19
+bounds:1605,1892,227,70
+water sparkle/2
+bounds:2,1851,227,70
+water sparkle/20
+bounds:231,1850,227,70
+water sparkle/21
+bounds:460,1843,227,70
+water sparkle/22
+bounds:689,1833,227,70
+water sparkle/23
+bounds:918,1820,227,70
+water sparkle/24
+bounds:1147,1820,227,70
+water sparkle/25
+bounds:1376,1820,227,70
+water sparkle/26
+bounds:1605,1820,227,70
+water sparkle/27
+bounds:2,1779,227,70
+water sparkle/28
+bounds:231,1778,227,70
+water sparkle/29
+bounds:460,1771,227,70
+water sparkle/3
+bounds:689,1761,227,70
+water sparkle/4
+bounds:918,1748,227,70
+water sparkle/5
+bounds:1147,1748,227,70
+water sparkle/6
+bounds:1376,1748,227,70
+water sparkle/7
+bounds:1605,1748,227,70
+water sparkle/8
+bounds:2,1707,227,70
+water sparkle/9
+bounds:231,1706,227,70
+waterDrop1
+bounds:1834,1833,124,98
+rotate:90
+waterDrop2
+bounds:1940,1914,120,90
+rotate:90
+waterFlow
+bounds:173,1995,117,39
+
+skeleton_2.png
+size:1879,1638
+filter:Linear,Linear
+pma:true
+scale:0.5
+fog
+bounds:2,481,868,148
+moon
+bounds:1342,747,229,229
+oceanAnim/89
+bounds:1782,805,391,95
+rotate:90
+oceanAnim/9
+bounds:1762,106,391,95
+rotate:90
+shipBig
+bounds:2,631,1005,419
+rotate:90
+water lines/0
+bounds:2,2,218,477
+water lines/1
+bounds:222,2,218,477
+water lines/10
+bounds:442,2,218,477
+water lines/11
+bounds:662,2,218,477
+water lines/12
+bounds:872,1418,218,477
+rotate:90
+water lines/13
+bounds:423,1159,218,477
+water lines/14
+bounds:643,1159,218,477
+water lines/15
+bounds:643,680,218,477
+water lines/16
+bounds:423,680,218,477
+water lines/17
+bounds:863,939,218,477
+water lines/18
+bounds:863,719,218,477
+rotate:90
+water lines/19
+bounds:872,499,218,477
+rotate:90
+water lines/2
+bounds:1342,1198,218,477
+rotate:90
+water lines/3
+bounds:1351,1418,218,477
+rotate:90
+water lines/4
+bounds:1083,939,218,477
+water lines/5
+bounds:1303,978,218,477
+rotate:90
+water lines/6
+bounds:882,20,218,477
+water lines/7
+bounds:1102,20,218,477
+water lines/8
+bounds:1322,20,218,477
+water lines/9
+bounds:1542,20,218,477

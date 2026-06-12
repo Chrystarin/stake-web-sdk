@@ -362,6 +362,12 @@ importers:
 
   apps/plinko:
     dependencies:
+      '@esotericsoftware/spine-core':
+        specifier: 4.3.7
+        version: 4.3.7
+      '@esotericsoftware/spine-pixi-v8':
+        specifier: 4.3.7
+        version: 4.3.7(pixi.js@8.8.1)
       '@lingui/core':
         specifier: 5.2.0
         version: 5.2.0(@lingui/babel-plugin-lingui-macro@5.2.0(babel-plugin-macros@3.1.0))(babel-plugin-macros@3.1.0)
@@ -2329,13 +2335,24 @@ packages:
     resolution: {integrity: sha512-1+WqvgNMhmlAambTvT3KPtCl/Ibr68VldY2XY40SL1CE0ZXiakFR/cbTspaF5HsnpDMvcYYoJHfl4980NBjGag==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@esotericsoftware/spine-canvas@4.3.7':
+    resolution: {integrity: sha512-pH5wrfbF3YbwmDKUDNTfMQpc4YEY3DKw4ne0nXCd/sdiPQSVzK/tOS5t3hgkC6mBk7sEeutt/8kG1gAbytQTWw==}
+
   '@esotericsoftware/spine-core@4.2.74':
     resolution: {integrity: sha512-HdEm7702yT7tZyBwX8CeB1+UhBLJRLW9+mffBQIEllr+XzwiawrRalV5RneKwhpygs8PYVqlZbpeWCPlZEH22A==}
+
+  '@esotericsoftware/spine-core@4.3.7':
+    resolution: {integrity: sha512-adB/LcFivaAk3C03iBXXcXmpo7INZ6orWWhXnM5j0wOBHUhAGhDWJyBGuVcZzZXcvjJSKCh1SJ7BhmQH5AIDcw==}
 
   '@esotericsoftware/spine-pixi-v8@4.2.74':
     resolution: {integrity: sha512-f90lkQt0hcmSeQI7epIT8H22JsA9QZu5Vsv4Bb5Fop3sCfPItY8frN9qduWrMt/tmGl7E2OT3gjvQJULIjdnNQ==}
     peerDependencies:
       pixi.js: ^8.4.0
+
+  '@esotericsoftware/spine-pixi-v8@4.3.7':
+    resolution: {integrity: sha512-zuhsJBBd3AIiWr4qqg3iCSFy7uCl1BQrGvq/3+KuUOcy+8wwjAlb6iTzmYzALfTg+TMThh7a4iVDRX8g/RrSPA==}
+    peerDependencies:
+      pixi.js: ^8.16.0
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -5002,11 +5019,22 @@ snapshots:
       '@eslint/core': 0.15.1
       levn: 0.4.1
 
+  '@esotericsoftware/spine-canvas@4.3.7':
+    dependencies:
+      '@esotericsoftware/spine-core': 4.3.7
+
   '@esotericsoftware/spine-core@4.2.74': {}
+
+  '@esotericsoftware/spine-core@4.3.7': {}
 
   '@esotericsoftware/spine-pixi-v8@4.2.74(pixi.js@8.8.1)':
     dependencies:
       '@esotericsoftware/spine-core': 4.2.74
+      pixi.js: 8.8.1
+
+  '@esotericsoftware/spine-pixi-v8@4.3.7(pixi.js@8.8.1)':
+    dependencies:
+      '@esotericsoftware/spine-canvas': 4.3.7
       pixi.js: 8.8.1
 
   '@humanfs/core@0.19.1': {}
