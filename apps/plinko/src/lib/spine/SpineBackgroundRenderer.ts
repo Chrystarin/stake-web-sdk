@@ -133,16 +133,30 @@ export class SpineBackgroundRenderer {
 		const { offset, size } = this.worldBounds;
 		if (!size.x || !size.y) return;
 
-		const scale = Math.max(width / size.x, height / size.y);
 		const centerX = offset.x + size.x / 2;
 		const centerY = offset.y + size.y / 2;
 
+		const scale =
+			asset.widthFillScale != null
+				? (width / size.x) * asset.widthFillScale
+				: Math.max(width / size.x, height / size.y);
+
 		spine.scale.set(scale);
 
-		if (asset.fitAnchor === 'bottom') {
-			spine.position.set(width / 2 - centerX * scale, -offset.y * scale);
+		const offsetX = (asset.offsetXVw ?? 0) * width;
+		const offsetY = (asset.offsetYVh ?? 0) * height;
+
+		if (asset.widthFillScale != null || asset.fitAnchor === 'bottom') {
+			// object-position: center bottom — width fill, bottom pinned, height cropped
+			spine.position.set(
+				width / 2 - centerX * scale + offsetX,
+				height - (offset.y + size.y) * scale + offsetY,
+			);
 		} else {
-			spine.position.set(width / 2 - centerX * scale, height / 2 - centerY * scale);
+			spine.position.set(
+				width / 2 - centerX * scale + offsetX,
+				height / 2 - centerY * scale + offsetY,
+			);
 		}
 	}
 }

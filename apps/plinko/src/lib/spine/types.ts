@@ -16,4 +16,13 @@ export type SpineAssetDef = {
 	boundsPadding?: number;
 	/** How the fitted spine is anchored inside the viewport. */
 	fitAnchor?: FitAnchor;
+	/**
+	 * When set, scale to fill viewport width (× this multiplier) and crop height.
+	 * 1 = exact viewport width; 1.12 = 12% wider than the viewport.
+	 */
+	widthFillScale?: number;
+	/** Horizontal nudge as a viewport-width fraction (0.05 = 5vw). Positive = right. */
+	offsetXVw?: number;
+	/** Vertical nudge as a viewport-height fraction (0.05 = 5vh). Positive = down. */
+	offsetYVh?: number;
 };
