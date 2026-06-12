@@ -84,7 +84,7 @@ apps/plinko/
 │   ├── lib/                 # staticUrl, format helpers
 │   ├── i18n/                # Message maps (en, zh + shared UI packages)
 │   └── stories/             # Storybook + synced math fixtures
-├── static/                  # img/, spines/, i18n JSON (copied to build/)
+├── static/                  # img/, i18n JSON (copied to build/)
 ├── scripts/                 # Math sync, engine port, Storybook helper
 └── build/                   # Production upload folder (gitignored)
 ```
@@ -143,7 +143,7 @@ Stateless helpers used by game and features:
 | `PlinkoBoard.svelte` | Canvas host for `PlinkoEngine` |
 | `PlinkoAuthenticate.svelte` | RGS auth gate before game |
 | `EnableGameActor.svelte` | Starts XState actor, forwards `bet` events |
-| `Background.svelte` | Spine landscape/portrait backgrounds |
+| `Background.svelte` | Static landscape/portrait JPG backgrounds |
 
 ---
 
@@ -228,12 +228,12 @@ Useful stories: `MODE_BASE` / book playback, `COMPONENTS` / board, game, bonus m
 pnpm run build --filter=plinko
 ```
 
-Output: `apps/plinko/build/` (`index.html`, `_app/`, `img/`, `spines/`, `i18n/`). `paths.relative` in `svelte.config.js` supports CDN subpaths.
+Output: `apps/plinko/build/` (`index.html`, `_app/`, `img/`, `i18n/`). `paths.relative` in `svelte.config.js` supports CDN subpaths.
 
 **Upload:**
 
 1. Fresh build.
-2. Stake Engine → game **Files** → import entire `build/` (include `spines/`).
+2. Stake Engine → game **Files** → import entire `build/`.
 3. Publish **Front End**; test via Developer session → Launch.
 4. Copy session query string into `http://localhost:3003?...` for local RGS testing.
 
@@ -247,12 +247,6 @@ Output: `apps/plinko/build/` (`index.html`, `_app/`, `img/`, `spines/`, `i18n/`)
 | `scripts/run-local-storybook.mjs` | Verify books exist, sync, print Storybook URL |
 | `scripts/port-plinko-engine.mjs` | Regenerate `PlinkoEngine.ts` from legacy Angular |
 | `scripts/port-meter-engines.mjs` | Port meter Pixi engines from legacy `crimson-plinko` |
-
-After changing `packages/pixi-svelte` or other workspace libs:
-
-```bash
-pnpm run build --filter=pixi-svelte
-```
 
 ---
 
@@ -283,4 +277,4 @@ pnpm run build --filter=pixi-svelte
 3. **Feature work** — put bonus UI/logic under `features/bonus/`, free spin under `features/freeSpin/`.
 4. **Meters** — distinguish authoritative (`spinMeter` events) vs visual-only bumps in `meterFlow.ts` / `meterController.ts`.
 5. **Chromatic / replay** — `PUBLIC_CHROMATIC` and replay URLs skip RGS wallet actions; use Storybook or fixtures.
-6. **Spine backgrounds** — assets live in `static/spines/`; missing spines break production uploads.
+6. **Backgrounds** — `static/img/BG_landscape.jpg` and `BG_portrait.jpg`; rendered by `Background.svelte`.
