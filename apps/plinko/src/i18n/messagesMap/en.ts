@@ -19,4 +19,11 @@ export default {
 	Rules: 'Rules',
 	History: 'History',
 	'How to play': 'How to play',
+	'Player name': 'Player name',
+	'Change avatar': 'Change avatar',
+	'Play in Fullscreen': 'Play in Fullscreen',
+	'Provably fair settings': 'Provably fair settings',
+	'Game Rules': 'Game Rules',
+	'My bet History': 'My bet History',
+	'How to Play?': 'How to Play?',
 };

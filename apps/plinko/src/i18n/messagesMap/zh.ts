@@ -19,4 +19,11 @@ export default {
 	Rules: '规则',
 	History: '历史',
 	'How to play': '玩法说明',
+	'Player name': '玩家名称',
+	'Change avatar': '更换头像',
+	'Play in Fullscreen': '全屏游戏',
+	'Provably fair settings': '可验证公平设置',
+	'Game Rules': '游戏规则',
+	'My bet History': '我的投注历史',
+	'How to Play?': '如何游戏？',
 };

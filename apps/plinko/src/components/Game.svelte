@@ -84,6 +84,8 @@
 
 	import GameHud from './GameHud.svelte';
 
+	import HudMenuPopup from './HudMenuPopup.svelte';
+
 	import InfoModal from './InfoModal.svelte';
 
 	import MsgBox from './MsgBox.svelte';
@@ -364,96 +366,29 @@
 				></button>
 
 				{#if stateGame.menuOpen}
-					<div class="hud-menu-popup">
-
-					{#if fullscreenAllowed}
-						<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
-					{/if}
-
-					<button type="button" onclick={() => openInfo('fair')}>Provably fair</button>
-
-					<button type="button" onclick={() => openInfo('rules')}>Game rules</button>
-
-					<button type="button" onclick={() => openInfo('history')}>Bet history</button>
-
-					<button
-
-						type="button"
-
-						onclick={() => (stateGame.fastGameEnabled = !stateGame.fastGameEnabled)}
-
-					>
-
-						Fast: {stateGame.fastGameEnabled ? 'ON' : 'OFF'}
-
-					</button>
-
-					<button
-
-						type="button"
-
-						onclick={() => (stateGame.animationEnabled = !stateGame.animationEnabled)}
-
-					>
-
-						Anim: {stateGame.animationEnabled ? 'ON' : 'OFF'}
-
-					</button>
-
-					<button
-
-						type="button"
-
-						onclick={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
-
-					>
-
-						Sound: {stateGame.soundEnabled ? 'ON' : 'OFF'}
-
-					</button>
-
-					</div>
+					<HudMenuPopup
+						{fullscreenAllowed}
+						onFullscreen={toggleFullscreen}
+						onOpenFair={() => openInfo('fair')}
+						onOpenRules={() => openInfo('rules')}
+						onOpenHistory={() => openInfo('history')}
+						onOpenHowToPlay={() => openInfo('rules')}
+					/>
 				{/if}
 			</div>
 		</header>
 	{/if}
 
 	{#if mobile && stateGame.menuOpen}
-		<div class="hud-menu-popup hud-menu-popup--mobile">
-			{#if fullscreenAllowed}
-				<button type="button" onclick={toggleFullscreen}>Fullscreen</button>
-			{/if}
-			<button type="button" onclick={() => openInfo('fair')}>Provably fair</button>
-			<button type="button" onclick={() => openInfo('rules')}>Game rules</button>
-			<button type="button" onclick={() => openInfo('history')}>Bet history</button>
-			<button
-				type="button"
-				onclick={() => {
-					stateGame.fastGameEnabled = !stateGame.fastGameEnabled;
-					stateGame.menuOpen = false;
-				}}
-			>
-				Fast: {stateGame.fastGameEnabled ? 'ON' : 'OFF'}
-			</button>
-			<button
-				type="button"
-				onclick={() => {
-					stateGame.animationEnabled = !stateGame.animationEnabled;
-					stateGame.menuOpen = false;
-				}}
-			>
-				Anim: {stateGame.animationEnabled ? 'ON' : 'OFF'}
-			</button>
-			<button
-				type="button"
-				onclick={() => {
-					stateGame.soundEnabled = !stateGame.soundEnabled;
-					stateGame.menuOpen = false;
-				}}
-			>
-				Sound: {stateGame.soundEnabled ? 'ON' : 'OFF'}
-			</button>
-		</div>
+		<HudMenuPopup
+			mobile
+			{fullscreenAllowed}
+			onFullscreen={toggleFullscreen}
+			onOpenFair={() => openInfo('fair')}
+			onOpenRules={() => openInfo('rules')}
+			onOpenHistory={() => openInfo('history')}
+			onOpenHowToPlay={() => openInfo('rules')}
+		/>
 	{/if}
 
 	<div class="game-content">
@@ -844,74 +779,6 @@
 		cursor: pointer;
 
 		transition: transform 0.12s ease;
-
-	}
-
-	.hud-menu-popup {
-
-		position: absolute;
-
-		top: calc(100% + 0.55vw);
-
-		right: 0;
-
-		width: min(280px, 16.8vw);
-
-		border-radius: 0.2vw;
-
-		border: 0.08vw dashed rgba(255, 255, 255, 0.12);
-
-		background: linear-gradient(180deg, rgba(22, 24, 31, 0.98) 0%, rgba(16, 18, 24, 0.99) 100%);
-
-		box-shadow:
-			inset 0 0.04vw 0 rgba(255, 255, 255, 0.04),
-			0 0.45vw 1.1vw rgba(0, 0, 0, 0.45);
-
-		padding: 0.7vw 0.8vw 0.8vw;
-
-		display: flex;
-
-		flex-direction: column;
-
-		gap: 0.35vw;
-
-		z-index: 30;
-
-	}
-
-	.hud-menu-popup button {
-
-		background: transparent;
-
-		border: none;
-
-		color: #fff;
-
-		text-align: left;
-
-		padding: 0.45vw 0.35vw;
-
-		cursor: pointer;
-
-		font-size: clamp(12px, 0.85vw, 14px);
-
-	}
-
-	.hud-menu-popup--mobile {
-
-		position: fixed;
-
-		top: clamp(72px, 18vw, 112px);
-
-		right: clamp(10px, 3vw, 18px);
-
-		width: min(92vw, 320px);
-
-		border-radius: 8px;
-
-		padding: 12px;
-
-		gap: 6px;
 
 	}
 
