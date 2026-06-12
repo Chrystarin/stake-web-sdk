@@ -795,7 +795,7 @@
 
 		z-index: 20;
 
-		height: 3vw;
+		height: 3.6vw;
 
 		display: flex;
 
@@ -941,6 +941,8 @@
 	}
 
 	.game-area {
+
+		--game-layout-scale: 1.12;
 
 		position: relative;
 
@@ -1121,6 +1123,10 @@
 		container-type: size;
 
 		container-name: plinko-frame;
+
+		transform: scale(var(--game-layout-scale, 1));
+
+		transform-origin: center center;
 
 	}
 
@@ -1417,6 +1423,8 @@
 		border-radius: calc(var(--portrait-px) * 44);
 
 		align-self: center;
+
+		transform-origin: center top;
 
 	}
 
