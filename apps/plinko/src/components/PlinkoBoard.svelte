@@ -196,7 +196,7 @@
 </div>
 
 <style>
-	/* Sized/positioned from .container CSS vars (frame fit-width/height), not viewport vw */
+	/* Sized/positioned from mode-specific .container CSS vars (desktop vs mobile) */
 	.plinko-root {
 		position: absolute;
 		inset: 0;
@@ -207,14 +207,26 @@
 		pointer-events: none;
 	}
 
-	.plinko-host {
-		position: absolute;
-		left: calc(50% + var(--plinko-area-offset-x-ratio, 0) * 100%);
-		top: var(--plinko-area-offset-y);
+	:global(.game-root:not(.game-root--mobile)) .plinko-host {
+		left: calc(50% + var(--plinko-area-offset-x, 0vw));
+		top: var(--plinko-area-offset-y, 0);
 		width: var(--plinko-host-width);
 		height: var(--plinko-host-height);
 		max-width: var(--plinko-host-width);
 		max-height: var(--plinko-host-height);
+	}
+
+	:global(.game-root--mobile) .plinko-host {
+		left: calc(50% + var(--plinko-area-offset-x-mobile, 0vw));
+		top: var(--plinko-area-offset-y-mobile, 0);
+		width: var(--plinko-host-width-mobile);
+		height: var(--plinko-host-height-mobile);
+		max-width: var(--plinko-host-width-mobile);
+		max-height: var(--plinko-host-height-mobile);
+	}
+
+	.plinko-host {
+		position: absolute;
 		transform: translateX(-50%);
 		box-sizing: border-box;
 		overflow: visible;

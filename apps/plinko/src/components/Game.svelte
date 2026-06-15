@@ -785,9 +785,11 @@
 	/* Desktop — absolute inset uses almost full viewport (HUD/panel overlay) */
 	.game-root:not(.game-root--mobile) .game-area {
 
+		--game-area-offset-y-ratio: 0;
+
 		position: absolute;
 
-		top: 3vw;
+		top: calc(3vw + var(--game-area-offset-y-ratio) * 100vw);
 
 		right: 0;
 
@@ -808,8 +810,6 @@
 	}
 
 	.game-area {
-
-		--game-layout-scale: 1.12;
 
 		position: relative;
 
@@ -912,14 +912,6 @@
 
 	.container {
 
-		/* Plinko layout ratios track frame (fit-width/height), not viewport vw */
-		--plinko-area-scale: 0.58;
-		--plinko-area-top-width-scale: .85;
-		--plinko-area-bottom-width-scale: .85;
-		--plinko-area-height-scale: 1.1;
-		--plinko-area-offset-x-ratio: 0.007;
-		--plinko-area-offset-ratio: 0.36;
-
 		/* Bonus meter — desktop proportions vs 96×55 frame (12×7.8 @ top 6) */
 		--bonus-meter-width-ratio: 0.135;
 		--bonus-meter-height-ratio: 0.141818;
@@ -952,16 +944,6 @@
 		--game-area-fit-height: min(
 			var(--game-area-max-h),
 			calc(var(--game-area-max-w) * var(--game-area-aspect-h) / var(--game-area-aspect-w))
-		);
-		--plinko-host-width: calc(
-			var(--game-area-fit-width) * var(--plinko-area-scale) *
-				max(var(--plinko-area-top-width-scale), var(--plinko-area-bottom-width-scale))
-		);
-		--plinko-host-height: calc(
-			var(--game-area-fit-height) * var(--plinko-area-scale) * var(--plinko-area-height-scale)
-		);
-		--plinko-area-offset-y: calc(
-			var(--game-area-fit-height) * var(--plinko-area-offset-ratio)
 		);
 		--bonus-meter-width: calc(var(--game-area-fit-width) * var(--bonus-meter-width-ratio));
 		--bonus-meter-height: calc(var(--game-area-fit-height) * var(--bonus-meter-height-ratio));
@@ -1005,10 +987,39 @@
 
 		container-name: plinko-frame;
 
-		transform: scale(var(--game-layout-scale, 1));
-
 		transform-origin: center center;
 
+	}
+
+	/* Desktop / landscape — game layout + plinko board (frame fit-width/height) */
+	.game-root:not(.game-root--mobile) .game-area > .container {
+		--game-layout-scale: 1.12;
+		--game-layout-offset-x-ratio: 0;
+		--game-layout-offset-y-ratio: 0;
+		transform: translate(
+				calc(var(--game-layout-offset-x-ratio) * 100vw),
+				calc(var(--game-layout-offset-y-ratio) * 100vw)
+			)
+			scale(var(--game-layout-scale));
+
+		--plinko-area-scale: 0.58;
+		--plinko-area-top-width-scale: 0.85;
+		--plinko-area-bottom-width-scale: 0.85;
+		--plinko-area-height-scale: 1.1;
+		--plinko-area-offset-x-ratio: 0.007;
+		--plinko-area-offset-ratio: 0.17;
+		--plinko-area-offset-y-extra-ratio: 0;
+		--plinko-area-offset-x: calc(var(--plinko-area-offset-x-ratio) * 100vw);
+		--plinko-host-width: calc(
+			var(--game-area-fit-width) * var(--plinko-area-scale) *
+				max(var(--plinko-area-top-width-scale), var(--plinko-area-bottom-width-scale))
+		);
+		--plinko-host-height: calc(
+			var(--game-area-fit-height) * var(--plinko-area-scale) * var(--plinko-area-height-scale)
+		);
+		--plinko-area-offset-y: calc(
+			(var(--plinko-area-offset-ratio) + var(--plinko-area-offset-y-extra-ratio)) * 100vw
+		);
 	}
 
 	.game-area-frame,
@@ -1199,6 +1210,8 @@
 	/* Mobile — layout from 992×1761 reference (Portrait_animationGuide / legacy mobile) */
 	.game-root--mobile .game-area {
 
+		--game-area-offset-y-ratio-mobile: 0;
+
 		flex: 1 1 0;
 
 		min-height: 0;
@@ -1231,6 +1244,8 @@
 
 		container-name: game-area;
 
+		transform: translateY(calc(var(--game-area-offset-y-ratio-mobile) * 100vw));
+
 	}
 
 	.game-root--mobile .game-area .top-hud {
@@ -1253,15 +1268,40 @@
 
 	.game-root--mobile .game-area > .container {
 
-		--plinko-area-scale: 1;
+		/* Portrait plinko layout — tune independently from desktop / landscape */
+		--game-layout-scale-mobile: 1.15;
+		--game-layout-offset-x-ratio-mobile: -0.015;
+		--game-layout-offset-y-ratio-mobile: 0.1;
+		transform: translate(
+				calc(var(--game-layout-offset-x-ratio-mobile) * 100vw),
+				calc(var(--game-layout-offset-y-ratio-mobile) * 100vw)
+			)
+			scale(var(--game-layout-scale-mobile));
 
-		--plinko-host-width: calc(
-			100% * max(var(--plinko-area-top-width-scale), var(--plinko-area-bottom-width-scale))
+		--plinko-area-scale-mobile: 1.05;
+		--plinko-area-top-width-scale-mobile: 0.85;
+		--plinko-area-bottom-width-scale-mobile: 0.85;
+		--plinko-area-height-scale-mobile: 1;
+		--plinko-area-offset-x-ratio-mobile: 0.01;
+		--plinko-area-offset-ratio-mobile: 0;
+		--plinko-area-offset-y-ratio-mobile: -0.04;
+
+		--plinko-area-offset-x-mobile: calc(var(--plinko-area-offset-x-ratio-mobile) * 100vw);
+		--plinko-host-width-mobile: calc(
+			100% * var(--plinko-area-scale-mobile) *
+				max(
+					var(--plinko-area-top-width-scale-mobile),
+					var(--plinko-area-bottom-width-scale-mobile)
+				)
+		);
+		--plinko-host-height-mobile: calc(
+			100% * var(--plinko-area-scale-mobile) * var(--plinko-area-height-scale-mobile)
+		);
+		--plinko-area-offset-y-mobile: calc(
+			(var(--plinko-area-offset-ratio-mobile) + var(--plinko-area-offset-y-ratio-mobile)) *
+				100vw
 		);
 
-		--plinko-host-height: calc(100% * var(--plinko-area-height-scale));
-
-		--plinko-area-offset-y: 0;
 		--bonus-level-left-ratio: 0.415;
 		--bonus-level-top-ratio: -0.07;
 		--bonus-level-width-ratio: 0.61;
@@ -1413,20 +1453,6 @@
 	}
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-host) {
-
-		left: 50%;
-
-		top: 0;
-
-		width: 100%;
-
-		height: 100%;
-
-		max-width: 100%;
-
-		max-height: 100%;
-
-		transform: translateX(-50%);
 
 		pointer-events: auto;
 
