@@ -1,21 +1,11 @@
 import { playBet } from './utils';
-import type { Bet, BookEvent } from './typesBookEvent';
+import type { Bet } from './typesBookEvent';
 import books from '../stories/data/base_books';
 import { stateBet } from 'state-shared';
-import config from './config';
 import { stateGame } from './stateGame.svelte';
 import { alignBookForPlayback } from './alignBookForPlayback';
 import { plinkoWagerAmount } from './plinkoBet';
 import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
-import { injectBonusRoundIfMeterFull } from '../features/bonus';
-import { injectFreeSpinTriggerIfMeterFull } from '../features/freeSpin';
-import {
-	getDevRgsBonusLevel,
-	getDevRgsBonusMeter,
-	getDevRgsSpinMeter,
-	offsetBetRelativeBonusMeterEvents,
-	offsetBetRelativeSpinMeterEvents,
-} from './plinkoSessionMeters';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
 
@@ -29,55 +19,7 @@ function bookMatchesBallsPerDrop(book: Bet & { events: Bet['state'] }, ballsPerD
 }
 
 const adaptBookForCurrentSelection = (book: Bet & { events: Bet['state'] }): Bet => {
-	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
-	const stakePerBall = Math.max(0, Number(stateBet.betAmount) || 0);
-
-	let aligned = alignBookForPlayback({ ...book, state: [...book.events] });
-	let patchedEvents: BookEvent[] = [...(aligned.state ?? [])];
-
-	const drop = patchedEvents.find(
-		(event): event is PlinkoDropEvent => event.type === 'plinkoDrop',
-	);
-	if (drop) {
-		const sessionSpinMeter = getDevRgsSpinMeter();
-		const sessionBonusMeter = getDevRgsBonusMeter();
-		const sessionBonusLevel = getDevRgsBonusLevel();
-		patchedEvents = patchedEvents.map((event) => {
-			if (event.type !== 'plinkoDrop') return event;
-			return {
-				...event,
-				spinMeterStart: event.spinMeterStart ?? sessionSpinMeter,
-				bonusMeterStart: event.bonusMeterStart ?? sessionBonusMeter,
-				bonusLevelStart: event.bonusLevelStart ?? sessionBonusLevel,
-			};
-		});
-	}
-
-	const spinMeterStart = drop?.spinMeterStart ?? getDevRgsSpinMeter();
-	if (spinMeterStart > 0) {
-		patchedEvents = offsetBetRelativeSpinMeterEvents(patchedEvents, spinMeterStart);
-	}
-
-	const bonusMeterStart = drop?.bonusMeterStart ?? getDevRgsBonusMeter();
-	if (bonusMeterStart > 0) {
-		patchedEvents = offsetBetRelativeBonusMeterEvents(patchedEvents, bonusMeterStart);
-	}
-
-	const spinMeterMax = drop?.spinMeterMax ?? config.spinMeterMax;
-	const bonusMeterMax = drop?.bonusMeterMax ?? config.bonusMeterMax;
-	patchedEvents = injectBonusRoundIfMeterFull(patchedEvents, bonusMeterMax, 50);
-	patchedEvents = injectFreeSpinTriggerIfMeterFull(
-		patchedEvents,
-		spinMeterMax,
-		ballsPerDrop,
-		stakePerBall,
-		{ segment: '5X', multiplier: 5 },
-	);
-
-	const finalWinEvent = patchedEvents.find((event) => event.type === 'finalWin');
-	const payoutMultiplier = finalWinEvent?.amount ?? aligned.payoutMultiplier ?? 0;
-
-	return { ...aligned, payoutMultiplier, state: patchedEvents };
+	return alignBookForPlayback({ ...book, state: [...book.events] });
 };
 
 /**

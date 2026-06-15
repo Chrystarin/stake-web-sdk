@@ -1,3 +1,4 @@
+import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import { isBetControlsLocked, isDropBatchPending, isGameOngoing } from './gameOrchestrator';
 import { forceUnlockBettingControls } from './meterFlow';
 import { stateGame } from './stateGame.svelte';
@@ -40,12 +41,15 @@ export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
 
 /** Dev-only: expose lock diagnostics on `window.plinkoDebugLocks()` / `window.plinkoForceUnlock()`. */
 export function installPlinkoDevDebug() {
-	if (!import.meta.env.DEV) return;
-
 	const w = window as Window & {
 		plinkoDebugLocks?: () => PlinkoLockDebugSnapshot;
+		plinkoPlayMeta?: () => Record<string, unknown>;
 		plinkoForceUnlock?: () => PlinkoLockDebugSnapshot;
 	};
+
+	w.plinkoPlayMeta = buildPlinkoPlayPayloadPreview;
+
+	if (!import.meta.env.DEV) return;
 
 	w.plinkoDebugLocks = snapshotPlinkoLocks;
 	w.plinkoForceUnlock = () => {

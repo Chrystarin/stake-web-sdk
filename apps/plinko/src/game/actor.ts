@@ -1,10 +1,10 @@
+import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet } from 'state-shared';
 import { createPrimaryMachines, createIntermediateMachines, createGameActor } from 'utils-xstate';
 
-stateBet.activeBetModeKey = 'base';
-
 import { stateGame } from './stateGame.svelte';
-import { canAffordPlinkoWager, plinkoWagerAmount } from './plinkoBet';
+import { canAffordPlinkoWager, syncPlinkoPlayAmountFromBetLevels } from './plinkoBet';
+import { syncPlinkoBetModeFromUi } from './plinkoBetMode';
 import {
 	applySpinMeterDisplay,
 	buildBetMetaPlayConditions,
@@ -16,6 +16,8 @@ import type { Bet } from './typesBookEvent';
 import { closeActiveRgsRound } from './plinkoActiveRound';
 import { releaseRoundInteractionLocks } from './meterFlow';
 import { playBet } from './bookEventHandlerMap';
+import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
+import { installPlinkoDevDebug } from './devDebug';
 
 function isActiveRoundPlayError(error: unknown): boolean {
 	const payload = error as { error?: string; message?: string } | undefined;
@@ -34,10 +36,23 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	},
 	onResumeGameInactive: () => {},
 	onNewGameStart: async () => {
+		syncPlinkoBetModeFromUi();
+		const playAmount = syncPlinkoPlayAmountFromBetLevels();
+		console.info('[plinko] /wallet/play request', {
+			...buildPlinkoPlayPayloadPreview(),
+			amountApi: Math.round(playAmount * API_AMOUNT_MULTIPLIER),
+		});
 		stateBet.winBookEventAmount = 0;
 	},
 	onNewGameError: async (error) => {
 		releaseRoundInteractionLocks();
+		const payload = error as { error?: string; message?: string } | undefined;
+		if (payload?.error === 'ERR_VAL' && String(payload?.message ?? '').toLowerCase().includes('amount')) {
+			console.error('[plinko] /wallet/play rejected — republish math with tier modes (baseone/baseten/…) if mode is not `base`', {
+				...buildPlinkoPlayPayloadPreview(),
+				error: payload,
+			});
+		}
 		if (isActiveRoundPlayError(error)) {
 			await closeActiveRgsRound();
 		}
@@ -58,13 +73,8 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	afterEndGameSettle: async ({ bet }) => {
 		await syncPlinkoWalletAfterRound(bet);
 	},
-	getBetMeta: () => ({
-		ballsPerDrop: stateGame.ballPerDrop,
-		stakePerBall: stateBet.betAmount,
-		rowCount: stateGame.rowCount,
-		...buildBetMetaPlayConditions(),
-	}),
-	getWagerAmount: plinkoWagerAmount,
+	getBetMeta: () => buildBetMetaPlayConditions(),
+	getWagerAmount: syncPlinkoPlayAmountFromBetLevels,
 });
 
 const intermediateMachines = createIntermediateMachines(primaryMachines, {
@@ -72,3 +82,6 @@ const intermediateMachines = createIntermediateMachines(primaryMachines, {
 });
 
 export const gameActor = createGameActor(intermediateMachines);
+
+syncPlinkoBetModeFromUi();
+installPlinkoDevDebug();

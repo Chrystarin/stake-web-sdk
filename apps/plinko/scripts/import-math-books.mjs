@@ -35,14 +35,48 @@ const outDir = join(appRoot, 'src/stories/data');
 mkdirSync(outDir, { recursive: true });
 
 const raw = readFileSync(booksPath, 'utf8').trim();
-const books = (
-	booksPath.endsWith('.jsonl')
-		? raw.split('\n').filter(Boolean).map((line) => JSON.parse(line))
-		: JSON.parse(raw)
-).slice(0, limit);
+const allBooks = booksPath.endsWith('.jsonl')
+	? raw.split('\n').filter(Boolean).map((line) => JSON.parse(line))
+	: JSON.parse(raw);
+
+const BALL_TIERS = [1, 10, 20, 50];
+
+function ballsPerDropForBook(book) {
+	const drop = (book.events ?? []).find((event) => event.type === 'plinkoDrop');
+	return drop?.ballsPerDrop ?? drop?.outcomes?.length ?? 0;
+}
+
+/** Prefer at least one book per UI balls-per-drop tier, then fill remaining slots in order. */
+function sampleBooks(source, maxCount) {
+	const picked = [];
+	const seenTiers = new Set();
+
+	for (const tier of BALL_TIERS) {
+		const match = source.find(
+			(book) => !picked.includes(book) && ballsPerDropForBook(book) === tier,
+		);
+		if (match) {
+			picked.push(match);
+			seenTiers.add(tier);
+		}
+	}
+
+	for (const book of source) {
+		if (picked.length >= maxCount) break;
+		if (!picked.includes(book)) picked.push(book);
+	}
+
+	return picked.slice(0, maxCount);
+}
+
+const books = sampleBooks(allBooks, limit);
 
 writeFileSync(join(outDir, 'base_books.ts'), `export default ${JSON.stringify(books, null, '\t')} as const;\n`);
 
 const eventTypes = [...new Set(books.flatMap((book) => (book.events ?? []).map((ev) => ev.type)))];
+const tierCounts = Object.fromEntries(
+	BALL_TIERS.map((tier) => [tier, books.filter((book) => ballsPerDropForBook(book) === tier).length]),
+);
 console.log(`Wrote ${books.length} books to src/stories/data/base_books.ts`);
+console.log(`Balls-per-drop tiers in sample: ${JSON.stringify(tierCounts)}`);
 console.log(`Event types: ${eventTypes.join(', ')}`);

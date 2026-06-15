@@ -1,7 +1,7 @@
 import { PUBLIC_CHROMATIC } from 'envs';
 import { stateBet, stateUrlDerived } from 'state-shared';
 
-import { PLINKO_DEFAULT_VARIANT_ID } from '../game-logic/constants';
+import { DEFAULT_ROW_COUNT, PLINKO_DEFAULT_VARIANT_ID } from '../game-logic/constants';
 import { stateGame } from './stateGame.svelte';
 import type { BookEvent } from './typesBookEvent';
 
@@ -153,26 +153,28 @@ export function resolveRgsBonusLevelStart(
 	return sessionLevel;
 }
 
+/** Normalized stake in math `plinko_conditions` — real currency is `/wallet/play` `amount`. */
+const MATH_STAKE_PER_BALL = 1;
+
+/** Criteria name for a balls-per-drop tier (matches `game_config.py` Distribution.criteria). */
+export function plinkoCriteriaForBallsPerDrop(ballsPerDrop: number): string {
+	return `basegame_balls_${Math.max(1, Math.floor(ballsPerDrop))}`;
+}
+
 /**
- * Meta for `/wallet/play` — Stake Engine maps this to math distribution `conditions`
- * (`spin_meter_start`, etc.) and serves a book with matching `plinkoDrop.spinMeterStart`
- * and authoritative `freeSpinTrigger` / payout. Required for session meter carry-over.
+ * Meta for `/wallet/play` — must mirror `games/crimson_plinko/game_config.py` `plinko_conditions`
+ * exactly (distribution condition keys only — do not send book `criteria` here).
  */
-export function buildBetMetaPlayConditions(): Record<string, number> {
-	const spinMeter = getRgsSessionSpinMeter();
-	const bonusMeter = getRgsSessionBonusMeter();
-	const bonusLevel = getRgsSessionBonusLevel();
+export function buildBetMetaPlayConditions(): Record<string, unknown> {
+	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop));
 	return {
-		spin_meter_start: spinMeter,
-		spinMeter: spinMeter,
-		bonus_meter_start: bonusMeter,
-		bonusMeter: bonusMeter,
-		bonus_level_start: bonusLevel,
-		bonusLevel: bonusLevel,
 		difficulty: PLINKO_DEFAULT_VARIANT_ID,
-		row_count: Math.max(8, Math.floor(stateGame.rowCount)),
-		balls_per_drop: Math.max(1, Math.floor(stateGame.ballPerDrop)),
-		stake_per_ball: Math.max(0, Number(stateBet.betAmount) || 0),
+		row_count: DEFAULT_ROW_COUNT,
+		balls_per_drop: ballsPerDrop,
+		stake_per_ball: MATH_STAKE_PER_BALL,
+		reel_weights: {},
+		force_wincap: false,
+		force_freegame: false,
 	};
 }
 

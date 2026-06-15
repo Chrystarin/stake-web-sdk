@@ -19,7 +19,8 @@
 		startAutoBet,
 		stopAutoBet,
 	} from '../game/gameOrchestrator';
-	import { canAffordPlinkoWager } from '../game/plinkoBet';
+	import { canAffordPlinkoWager, plinkoStakePerBallOptions } from '../game/plinkoBet';
+	import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/freeSpin';
@@ -68,7 +69,9 @@
 	});
 	const bonusPlayDisabled = $derived(isBonusPlayButtonDisabled() || props.bonusPlayDisabled);
 	const availableBetPresets = $derived(
-		BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet),
+		plinkoStakePerBallOptions().length
+			? plinkoStakePerBallOptions()
+			: BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet),
 	);
 
 	const playDisabledMain = $derived(
@@ -138,6 +141,7 @@
 		const next = idx + delta;
 		if (next < 0 || next >= arr.length) return;
 		stateGame.ballPerDrop = arr[next];
+		syncPlinkoBetModeFromUi();
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
 

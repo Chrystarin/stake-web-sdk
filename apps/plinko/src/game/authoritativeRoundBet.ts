@@ -3,9 +3,11 @@ import { splitBookEventsBeforeSettlement } from './plinkoRoundSettlement';
 
 /** Normalize the served round bet (RGS `/wallet/play` or synced math book). */
 export function normalizeAuthoritativeBet(bet: Bet): Bet {
+	const withCriteria = bet as Bet & { criteria?: string };
 	return {
 		...bet,
 		state: Array.isArray(bet.state) ? [...bet.state] : [],
+		...(withCriteria.criteria ? { criteria: withCriteria.criteria } : {}),
 	};
 }
 

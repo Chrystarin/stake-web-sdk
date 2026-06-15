@@ -1,8 +1,8 @@
 import { formatCoefficientLabel } from '../lib/format';
 
-/** Canonical slot multipliers shown on the board (13 pockets, symmetric). */
+/** Canonical slot multipliers shown on the board (15 pockets, symmetric; center = spin slot). */
 export const BOARD_SLOT_MULTIPLIERS = [
-	25.0, 4.4, 2.2, 1.5, 1.4, 0.7, 0, 0.7, 1.4, 1.5, 2.2, 4.4, 25.0,
+	100, 50, 20, 10, 2, 0.5, 0.2, 0, 0.2, 0.5, 2, 10, 20, 50, 100,
 ] as const;
 
 /** Align server/config coefficients to the board table (same labels → board values). */

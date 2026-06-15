@@ -60,6 +60,12 @@ export const stateGame = $state({
 	/** Balls that already credited spin meter from a server spin-slot land this drop. */
 	spinSlotMeterCreditedBallIds: new Set<number>(),
 	pendingDropWinAmount: 0,
+	/** stake-per-ball × multiplier sum from scaled playback outcomes (pre-animation). */
+	playbackExpectedWinFromOutcomes: 0,
+	/** Prevents duplicate win-mismatch console errors per round. */
+	winMismatchLoggedThisRound: false,
+	/** True when served `plinkoDrop.ballsPerDrop` does not match the UI balls-per-drop tier. */
+	plinkoDropStratumMismatch: false,
 	/** Base-game drop win snapshotted when a bonus round starts (preserved through bonus play). */
 	baseRoundDropWinAmount: 0,
 	winAmount: 0,

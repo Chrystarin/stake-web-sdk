@@ -1,10 +1,10 @@
 import { BOARD_SLOT_MULTIPLIERS } from '../game-logic/boardMultipliers';
 
-/** One row-tier table (13 slots) repeated for row counts 8–20. */
+/** One row-tier table (15 slots) repeated for row counts 8–20. */
 const tierTable = (coefficients: number[]): number[][] =>
 	Array.from({ length: 13 }, () => [...coefficients]);
 
-/** Board-display multipliers (0.7× … 25×); books resolve payout via `rateIndex` into this table. */
+/** Board-display multipliers (0.2× … 100×); books resolve payout via `rateIndex` into this table. */
 const DEFAULT_SLOT_MULTIPLIERS = [...BOARD_SLOT_MULTIPLIERS];
 export default {
 	providerName: 'casino_tv',
@@ -14,8 +14,29 @@ export default {
 	minBet: 0.01,
 	maxBet: 1000,
 	betModes: {
-		base: {
+		baseone: {
 			cost: 1.0,
+			feature: true,
+			buyBonus: false,
+			rtp: 0.97,
+			max_win: 1000.0,
+		},
+		baseten: {
+			cost: 10.0,
+			feature: true,
+			buyBonus: false,
+			rtp: 0.97,
+			max_win: 1000.0,
+		},
+		basetwenty: {
+			cost: 20.0,
+			feature: true,
+			buyBonus: false,
+			rtp: 0.97,
+			max_win: 1000.0,
+		},
+		basefifty: {
+			cost: 50.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.97,

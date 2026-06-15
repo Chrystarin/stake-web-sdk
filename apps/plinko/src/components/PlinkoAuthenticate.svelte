@@ -6,7 +6,12 @@
 	import { stateBet, stateConfig } from 'state-shared';
 	import { BET_PER_BALL_PRESETS } from '../game-logic/constants';
 	import config from '../game/config';
-	import { plinkoWagerAmount } from '../game/plinkoBet';
+	import {
+		maxAffordableStakePerBall,
+		plinkoWagerAmount,
+		snapStakeToBetLevels,
+	} from '../game/plinkoBet';
+import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { applyRgsSessionMetersToDisplay } from '../game/plinkoSessionMeters';
 
@@ -18,30 +23,19 @@
 		if (!import.meta.env.DEV) return false;
 		const rgs = page.url.searchParams.get('rgs_url')?.trim() ?? '';
 		const session = page.url.searchParams.get('sessionID')?.trim() ?? '';
-		return !rgs || !session;
+		const forceLocalBooks = page.url.searchParams.get('localBooks') === '1';
+		return forceLocalBooks || !rgs || !session;
 	});
 
-	function dropWagerForStakePerBall(stakePerBall: number): number {
-		return Math.max(0, stakePerBall) * Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
-	}
-
 	function pickAffordableStakePerBall(): number {
-		const opts = stateConfig.betAmountOptions?.length
-			? stateConfig.betAmountOptions
-			: BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet);
-		if (!opts.length) return config.minBet;
-
-		const balance = Math.max(0, stateBet.balanceAmount);
-		const affordable = opts.filter(
-			(stakePerBall) =>
-				dropWagerForStakePerBall(stakePerBall) > 0 &&
-				dropWagerForStakePerBall(stakePerBall) <= balance,
-		);
-		return affordable.at(-1) ?? opts[0] ?? config.minBet;
+		const affordable = maxAffordableStakePerBall();
+		if (affordable > 0) return affordable;
+		const opts = plinkoStakePerBallOptions();
+		return opts[0] ?? config.minBet;
 	}
 
 	function seedSessionDefaults(): void {
-		stateBet.activeBetModeKey = 'base';
+		syncPlinkoBetModeFromUi();
 
 		if (!stateConfig.betAmountOptions?.length) {
 			const opts = BET_PER_BALL_PRESETS.filter(
@@ -54,11 +48,10 @@
 		if (stateBet.betAmount <= 0) {
 			stateBet.betAmount = pickAffordableStakePerBall();
 		} else {
-			const maxPerBall =
-				stateGame.ballPerDrop > 0
-					? stateBet.balanceAmount / stateGame.ballPerDrop
-					: stateBet.betAmount;
-			stateBet.betAmount = Math.max(0, Math.min(stateBet.betAmount, maxPerBall));
+			const maxPerBall = maxAffordableStakePerBall() || stateBet.betAmount;
+			stateBet.betAmount = snapStakeToBetLevels(
+				Math.max(0, Math.min(stateBet.betAmount, maxPerBall)),
+			);
 			if (stateBet.betAmount <= 0 || plinkoWagerAmount() > stateBet.balanceAmount) {
 				stateBet.betAmount = pickAffordableStakePerBall();
 			}

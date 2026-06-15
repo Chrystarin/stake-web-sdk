@@ -11,6 +11,8 @@
 
 	import { setContext } from '../game/context';
 
+	import '../game/plinkoPlayDebug';
+
 	import { staticUrl } from '../lib/staticUrl';
 
 

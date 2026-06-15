@@ -468,7 +468,7 @@ export function onBallLanded(
 			? boardMultiplierAtIndex(slotIndex, coeffs)
 			: multiplier;
 
-	if (pending && !isSpinSlot) {
+	if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {
 		addSettledWinAmount(pending.amount * resolvedMultiplier);
 	}
 	if (!isSpinSlot) {

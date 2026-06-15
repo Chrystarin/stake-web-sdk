@@ -2220,16 +2220,14 @@ export class PlinkoEngine {
     return 0;
   }
 
-  /** Match the 0.7× slot size (coefficient 0.69 → label "0.7") for all multiplier assets. */
+  /** Match the 0.2× reference slot size for all multiplier assets. */
   private updateUniformSlotAssetScale(): void {
     const middle = this.getMiddleSlotIndex();
     let refIdx = this.slots.findIndex(
-      (s) => formatCoefficientLabel(s.coefficient) === '0.7'
+      (s) => formatCoefficientLabel(s.coefficient) === '0.2'
     );
     if (refIdx < 0) {
-      refIdx = this.slots.findIndex(
-        (s) => Math.abs(s.coefficient - 0.69) < 0.01 || Math.abs(s.coefficient - 0.7) < 0.01
-      );
+      refIdx = this.slots.findIndex((s) => Math.abs(s.coefficient - 0.2) < 0.01);
     }
     if (refIdx < 0) refIdx = middle > 0 ? middle - 1 : 0;
 

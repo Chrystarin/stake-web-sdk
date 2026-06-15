@@ -1,8 +1,7 @@
 <script lang="ts">
 
 	import { onMount } from 'svelte';
-
-
+	import { page } from '$app/state';
 
 	import { stateBet, stateConfig, stateUrlDerived } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
@@ -13,7 +12,7 @@
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
-	import { canAffordPlinkoWager, plinkoWagerAmount } from '../game/plinkoBet';
+	import { canAffordPlinkoWager, maxAffordableStakePerBall, plinkoWagerAmount, snapStakeToBetLevels } from '../game/plinkoBet';
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
@@ -204,9 +203,8 @@
 
 
 	function handleBetAmountChange(value: number) {
-		const maxPerBall =
-			stateGame.ballPerDrop > 0 ? stateBet.balanceAmount / stateGame.ballPerDrop : value;
-		stateBet.betAmount = Math.max(0, Math.min(value, maxPerBall));
+		const maxPerBall = maxAffordableStakePerBall() || value;
+		stateBet.betAmount = snapStakeToBetLevels(Math.max(0, Math.min(value, maxPerBall)));
 	}
 
 
@@ -237,8 +235,9 @@
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'bet' });
 
 		const hasRgsSession = Boolean(stateUrlDerived.rgsUrl() && stateUrlDerived.sessionID());
+		const forceLocalBooks = page.url.searchParams.get('localBooks') === '1';
 
-		if (import.meta.env.DEV && !hasRgsSession) {
+		if (import.meta.env.DEV && (!hasRgsSession || forceLocalBooks)) {
 			try {
 				await playDevLocalBook();
 			} finally {

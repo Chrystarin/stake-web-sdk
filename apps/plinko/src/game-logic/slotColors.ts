@@ -1,4 +1,4 @@
-/** Center (0.7×) → edge (25×) multiplier slot colors. */
+/** Center (0.2×) → edge (100×) multiplier slot colors. */
 export const SLOT_MULTIPLIER_COLORS = [
 	'#52FF82',
 	'#EDFC42',
