@@ -1,17 +1,16 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 
+	import { isPortraitGameLayout } from '../lib/format';
 	import { getBackgroundLandscapeAsset } from '../lib/spine/backgroundLandscapeAsset';
 	import { SpineBackgroundRenderer } from '../lib/spine/SpineBackgroundRenderer';
 	import { staticUrl } from '../lib/staticUrl';
 
-	/** Spine landscape asset when the viewport is wider than tall. */
+	/** Match Game.svelte layout: mobile UA or tall narrow viewport uses portrait JPG. */
 	const portrait = $derived.by(() => {
 		innerWidth.current;
 		innerHeight.current;
-		if (typeof window === 'undefined') return false;
-		return window.innerHeight > window.innerWidth;
+		return isPortraitGameLayout();
 	});
 
 	const portraitImageSrc = $derived(staticUrl('img/BG_portrait.jpg'));
@@ -22,56 +21,57 @@
 	let spineReady = $state(false);
 	let spineFailed = $state(false);
 	let renderer: SpineBackgroundRenderer | undefined;
-	let loadGeneration = 0;
+	let activeSession = 0;
 
-	const destroyRenderer = () => {
+	const teardownSpine = () => {
+		activeSession += 1;
 		renderer?.destroy();
 		renderer = undefined;
+		spineReady = false;
+		spineFailed = false;
 	};
 
-	const startSpineBackground = (host: HTMLElement) => {
-		destroyRenderer();
+	const mountSpine = async (host: HTMLElement) => {
+		const session = ++activeSession;
 
-		const generation = ++loadGeneration;
+		renderer?.destroy();
+		renderer = undefined;
 		spineReady = false;
 		spineFailed = false;
 
 		const instance = new SpineBackgroundRenderer(host);
 		renderer = instance;
 
-		void instance
-			.init(getBackgroundLandscapeAsset())
-			.then(() => {
-				if (generation !== loadGeneration) return;
-				spineReady = true;
-			})
-			.catch((error) => {
-				if (generation !== loadGeneration) return;
-				console.error('[Background] failed to load spine background', error);
-				spineFailed = true;
-			});
+		try {
+			await instance.init(getBackgroundLandscapeAsset());
+			if (session !== activeSession) return;
+			spineReady = true;
+		} catch (error) {
+			if (session !== activeSession) return;
+			console.error('[Background] failed to load spine background', error);
+			spineFailed = true;
+		}
 	};
 
 	$effect(() => {
-		if (portrait || !canvasHost) {
-			loadGeneration += 1;
-			destroyRenderer();
-			spineReady = false;
-			spineFailed = false;
+		if (portrait) {
+			teardownSpine();
 			return;
 		}
 
-		startSpineBackground(canvasHost);
+		const host = canvasHost;
+		if (!host) return;
+
+		void mountSpine(host);
 
 		return () => {
-			loadGeneration += 1;
-			destroyRenderer();
+			activeSession += 1;
+			renderer?.destroy();
+			renderer = undefined;
 			spineReady = false;
 			spineFailed = false;
 		};
 	});
-
-	onMount(() => destroyRenderer);
 </script>
 
 <div class="background">
@@ -116,6 +116,7 @@
 		width: 100%;
 		height: 100%;
 		opacity: 0;
+		z-index: 1;
 	}
 
 	.background__canvas--ready {

@@ -1,3 +1,4 @@
+import '@esotericsoftware/spine-pixi-v8';
 import {
 	Physics,
 	Spine,
@@ -71,6 +72,8 @@ export class SpineBackgroundRenderer {
 	}
 
 	async init(asset: SpineAssetDef): Promise<void> {
+		await this.waitForHostSize();
+
 		if (!this.app) {
 			const app = new Application();
 			await app.init({
@@ -79,6 +82,7 @@ export class SpineBackgroundRenderer {
 				antialias: true,
 				autoDensity: true,
 				resolution: window.devicePixelRatio || 1,
+				preference: 'webgl',
 			});
 
 			this.hostElement.appendChild(app.canvas);
@@ -89,6 +93,27 @@ export class SpineBackgroundRenderer {
 		}
 
 		await this.loadAsset(asset);
+
+		if (!this.app || !this.spine) {
+			throw new Error('[SpineBackgroundRenderer] spine layer was not created');
+		}
+	}
+
+	private waitForHostSize(): Promise<void> {
+		const host = this.hostElement;
+		if (host.clientWidth > 0 && host.clientHeight > 0) {
+			return Promise.resolve();
+		}
+
+		return new Promise((resolve) => {
+			const observer = new ResizeObserver(([entry]) => {
+				const { width, height } = entry.contentRect;
+				if (width <= 0 || height <= 0) return;
+				observer.disconnect();
+				resolve();
+			});
+			observer.observe(host);
+		});
 	}
 
 	destroy(): void {
@@ -119,9 +144,10 @@ export class SpineBackgroundRenderer {
 		});
 		Assets.add({ alias: skeletonAlias, src: asset.skeleton });
 
-		const loaded = await Assets.load<Record<string, unknown>>([atlasAlias, skeletonAlias]);
-		const atlas = loaded[atlasAlias];
-		const skeletonSource = loaded[skeletonAlias];
+		await Assets.load([atlasAlias, skeletonAlias]);
+
+		const atlas = Assets.get(atlasAlias);
+		const skeletonSource = Assets.get(skeletonAlias);
 
 		if (!atlas || !skeletonSource) {
 			throw new Error(
@@ -153,7 +179,9 @@ export class SpineBackgroundRenderer {
 
 	private async loadAsset(asset: SpineAssetDef): Promise<void> {
 		const app = this.app;
-		if (!app) return;
+		if (!app) {
+			throw new Error('[SpineBackgroundRenderer] pixi application missing');
+		}
 
 		const [skeletonData, backdrop] = await Promise.all([
 			this.loadSkeletonData(asset),

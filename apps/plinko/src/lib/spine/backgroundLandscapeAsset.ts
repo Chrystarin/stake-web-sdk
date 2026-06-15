@@ -8,14 +8,14 @@ const LANDSCAPE_IMAGE = 'img/BG_landscape.jpg';
  * Width fill multiplier for the landscape Spine background.
  * 1 = exactly viewport width; raise to zoom in (e.g. 1.12 = 12% wider, sides cropped).
  */
-export const LANDSCAPE_BACKGROUND_WIDTH_FILL = 1.25;
+export const LANDSCAPE_BACKGROUND_WIDTH_FILL = 1.215;
 
 /**
  * Position nudge for the Spine layer (viewport-relative, like CSS vw/vh).
  * 0.05 = 5% of viewport width/height; negative moves left/up.
  */
-export const LANDSCAPE_BACKGROUND_OFFSET_X_VW = 0.0325;
-export const LANDSCAPE_BACKGROUND_OFFSET_Y_VH = -0.22;
+export const LANDSCAPE_BACKGROUND_OFFSET_X_VW = -0.002;
+export const LANDSCAPE_BACKGROUND_OFFSET_Y_VH = -0.21;
 
 /**
  * Width fill multiplier for the static JPG behind the Spine animation.
