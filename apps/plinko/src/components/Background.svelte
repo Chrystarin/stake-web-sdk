@@ -3,19 +3,25 @@
 
 	import { isPortraitGameLayout } from '../lib/format';
 	import { getBackgroundLandscapeAsset } from '../lib/spine/backgroundLandscapeAsset';
+	import { getBackgroundPortraitAsset } from '../lib/spine/backgroundPortraitAsset';
 	import { SpineBackgroundRenderer } from '../lib/spine/SpineBackgroundRenderer';
+	import type { SpineAssetDef } from '../lib/spine/types';
 	import { staticUrl } from '../lib/staticUrl';
 
-	/** Match Game.svelte layout: mobile UA or tall narrow viewport uses portrait JPG. */
+	/** Match Game.svelte layout: mobile UA or tall narrow viewport uses portrait assets. */
 	const portrait = $derived.by(() => {
 		innerWidth.current;
 		innerHeight.current;
 		return isPortraitGameLayout();
 	});
 
-	const portraitImageSrc = $derived(staticUrl('img/BG_portrait.jpg'));
-	/** Shown only while the landscape Spine stack (backdrop + animation) is loading or failed. */
-	const landscapeFallbackSrc = $derived(staticUrl('img/BG_landscape.jpg'));
+	const backgroundAsset = $derived(
+		portrait ? getBackgroundPortraitAsset() : getBackgroundLandscapeAsset(),
+	);
+	/** Shown only while the Spine stack (backdrop + animation) is loading or failed. */
+	const fallbackImageSrc = $derived(
+		staticUrl(portrait ? 'img/BG_portrait.jpg' : 'img/BG_landscape.jpg'),
+	);
 
 	let canvasHost = $state<HTMLElement | undefined>();
 	let spineReady = $state(false);
@@ -23,15 +29,7 @@
 	let renderer: SpineBackgroundRenderer | undefined;
 	let activeSession = 0;
 
-	const teardownSpine = () => {
-		activeSession += 1;
-		renderer?.destroy();
-		renderer = undefined;
-		spineReady = false;
-		spineFailed = false;
-	};
-
-	const mountSpine = async (host: HTMLElement) => {
+	const mountSpine = async (host: HTMLElement, asset: SpineAssetDef) => {
 		const session = ++activeSession;
 
 		renderer?.destroy();
@@ -43,7 +41,7 @@
 		renderer = instance;
 
 		try {
-			await instance.init(getBackgroundLandscapeAsset());
+			await instance.init(asset);
 			if (session !== activeSession) return;
 			spineReady = true;
 		} catch (error) {
@@ -54,15 +52,11 @@
 	};
 
 	$effect(() => {
-		if (portrait) {
-			teardownSpine();
-			return;
-		}
-
 		const host = canvasHost;
+		const asset = backgroundAsset;
 		if (!host) return;
 
-		void mountSpine(host);
+		void mountSpine(host, asset);
 
 		return () => {
 			activeSession += 1;
@@ -75,22 +69,14 @@
 </script>
 
 <div class="background">
-	{#if portrait}
-		<img class="background__image" src={portraitImageSrc} alt="" />
-	{:else}
-		{#if !spineReady || spineFailed}
-			<img
-				class="background__image background__image--landscape"
-				src={landscapeFallbackSrc}
-				alt=""
-			/>
-		{/if}
-		<div
-			class="background__canvas"
-			class:background__canvas--ready={spineReady && !spineFailed}
-			bind:this={canvasHost}
-		></div>
+	{#if !spineReady || spineFailed}
+		<img class="background__image" src={fallbackImageSrc} alt="" />
 	{/if}
+	<div
+		class="background__canvas"
+		class:background__canvas--ready={spineReady && !spineFailed}
+		bind:this={canvasHost}
+	></div>
 </div>
 
 <style>
