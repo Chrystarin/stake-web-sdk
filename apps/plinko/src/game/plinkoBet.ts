@@ -23,12 +23,23 @@ export function plinkoBetModeCost(): number {
 	return modeConfig?.cost ?? plinkoBallsPerDrop();
 }
 
-/** Allowed per-ball stakes: RGS `betLevels` when present, else local presets. */
+/**
+ * Selectable per-ball stakes — restricted to `BET_PER_BALL_PRESETS`
+ * (0.01, 0.10, 0.20, 0.50, 1.00, 5.00, 10.00, 20.00, 50.00).
+ *
+ * When an RGS session provides `betLevels`, only presets the session also allows are shown
+ * (RGS rejects off-grid amounts); otherwise all presets within min/max are offered.
+ */
 export function plinkoStakePerBallOptions(): number[] {
-	if (stateConfig.betAmountOptions?.length) {
-		return [...stateConfig.betAmountOptions];
+	const presets = BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet);
+	const rgsLevels = stateConfig.betAmountOptions;
+	if (rgsLevels?.length) {
+		const allowed = presets.filter((preset) =>
+			rgsLevels.some((level) => Math.abs(level - preset) < 1e-9),
+		);
+		if (allowed.length) return allowed;
 	}
-	return BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet);
+	return presets;
 }
 
 /** Snap a per-ball stake to the nearest allowed level (RGS rejects off-grid amounts). */
