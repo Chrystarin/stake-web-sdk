@@ -4,9 +4,18 @@ import { createPlayBookUtils, recordBookEvent, type BookEventHandlerMap } from '
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { eventEmitter } from './eventEmitter';
-import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
+import { plinkoBallsPerDrop, plinkoPlayAmount, plinkoStakePerBall } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
-import { waitForDropBatchCompletion } from './gameOrchestrator';
+import {
+	enqueueAuthoritativeBonusLevel,
+	loadAuthoritativeBonusOutcomes,
+	startAuthoritativeBonusRound,
+	waitForBonusRoundCompletion,
+	waitForDropBatchCompletion,
+} from './gameOrchestrator';
+import { applyAuthoritativeSpinMeterMax } from './plinkoMeterConfig';
+import { runFreeSpinTriggerFlow } from '../features/freeSpin';
+import { runBonusRouletteFlow } from '../features/bonus';
 import { hasActiveRgsSession } from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
 import { releaseRoundInteractionLocks } from './meterFlow';
@@ -33,7 +42,20 @@ import {
 } from './plinkoWinReconciliation';
 import { snapshotBalanceAfterPlay } from './plinkoWalletSync';
 import { showToast } from './gameOrchestrator';
-import type { Bet, BookEventOfType, BookEventContext } from './typesBookEvent';
+import type { Bet, BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
+
+const FEATURE_EVENT_TYPES = new Set<BookEvent['type']>([
+	'spinMeter',
+	'bonusMeter',
+	'freeSpinTrigger',
+	'bonusRoulette',
+	'bonusRound',
+]);
+
+/** True when the served book carries authoritative meter / feature events. */
+function bookHasFeatureEvents(events: BookEvent[]): boolean {
+	return events.some((event) => FEATURE_EVENT_TYPES.has(event.type));
+}
 
 export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent').BookEvent, BookEventContext> = {
 	plinkoDrop: async (bookEvent: BookEventOfType<'plinkoDrop'>) => {
@@ -51,7 +73,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 				},
 			);
 		}
-		stateGame.authoritativeMeterFlow = false;
+		// `authoritativeMeterFlow` is set once per round in `playBet` from the book contents.
 		stateGame.rowCount = bookEvent.rowCount;
 		if (bookEvent.coefficients?.length) {
 			stateGame.coefficients = alignCoefficientSet(bookEvent.coefficients);
@@ -104,11 +126,52 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		await waitForDropBatchCompletion();
 		stateGame.isAnimating = false;
 	},
-	bonusMeter: async () => {},
-	bonusRoulette: async () => {},
-	spinMeter: async () => {},
-	freeSpinTrigger: async () => {},
-	bonusRound: async () => {},
+	spinMeter: async (bookEvent: BookEventOfType<'spinMeter'>) => {
+		stateGame.authoritativeMeterFlow = true;
+		if (bookEvent.max > 0) applyAuthoritativeSpinMeterMax(bookEvent.max);
+		const max = stateGame.spinMeterMax > 0 ? stateGame.spinMeterMax : bookEvent.max;
+		stateGame.spinMeterValue = Math.max(0, Math.min(bookEvent.value, max));
+	},
+	bonusMeter: async (bookEvent: BookEventOfType<'bonusMeter'>) => {
+		stateGame.authoritativeMeterFlow = true;
+		const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 20;
+		stateGame.bonusMeterValue = Math.max(0, Math.min(bookEvent.value, max));
+		stateGame.bonusMeterLevel = bookEvent.level ?? stateGame.bonusMeterLevel;
+	},
+	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
+		// Run the free-spin wheel; it lands on the math-authored segment and awaits close.
+		// `BONUS` chains into the following `bonusRoulette` / `bonusRound` events.
+		await waitForDropBatchCompletion();
+		await runFreeSpinTriggerFlow({
+			segment: bookEvent.segment,
+			multiplier: bookEvent.multiplier,
+			amount: bookEvent.amount,
+		});
+	},
+	bonusRoulette: async (bookEvent: BookEventOfType<'bonusRoulette'>) => {
+		// Bonus wheel: awards the level-1 entry free balls (`onBonusRouletteFinished`).
+		await waitForDropBatchCompletion();
+		await runBonusRouletteFlow(bookEvent.freeBalls);
+	},
+	bonusRound: async (bookEvent: BookEventOfType<'bonusRound'>) => {
+		await waitForDropBatchCompletion();
+		const outcomes = Array.isArray(bookEvent.outcomes) ? bookEvent.outcomes : [];
+		const level = Math.max(1, Math.floor(bookEvent.level ?? 1));
+		const freeBalls = Math.max(0, Math.floor(bookEvent.freeBalls ?? outcomes.length));
+		const ballsPlayed = Math.max(0, Math.floor(bookEvent.ballsPlayed ?? 0));
+		if (!stateGame.bonusRoundActive) {
+			// No preceding wheel award (e.g. resume) — start the round and award balls.
+			startAuthoritativeBonusRound(freeBalls, outcomes, level, ballsPlayed);
+			return;
+		}
+		if (level <= stateGame.bonusLevelProgress) {
+			// Entry level: balls were just awarded by the bonus wheel; load their outcomes.
+			loadAuthoritativeBonusOutcomes(outcomes, ballsPlayed);
+			return;
+		}
+		// True level-up: play after the current level's balls finish (book-driven, no RNG).
+		enqueueAuthoritativeBonusLevel(freeBalls, outcomes, level);
+	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
 		await waitForDropBatchCompletion();
 		logPlinkoWinMismatchIfNeeded(bookEvent.amount, 'setTotalWin');
@@ -156,7 +219,10 @@ export const playBet = async (bet: Bet) => {
 		}
 	}
 	stateGame.activeRoundBet = authoritativeBet;
-	stateBet.wageredBetAmount = plinkoWagerAmount();
+	// `wageredBetAmount` is the amount `payoutMultiplier` multiplies for win display — it must
+	// equal the RGS play `amount` (per-ball stake), not the total wager (amount × cost). RGS
+	// credits `amount × payoutMultiplier`, so the displayed win then matches the balance credit.
+	stateBet.wageredBetAmount = plinkoPlayAmount();
 	stateBet.winBookEventAmount = 0;
 	resetWinReconciliation();
 	stateGame.pendingDropWinAmount = 0;
@@ -164,14 +230,19 @@ export const playBet = async (bet: Bet) => {
 	stateGame.winAmount = 0;
 	stateGame.deferWinPopupForFreeSpin = false;
 	stateGame.dropRoundActive = true;
+	stateGame.authoritativeBonusLevelQueue = [];
 
 	try {
 		stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(authoritativeBet);
 		stateGame.activeBookEvents = authoritativeEvents;
-		stateGame.authoritativeMeterFlow = false;
+		// Feature events (meters / wheels / bonus rounds) are authoritative when present.
+		stateGame.authoritativeMeterFlow = bookHasFeatureEvents(authoritativeEvents);
 
 		if (authoritativeEvents.length > 0) {
 			await playBookEvents(prelude);
+			// Player-driven bonus balls + feature wheels finish before book settlement so
+			// `finalWin` reflects the full on-screen total.
+			await waitForBonusRoundCompletion();
 			if (settlement.length > 0) {
 				await playBookEvents(settlement);
 			}

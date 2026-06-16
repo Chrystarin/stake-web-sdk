@@ -167,11 +167,19 @@ export function plinkoCriteriaForBallsPerDrop(ballsPerDrop: number): string {
  */
 export function buildBetMetaPlayConditions(): Record<string, unknown> {
 	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop));
+	const spinMax = stateGame.spinMeterMax > 0 ? stateGame.spinMeterMax : 10;
+	const bonusMax = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 20;
 	return {
 		difficulty: PLINKO_DEFAULT_VARIANT_ID,
 		row_count: DEFAULT_ROW_COUNT,
 		balls_per_drop: ballsPerDrop,
 		stake_per_ball: MATH_STAKE_PER_BALL,
+		// Running session meters carried into the next bet so RGS can serve a matching
+		// carry-over stratum book (see crimson_plinko `_FEATURE_STRATA`). RGS book selection
+		// is weighted-random per mode, so this is best-effort + used for force/replay.
+		spin_meter_start: Math.max(0, Math.min(spinMax, Math.floor(stateGame.spinMeterValue))),
+		bonus_meter_start: Math.max(0, Math.min(bonusMax, Math.floor(stateGame.bonusMeterValue))),
+		bonus_level_start: Math.max(0, Math.floor(stateGame.bonusMeterLevel)),
 		reel_weights: {},
 		force_wincap: false,
 		force_freegame: false,

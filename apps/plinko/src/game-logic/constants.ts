@@ -43,6 +43,28 @@ export const SIM_SPEED = { normal: 0.7, fast: 3.0 } as const;
 /** Bonus level ladder labels. */
 export const BONUS_LEVEL_LABELS = [1, 2, 4, 8, 16, 32, 64, 128, 256] as const;
 
+/**
+ * Additional free balls granted on each bonus level-up (level reached → extra balls).
+ * Level 1 entry balls come from the bonus wheel (`BONUS_ROULETTE_SEGMENTS`); levels 2..9
+ * add these when the bonus meter re-fills during the round. Mirror of stake-math-sdk
+ * `plinko_data.BONUS_LEVEL_BALLS` — keep both tables in sync (or drive from FE config).
+ */
+export const BONUS_LEVEL_BALLS: Record<number, number> = {
+	2: 20,
+	3: 30,
+	4: 50,
+	5: 75,
+	6: 100,
+	7: 150,
+	8: 200,
+	9: 300,
+};
+
+/** Additional free balls when reaching `level` (0 outside the ladder). */
+export function bonusLevelBalls(level: number): number {
+	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
+}
+
 /** Bonus roulette segment prizes (free balls). */
 export const BONUS_ROULETTE_SEGMENTS = [100, 20, 50, 50, 50, 80, 20, 20] as const;
 

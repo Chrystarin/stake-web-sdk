@@ -21,10 +21,29 @@ if (!Number.isFinite(limit) || limit < 1) {
 }
 
 const booksDir = join(appRoot, '../../../stake-math-sdk/games/crimson_plinko/library/books');
-const candidates = [join(booksDir, 'books_base.jsonl'), join(booksDir, 'books_base.json')];
-const booksPath = candidates.find((p) => existsSync(p));
+// One published book file per balls-per-drop tier (mode). Older single-mode `books_base`
+// is a pre-split fallback only.
+const TIER_MODES = ['baseone', 'baseten', 'basetwenty', 'basefifty'];
 
-if (!booksPath) {
+function loadMode(mode) {
+	for (const ext of ['.json', '.jsonl']) {
+		const p = join(booksDir, `books_${mode}${ext}`);
+		if (!existsSync(p)) continue;
+		const raw = readFileSync(p, 'utf8').trim();
+		if (!raw) return [];
+		return ext === '.jsonl'
+			? raw.split('\n').filter(Boolean).map((line) => JSON.parse(line))
+			: JSON.parse(raw);
+	}
+	return [];
+}
+
+let allBooks = TIER_MODES.flatMap(loadMode);
+if (allBooks.length === 0) {
+	allBooks = loadMode('base'); // legacy single-mode fallback
+}
+
+if (allBooks.length === 0) {
 	console.warn(
 		`[sync-math-books] No math books for One-Eyed Willy's Plinko at ${booksDir}. Run stake-math-sdk: python games/crimson_plinko/run.py`,
 	);
@@ -34,33 +53,35 @@ if (!booksPath) {
 const outDir = join(appRoot, 'src/stories/data');
 mkdirSync(outDir, { recursive: true });
 
-const raw = readFileSync(booksPath, 'utf8').trim();
-const allBooks = booksPath.endsWith('.jsonl')
-	? raw.split('\n').filter(Boolean).map((line) => JSON.parse(line))
-	: JSON.parse(raw);
-
 const BALL_TIERS = [1, 10, 20, 50];
+const FEATURE_EVENT_TYPES = new Set(['freeSpinTrigger', 'bonusRoulette', 'bonusRound']);
 
 function ballsPerDropForBook(book) {
 	const drop = (book.events ?? []).find((event) => event.type === 'plinkoDrop');
 	return drop?.ballsPerDrop ?? drop?.outcomes?.length ?? 0;
 }
 
-/** Prefer at least one book per UI balls-per-drop tier, then fill remaining slots in order. */
+function isFeatureBook(book) {
+	return (book.events ?? []).some((event) => FEATURE_EVENT_TYPES.has(event.type));
+}
+
+/**
+ * Cover every UI balls-per-drop tier and demonstrate features: one feature book per tier
+ * (where available) + one base book per tier, then fill remaining slots in order.
+ */
 function sampleBooks(source, maxCount) {
 	const picked = [];
-	const seenTiers = new Set();
+	const take = (predicate) => {
+		const match = source.find((book) => !picked.includes(book) && predicate(book));
+		if (match) picked.push(match);
+	};
 
 	for (const tier of BALL_TIERS) {
-		const match = source.find(
-			(book) => !picked.includes(book) && ballsPerDropForBook(book) === tier,
-		);
-		if (match) {
-			picked.push(match);
-			seenTiers.add(tier);
-		}
+		take((book) => ballsPerDropForBook(book) === tier && isFeatureBook(book));
 	}
-
+	for (const tier of BALL_TIERS) {
+		take((book) => ballsPerDropForBook(book) === tier && !isFeatureBook(book));
+	}
 	for (const book of source) {
 		if (picked.length >= maxCount) break;
 		if (!picked.includes(book)) picked.push(book);

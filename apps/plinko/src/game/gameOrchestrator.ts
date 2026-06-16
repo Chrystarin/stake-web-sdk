@@ -1,6 +1,6 @@
 import { stateBet } from 'state-shared';
 
-import { BONUS_LEVEL_LABELS } from '../game-logic/constants';
+import { BONUS_LEVEL_LABELS, bonusLevelBalls } from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatHistoryDate } from '../lib/format';
@@ -143,7 +143,11 @@ export function isBetControlsLocked(): boolean {
 	);
 }
 
-/** Load math `bonusRound` outcomes and grant remaining free balls (no client RNG). */
+/**
+ * Load math `bonusRound` outcomes and grant remaining free balls (no client RNG).
+ * Every free ball's landing pocket is authored by the book, so the on-screen result
+ * always sums to the book `finalWin` / wallet payout.
+ */
 export function startAuthoritativeBonusRound(
 	freeBalls: number,
 	outcomes: PlinkoBallOutcome[],
@@ -151,17 +155,12 @@ export function startAuthoritativeBonusRound(
 	ballsPlayed = 0,
 ) {
 	const played = Math.max(0, Math.floor(ballsPlayed || 0));
-	if (played > 0) {
-		stateGame.authoritativeBonusOutcomes = outcomes.map((outcome) => ({
-			...outcome,
-			hitSpinSlot: false,
-		}));
-		stateGame.authoritativeBonusOutcomeIndex = played;
-	} else {
-		// Fresh bonus entry: random drops like crimson; book outcomes are for resume only.
-		stateGame.authoritativeBonusOutcomes = [];
-		stateGame.authoritativeBonusOutcomeIndex = 0;
-	}
+	// Bonus balls never land in the spin pocket; force the flag off for animation.
+	stateGame.authoritativeBonusOutcomes = (outcomes ?? []).map((outcome) => ({
+		...outcome,
+		hitSpinSlot: false,
+	}));
+	stateGame.authoritativeBonusOutcomeIndex = played;
 	const remaining = Math.max(0, Math.floor(freeBalls || 0) - played);
 	if (level > 0) {
 		stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level);
@@ -172,6 +171,58 @@ export function startAuthoritativeBonusRound(
 		return;
 	}
 	stateGame.bonusBallsRemaining = remaining;
+}
+
+/** Queue a book-authored bonus level-up (played after the current level's balls finish). */
+export function enqueueAuthoritativeBonusLevel(
+	freeBalls: number,
+	outcomes: PlinkoBallOutcome[],
+	level: number,
+) {
+	stateGame.authoritativeBonusLevelQueue = [
+		...stateGame.authoritativeBonusLevelQueue,
+		{
+			freeBalls: Math.max(0, Math.floor(freeBalls || 0)),
+			outcomes: (outcomes ?? []).map((outcome) => ({ ...outcome, hitSpinSlot: false })),
+			level: Math.max(1, Math.floor(level || 1)),
+		},
+	];
+}
+
+/** True when the entry-level bonus balls (already awarded by the wheel) just need their outcomes. */
+export function loadAuthoritativeBonusOutcomes(outcomes: PlinkoBallOutcome[], ballsPlayed = 0) {
+	stateGame.authoritativeBonusOutcomes = (outcomes ?? []).map((outcome) => ({
+		...outcome,
+		hitSpinSlot: false,
+	}));
+	stateGame.authoritativeBonusOutcomeIndex = Math.max(0, Math.floor(ballsPlayed || 0));
+}
+
+/** Pull the next book-authored level off the queue, show the level-up, and award its balls. */
+function consumeAuthoritativeBonusLevel(): boolean {
+	const next = stateGame.authoritativeBonusLevelQueue[0];
+	if (!next) return false;
+	stateGame.authoritativeBonusLevelQueue = stateGame.authoritativeBonusLevelQueue.slice(1);
+	setTimeout(
+		() => applyAuthoritativeBonusLevel(next),
+		BONUS_LEVEL_ACTIVATION_DELAY_MS,
+	);
+	return true;
+}
+
+async function applyAuthoritativeBonusLevel(level: {
+	freeBalls: number;
+	outcomes: PlinkoBallOutcome[];
+	level: number;
+}) {
+	await waitForDropBatchCompletion();
+	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
+	stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level.level);
+	showBonusLevelUpOverlay(level.level, level.freeBalls);
+	stateGame.authoritativeBonusOutcomes = level.outcomes;
+	stateGame.authoritativeBonusOutcomeIndex = 0;
+	stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+	awardBonusBalls(level.freeBalls);
 }
 
 export function takeAuthoritativeBonusOutcome(): PlinkoBallOutcome | undefined {
@@ -279,8 +330,8 @@ function consumePendingBonusLevelUp(): boolean {
 	}
 	stateGame.pendingBonusLevelUpCount = Math.max(0, stateGame.pendingBonusLevelUpCount - 1);
 	const nextLevel = Math.max(1, stateGame.bonusLevelProgress + 1);
-	const levelValue = Number(BONUS_LEVEL_LABELS[nextLevel - 1] ?? nextLevel);
-	const addedBalls = Math.max(1, Math.floor(levelValue * 10));
+	// Session-meter fallback only (production levels come from book `bonusRound` events).
+	const addedBalls = Math.max(1, bonusLevelBalls(nextLevel));
 	setTimeout(
 		() => applyBonusLevelUpWhenPipelineIdle(nextLevel, addedBalls),
 		BONUS_LEVEL_ACTIVATION_DELAY_MS,
@@ -360,6 +411,10 @@ async function settleBonusRoundWhenFinished() {
 			triggerRoulette('spin');
 			return;
 		}
+		// Book-authored level-ups take priority over the client session-meter fallback.
+		if (stateGame.bonusBallsRemaining <= 0 && consumeAuthoritativeBonusLevel()) {
+			return;
+		}
 		if (stateGame.bonusBallsRemaining <= 0 && consumePendingBonusLevelUp()) {
 			return;
 		}
@@ -384,6 +439,7 @@ export function resetBonusRoundVisualState() {
 	stateGame.bonusSessionWinAmount = 0;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
+	stateGame.authoritativeBonusLevelQueue = [];
 }
 
 export function onBonusEndAnnouncementClosed() {

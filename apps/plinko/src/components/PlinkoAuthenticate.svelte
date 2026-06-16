@@ -8,6 +8,7 @@
 	import config from '../game/config';
 	import {
 		maxAffordableStakePerBall,
+		plinkoPlayAmount,
 		plinkoWagerAmount,
 		snapStakeToBetLevels,
 	} from '../game/plinkoBet';
@@ -57,7 +58,9 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 			}
 		}
 
-		stateBet.wageredBetAmount = plinkoWagerAmount() || stateBet.betAmount;
+		// Win display multiplies `payoutMultiplier` by this — use the play amount (per-ball
+		// stake = RGS `amount`), not the total wager, so displayed win matches the balance credit.
+		stateBet.wageredBetAmount = plinkoPlayAmount() || stateBet.betAmount;
 		applyRgsSessionMetersToDisplay();
 	}
 

@@ -156,12 +156,36 @@ Each round is an array of events (see `typesBookEvent.ts`). Typical base round:
 | `plinkoDrop` | Configure board; spawn balls from `outcomes` (slot index, peg/slot flags) |
 | `spinMeter` | Update free-spin meter (authoritative when from math) |
 | `bonusMeter` | Update bonus meter / level |
-| `bonusRoulette` | Open bonus wheel; grant free balls |
-| `freeSpinTrigger` | Open free-spin wheel; set segment and payout |
-| `bonusRound` | Extra drops at current bonus level |
-| `setTotalWin` / `finalWin` | Accumulate displayed win |
+| `bonusRoulette` | Open bonus wheel; grants the level-1 entry free balls |
+| `freeSpinTrigger` | Open free-spin wheel; `NX` multiplies the round win, `BONUS` chains into a bonus round |
+| `bonusRound` | One bonus level's free balls, **animated from the book's exact `outcomes`** (no client RNG). Higher-`level` events drive level-ups |
+| `setTotalWin` / `finalWin` | Accumulate displayed win; `finalWin` = wallet payout |
 
-When `plinkoDrop.outcomes` include `hitBonusPeg` / `hitSpinSlot`, **`authoritativeMeterFlow`** is enabled: meters follow the book, not client RNG.
+When the book contains any feature event (`spinMeter` / `bonusMeter` / `freeSpinTrigger` / `bonusRoulette` / `bonusRound`), `playBet` enables **`authoritativeMeterFlow`**: meters, wheels, and bonus balls all follow the book, never client RNG. The `*MeterFull` session-meter fallbacks in `features/` are dev/local-book only.
+
+---
+
+## Bonus & free-spin features
+
+Both features are **server-authoritative**: every trigger chance, wheel result, free ball, and level-up is authored by the math (`stake-math-sdk/games/crimson_plinko`). The client only animates and presents. This is what keeps the on-screen total equal to the wallet payout.
+
+**Free spin (spin meter).** A ball landing in the **center 0× pocket** fills the spin meter (`onSpinSlotLand`). When full, the book emits `freeSpinTrigger` and the client opens the wheel (`runFreeSpinTriggerFlow`). An `NX` segment multiplies that round's drop win; a `BONUS` segment chains into a bonus round. Wallet credit is the book `finalWin` / `payoutMultiplier`, settled by RGS `/wallet/end-round`.
+
+**Bonus (bonus meter).** A ball that contacts a **bonus (coin) peg** (`hitBonusPeg`, `onCoinPegHit`) fills the bonus meter. When full, the book emits `bonusRoulette` (entry free balls) then one `bonusRound` per level. Free balls drop one at a time (`playOneBonusBall` → `bonusBallDrop`), each landing on its **book-authored** slot (`takeAuthoritativeBonusOutcome`), accumulating into `bonusSessionWinAmount`.
+
+**Level-up.** If the bonus meter re-fills *during* a bonus round, it levels up and awards more balls. The math precomputes this and emits an extra `bonusRound` with a higher `level`; the client plays the current level's balls, shows the level-up overlay (`BonusLevelUpOverlay`), then plays the next level — see `enqueueAuthoritativeBonusLevel` → `consumeAuthoritativeBonusLevel` in `gameOrchestrator.ts`. When no higher-level `bonusRound` remains, the accumulated balance is paid out.
+
+**Free balls per level** — editable table, **must match** `stake-math-sdk/plinko_data.BONUS_LEVEL_BALLS`:
+
+`game-logic/constants.ts` → `BONUS_LEVEL_BALLS`
+
+| Level | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|-------|---|---|---|---|---|---|---|---|
+| +balls | 20 | 30 | 50 | 75 | 100 | 150 | 200 | 300 |
+
+(Level 1 entry balls come from the bonus wheel, `BONUS_ROULETTE_SEGMENTS`.) Meter maxima and wheel/segment tables also live in `constants.ts` and are exported from the math FE config (`config.ts`).
+
+**Core functions:** `bookEventHandlerMap.ts` (event handlers + `playBet`), `gameOrchestrator.ts` (`startAuthoritativeBonusRound`, bonus-ball + level-up flow, settlement), `meterFlow.ts` (meter bumps, roulette open/close), `features/bonus` + `features/freeSpin` (wheels, payout helpers).
 
 ---
 

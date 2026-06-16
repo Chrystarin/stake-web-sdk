@@ -5,7 +5,7 @@ import {
 	SIM_SPEED,
 } from '../game-logic/constants';
 import { createMeterController } from '../game-logic/meterController';
-import type { Bet, PlinkoBallOutcome } from './typesBookEvent';
+import type { Bet, BookEvent, PlinkoBallOutcome } from './typesBookEvent';
 import { plinkoWagerAmount } from './plinkoBet';
 
 export type HistoryEntry = {
@@ -101,6 +101,8 @@ export const stateGame = $state({
 	/** Precomputed bonus-round ball outcomes from `bonusRound` book events. */
 	authoritativeBonusOutcomes: [] as PlinkoBallOutcome[],
 	authoritativeBonusOutcomeIndex: 0,
+	/** Pending book-driven bonus level-ups (one entry per `bonusRound` event above the entry level). */
+	authoritativeBonusLevelQueue: [] as { freeBalls: number; outcomes: PlinkoBallOutcome[]; level: number }[],
 	bonusLevelUpOverlayOpen: false,
 	bonusLevelUpOverlayVisible: false,
 	bonusLevelUpLevel: 0,
@@ -137,6 +139,8 @@ export const stateGame = $state({
 	balanceAfterPlayApi: undefined as number | undefined,
 	/** Current RGS round book (for deterministic fallback free-spin segment). */
 	activeRoundBet: undefined as Bet | undefined,
+	/** Book events for the active round (read by feature payout/settlement helpers). */
+	activeBookEvents: [] as BookEvent[],
 	nextBallSpawnAtMs: 0,
 	infoModalOpen: false,
 	infoModalTab: 'rules' as InfoModalTab,
