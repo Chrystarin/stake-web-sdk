@@ -1001,7 +1001,7 @@
 			)
 			scale(var(--game-layout-scale));
 
-		--plinko-area-scale: 0.58;
+		--plinko-area-scale: 0.55;
 		--plinko-area-top-width-scale: 0.85;
 		--plinko-area-bottom-width-scale: 0.85;
 		--plinko-area-height-scale: 1.1;
