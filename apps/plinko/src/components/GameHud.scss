@@ -100,7 +100,7 @@
 
 .bp-field-label {
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
-	font-size: clamp(0.95vw, 1.15vw, 1.5vw);
+	font-size: clamp(1.05vw, 1.27vw, 1.65vw);
 	font-weight: 600;
 	font-synthesis: none;
 	color: #a9a1a1;
@@ -123,7 +123,7 @@
 	align-items: center;
 	justify-content: flex-start;
 	gap: 0.2vw;
-	font-size: 1.8vw;
+	font-size: clamp(1.19vw, 1.43vw, 1.74vw);
 	font-weight: 400;
 	font-synthesis: none;
 	letter-spacing: -0.02em;
@@ -226,7 +226,7 @@
 		align-items: center;
 		justify-content: center;
 		padding: 0;
-		font-size: 1.8vw;
+		font-size: clamp(1.19vw, 1.43vw, 1.74vw);
 		font-weight: 400;
 		letter-spacing: -0.02em;
 		line-height: 1;
@@ -365,7 +365,7 @@
 	background: linear-gradient(180deg, #20150d 0%, #3b2c23 73.53%);
 	color: #ffffff;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
-	font-size: 1.2vw;
+	font-size: 1.32vw;
 	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
@@ -455,7 +455,7 @@
 	left: 50%;
 	transform: translate(-50%, -50%);
 	color: #f0f6ff;
-	font-size: 1.22vw;
+	font-size: 1.34vw;
 	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
@@ -592,7 +592,7 @@
 	padding: 0;
 	background: linear-gradient(180deg, rgba(56, 33, 22, 0.92) 0%, rgba(31, 20, 14, 0.94) 100%);
 	color: #ffffff;
-	font-size: 2.2vw;
+	font-size: 2.42vw;
 	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
@@ -647,7 +647,7 @@
 }
 
 .mobile-top-card-label {
-	font-size: clamp(8px, 1.9vw, 11px);
+	font-size: clamp(9px, 2.09vw, 12px);
 	font-weight: 800;
 	color: #f6be3a;
 	line-height: 1;
@@ -658,7 +658,7 @@
 
 .mobile-top-card-value {
 	margin-top: clamp(2px, 0.55vw, 4px);
-	font-size: clamp(12px, 2.7vw, 15px);
+	font-size: clamp(11px, 2.38vw, 15px);
 	font-weight: 400;
 	line-height: 1;
 	color: #ffffff;
@@ -743,7 +743,7 @@
 	left: 50%;
 	transform: translate(-50%, -50%);
 	color: #f0f6ff;
-	font-size: clamp(13px, 3.4vw, 20px);
+	font-size: clamp(14px, 3.74vw, 22px);
 	font-weight: 800;
 	line-height: 1;
 	text-shadow: 0 0.08vw 0.2vw rgba(0, 0, 0, 0.55);
@@ -780,7 +780,7 @@
 	padding: 0;
 	background: linear-gradient(180deg, rgba(56, 33, 22, 0.92) 0%, rgba(31, 20, 14, 0.94) 100%);
 	color: #ffffff;
-	font-size: clamp(15px, 4.1vw, 24px);
+	font-size: clamp(17px, 4.51vw, 26px);
 	font-weight: 800;
 	line-height: 1;
 	cursor: pointer;
@@ -876,7 +876,7 @@
 
 .mobile-bet-popup-label {
 	color: #a9a1a1;
-	font-size: clamp(14px, 3.7vw, 22px);
+	font-size: clamp(15px, 4.07vw, 24px);
 	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
@@ -888,7 +888,7 @@
 .mobile-bet-popup-value {
 	margin-top: 0;
 	color: #ffffff;
-	font-size: clamp(20px, 5.1vw, 30px);
+	font-size: clamp(15px, 4.11vw, 25px);
 	font-weight: 400;
 	letter-spacing: -0.02em;
 	line-height: 1;
@@ -941,13 +941,13 @@
 }
 
 .mobile-corner-label {
-	font-size: clamp(11px, 2.5vw, 14px);
+	font-size: clamp(12px, 2.75vw, 15px);
 	font-weight: 700;
 	line-height: 1;
 }
 
 .mobile-corner-value {
-	font-size: clamp(12px, 2.7vw, 15px);
+	font-size: clamp(14px, 3.17vw, 19px);
 	font-weight: 400;
 	line-height: 1;
 	min-width: 0;
