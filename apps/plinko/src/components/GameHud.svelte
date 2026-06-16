@@ -544,6 +544,7 @@
 								role="button"
 								tabindex={controlsLocked ? -1 : 0}
 								aria-label="Open bet per ball presets"
+								onmousedown={(e) => e.preventDefault()}
 								onclick={onBetPerBallPanelTrigger}
 								onkeydown={(e) => {
 									if (e.key === 'Enter' || e.key === ' ')

@@ -239,9 +239,35 @@
 
 .bp-bet-presets-wrap {
 	position: relative;
+	/* Lock to two rows so a mounted popup can never grow the field grid */
+	grid-template-rows: minmax(0, auto) minmax(0, auto);
+
+	> .bp-field-label {
+		grid-row: 1;
+	}
+
+	> .bp-bet-input-wrap {
+		grid-row: 2;
+	}
+
+	/* Must beat `.bp-field > :not(.bp-field-frame) { position: relative }` */
+	&.bp-field > .bp-bet-presets-panel {
+		position: absolute;
+		grid-column: 1;
+		grid-row: 1 / span 2;
+		margin: 0;
+	}
 
 	.bp-bet-input-mid {
 		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+		user-select: none;
+
+		&:active,
+		&:focus,
+		&:focus-visible {
+			outline: none;
+		}
 	}
 }
 
