@@ -103,6 +103,10 @@
 
 	const mobile = isPortraitGameLayout();
 
+	/** TODO: remove — temporary preview of bonus congratulations typography on load. */
+	const DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD = false;
+	let devBonusCongratulationsPreviewOpen = $state(DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD);
+
 	let gameRootEl = $state<HTMLElement | undefined>(undefined);
 
 	const fullscreenAllowed = $derived(!stateConfig.jurisdiction.disabledFullscreen);
@@ -543,6 +547,18 @@
 
 		/>
 
+	{/if}
+
+	{#if devBonusCongratulationsPreviewOpen}
+		<BonusRoulette
+			mode="message"
+			messageTitle="CONGRATULATIONS!"
+			messageValue="YOU WON 50 DROPS"
+			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
+			onClosed={() => {
+				devBonusCongratulationsPreviewOpen = false;
+			}}
+		/>
 	{/if}
 
 </main>

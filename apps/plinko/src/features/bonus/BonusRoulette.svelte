@@ -43,6 +43,13 @@
 	const timers: ReturnType<typeof setTimeout>[] = [];
 	const mobile = isMobile();
 
+	const headlineText = $derived(
+		props.mode === 'message' ? (props.messageTitle ?? 'CONGRATULATIONS!') : 'CONGRATULATIONS!',
+	);
+	const rewardText = $derived(
+		props.mode === 'message' ? (props.messageValue ?? '') : `YOU WON ${wonFreeBalls} DROPS`,
+	);
+
 	const segments = BONUS_ROULETTE_SEGMENTS.map((freeBalls, i) => ({
 		label: String(freeBalls),
 		freeBalls,
@@ -220,13 +227,15 @@
 			style:background-image="url({mobile ? staticUrl('img/announcement-message-background-mobile.png') : staticUrl('img/announcement-message-background.png')})"
 			onclick={onAnnouncementClick}
 		>
-			<div class="bonus-announcement-headline">
-				{props.mode === 'message' ? (props.messageTitle ?? 'CONGRATULATIONS!') : 'CONGRATULATIONS!'}
-			</div>
-			<div class="bonus-announcement-reward">
-				{props.mode === 'message'
-					? (props.messageValue ?? '')
-					: `YOU WON ${wonFreeBalls} DROPS`}
+			<div class="bonus-announcement-main">
+				<div class="bonus-announcement-headline">
+					<span class="bonus-announcement-text-stroke" aria-hidden="true">{headlineText}</span>
+					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--headline">{headlineText}</span>
+				</div>
+				<div class="bonus-announcement-reward">
+					<span class="bonus-announcement-text-stroke" aria-hidden="true">{rewardText}</span>
+					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--reward">{rewardText}</span>
+				</div>
 			</div>
 			<div class="bonus-announcement-hint">
 				{props.messageHint ?? 'PRESS ANYWHERE TO GO BACK TO THE GAME'}
@@ -360,8 +369,28 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: clamp(10px, 2vh, 18px);
 		color: #f4d36d;
+	}
+	.bonus-announcement-main {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: clamp(10px, 2vh, 18px);
+	}
+	.bonus-announcement-hint {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: clamp(16px, 5vh, 56px);
+		margin-top: 0;
+		padding: 0 clamp(1rem, 4vw, 2rem);
+		box-sizing: border-box;
+		font-family: 'Perpetua', serif;
+		font-size: clamp(16px, 1.6vw, 26px);
+		line-height: 1.1;
+		letter-spacing: 0.03em;
+		color: #f0ddaa;
+		text-shadow: 0 2px 7px rgba(0, 0, 0, 0.7);
 	}
 	.bonus-announcement--bg-visible {
 		transform: translateY(0);
@@ -378,18 +407,90 @@
 	.bonus-announcement--text-visible .bonus-announcement-hint {
 		opacity: 1;
 	}
+	.bonus-announcement-headline,
+	.bonus-announcement-reward {
+		display: inline-grid;
+		width: max-content;
+		max-width: 100%;
+	}
+	.bonus-announcement-headline > *,
+	.bonus-announcement-reward > * {
+		grid-area: 1 / 1;
+		font-family: inherit;
+		font-size: inherit;
+		font-weight: inherit;
+		line-height: inherit;
+		letter-spacing: inherit;
+		white-space: inherit;
+	}
+	.bonus-announcement-text-stroke {
+		color: transparent;
+		-webkit-text-stroke: var(--announcement-stroke-width) var(--announcement-stroke-color);
+		paint-order: stroke fill;
+		pointer-events: none;
+		user-select: none;
+	}
+	.bonus-announcement-text-fill {
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+		text-shadow: var(--announcement-glow-shadow), var(--announcement-highlight-shadow);
+	}
 	.bonus-announcement-headline {
+		--announcement-stroke-width: 0.04em;
+		--announcement-stroke-color: #4a2f0a;
+		--announcement-glow-shadow:
+			0 0 0.48em rgba(255, 200, 70, 0.52), 0 0.05em 0.08em rgba(0, 0, 0, 0.28);
+		--announcement-highlight-shadow: 0 -0.02em 0.03em rgba(255, 208, 75, 0.36);
+		font-family: 'PiecesOfEight', serif;
 		font-size: clamp(48px, 8.2vw, 116px);
-		font-weight: 800;
-		text-shadow: 0 0 16px rgba(255, 191, 0, 0.45);
+		line-height: 0.95;
+		letter-spacing: 0.02em;
+	}
+	.bonus-announcement-text-fill--headline {
+		background-image: linear-gradient(180deg, #fad04a 0%, #f0b82e 56.7%, #de951a 100%);
 	}
 	.bonus-announcement-reward {
+		--announcement-stroke-width: 0.05em;
+		--announcement-stroke-color: #5c4010;
+		--announcement-glow-shadow:
+			0 0 0.4em rgba(255, 228, 120, 0.48), 0 0.04em 0.08em rgba(0, 0, 0, 0.25);
+		--announcement-highlight-shadow: 0 -0.02em 0.03em rgba(245, 200, 95, 0.32);
+		font-family: 'PotatoSans', sans-serif;
 		font-size: clamp(30px, 5.2vw, 76px);
-		font-weight: 700;
+		line-height: 1;
+		letter-spacing: 0.01em;
 	}
-	.bonus-announcement-hint {
-		margin-top: clamp(18px, 5vh, 80px);
-		font-size: clamp(16px, 1.6vw, 26px);
-		color: #f0ddaa;
+	.bonus-announcement-text-fill--reward {
+		background-image: linear-gradient(180deg, #f9e4bc 0%, #e0c48a 56.7%, #d49420 100%);
+	}
+	.bonus-announcement--win .bonus-announcement-headline {
+		font-size: clamp(44px, 7.2vw, 100px);
+	}
+	.bonus-announcement--win .bonus-announcement-reward {
+		font-size: clamp(42px, 7vw, 96px);
+	}
+	.bonus-announcement--mobile .bonus-announcement-headline,
+	.bonus-announcement--mobile .bonus-announcement-reward,
+	.bonus-announcement--mobile .bonus-announcement-hint {
+		max-width: calc(100vw - 10vw);
+		margin-left: auto;
+		margin-right: auto;
+		box-sizing: border-box;
+		white-space: nowrap;
+	}
+	.bonus-announcement--mobile .bonus-announcement-headline {
+		font-size: 10vw;
+		line-height: 0.95;
+	}
+	.bonus-announcement--mobile .bonus-announcement-reward {
+		font-size: 7vw;
+		line-height: 1.05;
+	}
+	.bonus-announcement--mobile .bonus-announcement-hint {
+		bottom: clamp(12px, 3.5vh, 32px);
+		font-size: 3.5vw;
+		line-height: 1.2;
 	}
 </style>
