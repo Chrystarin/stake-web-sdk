@@ -57,6 +57,7 @@
 	--bp-item-height: 4.25vw;
 	--bp-column-gap: clamp(0.28vw, 0.45vw, 0.7vw);
 	--bp-fixed-controls-width: calc(var(--bp-item-height) * 2);
+	--bp-label-value-gap: 0.11em;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
@@ -106,7 +107,7 @@
 	color: #a9a1a1;
 	text-transform: uppercase;
 	letter-spacing: -0.02em;
-	margin-bottom: 0;
+	margin-bottom: var(--bp-label-value-gap);
 	line-height: 1;
 	min-width: 0;
 	overflow: hidden;
@@ -138,7 +139,7 @@
 
 .bp-field--bet-total {
 	position: relative;
-	padding: 0.42vw 0.2vw 0.32vw;
+	padding: 0.35vw 0.2vw 0.35vw;
 
 	> .bp-field-label {
 		grid-column: 1;
@@ -152,9 +153,9 @@
 		grid-column: 1;
 		grid-row: 2;
 		min-height: 0;
-		height: 100%;
+		height: auto;
 		display: grid;
-		align-items: stretch;
+		align-items: start;
 	}
 
 	.bp-total-display {
@@ -174,7 +175,7 @@
 	position: relative;
 	overflow: visible;
 	/* One-Eyed Willy's Plinko: reserve side space for label/value; steppers pin to frame edges via absolute */
-	padding: 0.42vw calc(var(--bp-stepper-side) + 0.2vw) 0.32vw;
+	padding: 0.35vw calc(var(--bp-stepper-side) + 0.2vw) 0.35vw;
 
 	> .bp-field-label {
 		grid-column: 1;
@@ -248,7 +249,8 @@
 	border-radius: 0;
 	border: none;
 	background: transparent;
-	min-height: 3.6vw;
+	min-height: 0;
+	height: auto;
 	box-sizing: border-box;
 	box-shadow: none;
 }
@@ -615,6 +617,7 @@
 	gap: 5vw;
 	padding: 0 3vw 15vw;
 	pointer-events: none;
+	--bp-label-value-gap: 0.11em;
 
 	> * {
 		pointer-events: auto;
@@ -654,10 +657,11 @@
 	text-transform: uppercase;
 	white-space: nowrap;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	margin-bottom: var(--bp-label-value-gap);
 }
 
 .mobile-top-card-value {
-	margin-top: clamp(2px, 0.55vw, 4px);
+	margin-top: 0;
 	font-size: clamp(11px, 2.38vw, 15px);
 	font-weight: 400;
 	line-height: 1;
@@ -883,6 +887,7 @@
 	text-transform: uppercase;
 	text-align: center;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	margin-bottom: var(--bp-label-value-gap);
 }
 
 .mobile-bet-popup-value {
@@ -914,7 +919,7 @@
 .mobile-corner-info {
 	display: inline-flex;
 	align-items: center;
-	gap: clamp(4px, 1.1vw, 8px);
+	gap: 0;
 	min-width: 0;
 	color: #f2f4f6;
 	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
@@ -925,6 +930,7 @@
 		height: clamp(18px, 4.3vw, 24px);
 		object-fit: contain;
 		flex-shrink: 0;
+		margin-right: clamp(4px, 1.1vw, 8px);
 	}
 }
 
@@ -944,6 +950,7 @@
 	font-size: clamp(12px, 2.75vw, 15px);
 	font-weight: 700;
 	line-height: 1;
+	margin-right: var(--bp-label-value-gap);
 }
 
 .mobile-corner-value {
