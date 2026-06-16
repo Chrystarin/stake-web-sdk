@@ -107,6 +107,9 @@
 	const DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD = false;
 	let devBonusCongratulationsPreviewOpen = $state(DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD);
 
+	/** TODO: remove — temporary preview of bonus level-up overlay on load. */
+	const DEV_SHOW_BONUS_LEVEL_UP_ON_LOAD = false;
+
 	let gameRootEl = $state<HTMLElement | undefined>(undefined);
 
 	const fullscreenAllowed = $derived(!stateConfig.jurisdiction.disabledFullscreen);
@@ -152,6 +155,13 @@
 		applyClientMeterDefaults(config.spinMeterMax, config.bonusMeterMax);
 		applyRgsSessionMetersToDisplay();
 		scheduleBonusRouletteIfMeterFullIdle();
+
+		if (DEV_SHOW_BONUS_LEVEL_UP_ON_LOAD) {
+			stateGame.bonusLevelUpLevel = 4;
+			stateGame.bonusLevelUpAddedBalls = 80;
+			stateGame.bonusLevelUpOverlayOpen = true;
+			stateGame.bonusLevelUpOverlayVisible = true;
+		}
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
 			stateGame.coefficients = coefficients;
