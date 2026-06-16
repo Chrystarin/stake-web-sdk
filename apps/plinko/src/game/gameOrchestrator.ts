@@ -8,6 +8,7 @@ import { slotColorForRateIndex } from '../game-logic/slotColors';
 import { isBonusMeterFull, meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
+import { stateXstateDerived } from './stateXstate';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
@@ -548,13 +549,23 @@ export function onBallLanded(
 	}
 }
 
+/**
+ * True while a round is still in progress. Critically this includes the xstate `bet` machine
+ * settling (deferred `/wallet/end-round` runs inside that state), so autobet does not place the
+ * next bet until the RGS round is fully closed — otherwise the next `BET` collides with the
+ * still-active round and is dropped, soft-locking the game. `isPlaying()` is idle in dev-local
+ * play (the actor is bypassed), so flag checks still cover that path.
+ */
 function isAutoBetRoundBusy(): boolean {
 	return (
+		stateGame.isSubmitting ||
 		stateGame.dropRoundActive ||
+		stateGame.bonusBallsRemaining > 0 ||
 		isGameOngoing() ||
 		stateGame.freeSpinRouletteOpen ||
 		stateGame.bonusRouletteOpen ||
-		stateGame.rouletteFlowInProgress
+		stateGame.rouletteFlowInProgress ||
+		stateXstateDerived.isPlaying()
 	);
 }
 
@@ -665,6 +676,16 @@ function finishAutoBet() {
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
 	stateGame.autoMode = false;
+	// Soft-lock recovery: if no round is actually in flight, clear any stuck submit/round lock
+	// so the Play button stays responsive. Never clears while a round is still settling.
+	if (
+		!stateXstateDerived.isPlaying() &&
+		!isGameOngoing() &&
+		stateGame.bonusBallsRemaining <= 0
+	) {
+		stateGame.isSubmitting = false;
+		stateGame.dropRoundActive = false;
+	}
 	showToast('Autobet Finished');
 }
 
