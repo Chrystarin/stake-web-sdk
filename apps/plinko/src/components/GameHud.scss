@@ -55,7 +55,8 @@
 
 .bottom-panel-row {
 	--bp-item-height: 4.25vw;
-	--bp-column-gap: clamp(0.28vw, 0.45vw, 0.7vw);
+	--bp-field-height: calc(var(--bp-item-height) * 0.9);
+	--bp-column-gap: clamp(0.36vw, 0.6vw, 0.9vw);
 	--bp-fixed-controls-width: calc(var(--bp-item-height) * 2);
 	--bp-label-value-gap: 0.11em;
 	display: flex;
@@ -81,8 +82,8 @@
 	gap: 0;
 	align-self: center;
 	min-width: 0;
-	min-height: var(--bp-item-height);
-	height: var(--bp-item-height);
+	min-height: var(--bp-field-height);
+	height: var(--bp-field-height);
 	border-radius: 0;
 	padding: 0.35vw;
 	border: none;
@@ -165,7 +166,7 @@
 }
 
 .bp-field--bet-controls {
-	--bp-stepper-side: 3.2vw;
+	--bp-stepper-side: 2.88vw;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	justify-items: center;
@@ -204,10 +205,10 @@
 	/* Position against .bp-field--bet-controls (not .bp-bet-input-wrap) — matches legacy layout */
 	.bp-stepper-btn {
 		position: absolute;
-		top: 0.5vw;
+		top: 0.45vw;
 		bottom: 0;
-		width: 4vw;
-		height: 4vw;
+		width: 3.6vw;
+		height: 3.6vw;
 		z-index: 3;
 	}
 
@@ -473,7 +474,7 @@
 	align-self: stretch;
 	display: flex;
 	flex-direction: column;
-	gap: 0.35vw;
+	gap: 0.45vw;
 }
 
 .bp-auto-wrap {
@@ -618,6 +619,7 @@
 	padding: 0 3vw 15vw;
 	pointer-events: none;
 	--bp-label-value-gap: 0.11em;
+	--bp-mobile-component-gap: clamp(8px, 1.8vw, 13px);
 
 	> * {
 		pointer-events: auto;
@@ -627,14 +629,14 @@
 .mobile-top-row {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr);
-	gap: clamp(6px, 1.4vw, 10px);
+	gap: var(--bp-mobile-component-gap);
 	align-items: center;
 	width: 100%;
 }
 
 .mobile-top-card {
 	position: relative;
-	height: clamp(28px, 7vw, 42px);
+	height: clamp(25px, 6.3vw, 38px);
 	padding: clamp(3px, 0.8vw, 6px) clamp(6px, 1.2vw, 9px);
 	border: none;
 	display: flex;
@@ -689,7 +691,7 @@
 .mobile-action-row {
 	display: grid;
 	grid-template-columns: repeat(5, minmax(0, 1fr));
-	gap: clamp(8px, 2.2vw, 16px);
+	gap: clamp(10px, 2.9vw, 21px);
 	align-items: center;
 }
 
@@ -804,7 +806,7 @@
 	z-index: 1100;
 	display: flex;
 	flex-direction: column;
-	gap: clamp(8px, 1.8vw, 12px);
+	gap: clamp(10px, 2.4vw, 16px);
 	padding: clamp(8px, 1.7vw, 12px);
 	pointer-events: auto;
 
@@ -824,7 +826,7 @@
 	grid-template-columns: clamp(48px, 12vw, 72px) minmax(0, 1fr) clamp(48px, 12vw, 72px);
 	align-items: stretch;
 	gap: 0;
-	min-height: clamp(58px, 13vw, 78px);
+	min-height: clamp(52px, 11.7vw, 70px);
 	/* Side buttons flush to frame — vertical inset only */
 	padding: clamp(6px, 1.4vw, 10px) 0;
 	overflow: visible;
@@ -843,7 +845,7 @@
 .mobile-bet-popup-step {
 	width: 100%;
 	height: 100%;
-	min-height: clamp(44px, 10.5vw, 62px);
+	min-height: clamp(40px, 9.45vw, 56px);
 	border: none;
 	border-radius: clamp(10px, 2.2vw, 14px);
 	background: transparent;
