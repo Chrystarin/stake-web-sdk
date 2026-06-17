@@ -26,6 +26,14 @@
 
 	const props: Props = $props();
 
+	/** Shared wheel diameter from viewport; label/base/marker derive from this. */
+	const ROULETTE_SIZE_VW = 0.72;
+	const LABEL_HEIGHT_TO_WIDTH = 594 / 1280;
+	/** Bonus medallion sits inside the wheel's center hole (~0.53 of the wheel). */
+	const BASE_TO_WHEEL = 0.53;
+	const MARKER_WIDTH_TO_WHEEL = (151 / 1348) * 0.65;
+	const MARKER_HEIGHT_TO_WHEEL = (435 / 1348) * 0.65;
+
 	let slidePhase = $state<'enter' | 'idle' | 'exit'>('enter');
 	let bgJoined = $state(false);
 	let labelVisible = $state(false);
@@ -38,10 +46,39 @@
 	let announcementTextVisible = $state(false);
 	let wonFreeBalls = $state(0);
 	let wheelEl = $state<HTMLImageElement | undefined>(undefined);
+	let stageEl = $state<HTMLDivElement | undefined>(undefined);
+	let rouletteSizePx = $state(0);
 	let pendingResult: BonusRouletteResult | null = null;
 	let resultReadyEmitted = false;
 	const timers: ReturnType<typeof setTimeout>[] = [];
 	const mobile = isMobile();
+
+	function updateRouletteLayout() {
+		const stage = stageEl;
+		if (!stage) return;
+		const rect = stage.getBoundingClientRect();
+		if (rect.width <= 0 || rect.height <= 0) return;
+		const labelGapPx = Math.min(Math.max(window.innerWidth * 0.015, 4), 16);
+		const vwCap = window.innerWidth * ROULETTE_SIZE_VW;
+		const maxWidth = Math.min(vwCap, rect.width);
+		const fromHeight = Math.max(0, rect.height - labelGapPx) / (1 + LABEL_HEIGHT_TO_WIDTH);
+		rouletteSizePx = Math.max(0, Math.floor(Math.min(maxWidth, fromHeight)));
+	}
+
+	const labelWidthPx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
+	const stackSizePx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
+	const baseWidthPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * BASE_TO_WHEEL)}px` : undefined,
+	);
+	const markerWidthPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_WIDTH_TO_WHEEL)}px` : undefined,
+	);
+	const markerHeightPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_HEIGHT_TO_WHEEL)}px` : undefined,
+	);
+	const markerYOffsetPx = $derived(
+		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5)}px` : undefined,
+	);
 
 	const headlineText = $derived(
 		props.mode === 'message' ? (props.messageTitle ?? 'CONGRATULATIONS!') : 'CONGRATULATIONS!',
@@ -80,6 +117,20 @@
 	function cleanup() {
 		timers.forEach(clearTimeout);
 	}
+
+	$effect(() => {
+		const stage = stageEl;
+		if (!stage) return;
+		const observer = new ResizeObserver(() => updateRouletteLayout());
+		observer.observe(stage);
+		const onResize = () => updateRouletteLayout();
+		window.addEventListener('resize', onResize);
+		updateRouletteLayout();
+		return () => {
+			observer.disconnect();
+			window.removeEventListener('resize', onResize);
+		};
+	});
 
 	function resolveWinnerIndex(): number {
 		if (props.targetFreeBalls != null) {
@@ -184,34 +235,41 @@
 			style:background-image="url({mobile ? staticUrl('img/bonus-roulette-background-mobile.png') : staticUrl('img/bonus-roulette-background.png')})"
 		></div>
 		<div class="bonus-spin-content">
-			<img
-				class="bonus-spin-title"
-				class:bonus-spin-title--visible={labelVisible}
-				src={staticUrl('img/bonus-roulette-label.png')}
-				alt="Free balls"
-			/>
-			<div class="bonus-spin-wheel-block">
+			<div class="bonus-spin-stage" bind:this={stageEl}>
 				<img
-					class="bonus-spin-marker"
-					class:bonus-spin-marker--visible={markerVisible}
-					src={staticUrl('img/free-spin-marker.png')}
-					alt=""
+					class="bonus-spin-title"
+					class:bonus-spin-title--visible={labelVisible}
+					style:width={labelWidthPx}
+					src={staticUrl('img/bonus-roulette-label.png')}
+					alt="Free balls"
 				/>
-				<img
-					bind:this={wheelEl}
-					class="bonus-spin-wheel"
-					class:bonus-spin-wheel--animating={wheelSpinClass}
-					class:bonus-spin-wheel--visible={wheelVisible}
-					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-					src={staticUrl('img/bonus-roulette-wheel.png')}
-					alt="Bonus roulette wheel"
-				/>
-				<img
-					class="bonus-spin-center-base"
-					class:bonus-spin-center-base--visible={wheelVisible}
-					src={staticUrl('img/bonus-roulette-center-base.png')}
-					alt=""
-				/>
+				<div class="bonus-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>
+					<img
+						class="bonus-spin-marker"
+						class:bonus-spin-marker--visible={markerVisible}
+						style:width={markerWidthPx}
+						style:height={markerHeightPx}
+						style:--marker-y-offset={markerYOffsetPx}
+						src={staticUrl('img/free-spin-marker.png')}
+						alt=""
+					/>
+					<img
+						bind:this={wheelEl}
+						class="bonus-spin-wheel"
+						class:bonus-spin-wheel--animating={wheelSpinClass}
+						class:bonus-spin-wheel--visible={wheelVisible}
+						style:--wheel-rotation-deg="{wheelRotationDeg}deg"
+						src={staticUrl('img/bonus-roulette-wheel.png')}
+						alt="Bonus roulette wheel"
+					/>
+					<img
+						class="bonus-spin-center-base"
+						class:bonus-spin-center-base--visible={wheelVisible}
+						style:width={baseWidthPx}
+						src={staticUrl('img/bonus-roulette-center-base.png')}
+						alt=""
+					/>
+				</div>
 			</div>
 		</div>
 	{/if}
@@ -278,11 +336,28 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		min-height: 100%;
+		justify-content: flex-start;
+		height: 100%;
+		min-height: 0;
+		box-sizing: border-box;
+		overflow: hidden;
 		padding: clamp(0.5rem, 3vh, 2rem) clamp(0.75rem, 4vw, 2rem) clamp(1rem, 5vh, 3rem);
 	}
+	.bonus-spin-stage {
+		flex: 1;
+		min-height: 0;
+		width: 100%;
+		display: grid;
+		grid-template-rows: auto minmax(0, 1fr);
+		justify-items: center;
+	}
 	.bonus-spin-title {
-		width: min(92vw, 520px);
+		width: min(72vw, 100%);
+		max-width: 100%;
+		height: auto;
+		flex-shrink: 0;
+		object-fit: contain;
+		margin-bottom: clamp(0.25rem, 1.5vw, 1rem);
 		opacity: 0;
 		transform: translateY(-140%);
 		transition:
@@ -293,42 +368,45 @@
 		opacity: 1;
 		transform: translateY(0);
 	}
-	.bonus-spin-wheel-block {
-		--roulette-scale: 0.8;
+	.bonus-spin-wheel-stack {
 		position: relative;
-		flex: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100%;
+		width: min(72vw, 100%);
+		height: min(72vw, 100%);
+		max-width: 100%;
+		max-height: 100%;
+		flex-shrink: 0;
+		place-self: center;
 	}
 	.bonus-spin-marker {
-		--marker-y-offset: calc(-1 * min(36vw, min(30vh, 260px)));
 		position: absolute;
 		left: 50%;
 		top: 50%;
+		object-fit: contain;
 		transform: translate(-50%, -50%) translateY(-150vh);
-		width: min(5vw, 96px);
+		transform-origin: 50% 50%;
 		opacity: 0;
+		pointer-events: none;
 		transition:
 			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
 			opacity 0.34s ease;
 		z-index: 2;
 	}
 	.bonus-spin-marker--visible {
-		transform: translate(-50%, -50%) translateY(var(--marker-y-offset));
+		transform: translate(-50%, -50%) translateY(var(--marker-y-offset, 0px));
 		opacity: 1;
 	}
 	.bonus-spin-wheel {
-		width: min(88vw, min(72vh, 640px));
-		height: min(88vw, min(72vh, 640px));
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 		transform-origin: 50% 50%;
 		--wheel-rotation-deg: 0deg;
-		transform: translateY(125vh) scale(var(--roulette-scale)) rotate(var(--wheel-rotation-deg));
+		transform: translateY(125vh) rotate(var(--wheel-rotation-deg));
 		opacity: 0;
 	}
 	.bonus-spin-wheel--visible {
-		transform: translateY(0) scale(var(--roulette-scale)) rotate(var(--wheel-rotation-deg));
+		transform: translateY(0) rotate(var(--wheel-rotation-deg));
 		opacity: 1;
 		transition:
 			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
@@ -341,8 +419,9 @@
 		position: absolute;
 		left: 50%;
 		top: 50%;
-		width: min(46vw, min(38vh, 340px));
-		transform: translate(-50%, -50%) translateY(125vh) scale(var(--roulette-scale));
+		height: auto;
+		object-fit: contain;
+		transform: translate(-50%, -50%) translateY(125vh);
 		opacity: 0;
 		z-index: 3;
 		transition:
@@ -350,7 +429,7 @@
 			opacity 0.34s ease;
 	}
 	.bonus-spin-center-base--visible {
-		transform: translate(-50%, -50%) translateY(0) scale(var(--roulette-scale));
+		transform: translate(-50%, -50%) translateY(0);
 		opacity: 1;
 	}
 	.bonus-announcement {
