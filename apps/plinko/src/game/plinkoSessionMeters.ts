@@ -380,17 +380,36 @@ export function deriveBonusMeterFromBookEvents(events: BookEvent[]): DerivedBonu
 	const betRelative = bonusMeterBookValuesAreBetRelative(events, betStart);
 	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 20;
 
+	// A free-spin wheel landing on BONUS also emits `bonusRoulette`, but that bonus is driven by
+	// the SPIN meter — the bonus meter must NOT reset in that case.
+	const bonusFromFreeSpin = events.some(
+		(event) =>
+			event.type === 'freeSpinTrigger' &&
+			String(event.segment ?? '').toUpperCase().includes('BONUS'),
+	);
+
 	let bonusMeter = betStart;
 	let bonusLevel = levelStart;
+	let bonusConsumed = false;
 	for (const event of events) {
 		if (event.type === 'bonusMeter') {
 			bonusMeter = bonusMeterSessionValueFromBook(event.value, betStart, betRelative);
 			bonusLevel = event.level;
 			if (bonusMeter >= max) bonusMeter = 0;
 		}
+		if (event.type === 'bonusRoulette' && !bonusFromFreeSpin) {
+			// Bonus triggered BY the bonus meter (incl. the dedicated bonus trigger mode, which
+			// carries no `bonusMeter` event): the meter was spent, so end the bet at 0 — otherwise
+			// it stays at the carried full value and immediately re-triggers in a loop.
+			bonusConsumed = true;
+		}
 		if (event.type === 'bonusRound') {
 			bonusLevel = Math.max(bonusLevel, event.level + 1);
 		}
+	}
+	if (bonusConsumed) {
+		bonusMeter = 0;
+		bonusLevel = 0;
 	}
 	return {
 		value: Math.max(0, Math.floor(bonusMeter)),
@@ -440,14 +459,9 @@ export function applyBonusMeterBookEvent(bookValue: number, bookLevel: number): 
 }
 
 function bonusMeterConsumedThisRound(events: BookEvent[]): boolean {
-	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 20;
-	const hitMax = events.some(
-		(event) => event.type === 'bonusMeter' && event.value >= max,
-	);
-	return (
-		hitMax &&
-		events.some((event) => event.type === 'bonusRoulette' || event.type === 'bonusRound')
-	);
+	// A `bonusRoulette` means a bonus round triggered this bet (incl. the dedicated trigger mode,
+	// which carries no `bonusMeter` event) — the meter was spent and must reset to 0.
+	return events.some((event) => event.type === 'bonusRoulette');
 }
 
 /** After a bet book finishes: display RGS result and sync bonus meter for the next play meta. */
