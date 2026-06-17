@@ -156,6 +156,11 @@ export function isBetControlsLocked(): boolean {
 		stateGame.bonusBallsRemaining > 0 ||
 		stateGame.freeSpinRouletteOpen ||
 		stateGame.bonusRouletteOpen ||
+		// Round not fully settled until the xstate machine is back to idle (deferred end-round
+		// runs inside the `bet` state, after `playBet` already cleared the flags above). Without
+		// this, fast clicks during settlement dispatch a BET the idle-only machine drops, leaving
+		// `isSubmitting` stuck and the controls locked.
+		stateXstateDerived.isPlaying() ||
 		isFeatureTriggerImminent()
 	);
 }

@@ -22,6 +22,8 @@
 
 	import {
 
+		isBetControlsLocked,
+
 		isGameOngoing,
 
 		onBallLanded,
@@ -59,7 +61,7 @@
 	} from '../game/meterFlow';
 
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
-	import { stateXstate } from '../game/stateXstate';
+	import { stateXstate, stateXstateDerived } from '../game/stateXstate';
 
 	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
 	import { FreeSpinMeter, FreeSpinRoulette, onFreeSpinRouletteFinished } from '../features/freeSpin';
@@ -228,7 +230,10 @@
 
 
 	async function placeBet() {
-		if (stateGame.isSubmitting || stateGame.dropRoundActive) return;
+		// Ignore a bet while the previous round is still settling (machine not yet idle) — the
+		// idle-only xstate machine would drop the BET and leave `isSubmitting` stuck.
+		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying())
+			return;
 
 		if (hasActiveRoundToResume()) {
 			showToast('Finishing your previous round…', 'info');
@@ -486,7 +491,7 @@
 		spinMeterProgress={spinMeterProgress}
 		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
 		bonusBallsRemaining={stateGame.bonusBallsRemaining}
-		playDisabled={stateGame.isSubmitting || stateGame.dropRoundActive || isGameOngoing()}
+		playDisabled={isBetControlsLocked() || isGameOngoing()}
 		bonusPlayDisabled={stateGame.bonusRouletteOpen}
 		{mobile}
 		onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}

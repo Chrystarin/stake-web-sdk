@@ -22,6 +22,7 @@
 	import { canAffordPlinkoWager, plinkoStakePerBallOptions } from '../game/plinkoBet';
 	import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
+	import { stateXstate } from '../game/stateXstate';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/freeSpin';
 	import { staticUrl } from '../lib/staticUrl';
@@ -65,6 +66,8 @@
 		stateGame.bonusRouletteOpen;
 		stateGame.dropRoundActive;
 		stateGame.rouletteFlowInProgress;
+		// Stay locked until the round machine is fully idle (deferred end-round settlement).
+		stateXstate.value;
 		// Keep controls locked across the gap between a meter filling and the trigger round.
 		stateGame.pendingFeatureTrigger;
 		stateGame.spinMeterValue;
