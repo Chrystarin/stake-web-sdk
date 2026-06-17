@@ -1285,6 +1285,41 @@ export class PlinkoEngine {
     return { offsets, flankPegByRow };
   }
 
+  /**
+   * Smoothly steer the lane onto a single featured (bonus) peg and back off again.
+   * Ramps from the Galton lane toward the peg over the rows leading up to it, holds
+   * exactly on the peg at its row, then eases back to the Galton lane over the rows
+   * below. This avoids the ball flinging sideways to "tag" the bonus peg and snapping
+   * straight back; the approach and departure both look like a natural fall.
+   */
+  private planSmoothFeaturedApproach(galtonLane: number[], featuredTarget: Peg): number[] {
+    const offsets = new Array<number>(this.rows).fill(0);
+    const targetRow = featuredTarget.row;
+    if (targetRow < 0 || targetRow >= this.rows) return offsets;
+
+    const rampRows = Math.min(5, Math.max(3, targetRow));
+    const easeInStart = Math.max(0, targetRow - rampRows);
+    const easeOutEnd = Math.min(this.rows - 1, targetRow + rampRows);
+
+    for (let row = 0; row < this.rows; row++) {
+      let weight = 0;
+      if (row < easeInStart) {
+        weight = 0;
+      } else if (row < targetRow) {
+        weight = this.smoothstep((row - easeInStart) / Math.max(1, targetRow - easeInStart));
+      } else if (row === targetRow) {
+        weight = 1;
+      } else if (row <= easeOutEnd) {
+        weight = 1 - this.smoothstep((row - targetRow) / Math.max(1, easeOutEnd - targetRow));
+      }
+      if (weight <= 0) continue;
+      const galtonX = galtonLane[row] ?? featuredTarget.x;
+      offsets[row] = (featuredTarget.x - galtonX) * weight;
+    }
+
+    return offsets;
+  }
+
   private pickNearestPeg(
     pegs: Peg[],
     x: number,
@@ -1472,13 +1507,22 @@ export class PlinkoEngine {
       ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
       : null;
     const avoidFeaturedPegs = pathOptions?.deterministic === true && pathOptions?.hitBonusPeg !== true;
+    const steerToFeatured = pathOptions?.hitBonusPeg === true && featuredTarget != null;
     const galtonLane = this.buildGaltonLane(turns, centerX);
-    const avoidancePlan = avoidFeaturedPegs
-      ? this.planSmoothFeaturedAvoidance(galtonLane, targetX)
-      : { offsets: new Array<number>(this.rows).fill(0), flankPegByRow: new Map<number, Peg>() };
-    const avoidanceOffsets = avoidancePlan.offsets;
-    const flankPegByRow = avoidancePlan.flankPegByRow;
-    const earlyAvoidBias = avoidanceOffsets[0] ?? 0;
+    let laneOffsets: number[];
+    let flankPegByRow: Map<number, Peg>;
+    if (avoidFeaturedPegs) {
+      const avoidancePlan = this.planSmoothFeaturedAvoidance(galtonLane, targetX);
+      laneOffsets = avoidancePlan.offsets;
+      flankPegByRow = avoidancePlan.flankPegByRow;
+    } else if (steerToFeatured && featuredTarget) {
+      laneOffsets = this.planSmoothFeaturedApproach(galtonLane, featuredTarget);
+      flankPegByRow = new Map<number, Peg>();
+    } else {
+      laneOffsets = new Array<number>(this.rows).fill(0);
+      flankPegByRow = new Map<number, Peg>();
+    }
+    const earlyAvoidBias = laneOffsets[0] ?? 0;
 
     const path: PathPoint[] = [];
     path.push({ x: centerX, y: launchY, row: -1, closestPeg: null, bounceIntensity: 0, travelDir: 0 });
@@ -1494,7 +1538,7 @@ export class PlinkoEngine {
     for (let row = 0; row < this.rows; row++) {
       const rowY = this.topMargin + this.pegSpacing * 0.5 + row * this.pegSpacing;
       const galtonX = galtonLane[row] ?? centerX;
-      const laneX = galtonX + (avoidanceOffsets[row] ?? 0);
+      const laneX = galtonX + (laneOffsets[row] ?? 0);
 
       const rowPegs = this.pegsByRow.get(row) ?? [];
       const { pathX, closestPeg, bounceIntensity } = this.resolveRowBounce(rowPegs, laneX, {
@@ -1502,8 +1546,11 @@ export class PlinkoEngine {
         row,
         targetSlotX: targetX,
         excludeFeaturedFromBounce:
-          avoidFeaturedPegs || (pathOptions?.hitBonusPeg === true && featuredTarget != null),
-        steerTowardFeatured: pathOptions?.hitBonusPeg === true,
+          avoidFeaturedPegs || steerToFeatured,
+        // Lane is already smoothly steered onto the featured peg via laneOffsets, so
+        // resolveRowBounce only needs to honor the lane (no extra per-row bias that
+        // would otherwise yank the path sideways near the bonus peg).
+        steerTowardFeatured: false,
         plannedFlankPeg: flankPegByRow.get(row),
         nextRandom,
       });
@@ -1512,7 +1559,7 @@ export class PlinkoEngine {
         featuredTarget && row + 1 === featuredTarget.row
           ? featuredTarget.x
           : row + 1 < this.rows
-            ? (galtonLane[row + 1] ?? targetX) + (avoidanceOffsets[row + 1] ?? 0)
+            ? (galtonLane[row + 1] ?? targetX) + (laneOffsets[row + 1] ?? 0)
             : targetX;
       const pegX = closestPeg?.x ?? pathX;
       const travelDir =
