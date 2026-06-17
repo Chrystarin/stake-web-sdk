@@ -1,8 +1,11 @@
 import { formatCoefficientLabel } from '../lib/format';
 
-/** Canonical slot multipliers shown on the board (15 pockets, symmetric; center = spin slot). */
+/** Canonical slot multipliers shown on the board (15 pockets, symmetric; center = spin slot).
+ * Tuned with the math SDK (crimson_plinko `plinko_data.BOARD_SLOT_MULTIPLIERS`): the per-ball
+ * expected value is ~0.957, keeping base RTP within the 90.0%-96.70% compliance range. Must stay
+ * label-identical to the published `coefficientSets` so `alignCoefficientSet` maps server → board. */
 export const BOARD_SLOT_MULTIPLIERS = [
-	100, 50, 20, 10, 2, 0.5, 0.2, 0, 0.2, 0.5, 2, 10, 20, 50, 100,
+	100, 40, 15, 8, 1.5, 0.4, 0.2, 0, 0.2, 0.4, 1.5, 8, 15, 40, 100,
 ] as const;
 
 /** Align server/config coefficients to the board table (same labels → board values). */
