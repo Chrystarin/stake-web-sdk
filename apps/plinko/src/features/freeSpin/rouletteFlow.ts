@@ -25,36 +25,39 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 		FREE_SPIN_SEGMENTS[stateGame.serverFreeSpinSegment ?? 0] ??
 		'';
 
-	let landedOnBonus = false;
+	let landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
 	let queuedRoulette: ReturnType<typeof meterController.completeRoulette> = null;
 
 	try {
-		const baseWin = getFreeSpinBaseRoundWin();
-		const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
-		const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
+		// On a BONUS segment the bonus round owns the win (base drop + bonus balls). Applying the
+		// round payout here would briefly overwrite the HUD win with the full-round value before
+		// the free balls drop, then get re-corrected on the first ball — a visible value jump.
+		if (!landedOnBonus) {
+			const baseWin = getFreeSpinBaseRoundWin();
+			const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
+			const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
 
-		if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
-			stateGame.pendingDropWinAmount = totalWin;
-			if (stateGame.bonusRoundActive) {
-				stateGame.bonusSessionWinAmount = totalWin;
+			if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
+				stateGame.pendingDropWinAmount = totalWin;
+				if (stateGame.bonusRoundActive) {
+					stateGame.bonusSessionWinAmount = totalWin;
+				}
+				stateGame.freeSpinWinMultiplier = multiplier;
+				stateGame.winPopupMultiplier = multiplier;
+				const wasWinPopupVisible = stateGame.showWinPopup;
+				stateGame.showWinPopup = true;
+				stateGame.deferWinPopupForFreeSpin = false;
+				if (!wasWinPopupVisible) {
+					eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+				}
 			}
-			stateGame.freeSpinWinMultiplier = multiplier;
-			stateGame.winPopupMultiplier = multiplier;
-			const wasWinPopupVisible = stateGame.showWinPopup;
-			stateGame.showWinPopup = true;
-			stateGame.deferWinPopupForFreeSpin = false;
-			if (!wasWinPopupVisible) {
+
+			if (stateGame.deferWinPopupForFreeSpin && stateBet.winBookEventAmount > 0) {
+				stateGame.showWinPopup = true;
+				stateGame.deferWinPopupForFreeSpin = false;
 				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
 			}
 		}
-
-		if (stateGame.deferWinPopupForFreeSpin && stateBet.winBookEventAmount > 0) {
-			stateGame.showWinPopup = true;
-			stateGame.deferWinPopupForFreeSpin = false;
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
-		}
-
-		landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
 	} finally {
 		stateGame.serverFreeSpinWinAmount = undefined;
 		queuedRoulette = meterController.completeRoulette();

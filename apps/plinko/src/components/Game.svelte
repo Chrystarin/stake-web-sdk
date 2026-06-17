@@ -1027,9 +1027,9 @@
 
 	/* Desktop / landscape — game layout + plinko board (frame fit-width/height) */
 	.game-root:not(.game-root--mobile) .game-area > .container {
-		--game-layout-scale: 1.12;
+		--game-layout-scale: 1.1;
 		--game-layout-offset-x-ratio: 0;
-		--game-layout-offset-y-ratio: 0;
+		--game-layout-offset-y-ratio: 0.015;
 		transform: translate(
 				calc(var(--game-layout-offset-x-ratio) * 100vw),
 				calc(var(--game-layout-offset-y-ratio) * 100vw)

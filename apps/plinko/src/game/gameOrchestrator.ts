@@ -10,6 +10,7 @@ import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
 import { hasActiveRgsSession } from './plinkoSessionMeters';
+import { plinkoStakePerBall } from './plinkoBet';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
@@ -166,6 +167,26 @@ export function isBetControlsLocked(): boolean {
 }
 
 /**
+ * Preserve each bonus ball's authoritative `hitSpinSlot` flag (from the book). A free ball that
+ * lands on the center spin pocket then fills the free-spin meter in real time during the bonus
+ * (via `onSpinSlotLand`), instead of the increase being deferred until after the round.
+ */
+function normalizeBonusOutcomes(outcomes: PlinkoBallOutcome[]): PlinkoBallOutcome[] {
+	const slotCount = stateGame.coefficients.length;
+	// Scale book amounts (authored at the book stake) to the player's stake — the same scaling
+	// the base drop gets in the `plinkoDrop` handler. Without this, bonus balls accumulate at the
+	// book stake while the credited `finalWin` is at the player stake, causing a big mismatch.
+	const bookStake = stateGame.lastBookStakePerBall > 0 ? stateGame.lastBookStakePerBall : 1;
+	const stakeScale = bookStake > 0 ? plinkoStakePerBall() / bookStake : 1;
+	return (outcomes ?? []).map((outcome) => ({
+		...outcome,
+		amount: outcome.amount * stakeScale,
+		hitSpinSlot:
+			outcome.hitSpinSlot ?? (slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount)),
+	}));
+}
+
+/**
  * Load math `bonusRound` outcomes and grant remaining free balls (no client RNG).
  * Every free ball's landing pocket is authored by the book, so the on-screen result
  * always sums to the book `finalWin` / wallet payout.
@@ -177,11 +198,7 @@ export function startAuthoritativeBonusRound(
 	ballsPlayed = 0,
 ) {
 	const played = Math.max(0, Math.floor(ballsPlayed || 0));
-	// Bonus balls never land in the spin pocket; force the flag off for animation.
-	stateGame.authoritativeBonusOutcomes = (outcomes ?? []).map((outcome) => ({
-		...outcome,
-		hitSpinSlot: false,
-	}));
+	stateGame.authoritativeBonusOutcomes = normalizeBonusOutcomes(outcomes);
 	stateGame.authoritativeBonusOutcomeIndex = played;
 	const remaining = Math.max(0, Math.floor(freeBalls || 0) - played);
 	if (level > 0) {
@@ -205,7 +222,7 @@ export function enqueueAuthoritativeBonusLevel(
 		...stateGame.authoritativeBonusLevelQueue,
 		{
 			freeBalls: Math.max(0, Math.floor(freeBalls || 0)),
-			outcomes: (outcomes ?? []).map((outcome) => ({ ...outcome, hitSpinSlot: false })),
+			outcomes: normalizeBonusOutcomes(outcomes),
 			level: Math.max(1, Math.floor(level || 1)),
 		},
 	];
@@ -213,10 +230,7 @@ export function enqueueAuthoritativeBonusLevel(
 
 /** True when the entry-level bonus balls (already awarded by the wheel) just need their outcomes. */
 export function loadAuthoritativeBonusOutcomes(outcomes: PlinkoBallOutcome[], ballsPlayed = 0) {
-	stateGame.authoritativeBonusOutcomes = (outcomes ?? []).map((outcome) => ({
-		...outcome,
-		hitSpinSlot: false,
-	}));
+	stateGame.authoritativeBonusOutcomes = normalizeBonusOutcomes(outcomes);
 	stateGame.authoritativeBonusOutcomeIndex = Math.max(0, Math.floor(ballsPlayed || 0));
 }
 

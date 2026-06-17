@@ -27,6 +27,8 @@ export class BonusMeterEngine {
   private fillAlphaHeight = 0;
   /** Left tip of fill art — used when meter is empty (ray at π hits the bottom edge instead). */
   private fillStartTipLocal?: { x: number; y: number };
+  /** Right tip of fill art — used near full (ray at 2π runs off the texture's bottom edge). */
+  private fillEndTipLocal?: { x: number; y: number };
   markerLeftPx: number = 0;
   markerTopPx: number = 0;
   markerSizePx: number = 10;
@@ -166,9 +168,21 @@ export class BonusMeterEngine {
       this.setMarkerPosition(this.toWorldX(this.fillStartTipLocal.x), this.toWorldY(this.fillStartTipLocal.y));
       return;
     }
+    if (clampedProgress >= 1 - epsilon && this.fillEndTipLocal) {
+      this.setMarkerPosition(this.toWorldX(this.fillEndTipLocal.x), this.toWorldY(this.fillEndTipLocal.y));
+      return;
+    }
     const sampledPos = this.getMarkerPositionFromFillTexture(markerAngle);
     if (sampledPos) {
       this.setMarkerPosition(sampledPos.x, sampledPos.y);
+      return;
+    }
+    // Near either end of the flattened arch the leading ray runs almost horizontal
+    // and can miss every texel; snap to the actual art tip on the matching side so
+    // the marker stays on the fill edge instead of dropping to the baseline below.
+    const nullFallbackTip = clampedProgress >= 0.5 ? this.fillEndTipLocal : this.fillStartTipLocal;
+    if (nullFallbackTip) {
+      this.setMarkerPosition(this.toWorldX(nullFallbackTip.x), this.toWorldY(nullFallbackTip.y));
       return;
     }
     const fallbackRadius = Math.max(0, radius + this.meterNativeHeight * this.markerRadiusOffsetByHeight);
@@ -196,43 +210,64 @@ export class BonusMeterEngine {
       this.fillAlphaData = imageData.data;
       this.fillAlphaWidth = width;
       this.fillAlphaHeight = height;
-      this.cacheFillStartTip();
+      this.cacheFillTips();
     } catch {
       this.fillAlphaData = undefined;
       this.fillAlphaWidth = 0;
       this.fillAlphaHeight = 0;
       this.fillStartTipLocal = undefined;
+      this.fillEndTipLocal = undefined;
     }
   }
 
-  /** Leftmost opaque point on the fill texture (top of left edge = arc start). */
-  private cacheFillStartTip(): void {
+  /**
+   * Endpoints of the fill arch in texture space, each taken at the vertical center
+   * of its extreme opaque column so they match the band-center the ray sampler uses.
+   * Used when the leading ray runs ~horizontal near the ends and samples nothing:
+   * - start = leftmost opaque column (arc start, meter empty),
+   * - end   = rightmost opaque column (arc end, meter full).
+   */
+  private cacheFillTips(): void {
     if (!this.fillAlphaData || !this.fillAlphaWidth || !this.fillAlphaHeight) {
       this.fillStartTipLocal = undefined;
+      this.fillEndTipLocal = undefined;
       return;
     }
     const threshold = 20;
-    let minX = this.fillAlphaWidth;
-    let minYAtMinX = this.fillAlphaHeight;
+    const w = this.fillAlphaWidth;
+    const h = this.fillAlphaHeight;
+    let minX = w;
+    let minXTop = h;
+    let minXBot = -1;
+    let maxX = -1;
+    let maxXTop = h;
+    let maxXBot = -1;
 
-    for (let y = 0; y < this.fillAlphaHeight; y++) {
-      for (let x = 0; x < this.fillAlphaWidth; x++) {
-        const alpha = this.fillAlphaData[(y * this.fillAlphaWidth + x) * 4 + 3];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const alpha = this.fillAlphaData[(y * w + x) * 4 + 3];
         if (alpha <= threshold) continue;
         if (x < minX) {
           minX = x;
-          minYAtMinX = y;
-        } else if (x === minX && y < minYAtMinX) {
-          minYAtMinX = y;
+          minXTop = y;
+          minXBot = y;
+        } else if (x === minX) {
+          if (y < minXTop) minXTop = y;
+          if (y > minXBot) minXBot = y;
+        }
+        if (x > maxX) {
+          maxX = x;
+          maxXTop = y;
+          maxXBot = y;
+        } else if (x === maxX) {
+          if (y < maxXTop) maxXTop = y;
+          if (y > maxXBot) maxXBot = y;
         }
       }
     }
 
-    if (minX >= this.fillAlphaWidth) {
-      this.fillStartTipLocal = undefined;
-      return;
-    }
-    this.fillStartTipLocal = { x: minX, y: minYAtMinX };
+    this.fillStartTipLocal = minX < w ? { x: minX, y: (minXTop + minXBot) / 2 } : undefined;
+    this.fillEndTipLocal = maxX >= 0 ? { x: maxX, y: (maxXTop + maxXBot) / 2 } : undefined;
   }
 
   private getMarkerPositionFromFillTexture(angle: number): { x: number; y: number } | null {
@@ -257,13 +292,30 @@ export class BonusMeterEngine {
       }
     }
     if (firstHit < 0 || lastHit < 0) return null;
-    /** Outer edge of fill along the ray — matches the visible fill leading edge. */
-    const edgeRadius = lastHit;
-    const localX = cx + dx * edgeRadius;
-    const localY = cy + dy * edgeRadius;
+    /**
+     * Leading edge = the outer end of the revealed fill along this ray, i.e. the
+     * glow's visible tip (its rightmost reach). The marker's horizontal position
+     * must match that tip so it sits at the end of the glow rather than lagging
+     * behind it.
+     */
+    const tipLocalX = cx + dx * lastHit;
+    /**
+     * Vertically, center the marker on the band thickness at the tip's column so it
+     * covers the band instead of riding the outer halo (matches the design sample).
+     */
+    const col = Math.max(0, Math.min(texW - 1, Math.round(tipLocalX)));
+    let bandTop = -1;
+    let bandBot = -1;
+    for (let y = 0; y < texH; y++) {
+      if (this.fillAlphaData[(y * texW + col) * 4 + 3] > 20) {
+        if (bandTop < 0) bandTop = y;
+        bandBot = y;
+      }
+    }
+    const tipLocalY = bandTop >= 0 ? (bandTop + bandBot) / 2 : cy + dy * lastHit;
     return {
-      x: this.toWorldX(localX),
-      y: this.toWorldY(localY),
+      x: this.toWorldX(tipLocalX),
+      y: this.toWorldY(tipLocalY),
     };
   }
 
