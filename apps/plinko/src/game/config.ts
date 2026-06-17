@@ -42,6 +42,16 @@ export default {
 			rtp: 0.97,
 			max_win: 1000.0,
 		},
+		// Feature-trigger modes (selected when a meter is full). cost 0 = free; must match the
+		// published math config.json (run.py `set_trigger_mode_costs_free` / `TRIGGER_MODE_COST`).
+		freespinone: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		freespinten: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		freespintwenty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		freespinfifty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		bonusone: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		bonusten: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		bonustwenty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		bonusfifty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 	},
 	/** [rowTierIndex 0..12] → slot multipliers (matches stake-math-sdk plinko_data.COEFFICIENT_SETS). */
 	coefficientSets: tierTable(DEFAULT_SLOT_MULTIPLIERS) as number[][],

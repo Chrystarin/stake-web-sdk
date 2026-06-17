@@ -9,6 +9,7 @@ import { isBonusMeterFull, meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
+import { hasActiveRgsSession } from './plinkoSessionMeters';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
@@ -134,13 +135,28 @@ export function isBonusPlayButtonDisabled(): boolean {
 	);
 }
 
+/**
+ * A meter is full (or a trigger is already queued) so a feature trigger bet is about to / is
+ * auto-firing. Keeps betting controls locked across the gap between the filling round settling
+ * and the trigger round starting (live RGS only — dev-local has no trigger books to fire).
+ */
+export function isFeatureTriggerImminent(): boolean {
+	if (stateGame.pendingFeatureTrigger != null) return true;
+	if (!hasActiveRgsSession()) return false;
+	const spinFull = stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
+	const bonusFull =
+		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
+	return spinFull || bonusFull;
+}
+
 export function isBetControlsLocked(): boolean {
 	return (
 		stateGame.isSubmitting ||
 		stateGame.dropRoundActive ||
 		stateGame.bonusBallsRemaining > 0 ||
 		stateGame.freeSpinRouletteOpen ||
-		stateGame.bonusRouletteOpen
+		stateGame.bonusRouletteOpen ||
+		isFeatureTriggerImminent()
 	);
 }
 
@@ -701,4 +717,39 @@ export function onMainPlayClick(onRegularBet: () => void) {
 		return;
 	}
 	onRegularBet();
+}
+
+/** A round is in progress (anything that should block auto-firing the next trigger bet). */
+function isFeatureTriggerBlocked(): boolean {
+	return (
+		stateGame.pendingFeatureTrigger != null ||
+		stateGame.isSubmitting ||
+		stateGame.dropRoundActive ||
+		stateGame.bonusRoundActive ||
+		stateGame.bonusBallsRemaining > 0 ||
+		stateGame.freeSpinRouletteOpen ||
+		stateGame.bonusRouletteOpen ||
+		stateGame.rouletteFlowInProgress ||
+		isGameOngoing() ||
+		stateXstateDerived.isPlaying()
+	);
+}
+
+/**
+ * Auto-fire a server-authoritative trigger bet when a meter is full. The bet is placed in the
+ * dedicated free-spin / bonus mode (free), so RGS serves a book that triggers the feature and
+ * computes the payout — no client-side trigger or payout. The meter resets from that book.
+ */
+export function maybeAutoFireFeatureTrigger(dispatchBet: () => void): void {
+	// Trigger modes are RGS-only; dev-local play has no trigger books, so skip to avoid an
+	// auto-fire loop on a meter that a local base book can't reset.
+	if (!hasActiveRgsSession()) return;
+	if (isFeatureTriggerBlocked()) return;
+	const spinFull = stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
+	const bonusFull =
+		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
+	if (!spinFull && !bonusFull) return;
+	// Spin takes priority; the other meter (if also full) fires on the next idle evaluation.
+	stateGame.pendingFeatureTrigger = spinFull ? 'spin' : 'bonus';
+	dispatchBet();
 }

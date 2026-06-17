@@ -59,7 +59,6 @@
 	} from '../game/meterFlow';
 
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
-	import { stateXstate } from '../game/stateXstate';
 
 	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
 	import { FreeSpinMeter, FreeSpinRoulette, onFreeSpinRouletteFinished } from '../features/freeSpin';
@@ -204,18 +203,11 @@
 
 	});
 
-	// Auto-fire a server-authoritative trigger bet the moment a meter is full and the round
-	// machine is idle. Tracks both meters + round/machine state so it re-evaluates when a round
-	// fully settles (incl. deferred end-round).
 	$effect(() => {
-		stateGame.spinMeterValue;
-		stateGame.spinMeterMax;
 		stateGame.bonusMeterValue;
 		stateGame.bonusMeterMax;
 		stateGame.dropRoundActive;
-		stateGame.pendingFeatureTrigger;
-		stateXstate.value;
-		maybeAutoFireFeatureTrigger(placeBet);
+		scheduleBonusRouletteIfMeterFullIdle();
 	});
 
 

@@ -7,12 +7,15 @@ import { eventEmitter } from './eventEmitter';
 import { plinkoBallsPerDrop, plinkoPlayAmount, plinkoStakePerBall } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import {
+	addSettledWinAmount,
 	enqueueAuthoritativeBonusLevel,
 	loadAuthoritativeBonusOutcomes,
 	startAuthoritativeBonusRound,
 	waitForBonusRoundCompletion,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
+import { isPlinkoTriggerMode } from './plinkoBetMode';
+import { plinkoDropRawWin } from './plinkoDropSettlement';
 import { applyAuthoritativeSpinMeterMax } from './plinkoMeterConfig';
 import { runFreeSpinTriggerFlow } from '../features/freeSpin';
 import { runBonusRouletteFlow } from '../features/bonus';
@@ -33,7 +36,20 @@ import {
 	plinkoDropStratumMismatchMessage,
 	readBetCriteria,
 } from './plinkoDropBookShape';
-import { buildBetMetaPlayConditions } from './plinkoSessionMeters';
+import {
+	applyBonusMeterBookEvent,
+	applyBonusMeterDisplay,
+	applySpinMeterBookEvent,
+	applySpinMeterDisplay,
+	bonusMeterBookValuesAreBetRelative,
+	buildBetMetaPlayConditions,
+	resolveRgsBonusLevelStart,
+	resolveRgsBonusMeterStart,
+	resolveRgsSpinMeterStart,
+	spinMeterBookValuesAreBetRelative,
+	syncBonusMeterAfterBet,
+	syncSpinMeterAfterBet,
+} from './plinkoSessionMeters';
 import { applyRgsRoundWinFromBookEventAmount } from './rgsRoundWin';
 import {
 	logPlinkoWinMismatchIfNeeded,
@@ -89,6 +105,26 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		if (!stateGame.serverMeterLimitsActive) {
 			meterController.setBallPerDrop(ballsPerDrop);
 		}
+		// Carry the session meters into this bet so they accumulate across rounds instead of
+		// resetting. `betSpinMeterStart` = served book start, or the persisted session value when
+		// the served (random) book ships start 0. Book meter values are then applied relative to it.
+		if (!stateGame.bonusRoundActive) {
+			const roundEvents = stateGame.activeBookEvents;
+			stateGame.betSpinMeterStart = resolveRgsSpinMeterStart(bookEvent);
+			stateGame.betBonusMeterStart = resolveRgsBonusMeterStart(bookEvent);
+			stateGame.betBonusLevelStart = resolveRgsBonusLevelStart(bookEvent);
+			stateGame.spinMeterBookValuesAreBetRelative = spinMeterBookValuesAreBetRelative(
+				roundEvents,
+				stateGame.betSpinMeterStart,
+			);
+			stateGame.bonusMeterBookValuesAreBetRelative = bonusMeterBookValuesAreBetRelative(
+				roundEvents,
+				stateGame.betBonusMeterStart,
+			);
+			// Show the carried-over value at the start of the round (animates upward from here).
+			applySpinMeterDisplay(stateGame.betSpinMeterStart);
+			applyBonusMeterDisplay(stateGame.betBonusMeterStart, stateGame.betBonusLevelStart);
+		}
 		const stakePerBall = plinkoStakePerBall();
 		const bookStake = bookEvent.stakePerBall > 0 ? bookEvent.stakePerBall : 1;
 		stateGame.lastBookStakePerBall = bookStake;
@@ -116,8 +152,16 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 			};
 		});
 		snapshotExpectedWinFromPlaybackOutcomes(stateGame.pendingOutcomes);
-		stateGame.isAnimating = true;
 		stateGame.showWinPopup = false;
+		if (isPlinkoTriggerMode(stateBet.activeBetModeKey)) {
+			// Feature-trigger round: the player just watched the filling round's balls — don't
+			// animate a second base drop. Settle the base win silently so the feature
+			// (free-spin wheel / bonus) runs immediately and multiplies it.
+			addSettledWinAmount(plinkoDropRawWin(stateGame.pendingOutcomes));
+			stateGame.isAnimating = false;
+			return;
+		}
+		stateGame.isAnimating = true;
 		await eventEmitter.broadcastAsync({
 			type: 'plinkoDrop',
 			outcomes: stateGame.pendingOutcomes,
@@ -129,14 +173,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 	spinMeter: async (bookEvent: BookEventOfType<'spinMeter'>) => {
 		stateGame.authoritativeMeterFlow = true;
 		if (bookEvent.max > 0) applyAuthoritativeSpinMeterMax(bookEvent.max);
-		const max = stateGame.spinMeterMax > 0 ? stateGame.spinMeterMax : bookEvent.max;
-		stateGame.spinMeterValue = Math.max(0, Math.min(bookEvent.value, max));
+		// Map the book value onto the carried session meter (bet-relative when the served book
+		// starts at 0), updating both the HUD and the persisted session value.
+		applySpinMeterBookEvent(bookEvent.value);
 	},
 	bonusMeter: async (bookEvent: BookEventOfType<'bonusMeter'>) => {
 		stateGame.authoritativeMeterFlow = true;
-		const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 20;
-		stateGame.bonusMeterValue = Math.max(0, Math.min(bookEvent.value, max));
-		stateGame.bonusMeterLevel = bookEvent.level ?? stateGame.bonusMeterLevel;
+		applyBonusMeterBookEvent(bookEvent.value, bookEvent.level ?? stateGame.bonusMeterLevel);
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 		// Run the free-spin wheel; it lands on the math-authored segment and awaits close.
@@ -229,8 +272,18 @@ export const playBet = async (bet: Bet) => {
 	stateGame.baseRoundDropWinAmount = 0;
 	stateGame.winAmount = 0;
 	stateGame.deferWinPopupForFreeSpin = false;
+	// Per-round feature flags MUST reset each bet, otherwise `syncSpinMeterAfterBet` /
+	// `syncBonusMeterAfterBet` keep treating every later bet as "feature consumed" and wipe the
+	// carried meter to 0 on every bet after a feature once fired.
+	stateGame.freeSpinAwardedThisRound = false;
+	stateGame.freeSpinSettledFromBook = false;
+	if (!stateGame.bonusRoundActive) {
+		stateGame.bonusAwardedThisRound = false;
+	}
 	stateGame.dropRoundActive = true;
 	stateGame.authoritativeBonusLevelQueue = [];
+	// The trigger mode was already captured into `activeBetModeKey`; clear so we don't re-fire.
+	stateGame.pendingFeatureTrigger = null;
 
 	try {
 		stateGame.roundDeferredSettlement = checkIsPlinkoDeferredSettlement(authoritativeBet);
@@ -247,6 +300,10 @@ export const playBet = async (bet: Bet) => {
 				await playBookEvents(settlement);
 			}
 		}
+		// Persist the running meters so they carry into the next round (reset to 0 only when a
+		// free spin / bonus consumed the meter this round).
+		await syncSpinMeterAfterBet(authoritativeEvents);
+		await syncBonusMeterAfterBet(authoritativeEvents);
 	} finally {
 		stateGame.authoritativeMeterFlow = false;
 		await releaseRoundInteractionLocks();

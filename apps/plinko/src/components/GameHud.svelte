@@ -65,6 +65,12 @@
 		stateGame.bonusRouletteOpen;
 		stateGame.dropRoundActive;
 		stateGame.rouletteFlowInProgress;
+		// Keep controls locked across the gap between a meter filling and the trigger round.
+		stateGame.pendingFeatureTrigger;
+		stateGame.spinMeterValue;
+		stateGame.spinMeterMax;
+		stateGame.bonusMeterValue;
+		stateGame.bonusMeterMax;
 		return isBetControlsLocked();
 	});
 	const bonusPlayDisabled = $derived(isBonusPlayButtonDisabled() || props.bonusPlayDisabled);

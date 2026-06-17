@@ -185,7 +185,9 @@ Both features are **server-authoritative**: every trigger chance, wheel result, 
 
 (Level 1 entry balls come from the bonus wheel, `BONUS_ROULETTE_SEGMENTS`.) Meter maxima and wheel/segment tables also live in `constants.ts` and are exported from the math FE config (`config.ts`).
 
-**Core functions:** `bookEventHandlerMap.ts` (event handlers + `playBet`), `gameOrchestrator.ts` (`startAuthoritativeBonusRound`, bonus-ball + level-up flow, settlement), `meterFlow.ts` (meter bumps, roulette open/close), `features/bonus` + `features/freeSpin` (wheels, payout helpers).
+**Meter persistence & triggering.** Meters accumulate across rounds (`game/plinkoSessionMeters.ts`: `applySpinMeterBookEvent` / `syncSpinMeterAfterBet`, carried via play `meta`). Because RGS selects books by `mode` (not `meta`), a **full meter auto-fires a dedicated trigger-mode bet** — `gameOrchestrator.ts:maybeAutoFireFeatureTrigger` → `plinkoBetMode.ts:plinkoActiveBetMode` picks `freespin*` / `bonus*` mode → RGS serves a book that always triggers the feature and computes the payout (no client-side trigger/payout). Trigger modes are published free (`cost 0`); see `crimson_plinko/INTEGRATION.md` for the `TRIGGER_MODE_COST` switch. Auto-fire is gated to live RGS sessions (dev-local has no trigger books).
+
+**Core functions:** `bookEventHandlerMap.ts` (event handlers + `playBet`), `gameOrchestrator.ts` (`startAuthoritativeBonusRound`, bonus-ball + level-up flow, auto-fire trigger, settlement), `meterFlow.ts` (meter bumps, roulette open/close), `features/bonus` + `features/freeSpin` (wheels, payout helpers).
 
 ---
 

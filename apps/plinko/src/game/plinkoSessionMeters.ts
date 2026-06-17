@@ -187,7 +187,7 @@ export function buildBetMetaPlayConditions(): Record<string, unknown> {
 }
 
 /** @deprecated Use `buildBetMetaPlayConditions` */
-export function buildBetMetaSpinMeter(): Record<string, number> {
+export function buildBetMetaSpinMeter(): Record<string, unknown> {
 	return buildBetMetaPlayConditions();
 }
 
@@ -221,7 +221,9 @@ export function spinMeterBookValuesAreBetRelative(
 	betStart?: number,
 ): boolean {
 	const drop = getPlinkoDrop(events);
-	if (drop && resolveRgsSpinMeterStart(drop) > 0) return false;
+	// Only the book's OWN start (RGS honored the meta) means values are session-absolute.
+	// A carried session start over a 0-start book keeps the book values bet-relative.
+	if (drop && (drop.spinMeterStart ?? 0) > 0) return false;
 	const start =
 		betStart ??
 		stateGame.betSpinMeterStart ??
@@ -338,7 +340,8 @@ export function bonusMeterBookValuesAreBetRelative(
 	betStart?: number,
 ): boolean {
 	const drop = getPlinkoDrop(events);
-	if (drop && resolveRgsBonusMeterStart(drop) > 0) return false;
+	// Only the book's OWN start (RGS honored the meta) means values are session-absolute.
+	if (drop && (drop.bonusMeterStart ?? 0) > 0) return false;
 	const start =
 		betStart ??
 		stateGame.betBonusMeterStart ??

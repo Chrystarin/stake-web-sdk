@@ -72,6 +72,8 @@ export const stateGame = $state({
 	bonusSessionWinAmount: 0,
 	/** Set when `bonusRoulette` / `bonusRound` awards balls this wager round. */
 	bonusAwardedThisRound: false,
+	/** Set when a meter is full and the next bet must use the RGS feature-trigger mode. */
+	pendingFeatureTrigger: null as 'spin' | 'bonus' | null,
 	/** When true, meter fills and roulettes follow RGS book events / outcome flags only. */
 	authoritativeMeterFlow: false,
 	/** When true, meter maxima come from config/books — do not tier-scale by balls-per-drop. */

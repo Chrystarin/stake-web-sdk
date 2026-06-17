@@ -3,7 +3,7 @@ import { stateBet, stateConfig } from 'state-shared';
 
 import { BET_PER_BALL_PRESETS } from '../game-logic/constants';
 import config from './config';
-import { plinkoBetModeForBallsPerDrop } from './plinkoBetMode';
+import { plinkoActiveBetMode } from './plinkoBetMode';
 import { stateGame } from './stateGame.svelte';
 
 /** Balls in one paid drop (UI "balls per drop"). */
@@ -16,9 +16,9 @@ export function plinkoStakePerBall(): number {
 	return Math.max(0, Number(stateBet.betAmount) || 0);
 }
 
-/** Published bet-mode cost (balls per tier). RGS debit = play amount × cost. */
+/** Published cost of the active bet mode (balls per tier, or 0 for a free feature-trigger mode). */
 export function plinkoBetModeCost(): number {
-	const mode = plinkoBetModeForBallsPerDrop(plinkoBallsPerDrop());
+	const mode = plinkoActiveBetMode();
 	const modeConfig = config.betModes[mode as keyof typeof config.betModes];
 	return modeConfig?.cost ?? plinkoBallsPerDrop();
 }
@@ -89,7 +89,8 @@ export function plinkoWagerAmount(): number {
 
 export function canAffordPlinkoWager(): boolean {
 	const wager = plinkoWagerAmount();
-	return wager > 0 && wager <= stateBet.balanceAmount;
+	// A free feature-trigger bet has wager 0 — still affordable.
+	return wager >= 0 && wager <= stateBet.balanceAmount;
 }
 
 /** Max affordable per-ball stake for the current tier and balance. */
