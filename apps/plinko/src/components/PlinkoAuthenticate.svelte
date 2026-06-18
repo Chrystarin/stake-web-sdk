@@ -9,11 +9,13 @@
 	import {
 		maxAffordableStakePerBall,
 		plinkoPlayAmount,
+		plinkoStakePerBallOptions,
 		plinkoWagerAmount,
 		snapStakeToBetLevels,
 	} from '../game/plinkoBet';
 import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
+	import { stateXstateDerived } from '../game/stateXstate';
 	import { applyRgsSessionMetersToDisplay } from '../game/plinkoSessionMeters';
 
 	type Props = { children: Snippet };
@@ -35,9 +37,22 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 		return opts[0] ?? config.minBet;
 	}
 
-	function seedSessionDefaults(): void {
-		syncPlinkoBetModeFromUi();
+	/**
+	 * A bet is in flight: RGS has already debited the wager but not yet credited the win, so the
+	 * balance is transiently low. Re-validating the stake against it here would clamp bet-per-ball
+	 * down to a tiny value (e.g. 50 → 1) and reset `wageredBetAmount`, which corrupts the win
+	 * display (it scales `payoutMultiplier` by `wageredBetAmount`). Only seed/clamp when idle, so
+	 * the balance the clamp sees is the true settled balance.
+	 */
+	function isRoundInProgress(): boolean {
+		return (
+			stateGame.isSubmitting ||
+			stateGame.dropRoundActive ||
+			stateXstateDerived.isPlaying()
+		);
+	}
 
+	function seedBetAmountOptions(): void {
 		if (!stateConfig.betAmountOptions?.length) {
 			const opts = BET_PER_BALL_PRESETS.filter(
 				(v) => v >= config.minBet && v <= config.maxBet,
@@ -45,6 +60,16 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 			stateConfig.betAmountOptions = [...opts];
 			stateConfig.betMenuOptions = [...opts];
 		}
+	}
+
+	function seedSessionDefaults(): void {
+		// Balance-independent setup is always safe to (re)apply.
+		seedBetAmountOptions();
+
+		// Never shrink the player's chosen stake against a mid-round (debited) balance.
+		if (isRoundInProgress()) return;
+
+		syncPlinkoBetModeFromUi();
 
 		if (stateBet.betAmount <= 0) {
 			stateBet.betAmount = pickAffordableStakePerBall();
