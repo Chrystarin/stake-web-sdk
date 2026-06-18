@@ -42,6 +42,8 @@ export class BonusMeterEngine {
   // Fallback marker alignment if texture sampling is unavailable.
   private readonly markerRadiusOffsetByHeight = -0.2;
   private readonly markerAngleOffsetRad = 0.0;
+  // Nudge marker downward by this fraction of markerSizePx (positive = lower).
+  private readonly markerVerticalNudgeFraction = 0.25;
 
 	async init(host: HTMLElement): Promise<void> {
 		this.hostElement = host;
@@ -118,9 +120,13 @@ export class BonusMeterEngine {
 
   private resizeToHost(): void {
     if (!this.app || !this.baseSprite || !this.meterSprite) return;
-    const hostRect = this.hostElement.getBoundingClientRect();
-    const width = Math.max(1, Math.round(hostRect.width));
-    const height = Math.max(1, Math.round(hostRect.height));
+    // Use layout dimensions (offsetWidth/offsetHeight), not getBoundingClientRect, so that
+    // PixiJS world coordinates are in the same CSS-pixel space as the HTML marker overlay.
+    // getBoundingClientRect returns post-transform visual pixels; when an ancestor has a CSS
+    // scale() (e.g. .container scale(1.1)), the canvas buffer would be sized larger than the
+    // element's own layout box, causing the marker's CSS left/top to diverge from the fill tip.
+    const width = Math.max(1, Math.round(this.hostElement.offsetWidth));
+    const height = Math.max(1, Math.round(this.hostElement.offsetHeight));
     this.app.renderer.resize(width, height);
 
     const baseWidth = this.baseSprite.texture.width || 1;
@@ -233,7 +239,9 @@ export class BonusMeterEngine {
       this.fillEndTipLocal = undefined;
       return;
     }
-    const threshold = 20;
+    // Use the same solid threshold as the ray sampler so tips land on the solid fill
+    // core, not the faint outer glow, keeping the marker aligned at progress ≈ 0 / 1.
+    const threshold = 80;
     const w = this.fillAlphaWidth;
     const h = this.fillAlphaHeight;
     let minX = w;
@@ -274,38 +282,42 @@ export class BonusMeterEngine {
     if (!this.fillTexture || !this.fillAlphaData || !this.fillAlphaWidth || !this.fillAlphaHeight) return null;
     const texW = this.fillAlphaWidth;
     const texH = this.fillAlphaHeight;
-    const cx = texW / 2;
-    const cy = texH;
+    const scaleX = this.meterNativeWidth / texW;
+    const scaleY = this.meterNativeHeight / texH;
+
+    // Cast the ray in WORLD space so non-uniform texture scaling doesn't skew the angle.
+    // The mask arc uses world-space geometry; sampling in texture space at the same numeric
+    // angle introduces drift whenever scaleX ≠ scaleY (different at higher progress values).
+    const worldCx = this.meterOffsetXPx + this.meterNativeWidth / 2;
+    const worldCy = this.meterOffsetYPx + this.meterNativeHeight;
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
-    const maxRadius = Math.hypot(texW, texH);
+    const maxRadius = Math.max(this.meterNativeWidth, this.meterNativeHeight);
+
     let firstHit = -1;
     let lastHit = -1;
+    let lastSolidHit = -1;
     for (let r = 0; r <= maxRadius; r += 0.5) {
-      const x = Math.round(cx + dx * r);
-      const y = Math.round(cy + dy * r);
-      if (x < 0 || x >= texW || y < 0 || y >= texH) continue;
-      const alpha = this.fillAlphaData[(y * texW + x) * 4 + 3];
+      const worldX = worldCx + dx * r;
+      const worldY = worldCy + dy * r;
+      const texX = Math.round((worldX - this.meterOffsetXPx) / scaleX);
+      const texY = Math.round((worldY - this.meterOffsetYPx) / scaleY);
+      if (texX < 0 || texX >= texW || texY < 0 || texY >= texH) continue;
+      const alpha = this.fillAlphaData[(texY * texW + texX) * 4 + 3];
       if (alpha > 20) {
         if (firstHit < 0) firstHit = r;
         lastHit = r;
       }
+      // Track the outer edge of the solid fill core (excluding the faint outer glow).
+      if (alpha > 80) lastSolidHit = r;
     }
     if (firstHit < 0 || lastHit < 0) return null;
-    /**
-     * The mask reveals the fill up to the radial line at this angle, so the meter's
-     * visible leading edge is where that ray crosses the fill band. Place the marker
-     * at the MIDPOINT of the opaque span along the ray — that centers it on the solid
-     * band at the fill's tip (matching the design sample). Using `lastHit` (the outer
-     * reach) instead parked the marker on the faint glow's far edge, leaving a visible
-     * gap between the white indicator and the solid blue fill.
-     */
-    const tipRadius = (firstHit + lastHit) / 2;
-    const tipLocalX = cx + dx * tipRadius;
-    const tipLocalY = cy + dy * tipRadius;
+    // Place marker at the outer solid-fill edge so it sits right on the visible tip.
+    // midpoint was still offset at higher progress; lastHit overshoots into the glow.
+    const tipR = lastSolidHit >= 0 ? lastSolidHit : (firstHit + lastHit) / 2;
     return {
-      x: this.toWorldX(tipLocalX),
-      y: this.toWorldY(tipLocalY),
+      x: worldCx + dx * tipR,
+      y: worldCy + dy * tipR,
     };
   }
 
@@ -330,7 +342,7 @@ export class BonusMeterEngine {
 
   private setMarkerPosition(x: number, y: number): void {
     this.markerLeftPx = x;
-    this.markerTopPx = y;
+    this.markerTopPx = y + this.markerSizePx * this.markerVerticalNudgeFraction;
   }
 
   private setTargetProgress(value: number): void {
