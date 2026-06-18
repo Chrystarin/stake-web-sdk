@@ -1344,6 +1344,12 @@
 		--bonus-overlay-scale-mobile: var(--bonus-overlay-scale);
 		--bonus-overlay-offset-x-mobile: var(--bonus-overlay-offset-x);
 		--bonus-overlay-offset-y-mobile: var(--bonus-overlay-offset-y);
+		/* === Mobile bonus meter tweaks — safe to adjust without affecting desktop === */
+		--mobile-bonus-meter-scale: .95;           /* overall size multiplier (>1 = bigger) */
+		--mobile-bonus-meter-top-px: 132;        /* vertical position in portrait-px units */
+		--mobile-bonus-meter-left: 51.5%;          /* horizontal center anchor */
+		--mobile-bonus-meter-offset-x-ratio: 0; /* fine-tune X as a fraction of container width */
+		--mobile-bonus-meter-offset-y-ratio: -0.05; /* fine-tune Y as a fraction of game-area height */
 
 		width: 100vw;
 
@@ -1436,15 +1442,15 @@
 	.game-root--mobile .game-area > .container .bonus-meter-wrap {
 
 		top: calc(
-			var(--portrait-px) * 132 +
-				var(--game-area-fit-height) * var(--bonus-meter-offset-y-ratio, 0)
+			var(--portrait-px) * var(--mobile-bonus-meter-top-px) +
+				var(--game-area-fit-height) * var(--mobile-bonus-meter-offset-y-ratio)
 		);
 
-		left: calc(51% + var(--bonus-meter-offset-x-ratio, 0) * 100%);
+		left: calc(var(--mobile-bonus-meter-left) + var(--mobile-bonus-meter-offset-x-ratio) * 100%);
 
-		width: calc(var(--portrait-px) * 258);
+		width: calc(var(--portrait-px) * 258 * var(--mobile-bonus-meter-scale));
 
-		height: calc(var(--portrait-px) * 198);
+		height: calc(var(--portrait-px) * 198 * var(--mobile-bonus-meter-scale));
 
 		transform: translateX(-50%);
 
