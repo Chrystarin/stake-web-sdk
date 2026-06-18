@@ -7,13 +7,15 @@ import { eventEmitter } from './eventEmitter';
 import { plinkoBallsPerDrop, plinkoPlayAmount, plinkoStakePerBall } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import {
+	addSettledWinAmount,
 	enqueueAuthoritativeBonusLevel,
 	loadAuthoritativeBonusOutcomes,
 	startAuthoritativeBonusRound,
 	waitForBonusRoundCompletion,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
-import { isPlinkoBonusTriggerMode } from './plinkoBetMode';
+import { isPlinkoTriggerMode } from './plinkoBetMode';
+import { plinkoDropRawWin } from './plinkoDropSettlement';
 import { applyAuthoritativeSpinMeterMax } from './plinkoMeterConfig';
 import { runFreeSpinTriggerFlow } from '../features/freeSpin';
 import { runBonusRouletteFlow } from '../features/bonus';
@@ -69,6 +71,18 @@ const FEATURE_EVENT_TYPES = new Set<BookEvent['type']>([
 /** True when the served book carries authoritative meter / feature events. */
 function bookHasFeatureEvents(events: BookEvent[]): boolean {
 	return events.some((event) => FEATURE_EVENT_TYPES.has(event.type));
+}
+
+/**
+ * True when THIS settling round is a base round that just filled the spin meter (so the client will
+ * auto-fire a free spin next). Its win modal is suppressed — the free spin shows ONE combined modal
+ * after the roulette, instead of this round flashing a modal first and then the feature firing.
+ * Excludes the trigger bet itself (it must show the final modal) and dev-local (no auto-fire there).
+ */
+function freeSpinWillFireAfterThisRound(): boolean {
+	if (isPlinkoTriggerMode(stateBet.activeBetModeKey)) return false;
+	if (!hasActiveRgsSession()) return false;
+	return stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
 }
 
 export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent').BookEvent, BookEventContext> = {
@@ -151,11 +165,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		});
 		snapshotExpectedWinFromPlaybackOutcomes(stateGame.pendingOutcomes);
 		stateGame.showWinPopup = false;
-		if (isPlinkoBonusTriggerMode(stateBet.activeBetModeKey)) {
-			// Bonus trigger round: the book carries an EMPTY initial drop (the bonus balls arrive via
-			// `bonusRound`), so there is nothing to animate or settle here. The free-spin mode is NOT
-			// skipped — it is a real paid spin whose balls animate below and are then multiplied by
-			// the zero-sum wheel.
+		if (isPlinkoTriggerMode(stateBet.activeBetModeKey)) {
+			// Feature-trigger round: do NOT animate a second drop. The free spin must feel like it
+			// fires ON the round that filled the meter — the player just watched those balls, so a
+			// visible re-drop here looks like "another bet". Accumulate the re-drop win SILENTLY (it
+			// is the wheel's base, via `getFreeSpinBaseRoundWin`) without touching the HUD, which
+			// holds the carried filling-round win until the roulette resolves and the win climbs.
+			// (The bonus trigger book carries an empty drop → this is a no-op for it.)
+			addSettledWinAmount(plinkoDropRawWin(stateGame.pendingOutcomes), false);
 			stateGame.isAnimating = false;
 			return;
 		}
@@ -223,13 +240,20 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		await waitForDropBatchCompletion();
 		logPlinkoWinMismatchIfNeeded(bookEvent.amount, 'finalWin');
 		const payoutMultiplier = bookEvent.amount / 100;
-		if (payoutMultiplier > 0) {
+		if (freeSpinWillFireAfterThisRound()) {
+			// Filling round that just maxed the spin meter: apply the win to the HUD but DON'T pop the
+			// modal — the imminent free spin shows one combined modal after the roulette.
 			applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
-			stateGame.winPopupMultiplier = payoutMultiplier;
-			if (!stateGame.showWinPopup) {
-				stateGame.showWinPopup = true;
-				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
-			}
+			return;
+		}
+		// `applyRgsRoundWinFromBookEventAmount` adds the carried filling-round win (0 on normal bets),
+		// so on a free-spin trigger bet the popup shows the running total even if the re-drop won 0.
+		const currencyWin = applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
+		const totalWin = currencyWin + (stateGame.featureCarryWinAmount || 0);
+		if (payoutMultiplier > 0) stateGame.winPopupMultiplier = payoutMultiplier;
+		if (totalWin > 0 && !stateGame.showWinPopup) {
+			stateGame.showWinPopup = true;
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
 		}
 	},
 };
@@ -265,10 +289,16 @@ export const playBet = async (bet: Bet) => {
 	// credits `amount × payoutMultiplier`, so the displayed win then matches the balance credit.
 	stateBet.wageredBetAmount = plinkoPlayAmount();
 	stateBet.winBookEventAmount = 0;
+	// An auto-fired feature trigger bet (`pendingFeatureTrigger` set) continues the round that filled
+	// the meter — the feature is FREE, on top of that round's win. Carry that win so the HUD/popup
+	// hold it (and the silent re-drop / roulette climb from it) instead of flickering to 0 then
+	// jumping. A normal bet starts fresh, so the carry resets to 0.
+	stateGame.featureCarryWinAmount =
+		stateGame.pendingFeatureTrigger != null ? stateGame.winAmount : 0;
 	resetWinReconciliation();
 	stateGame.pendingDropWinAmount = 0;
 	stateGame.baseRoundDropWinAmount = 0;
-	stateGame.winAmount = 0;
+	stateGame.winAmount = stateGame.featureCarryWinAmount;
 	stateGame.deferWinPopupForFreeSpin = false;
 	// Per-round feature flags MUST reset each bet, otherwise `syncSpinMeterAfterBet` /
 	// `syncBonusMeterAfterBet` keep treating every later bet as "feature consumed" and wipe the

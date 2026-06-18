@@ -39,21 +39,27 @@ export function resolveRgsRoundWinCurrency(
  */
 export function applyRgsRoundWinDisplayFromCurrencyWin(currencyWin: number): void {
 	const wager = stateBet.wageredBetAmount;
+	// On an auto-fired feature-trigger bet the displayed win continues the round that filled the
+	// meter (`featureCarryWinAmount`), so the HUD keeps climbing and never drops; 0 on normal bets.
+	const carry = stateGame.featureCarryWinAmount || 0;
 	if (wager <= 0 || currencyWin <= 0) {
 		stateBet.winBookEventAmount = 0;
-		stateGame.winAmount = 0;
+		stateGame.winAmount = carry;
 		return;
 	}
 	stateBet.winBookEventAmount = plinkoNormalizedSettlementAmount(currencyWin, wager);
-	stateGame.winAmount = currencyWin;
+	stateGame.winAmount = currencyWin + carry;
 }
 
 /** Sync betting panel, HUD, and win popup from served-book settlement (`setTotalWin` / `finalWin`). */
 export function applyRgsRoundWinFromBookEventAmount(bookEventAmount: number): number {
 	stateBet.winBookEventAmount = bookEventAmount;
 	const currencyWin = bookEventAmountToNormalisedAmount(bookEventAmount);
-	stateGame.winAmount = currencyWin;
-	stateGame.winPopupAmount = currencyWin;
+	// Feature-trigger bets show their win on top of the round that triggered them (carry); the
+	// returned value is this bet's own win so feature math (multipliers) stays correct.
+	const carry = stateGame.featureCarryWinAmount || 0;
+	stateGame.winAmount = currencyWin + carry;
+	stateGame.winPopupAmount = currencyWin + carry;
 	return currencyWin;
 }
 

@@ -69,6 +69,11 @@ export const stateGame = $state({
 	/** Base-game drop win snapshotted when a bonus round starts (preserved through bonus play). */
 	baseRoundDropWinAmount: 0,
 	winAmount: 0,
+	/** Win carried from the round that filled a meter into the FREE feature trigger bet it auto-fires.
+	 * The trigger bet is a separate (free) RGS bet, so the HUD/popup show the running total (filling
+	 * win + feature win) and never flicker to 0 or drop. 0 for normal bets; set in `playBet` when
+	 * `pendingFeatureTrigger != null`. */
+	featureCarryWinAmount: 0,
 	bonusSessionWinAmount: 0,
 	/** Set when `bonusRoulette` / `bonusRound` awards balls this wager round. */
 	bonusAwardedThisRound: false,
