@@ -1,6 +1,7 @@
 import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet } from 'state-shared';
 import { createPrimaryMachines, createIntermediateMachines, createGameActor } from 'utils-xstate';
+import { getRgsErrorBalanceApiAmount, isInsufficientBalanceError } from 'utils-shared/rgsError';
 
 import { stateGame } from './stateGame.svelte';
 import { canAffordPlinkoWager, syncPlinkoPlayAmountFromBetLevels } from './plinkoBet';
@@ -11,7 +12,11 @@ import {
 	deriveSpinMeterFromBookEvents,
 } from './plinkoSessionMeters';
 import { checkIsPlinkoDeferredSettlement } from './plinkoRoundSettlement';
-import { getPlinkoBetType, syncPlinkoWalletAfterRound } from './plinkoWalletSync';
+import {
+	getPlinkoBetType,
+	refreshWalletBalanceFromRgs,
+	syncPlinkoWalletAfterRound,
+} from './plinkoWalletSync';
 import type { Bet } from './typesBookEvent';
 import { closeActiveRgsRound } from './plinkoActiveRound';
 import { releaseRoundInteractionLocks } from './meterFlow';
@@ -46,6 +51,23 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	},
 	onNewGameError: async (error) => {
 		releaseRoundInteractionLocks();
+		if (isInsufficientBalanceError(error)) {
+			// Recoverable: the rejected play was never debited. Stop autoplay so the loop doesn't keep
+			// re-firing the same unaffordable bet, clear any pending feature trigger, and re-sync the
+			// authoritative balance (from the error payload if present, else a fresh wallet read) so
+			// the HUD shows the true funds. No fatal error modal — the shared handler shows the
+			// friendly "insufficient funds" message instead.
+			stateGame.autoPlayStopping = true;
+			stateGame.autoMode = false;
+			stateGame.pendingFeatureTrigger = null;
+			const balanceApi = getRgsErrorBalanceApiAmount(error);
+			if (balanceApi !== undefined) {
+				stateBet.balanceAmount = balanceApi / API_AMOUNT_MULTIPLIER;
+			} else {
+				await refreshWalletBalanceFromRgs();
+			}
+			return;
+		}
 		const payload = error as { error?: string; message?: string } | undefined;
 		if (payload?.error === 'ERR_VAL' && String(payload?.message ?? '').toLowerCase().includes('amount')) {
 			console.error('[plinko] /wallet/play rejected — republish math with tier modes (baseone/baseten/…) if mode is not `base`', {

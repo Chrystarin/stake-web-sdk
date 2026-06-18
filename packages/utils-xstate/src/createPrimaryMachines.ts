@@ -3,6 +3,7 @@ import { fromPromise } from 'xstate';
 import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet, stateUrlDerived, stateModal } from 'state-shared';
 import { requestBet, requestEndRound } from 'rgs-requests';
+import { isInsufficientBalanceError } from 'utils-shared/rgsError';
 
 import type { BaseBet } from './types';
 
@@ -43,7 +44,14 @@ const handleRequestBet = async ({
 	} catch (error) {
 		onError(error);
 		stateBet.autoSpinsCounter = 0;
-		stateModal.modal = { name: 'error', error };
+		// An insufficient-balance rejection (`ERR_IPB`) is a normal, recoverable condition — the
+		// wallet can briefly lag a just-settled win during fast auto / feature-trigger cycling, so a
+		// play the client believed affordable is refused. Surface the friendly "insufficient funds"
+		// message and let the game re-sync its balance, instead of the fatal "something went wrong"
+		// error modal that interrupts the session.
+		stateModal.modal = isInsufficientBalanceError(error)
+			? { name: 'autoSpinMessage', message: 'insufficientFunds' }
+			: { name: 'error', error };
 		console.error(error);
 		throw error;
 	}
