@@ -278,6 +278,13 @@ export const playBet = async (bet: Bet) => {
 	if (!stateGame.bonusRoundActive) {
 		stateGame.bonusAwardedThisRound = false;
 	}
+	// Per-ball meter-credit dedup is per drop. These sets were never cleared, so once the Pixi
+	// engine is rebuilt (HMR / remount / orientation change) its ball IDs restart at 1 and collide
+	// with stale IDs — which silently suppressed the live meter fill, freezing the meter during the
+	// drop and then snapping it to the book value afterwards. Reset each round so every drop's
+	// spin-slot / coin-peg hits credit the meter in real time.
+	stateGame.spinSlotMeterCreditedBallIds = new Set();
+	stateGame.bonusPegMeterCreditedBallIds = new Set();
 	stateGame.dropRoundActive = true;
 	stateGame.authoritativeBonusLevelQueue = [];
 	// The trigger mode was already captured into `activeBetModeKey`; clear so we don't re-fire.

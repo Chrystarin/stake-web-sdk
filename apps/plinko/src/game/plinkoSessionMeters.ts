@@ -70,87 +70,42 @@ export function getDevRgsBonusLevel(): number {
 }
 
 /**
- * Spin meter at bet start.
- * - RGS-injected `spinMeterStart` > 0 (session carry-over from live RGS).
- * - Published lookup-table books always ship `spinMeterStart: 0` — ignore when session meter > 0.
- * - Explicit 0 with empty session meter (after free spin or first bet).
- * - Field absent: use in-memory session meter / dev mirror.
+ * Spin meter at bet start = the carried CLIENT SESSION meter (the player's progress).
+ *
+ * The served book's `spinMeterStart` is deliberately ignored: RGS selects books weighted-random by
+ * `mode` and does NOT honor the play `meta`, so that field is the book's generation stratum (0, or a
+ * carry-over stratum up to near-max), NOT this player's meter. Trusting it snapped the meter up to a
+ * random stratum the instant a bet was placed ("sudden massive boost"). Book values are instead
+ * mapped onto this session value as a delta from the book's own start (`spinMeterSessionValueFromBook`).
  */
 export function resolveRgsSpinMeterStart(
-	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
+	_bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	const sessionMeter = getRgsSessionSpinMeter();
-	const raw = bookEvent.spinMeterStart;
-
-	if (raw != null && raw > 0) {
-		return Math.max(0, Math.floor(raw));
-	}
-
-	// Lookup-table publish files bake in spinMeterStart: 0 for every book — not a session reset.
-	if (raw === 0 && sessionMeter > 0) {
-		return sessionMeter;
-	}
-
-	if (raw != null) {
-		return 0;
-	}
-
 	if (!hasActiveRgsSession()) return devRgsSpinMeter;
-	return sessionMeter;
+	return getRgsSessionSpinMeter();
 }
 
 /**
- * Bonus meter at bet start.
- * - RGS-injected `bonusMeterStart` > 0 (session carry-over from live RGS).
- * - Published lookup-table books always ship `bonusMeterStart: 0` — ignore when session meter > 0.
- * - Explicit 0 with empty session meter (after bonus trigger or first bet).
- * - Field absent: use in-memory session meter / dev mirror.
+ * Bonus meter at bet start = the carried CLIENT SESSION meter — see `resolveRgsSpinMeterStart` for
+ * why the served book's `bonusMeterStart` (a weighted-random generation stratum, up to near-max) is
+ * ignored: trusting it boosted the bonus meter to that stratum (and could false-trigger the bonus)
+ * the moment a bet was placed.
  */
 export function resolveRgsBonusMeterStart(
-	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
+	_bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	const sessionMeter = getRgsSessionBonusMeter();
-	const raw = bookEvent.bonusMeterStart;
-
-	if (raw != null && raw > 0) {
-		return Math.max(0, Math.floor(raw));
-	}
-
-	if (raw === 0 && sessionMeter > 0) {
-		return sessionMeter;
-	}
-
-	if (raw != null) {
-		return 0;
-	}
-
 	if (!hasActiveRgsSession()) return devRgsBonusMeter;
-	return sessionMeter;
+	return getRgsSessionBonusMeter();
 }
 
 /**
- * Bonus level at bet start — same carry-over rules as `resolveRgsBonusMeterStart`.
+ * Bonus level at bet start = the carried CLIENT SESSION level (book stratum ignored, as above).
  */
 export function resolveRgsBonusLevelStart(
-	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
+	_bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	const sessionLevel = getRgsSessionBonusLevel();
-	const raw = bookEvent.bonusLevelStart;
-
-	if (raw != null && raw > 0) {
-		return Math.max(0, Math.floor(raw));
-	}
-
-	if (raw === 0 && sessionLevel > 0) {
-		return sessionLevel;
-	}
-
-	if (raw != null) {
-		return 0;
-	}
-
 	if (!hasActiveRgsSession()) return devRgsBonusLevel;
-	return sessionLevel;
+	return getRgsSessionBonusLevel();
 }
 
 /** Normalized stake in math `plinko_conditions` — real currency is `/wallet/play` `amount`. */
@@ -244,8 +199,15 @@ export function spinMeterSessionValueFromBook(
 	betStart: number,
 	betRelative: boolean,
 ): number {
-	const raw = betRelative ? betStart + bookValue : bookValue;
-	return Math.max(0, Math.floor(raw));
+	// Book meter values are cumulative from the BOOK's OWN generation start. For lookup books that is
+	// 0 (bet-relative). For a carry-over stratum book it is the stratum the book was generated for —
+	// a weighted-random value RGS picked (it ignores the play meta), NOT the player's progress. Map
+	// every value onto the carried session as a delta from the book's own start so a high-stratum
+	// book can never boost the player's meter the moment a bet is placed.
+	const bookOwnStart = betRelative
+		? 0
+		: getPlinkoDrop(stateGame.activeBookEvents)?.spinMeterStart ?? 0;
+	return Math.max(0, Math.floor(betStart + (Math.floor(bookValue) - bookOwnStart)));
 }
 
 /** Derive authoritative session spin meter from RGS book events. */
@@ -362,8 +324,13 @@ export function bonusMeterSessionValueFromBook(
 	betStart: number,
 	betRelative: boolean,
 ): number {
-	const raw = betRelative ? betStart + bookValue : bookValue;
-	return Math.max(0, Math.floor(raw));
+	// See `spinMeterSessionValueFromBook`: remap the book value as a delta from the BOOK's own start
+	// onto the carried session, so a served carry-over stratum book (RGS picks books weighted-random,
+	// ignoring the meta) can't snap the bonus meter up to its stratum on bet placement.
+	const bookOwnStart = betRelative
+		? 0
+		: getPlinkoDrop(stateGame.activeBookEvents)?.bonusMeterStart ?? 0;
+	return Math.max(0, Math.floor(betStart + (Math.floor(bookValue) - bookOwnStart)));
 }
 
 export type DerivedBonusMeterState = { value: number; level: number };
@@ -393,9 +360,14 @@ export function deriveBonusMeterFromBookEvents(events: BookEvent[]): DerivedBonu
 	let bonusConsumed = false;
 	for (const event of events) {
 		if (event.type === 'bonusMeter') {
-			bonusMeter = bonusMeterSessionValueFromBook(event.value, betStart, betRelative);
+			// Clamp to max but NEVER auto-zero on reaching max: base modes suppress the in-drop
+			// feature, so a full meter must CARRY OVER (the trigger mode fires it next bet). Only a
+			// real consumption (`bonusRoulette` below) resets the meter — handled after the loop.
+			bonusMeter = Math.min(
+				max,
+				bonusMeterSessionValueFromBook(event.value, betStart, betRelative),
+			);
 			bonusLevel = event.level;
-			if (bonusMeter >= max) bonusMeter = 0;
 		}
 		if (event.type === 'bonusRoulette' && !bonusFromFreeSpin) {
 			// Bonus triggered BY the bonus meter (incl. the dedicated bonus trigger mode, which
