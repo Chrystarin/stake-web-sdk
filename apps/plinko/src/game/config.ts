@@ -42,12 +42,13 @@ export default {
 			rtp: 0.97,
 			max_win: 1000.0,
 		},
-		// Feature-trigger modes (selected when a meter is full). cost 0 = free; must match the
-		// published math config.json (run.py `set_trigger_mode_costs_free` / `TRIGGER_MODE_COST`).
-		freespinone: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		freespinten: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		freespintwenty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		freespinfifty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		// Free-spin modes are PAID at the tier cost (a boosted spin is a real spin; the zero-sum wheel
+		// multiplies its own drop). Bonus modes are FREE (cost 0). Must match the published math
+		// config.json (run.py `set_trigger_mode_costs_free` / `TRIGGER_MODE_COST` for bonus only).
+		freespinone: { cost: 1.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		freespinten: { cost: 10.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		freespintwenty: { cost: 20.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		freespinfifty: { cost: 50.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 		bonusone: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 		bonusten: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 		bonustwenty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },

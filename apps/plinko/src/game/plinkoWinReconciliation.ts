@@ -46,9 +46,13 @@ export function logPlinkoWinMismatchIfNeeded(
 		return;
 	}
 
+	// A free-spin round multiplies the drop AFTER the balls land (drop_win × wheel), so the raw
+	// playback outcomes (pre-multiply) intentionally differ from the settled total. Only the settled
+	// ball-land total must still match RGS; skip the outcomes comparisons for these rounds.
+	const compareOutcomes = !stateGame.freeSpinAwardedThisRound;
 	const rgsVsBallLands = !winsRoughlyEqual(actualFromRgs, fromBallLands);
-	const ballLandsVsOutcomes = !winsRoughlyEqual(fromBallLands, fromOutcomes);
-	const rgsVsOutcomes = !winsRoughlyEqual(actualFromRgs, fromOutcomes);
+	const ballLandsVsOutcomes = compareOutcomes && !winsRoughlyEqual(fromBallLands, fromOutcomes);
+	const rgsVsOutcomes = compareOutcomes && !winsRoughlyEqual(actualFromRgs, fromOutcomes);
 
 	if (!rgsVsBallLands && !ballLandsVsOutcomes && !rgsVsOutcomes) return;
 

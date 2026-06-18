@@ -87,6 +87,15 @@
 	const markerYOffsetPx = $derived(
 		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5)}px` : undefined,
 	);
+	// Multiplier labels are drawn dynamically (the wheel art is label-less) so they ALWAYS match
+	// `FREE_SPIN_SEGMENTS` — segment `i` sits at `i*45°` from the top marker, the same angle the
+	// spin lands on (`-winner*45`), so the value under the marker is exactly the math result.
+	const labelRadiusPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * 0.315)}px` : '0px',
+	);
+	const labelFontPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * 0.072)}px` : '0px',
+	);
 
 	function startSpin() {
 		const winner =
@@ -169,9 +178,22 @@
 					class:free-spin-wheel--animating={wheelSpinClass}
 					class:free-spin-wheel--visible={wheelVisible}
 					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-					src={staticUrl('img/free-spin-roulette-wheel.png')}
+					src={staticUrl('img/free-spin-roulette-wheel-empty.png')}
 					alt=""
 				/>
+				<div
+					class="free-spin-wheel-labels"
+					class:free-spin-wheel-labels--animating={wheelSpinClass}
+					class:free-spin-wheel-labels--visible={wheelVisible}
+					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
+					style:--label-radius={labelRadiusPx}
+					style:--label-font-size={labelFontPx}
+					aria-hidden="true"
+				>
+					{#each FREE_SPIN_SEGMENTS as segment, i (i)}
+						<span class="free-spin-wheel-label" style:--seg-angle="{i * 45}deg">{segment}</span>
+					{/each}
+				</div>
 				<img
 					class="free-spin-center-base"
 					style:width={baseWidthPx}
@@ -278,6 +300,47 @@
 	}
 	.free-spin-wheel--animating {
 		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
+	}
+	/* Multiplier labels overlay — rotates in lock-step with the wheel image (same rotation var +
+	   transitions) so each value stays glued to its wedge. Drawn from FREE_SPIN_SEGMENTS, so the
+	   value under the marker is always the math-authored segment. */
+	.free-spin-wheel-labels {
+		position: absolute;
+		inset: 0;
+		z-index: 2;
+		pointer-events: none;
+		transform-origin: 50% 50%;
+		--wheel-rotation-deg: 0deg;
+		transform: translateY(125vh) rotate(var(--wheel-rotation-deg));
+		opacity: 0;
+	}
+	.free-spin-wheel-labels--visible {
+		transform: translateY(0) rotate(var(--wheel-rotation-deg));
+		opacity: 1;
+		transition:
+			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
+			opacity 0.34s ease;
+	}
+	.free-spin-wheel-labels--animating {
+		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
+	}
+	.free-spin-wheel-label {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%) rotate(var(--seg-angle, 0deg))
+			translateY(calc(-1 * var(--label-radius, 0px)));
+		transform-origin: 50% 50%;
+		font-family: 'PotatoSans', sans-serif;
+		font-weight: 800;
+		font-size: var(--label-font-size, 16px);
+		line-height: 1;
+		color: #fff;
+		white-space: nowrap;
+		-webkit-text-stroke: 0.06em #3a1d05;
+		paint-order: stroke fill;
+		text-shadow: 0 0.04em 0.06em rgba(0, 0, 0, 0.55);
+		user-select: none;
 	}
 	.free-spin-center-base {
 		position: absolute;

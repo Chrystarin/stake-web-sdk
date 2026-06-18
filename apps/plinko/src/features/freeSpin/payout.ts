@@ -13,7 +13,7 @@ export function isFreeSpinBonusWheelSegment(segmentLabel: string): boolean {
 	return normalized === 'FREEBONUS' || normalized === 'BONUS';
 }
 
-/** Parse multiplier from wheel labels such as `5X` or `0.5X`. */
+/** Parse multiplier from wheel labels such as `5X` or `1.5X`. */
 export function freeSpinMultiplierFromSegment(segmentLabel: string): number {
 	const numeric = Number.parseFloat(String(segmentLabel).replace(/[^0-9.]/g, ''));
 	return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;

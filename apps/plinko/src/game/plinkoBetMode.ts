@@ -54,13 +54,19 @@ export function bonusTriggerModeForBalls(ballsPerDrop: number): string {
 }
 
 /**
- * The mode the next `/wallet/play` should use: a dedicated trigger mode when a meter is full
- * (`stateGame.pendingFeatureTrigger`), otherwise the normal balls-per-drop tier mode.
+ * The mode the next `/wallet/play` should use:
+ *  - bonus trigger mode when the bonus meter is full (auto-fired free bonus, `pendingFeatureTrigger`);
+ *  - free-spin mode when the spin meter is full — the player's NEXT paid spin is the boosted one
+ *    (the zero-sum wheel multiplies its own drop). No auto-fire and no free debit: it is a normal
+ *    bet the player places, so the balance only ever moves on a real spin.
+ *  - otherwise the normal balls-per-drop tier mode.
  */
 export function plinkoActiveBetMode(): string {
 	const balls = plinkoBallsPerDrop();
-	if (stateGame.pendingFeatureTrigger === 'spin') return freeSpinTriggerModeForBalls(balls);
 	if (stateGame.pendingFeatureTrigger === 'bonus') return bonusTriggerModeForBalls(balls);
+	if (stateGame.pendingFeatureTrigger === 'spin' || isPlinkoSpinMeterFull()) {
+		return freeSpinTriggerModeForBalls(balls);
+	}
 	return plinkoBetModeForBallsPerDrop(balls);
 }
 
@@ -69,13 +75,28 @@ export function syncPlinkoBetModeFromUi(): void {
 	stateBet.activeBetModeKey = plinkoActiveBetMode();
 }
 
-/** True for the dedicated free-spin / bonus trigger modes (no base-drop animation). */
+/** True for the dedicated free-spin / bonus trigger modes. */
 export function isPlinkoTriggerMode(mode: string | undefined): boolean {
 	if (!mode) return false;
 	return (
 		Object.values(PLINKO_FREESPIN_MODE_BY_BALLS).includes(mode) ||
 		Object.values(PLINKO_BONUS_MODE_BY_BALLS).includes(mode)
 	);
+}
+
+/**
+ * True only for the bonus trigger modes, whose book carries an EMPTY initial drop (the bonus balls
+ * come later via `bonusRound`). The free-spin mode is a real, paid, watched spin, so its drop
+ * animates normally; only the bonus drop is skipped.
+ */
+export function isPlinkoBonusTriggerMode(mode: string | undefined): boolean {
+	if (!mode) return false;
+	return Object.values(PLINKO_BONUS_MODE_BY_BALLS).includes(mode);
+}
+
+/** True when the spin meter is full, so the next paid spin is served by the free-spin mode. */
+export function isPlinkoSpinMeterFull(): boolean {
+	return stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
 }
 
 export function ballsPerDropForPlinkoBetMode(mode: string | undefined): number | undefined {

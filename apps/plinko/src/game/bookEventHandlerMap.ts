@@ -7,15 +7,13 @@ import { eventEmitter } from './eventEmitter';
 import { plinkoBallsPerDrop, plinkoPlayAmount, plinkoStakePerBall } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import {
-	addSettledWinAmount,
 	enqueueAuthoritativeBonusLevel,
 	loadAuthoritativeBonusOutcomes,
 	startAuthoritativeBonusRound,
 	waitForBonusRoundCompletion,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
-import { isPlinkoTriggerMode } from './plinkoBetMode';
-import { plinkoDropRawWin } from './plinkoDropSettlement';
+import { isPlinkoBonusTriggerMode } from './plinkoBetMode';
 import { applyAuthoritativeSpinMeterMax } from './plinkoMeterConfig';
 import { runFreeSpinTriggerFlow } from '../features/freeSpin';
 import { runBonusRouletteFlow } from '../features/bonus';
@@ -153,11 +151,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		});
 		snapshotExpectedWinFromPlaybackOutcomes(stateGame.pendingOutcomes);
 		stateGame.showWinPopup = false;
-		if (isPlinkoTriggerMode(stateBet.activeBetModeKey)) {
-			// Feature-trigger round: the player just watched the filling round's balls — don't
-			// animate a second base drop. Settle the base win silently so the feature
-			// (free-spin wheel / bonus) runs immediately and multiplies it.
-			addSettledWinAmount(plinkoDropRawWin(stateGame.pendingOutcomes));
+		if (isPlinkoBonusTriggerMode(stateBet.activeBetModeKey)) {
+			// Bonus trigger round: the book carries an EMPTY initial drop (the bonus balls arrive via
+			// `bonusRound`), so there is nothing to animate or settle here. The free-spin mode is NOT
+			// skipped — it is a real paid spin whose balls animate below and are then multiplied by
+			// the zero-sum wheel.
 			stateGame.isAnimating = false;
 			return;
 		}

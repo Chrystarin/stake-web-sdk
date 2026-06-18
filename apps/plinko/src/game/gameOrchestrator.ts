@@ -144,10 +144,12 @@ export function isBonusPlayButtonDisabled(): boolean {
 export function isFeatureTriggerImminent(): boolean {
 	if (stateGame.pendingFeatureTrigger != null) return true;
 	if (!hasActiveRgsSession()) return false;
-	const spinFull = stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
+	// Only the BONUS meter auto-fires a free trigger bet, so only it needs controls locked across
+	// the gap until that bet starts. A full SPIN meter does NOT lock — the player's next paid spin
+	// is simply served by the free-spin mode (see `plinkoActiveBetMode`), so Play stays enabled.
 	const bonusFull =
 		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
-	return spinFull || bonusFull;
+	return bonusFull;
 }
 
 export function isBetControlsLocked(): boolean {
@@ -755,20 +757,21 @@ function isFeatureTriggerBlocked(): boolean {
 }
 
 /**
- * Auto-fire a server-authoritative trigger bet when a meter is full. The bet is placed in the
- * dedicated free-spin / bonus mode (free), so RGS serves a book that triggers the feature and
- * computes the payout — no client-side trigger or payout. The meter resets from that book.
+ * Auto-fire the free BONUS trigger bet when the bonus meter is full: RGS serves a free book that
+ * runs the bonus round and computes the payout (no client-side trigger or payout), and the meter
+ * resets from that book. The SPIN meter is NOT auto-fired — a full spin meter is consumed by the
+ * player's next PAID spin, which `plinkoActiveBetMode` routes to the free-spin mode (a real bet, so
+ * the balance only moves when the player spins). The boosted spin's own drop × zero-sum wheel is
+ * the payout.
  */
 export function maybeAutoFireFeatureTrigger(dispatchBet: () => void): void {
 	// Trigger modes are RGS-only; dev-local play has no trigger books, so skip to avoid an
 	// auto-fire loop on a meter that a local base book can't reset.
 	if (!hasActiveRgsSession()) return;
 	if (isFeatureTriggerBlocked()) return;
-	const spinFull = stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
 	const bonusFull =
 		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
-	if (!spinFull && !bonusFull) return;
-	// Spin takes priority; the other meter (if also full) fires on the next idle evaluation.
-	stateGame.pendingFeatureTrigger = spinFull ? 'spin' : 'bonus';
+	if (!bonusFull) return;
+	stateGame.pendingFeatureTrigger = 'bonus';
 	dispatchBet();
 }

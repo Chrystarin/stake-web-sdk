@@ -68,14 +68,17 @@ export function bonusLevelBalls(level: number): number {
 /** Bonus roulette segment prizes (free balls). */
 export const BONUS_ROULETTE_SEGMENTS = [100, 20, 50, 50, 50, 80, 20, 20] as const;
 
-/** Free-spin wheel segment labels. */
+/** Free-spin wheel segment labels. ZERO-SUM: the multipliers average exactly 1× so the free spin
+ * multiplies the spin's own drop win (drop × M) with no net RTP change — a high segment grows the
+ * win, a low one shrinks it. Must match (mean included) `stake-math-sdk/games/crimson_plinko/
+ * plinko_data.FREE_SPIN_SEGMENTS`. No BONUS segment (the bonus has its own meter). */
 export const FREE_SPIN_SEGMENTS = [
-	'2X',
+	'0.2X',
+	'0.3X',
+	'0.5X',
 	'0.5X',
 	'1X',
-	'5X',
-	'10X',
-	'BONUS',
-	'20X',
-	'15X',
+	'1X',
+	'1.5X',
+	'3X',
 ] as const;

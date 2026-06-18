@@ -293,26 +293,16 @@ export class BonusMeterEngine {
     }
     if (firstHit < 0 || lastHit < 0) return null;
     /**
-     * Leading edge = the outer end of the revealed fill along this ray, i.e. the
-     * glow's visible tip (its rightmost reach). The marker's horizontal position
-     * must match that tip so it sits at the end of the glow rather than lagging
-     * behind it.
+     * The mask reveals the fill up to the radial line at this angle, so the meter's
+     * visible leading edge is where that ray crosses the fill band. Place the marker
+     * at the MIDPOINT of the opaque span along the ray — that centers it on the solid
+     * band at the fill's tip (matching the design sample). Using `lastHit` (the outer
+     * reach) instead parked the marker on the faint glow's far edge, leaving a visible
+     * gap between the white indicator and the solid blue fill.
      */
-    const tipLocalX = cx + dx * lastHit;
-    /**
-     * Vertically, center the marker on the band thickness at the tip's column so it
-     * covers the band instead of riding the outer halo (matches the design sample).
-     */
-    const col = Math.max(0, Math.min(texW - 1, Math.round(tipLocalX)));
-    let bandTop = -1;
-    let bandBot = -1;
-    for (let y = 0; y < texH; y++) {
-      if (this.fillAlphaData[(y * texW + col) * 4 + 3] > 20) {
-        if (bandTop < 0) bandTop = y;
-        bandBot = y;
-      }
-    }
-    const tipLocalY = bandTop >= 0 ? (bandTop + bandBot) / 2 : cy + dy * lastHit;
+    const tipRadius = (firstHit + lastHit) / 2;
+    const tipLocalX = cx + dx * tipRadius;
+    const tipLocalY = cy + dy * tipRadius;
     return {
       x: this.toWorldX(tipLocalX),
       y: this.toWorldY(tipLocalY),

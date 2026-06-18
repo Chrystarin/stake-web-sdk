@@ -77,13 +77,9 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 	void resetSpinMeterSession();
 }
 
-/** Map math/RGS free-spin wheel segment label to wheel index (no client RNG). */
+/** Map math/RGS free-spin wheel segment label to wheel index (no client RNG). The wheel is
+ * zero-sum and has no BONUS segment, so every label resolves to a numeric `NX` multiplier. */
 export function freeSpinSegmentIndexForSegment(segment: string): number {
-	const normalized = String(segment || '').toUpperCase();
-	if (normalized === 'BONUS' || normalized === 'FREEBONUS') {
-		const bonusIdx = FREE_SPIN_SEGMENTS.indexOf('BONUS');
-		if (bonusIdx >= 0) return bonusIdx;
-	}
 	const direct = FREE_SPIN_SEGMENTS.indexOf(segment as (typeof FREE_SPIN_SEGMENTS)[number]);
 	if (direct >= 0) return direct;
 	const asLabel = `${segment}`.replace(/x$/i, 'X');
@@ -99,9 +95,5 @@ export function freeSpinSegmentIndexForMultiplier(multiplier: number): number {
 	const label = `${multiplier}X`;
 	const idx = FREE_SPIN_SEGMENTS.indexOf(label as (typeof FREE_SPIN_SEGMENTS)[number]);
 	if (idx >= 0) return idx;
-	if (multiplier <= 0) {
-		const bonusIdx = FREE_SPIN_SEGMENTS.indexOf('BONUS');
-		if (bonusIdx >= 0) return bonusIdx;
-	}
 	return 0;
 }
