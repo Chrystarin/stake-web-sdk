@@ -15,7 +15,7 @@ export type HistoryEntry = {
 	win: number;
 	color: string;
 };
-export type InfoModalTab = 'rules' | 'fair' | 'history';
+export type InfoModalTab = 'rules' | 'fair' | 'history' | 'howToPlay';
 export type MsgBoxConfig = {
 	text: string;
 	confirmText?: string;

@@ -60,7 +60,7 @@
 
 	} from '../game/meterFlow';
 
-	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
+	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
 	import { stateXstate, stateXstateDerived } from '../game/stateXstate';
 
 	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
@@ -309,7 +309,7 @@
 
 
 
-	function openInfo(tab: 'rules' | 'fair' | 'history') {
+	function openInfo(tab: InfoModalTab) {
 
 		stateGame.infoModalTab = tab;
 
@@ -375,7 +375,7 @@
 						onOpenFair={() => openInfo('fair')}
 						onOpenRules={() => openInfo('rules')}
 						onOpenHistory={() => openInfo('history')}
-						onOpenHowToPlay={() => openInfo('rules')}
+						onOpenHowToPlay={() => openInfo('howToPlay')}
 					/>
 				{/if}
 			</div>
@@ -390,7 +390,7 @@
 			onOpenFair={() => openInfo('fair')}
 			onOpenRules={() => openInfo('rules')}
 			onOpenHistory={() => openInfo('history')}
-			onOpenHowToPlay={() => openInfo('rules')}
+			onOpenHowToPlay={() => openInfo('howToPlay')}
 		/>
 	{/if}
 

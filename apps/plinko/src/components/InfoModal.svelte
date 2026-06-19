@@ -17,9 +17,12 @@
 		props.onClose?.();
 	}
 
-	function setTab(tab: InfoModalTab) {
-		stateGame.infoModalTab = tab;
-	}
+	const sectionTitles: Record<InfoModalTab, string> = {
+		rules: 'Game Rules',
+		fair: 'Provably fair settings',
+		history: 'My bet History',
+		howToPlay: 'How to Play?',
+	};
 
 	const currencySign = $derived(
 		stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `,
@@ -40,42 +43,141 @@
 				<img src={staticUrl('img/close_btn.png')} alt="" aria-hidden="true" />
 			</button>
 			<div class="info-modal">
-				<div class="info-modal-tabs">
-					<button
-						type="button"
-						class="info-tab"
-						class:info-tab--active={stateGame.infoModalTab === 'rules'}
-						onclick={() => setTab('rules')}>Rules</button
-					>
-					<button
-						type="button"
-						class="info-tab"
-						class:info-tab--active={stateGame.infoModalTab === 'fair'}
-						onclick={() => setTab('fair')}>Fair settings</button
-					>
-					<button
-						type="button"
-						class="info-tab"
-						class:info-tab--active={stateGame.infoModalTab === 'history'}
-						onclick={() => setTab('history')}>History</button
-					>
-				</div>
+				<header class="info-modal-header">
+					<h2 class="info-modal-title">{sectionTitles[stateGame.infoModalTab]}</h2>
+				</header>
 				<div
 					class="info-modal-body"
 					class:info-modal-body--history={stateGame.infoModalTab === 'history'}
 				>
 					{#if stateGame.infoModalTab === 'rules'}
-						<p><strong>Bet limits</strong></p>
+						<h3 class="info-section-title">Bet limits</h3>
 						<p>Min bet: {config.minBet} {stateBet.currency}</p>
 						<p>Max bet: {config.maxBet} {stateBet.currency}</p>
 						<p>Max win: 20 000 {stateBet.currency}</p>
-						<p><strong>How to play?</strong></p>
+
+						<h3 class="info-section-title">Main Betting Components</h3>
+						<p>The betting interface is straightforward and matches the on-screen controls:</p>
+						<ul>
+							<li>
+								<strong>BET</strong> – Shows your total wager for the current round (automatically
+								calculated).
+							</li>
+							<li>
+								<strong>BET PER BALL</strong> – Base amount wagered on each single cannonball. Adjust
+								with + / − buttons.
+							</li>
+							<li>
+								<strong>BALL PER DROP</strong> – Number of cannonballs released per round. Adjust with
+								+ / − buttons.
+							</li>
+						</ul>
+						<p>Total Bet is calculated as:</p>
+						<div class="info-formula">Total Bet = Bet Per Ball × Ball Per Drop</div>
+						<p><strong>Example:</strong></p>
+						<div class="info-formula">
+							Bet Per Ball = $0.10<br />
+							Ball Per Drop = 10<br />
+							Total Bet = $1.00
+						</div>
+						<p>
+							The game clearly displays the WIN amount after each round and shows your current total
+							bet near the controls.
+						</p>
+
+						<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
+						<p>
+							The bottom of the board features a row of colored multiplier slots (from low in the
+							center to high on the edges).
+						</p>
+						<ul>
+							<li>
+								<strong>Low-value slots</strong> (center, often green/blue) = smaller returns
+								(sometimes below 1x).
+							</li>
+							<li>
+								<strong>High-value slots</strong> (outer edges, often red/purple) = huge multipliers
+								(can reach 100x, 500x or even 1000x+ depending on settings).
+							</li>
+						</ul>
+						<p>
+							A “SPIN” label appears in the center of the multiplier bar. Multiplier values are
+							clearly shown and can vary based on your chosen volatility/risk settings. The more balls
+							and higher risk you select, the bigger the potential payouts.
+						</p>
+
+						<h3 class="info-section-title">Key Features &amp; Settings</h3>
+						<p>
+							<strong>Theme</strong> — Immersive pirate adventure under a blood-red crimson sky: a
+							giant pirate skull captain wearing a tricorn hat sits atop the ship deck board, with
+							flying Jolly Roger flags, stormy seas, distant ghost ships, flaming torches, and
+							dramatic moonlit atmosphere.
+						</p>
+						<p>
+							<strong>RTP</strong> — Approximately 95%–96% (varies slightly depending on settings and
+							casino).
+						</p>
+						<p>
+							<strong>Volatility</strong> — Tunable through your bet and ball choices — longer dry
+							spells possible, but big multiplier landings deliver massive wins.
+						</p>
+
+						<h3 class="info-section-title">Bonus Feature</h3>
+						<p><strong>Free Spin / Crimson Fury Bonus</strong></p>
+						<p>
+							The game features a FREE SPIN progress bar (visible on the right side of the multiplier
+							bar). Every time you play and plinko balls hit “SPIN” spots, the Multiplier Roulette
+							meter fills up with crimson energy.
+						</p>
+						<p>
+							Every time you play and plinko balls hit the 3 gold pegs at the middle, the Bonus
+							feature meter at the top fills up and will trigger the Free Balls Bonus Feature.
+						</p>
+						<p>When the meter at the top reaches full capacity, the FREE SPIN bonus automatically triggers:</p>
+						<ul>
+							<li>You receive a batch of free ball drops (no additional cost).</li>
+							<li>
+								Additional hits or good landings during the free spins can further fill the meter and
+								award even more free drops.
+							</li>
+						</ul>
+						<p>
+							When the meter at the left reaches full capacity, the Multiplier Roulette Spin bonus
+							automatically triggers:
+						</p>
+						<ul>
+							<li>
+								The Current Bet amount will have a chance to get a multiplier from the Multiplier
+								Roulette Spin.
+							</li>
+							<li>
+								This Multiplier Roulette also has a chance to trigger a bonus free balls feature (one
+								segment shows a Free Bonus within the set of multipliers).
+							</li>
+						</ul>
+						<p>
+							This creates exciting chain reactions where one triggered bonus can snowball into many
+							extra drops and bigger hauls.
+						</p>
+					{:else if stateGame.infoModalTab === 'howToPlay'}
+						<p><strong>How to Play (Step-by-Step)</strong></p>
 						<ol>
-							<li>Select bet and balls per drop. Press PLAY.</li>
-							<li>Fill the SPIN gate for FREE SPIN.</li>
-							<li>Hit bumpers to fill the bonus meter.</li>
-							<li>Bonus starts when the meter is full or you land BONUS on the wheel.</li>
-							<li>During bonus, hit bumpers for more free balls and level-ups.</li>
+							<li>
+								<strong>Set your bet</strong> – Adjust the total BET or use the individual controls
+								below.
+							</li>
+							<li>
+								<strong>Choose Bet Per Ball</strong> – This is the stake for each individual cannonball
+								(typically starts as low as $0.01 and can go up to $200+ depending on the casino).
+							</li>
+							<li>
+								<strong>Choose Ball Per Drop</strong> – Select how many cannonballs you want to release
+								in one round (common options include 10, 20, or 50).
+							</li>
+							<li>
+								Press SPIN (or the play button) to drop the balls and watch them bounce down the
+								board.
+							</li>
 						</ol>
 					{:else if stateGame.infoModalTab === 'fair'}
 						<p><strong>Provably fair settings</strong></p>
@@ -175,21 +277,18 @@
 		height: 36px;
 		object-fit: contain;
 	}
-	.info-modal-tabs {
+	.info-modal-header {
 		display: flex;
+		align-items: center;
+		padding: 14px 20px;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 	}
-	.info-tab {
-		flex: 1;
-		padding: 12px;
-		border: none;
-		background: transparent;
-		color: #9ab8d0;
-		cursor: pointer;
-	}
-	.info-tab--active {
+	.info-modal-title {
+		margin: 0;
 		color: #fff;
-		background: rgba(58, 168, 232, 0.15);
+		font-size: 16px;
+		font-weight: 700;
+		line-height: 1.2;
 	}
 	.info-modal-body {
 		padding: 20px;
@@ -198,6 +297,38 @@
 		overflow-y: auto;
 		font-size: 14px;
 		line-height: 1.5;
+	}
+	.info-modal-body p {
+		margin: 0 0 8px;
+	}
+	.info-section-title {
+		margin: 18px 0 8px;
+		font-size: 15px;
+		font-weight: 700;
+		color: #fff;
+	}
+	.info-section-title:first-child {
+		margin-top: 0;
+	}
+	.info-modal-body ul,
+	.info-modal-body ol {
+		margin: 0 0 10px;
+		padding-left: 20px;
+	}
+	.info-modal-body li {
+		margin-bottom: 6px;
+	}
+	.info-modal-body strong {
+		color: #fff;
+	}
+	.info-formula {
+		padding: 10px 12px;
+		margin: 0 0 10px;
+		background: rgba(0, 0, 0, 0.35);
+		border-radius: 6px;
+		font-size: 13px;
+		line-height: 1.6;
+		color: #eaf3fb;
 	}
 	.info-modal-body--history {
 		padding: 0;
