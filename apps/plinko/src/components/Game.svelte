@@ -106,6 +106,9 @@
 	const DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD = false;
 	let devBonusCongratulationsPreviewOpen = $state(DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD);
 
+	/** TODO: remove — temporary preview of win modal on load. */
+	const DEV_SHOW_WIN_MODAL_ON_LOAD = false;
+
 	/** TODO: remove — temporary preview of bonus level-up overlay on load. */
 	const DEV_SHOW_BONUS_LEVEL_UP_ON_LOAD = false;
 
@@ -138,6 +141,7 @@
 
 	$effect(() => {
 		if (!stateGame.showWinPopup) return;
+		if (DEV_SHOW_WIN_MODAL_ON_LOAD) return;
 		stateGame.winPopupAmount;
 		const timer = setTimeout(() => {
 			stateGame.showWinPopup = false;
@@ -157,6 +161,11 @@
 			stateGame.bonusLevelUpAddedBalls = 80;
 			stateGame.bonusLevelUpOverlayOpen = true;
 			stateGame.bonusLevelUpOverlayVisible = true;
+		}
+
+		if (DEV_SHOW_WIN_MODAL_ON_LOAD) {
+			stateGame.winPopupAmount = 123456789.45;
+			stateGame.showWinPopup = true;
 		}
 
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
@@ -480,9 +489,11 @@
 
 		<div class="win-overlay" role="dialog">
 
-			<div class="win-card" style:background-image={staticCssUrl('img/win_bg.svg')}>
+			<div class="win-card">
 
 				<p>{context.i18nDerived.t('Win')}</p>
+
+				<span class="win-divider"></span>
 
 				<strong>{winPopupAmountDisplay}</strong>
 
@@ -1183,13 +1194,24 @@
 
 	.win-card {
 
+		box-sizing: border-box;
+
+		width: max-content;
+
 		min-width: 280px;
+
+		max-width: 96vw;
 
 		padding: 32px 40px;
 
 		text-align: center;
 
-		background-size: 100% 100%;
+		/* Coded equivalent of win_bg.svg: dark radial fill + green rounded border. */
+		background: radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%);
+
+		border: 3px solid #54f917;
+
+		border-radius: 16px;
 
 	}
 
@@ -1205,9 +1227,27 @@
 
 	}
 
+	.win-divider {
+
+		display: block;
+
+		width: 72px;
+
+		height: 3px;
+
+		margin: 12px auto 0;
+
+		border-radius: 999px;
+
+		background: rgba(255, 255, 255, 0.45);
+
+	}
+
 	.win-card strong {
 
 		display: block;
+
+		white-space: nowrap;
 
 		font-size: 1.625rem;
 

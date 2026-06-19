@@ -1,4 +1,4 @@
-<svg width="120" height="104" viewBox="0 0 120 104" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="120" height="104" viewBox="0 0 120 104" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
 <rect x="3" y="3" width="114" height="98" rx="8" fill="url(#paint0_radial_2749_33659)" stroke="url(#paint1_radial_2749_33659)" stroke-width="4"/>
 <defs>
 <radialGradient id="paint0_radial_2749_33659" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(60 52) rotate(90) scale(52 60)">
