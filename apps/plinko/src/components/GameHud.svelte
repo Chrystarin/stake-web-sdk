@@ -232,11 +232,21 @@
 		}
 	}
 
-	/** Space triggers play; skip when a button is focused so native Space still works on controls. */
+	/**
+	 * Space is the global "drop / bet" hotkey. EnableHotkey calls preventDefault on Space, so a
+	 * focused button never activates natively — meaning we must drive the play action ourselves even
+	 * while a HUD control holds focus (e.g. the play button after tabbing to it, or while free-spin /
+	 * bonus balls are pending). Enter still natively activates whatever control is focused, so Space
+	 * stays reserved for dropping balls.
+	 *
+	 * We bail only when play isn't allowed, an overlay is open (don't bet behind the menu / info
+	 * modal), or the focused element is a custom role="button" control that handles Space itself
+	 * (e.g. the bet-preset opener) — so Space doesn't both open that control and fire a bet.
+	 */
 	function onSpacePlay() {
 		if (isPlayButtonDisabled) return;
-		const tag = document.activeElement?.tagName?.toLowerCase();
-		if (tag === 'button') return;
+		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
+		if (document.activeElement?.getAttribute('role') === 'button') return;
 		onMainActionClick();
 	}
 
