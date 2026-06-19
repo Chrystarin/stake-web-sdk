@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 
-	import { stateBet, stateConfig, stateUrlDerived } from 'state-shared';
+	import { stateBet, stateUrlDerived } from 'state-shared';
 	import { numberToCurrencyString } from 'utils-shared/amount';
 
 
@@ -67,7 +67,6 @@
 	import { FreeSpinMeter, FreeSpinRoulette, onFreeSpinRouletteFinished } from '../features/freeSpin';
 
 	import { isPortraitGameLayout } from '../lib/format';
-	import { toggleGameFullscreen } from '../lib/fullscreen';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 
 	import Background from './Background.svelte';
@@ -111,8 +110,6 @@
 	const DEV_SHOW_BONUS_LEVEL_UP_ON_LOAD = false;
 
 	let gameRootEl = $state<HTMLElement | undefined>(undefined);
-
-	const fullscreenAllowed = $derived(!stateConfig.jurisdiction.disabledFullscreen);
 
 
 
@@ -312,22 +309,6 @@
 
 
 
-	async function toggleFullscreen() {
-		if (!fullscreenAllowed) {
-			stateGame.menuOpen = false;
-			return;
-		}
-		const target = gameRootEl ?? document.documentElement;
-		try {
-			await toggleGameFullscreen(target);
-		} catch {
-			// Blocked by browser, iframe policy, or unsupported environment.
-		}
-		stateGame.menuOpen = false;
-	}
-
-
-
 	function openInfo(tab: 'rules' | 'fair' | 'history') {
 
 		stateGame.infoModalTab = tab;
@@ -389,8 +370,6 @@
 
 				{#if stateGame.menuOpen}
 					<HudMenuPopup
-						{fullscreenAllowed}
-						onFullscreen={toggleFullscreen}
 						onOpenFair={() => openInfo('fair')}
 						onOpenRules={() => openInfo('rules')}
 						onOpenHistory={() => openInfo('history')}
@@ -404,8 +383,6 @@
 	{#if mobile && stateGame.menuOpen}
 		<HudMenuPopup
 			mobile
-			{fullscreenAllowed}
-			onFullscreen={toggleFullscreen}
 			onOpenFair={() => openInfo('fair')}
 			onOpenRules={() => openInfo('rules')}
 			onOpenHistory={() => openInfo('history')}

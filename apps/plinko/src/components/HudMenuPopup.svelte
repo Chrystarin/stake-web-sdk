@@ -4,8 +4,6 @@
 
 	type Props = {
 		mobile?: boolean;
-		fullscreenAllowed?: boolean;
-		onFullscreen?: () => void;
 		onOpenFair?: () => void;
 		onOpenRules?: () => void;
 		onOpenHistory?: () => void;
@@ -17,7 +15,6 @@
 	const t = (key: string) => context.i18nDerived.t(key);
 
 	const menuIcons = {
-		fullscreen: staticUrl('img/hamburg_menu_ico_fullscreen.png'),
 		fair: staticUrl('img/hamburg_menu_ico_fair_settings.png'),
 		rules: staticUrl('img/hamburg_menu_ico_game_rules.png'),
 		history: staticUrl('img/hamburg_menu_ico_history.png'),
@@ -35,18 +32,6 @@
 	-->
 
 	<nav class="hud-menu-list">
-		<button
-			type="button"
-			class="hud-menu-item"
-			disabled={!props.fullscreenAllowed}
-			onclick={() => props.fullscreenAllowed && props.onFullscreen?.()}
-		>
-			<img class="hud-menu-item-icon" src={menuIcons.fullscreen} alt="" aria-hidden="true" />
-			<span class="hud-menu-item-label">{t('Play in Fullscreen')}</span>
-		</button>
-
-		<div class="hud-menu-divider" aria-hidden="true"></div>
-
 		<button type="button" class="hud-menu-item" onclick={() => props.onOpenFair?.()}>
 			<img class="hud-menu-item-icon" src={menuIcons.fair} alt="" aria-hidden="true" />
 			<span class="hud-menu-item-label">{t('Provably fair settings')}</span>
@@ -162,26 +147,6 @@
 		gap: 0;
 	}
 
-	.hud-menu-divider {
-		display: block;
-		width: 100%;
-		height: 1px;
-		min-height: 1px;
-		flex-shrink: 0;
-		margin: 0.55vw 0 0.35vw;
-		padding: 0;
-		border: 0;
-		background: #fff;
-		opacity: 0.5;
-		box-sizing: border-box;
-	}
-
-	.hud-menu-popup--mobile .hud-menu-divider {
-		height: 2px;
-		min-height: 2px;
-		margin: 10px 0 6px;
-	}
-
 	.hud-menu-item {
 		display: flex;
 		align-items: center;
@@ -203,12 +168,7 @@
 		border-radius: 6px;
 	}
 
-	.hud-menu-item:disabled {
-		opacity: 0.45;
-		cursor: not-allowed;
-	}
-
-	.hud-menu-item:hover:not(:disabled) {
+	.hud-menu-item:hover {
 		background: rgba(255, 255, 255, 0.05);
 	}
 
