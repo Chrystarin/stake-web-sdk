@@ -4,6 +4,8 @@
 
 	type Props = {
 		mobile?: boolean;
+		soundEnabled?: boolean;
+		onToggleSound?: () => void;
 		onOpenFair?: () => void;
 		onOpenRules?: () => void;
 		onOpenHistory?: () => void;
@@ -50,6 +52,44 @@
 		<button type="button" class="hud-menu-item" onclick={() => props.onOpenHowToPlay?.()}>
 			<img class="hud-menu-item-icon" src={menuIcons.howToPlay} alt="" aria-hidden="true" />
 			<span class="hud-menu-item-label">{t('How to Play?')}</span>
+		</button>
+
+		<div class="hud-menu-divider" aria-hidden="true"></div>
+
+		<button
+			type="button"
+			class="hud-menu-item hud-menu-item--switch"
+			role="switch"
+			aria-checked={props.soundEnabled ?? true}
+			onclick={() => props.onToggleSound?.()}
+		>
+			<svg
+				class="hud-menu-item-icon"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<path d="M11 5 6 9H2v6h4l5 4V5z" />
+				{#if props.soundEnabled ?? true}
+					<path d="M15.5 8.5a5 5 0 0 1 0 7" />
+					<path d="M18.5 5.5a9 9 0 0 1 0 13" />
+				{:else}
+					<line x1="22" y1="9" x2="16" y2="15" />
+					<line x1="16" y1="9" x2="22" y2="15" />
+				{/if}
+			</svg>
+			<span class="hud-menu-item-label">{t('Sound')}</span>
+			<span
+				class="hud-menu-switch"
+				class:hud-menu-switch--on={props.soundEnabled ?? true}
+				aria-hidden="true"
+			>
+				<span class="hud-menu-switch-knob"></span>
+			</span>
 		</button>
 	</nav>
 </div>
@@ -147,6 +187,26 @@
 		gap: 0;
 	}
 
+	.hud-menu-divider {
+		display: block;
+		width: 100%;
+		height: 1px;
+		min-height: 1px;
+		flex-shrink: 0;
+		margin: 0.55vw 0 0.35vw;
+		padding: 0;
+		border: 0;
+		background: #fff;
+		opacity: 0.5;
+		box-sizing: border-box;
+	}
+
+	.hud-menu-popup--mobile .hud-menu-divider {
+		height: 2px;
+		min-height: 2px;
+		margin: 10px 0 6px;
+	}
+
 	.hud-menu-item {
 		display: flex;
 		align-items: center;
@@ -192,5 +252,57 @@
 		font-weight: 400;
 		line-height: 1.25;
 		white-space: nowrap;
+	}
+
+	.hud-menu-item--switch .hud-menu-item-label {
+		flex: 1 1 auto;
+	}
+
+	.hud-menu-switch {
+		position: relative;
+		flex-shrink: 0;
+		display: inline-block;
+		width: 2.4vw;
+		height: 1.3vw;
+		min-width: 2.4vw;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.2);
+		transition: background-color 0.15s ease;
+	}
+
+	.hud-menu-switch--on {
+		background: #54f917;
+	}
+
+	.hud-menu-switch-knob {
+		position: absolute;
+		top: 50%;
+		left: 0.12vw;
+		width: 1.06vw;
+		height: 1.06vw;
+		border-radius: 50%;
+		background: #fff;
+		transform: translate(0, -50%);
+		transition: transform 0.15s ease;
+	}
+
+	.hud-menu-switch--on .hud-menu-switch-knob {
+		transform: translate(1.1vw, -50%);
+	}
+
+	.hud-menu-popup--mobile .hud-menu-switch {
+		width: 44px;
+		height: 24px;
+		min-width: 44px;
+	}
+
+	.hud-menu-popup--mobile .hud-menu-switch-knob {
+		left: 2px;
+		width: 20px;
+		height: 20px;
+	}
+
+	.hud-menu-popup--mobile .hud-menu-switch--on .hud-menu-switch-knob {
+		transform: translate(20px, -50%);
 	}
 </style>

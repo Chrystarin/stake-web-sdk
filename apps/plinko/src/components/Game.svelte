@@ -370,6 +370,8 @@
 
 				{#if stateGame.menuOpen}
 					<HudMenuPopup
+						soundEnabled={stateGame.soundEnabled}
+						onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
 						onOpenFair={() => openInfo('fair')}
 						onOpenRules={() => openInfo('rules')}
 						onOpenHistory={() => openInfo('history')}
@@ -383,6 +385,8 @@
 	{#if mobile && stateGame.menuOpen}
 		<HudMenuPopup
 			mobile
+			soundEnabled={stateGame.soundEnabled}
+			onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
 			onOpenFair={() => openInfo('fair')}
 			onOpenRules={() => openInfo('rules')}
 			onOpenHistory={() => openInfo('history')}
