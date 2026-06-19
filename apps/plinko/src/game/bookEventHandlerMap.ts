@@ -152,8 +152,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		snapshotExpectedWinFromPlaybackOutcomes(stateGame.pendingOutcomes);
 		stateGame.showWinPopup = false;
 		if (isPlinkoTriggerMode(stateBet.activeBetModeKey)) {
-			// BONUS trigger mode only: its book carries an EMPTY initial drop (the bonus balls arrive
-			// via `bonusRound`), so there's nothing to animate. The free spin is NOT a trigger mode —
+			// BONUS trigger mode: its book carries an EMPTY initial drop (the bonus balls arrive via
+			// `bonusRound`), so there's nothing to animate here. The free spin is NOT a trigger mode —
 			// it fires in-drop inside the normal base book, whose real drop animates below.
 			stateGame.isAnimating = false;
 			return;
@@ -179,14 +179,23 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		applyBonusMeterBookEvent(bookEvent.value, bookEvent.level ?? stateGame.bonusMeterLevel);
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
-		// Run the free-spin wheel; it lands on the math-authored segment and awaits close.
-		// `BONUS` chains into the following `bonusRoulette` / `bonusRound` events.
 		await waitForDropBatchCompletion();
-		await runFreeSpinTriggerFlow({
+		const payload = {
 			segment: bookEvent.segment,
 			multiplier: bookEvent.multiplier,
 			amount: bookEvent.amount,
-		});
+		};
+		// In-bonus free spin: this event is appended AFTER the bonus-round events, so the bonus balls
+		// are still dropping (player/auto-driven). Stash the math-authored segment and let
+		// `settleBonusRoundWhenFinished` run the wheel once the bonus balls finish — its win adds to the
+		// bonus total. A base in-drop free spin (no bonus active) runs the wheel immediately.
+		if (stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) {
+			stateGame.pendingBonusFreeSpinPayload = payload;
+			stateGame.pendingSpinRouletteAfterBonusLevelDepletion = true;
+			return;
+		}
+		// Run the free-spin wheel; it lands on the math-authored segment and awaits close.
+		await runFreeSpinTriggerFlow(payload);
 	},
 	bonusRoulette: async (bookEvent: BookEventOfType<'bonusRoulette'>) => {
 		// Bonus wheel: awards the level-1 entry free balls (`onBonusRouletteFinished`).
@@ -287,7 +296,10 @@ export const playBet = async (bet: Bet) => {
 	stateGame.bonusPegMeterCreditedBallIds = new Set();
 	stateGame.dropRoundActive = true;
 	stateGame.authoritativeBonusLevelQueue = [];
-	// The trigger mode was already captured into `activeBetModeKey`; clear so we don't re-fire.
+	// Stale in-bonus free-spin payload must not carry across bets (set later by this book's
+	// `freeSpinTrigger` event if a free spin fires during the bonus round).
+	stateGame.pendingBonusFreeSpinPayload = undefined;
+	// The trigger mode was already captured into `activeBetModeKey`; clear so we don't re-fire it.
 	stateGame.pendingFeatureTrigger = null;
 
 	try {

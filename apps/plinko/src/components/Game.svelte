@@ -203,12 +203,11 @@
 
 	});
 
-	// Auto-fire a server-authoritative trigger bet the moment a meter is full and the round
-	// machine is idle. Tracks both meters + round/machine state so it re-evaluates when a round
-	// fully settles (incl. deferred end-round).
+	// Auto-fire the bonus trigger bet the moment the bonus meter is full and the round machine is idle.
+	// Tracks the meter + round/machine state so it re-evaluates when a round fully settles (incl.
+	// deferred end-round). Betting stays locked (isBetControlsLocked → isFeatureTriggerImminent) until
+	// the bonus actually fires.
 	$effect(() => {
-		stateGame.spinMeterValue;
-		stateGame.spinMeterMax;
 		stateGame.bonusMeterValue;
 		stateGame.bonusMeterMax;
 		stateGame.dropRoundActive;
@@ -216,8 +215,6 @@
 		stateXstate.value;
 		maybeAutoFireFeatureTrigger(placeBet);
 	});
-
-
 
 	function handleBetAmountChange(value: number) {
 		const maxPerBall = maxAffordableStakePerBall() || value;

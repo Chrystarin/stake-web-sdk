@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	import { BONUS_ROULETTE_SEGMENTS } from '../../game-logic/constants';
+	import { bonusRouletteSegmentsForTier } from '../../game-logic/constants';
+	import { stateGame } from '../../game/stateGame.svelte';
 	import { isMobile } from '../../lib/format';
 	import { staticUrl } from '../../lib/staticUrl';
 
@@ -79,6 +80,16 @@
 	const markerYOffsetPx = $derived(
 		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5)}px` : undefined,
 	);
+	// Data-driven labels on the label-less `bonus-roulette-wheel-empty.png`: segment `i` sits at `i*45°`
+	// from the top marker (same angle the spin lands on), so the value under the marker matches the
+	// book result. Per-tier values (resize with balls-per-drop). Radius/font tunables mirror the
+	// free-spin wheel.
+	const labelRadiusPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * 0.315)}px` : '0px',
+	);
+	const labelFontPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * 0.072)}px` : '0px',
+	);
 
 	const headlineText = $derived(
 		props.mode === 'message' ? (props.messageTitle ?? 'CONGRATULATIONS!') : 'CONGRATULATIONS!',
@@ -87,11 +98,15 @@
 		props.mode === 'message' ? (props.messageValue ?? '') : `YOU WON ${wonFreeBalls} DROPS`,
 	);
 
-	const segments = BONUS_ROULETTE_SEGMENTS.map((freeBalls, i) => ({
-		label: String(freeBalls),
-		freeBalls,
-		index: i,
-	}));
+	// Per-tier wheel values (avg ≈ balls-per-drop). `stateGame.ballPerDrop` is the real selected tier
+	// (the HUD shows 1 during the bonus, but the tier is unchanged), so the wheel resizes per tier.
+	const segments = $derived(
+		bonusRouletteSegmentsForTier(stateGame.ballPerDrop).map((freeBalls, i) => ({
+			label: String(freeBalls),
+			freeBalls,
+			index: i,
+		})),
+	);
 
 	onMount(() => {
 		if (props.mode === 'message') {
@@ -134,9 +149,7 @@
 
 	function resolveWinnerIndex(): number {
 		if (props.targetFreeBalls != null) {
-			const match = BONUS_ROULETTE_SEGMENTS.indexOf(
-				props.targetFreeBalls as (typeof BONUS_ROULETTE_SEGMENTS)[number],
-			);
+			const match = segments.findIndex((s) => s.freeBalls === props.targetFreeBalls);
 			if (match >= 0) return match;
 		}
 		if (props.serverAuthoritative) return 0;
@@ -259,9 +272,22 @@
 						class:bonus-spin-wheel--animating={wheelSpinClass}
 						class:bonus-spin-wheel--visible={wheelVisible}
 						style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-						src={staticUrl('img/bonus-roulette-wheel.png')}
+						src={staticUrl('img/bonus-roulette-wheel-empty.png')}
 						alt="Bonus roulette wheel"
 					/>
+					<div
+						class="bonus-spin-wheel-labels"
+						class:bonus-spin-wheel-labels--animating={wheelSpinClass}
+						class:bonus-spin-wheel-labels--visible={wheelVisible}
+						style:--wheel-rotation-deg="{wheelRotationDeg}deg"
+						style:--label-radius={labelRadiusPx}
+						style:--label-font-size={labelFontPx}
+						aria-hidden="true"
+					>
+						{#each segments as seg, i (i)}
+							<span class="bonus-spin-wheel-label" style:--seg-angle="{i * 45}deg">{seg.label}</span>
+						{/each}
+					</div>
 					<img
 						class="bonus-spin-center-base"
 						class:bonus-spin-center-base--visible={wheelVisible}
@@ -414,6 +440,46 @@
 	}
 	.bonus-spin-wheel--animating {
 		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
+	}
+	/* Per-tier free-ball labels overlay — rotates in lock-step with the (label-less) wheel image so each
+	   value stays glued to its wedge; the value under the marker is always the book result. */
+	.bonus-spin-wheel-labels {
+		position: absolute;
+		inset: 0;
+		z-index: 2;
+		pointer-events: none;
+		transform-origin: 50% 50%;
+		--wheel-rotation-deg: 0deg;
+		transform: translateY(125vh) rotate(var(--wheel-rotation-deg));
+		opacity: 0;
+	}
+	.bonus-spin-wheel-labels--visible {
+		transform: translateY(0) rotate(var(--wheel-rotation-deg));
+		opacity: 1;
+		transition:
+			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
+			opacity 0.34s ease;
+	}
+	.bonus-spin-wheel-labels--animating {
+		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
+	}
+	.bonus-spin-wheel-label {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%) rotate(var(--seg-angle, 0deg))
+			translateY(calc(-1 * var(--label-radius, 0px)));
+		transform-origin: 50% 50%;
+		font-family: 'PotatoSans', sans-serif;
+		font-weight: 800;
+		font-size: var(--label-font-size, 16px);
+		line-height: 1;
+		color: #fff;
+		white-space: nowrap;
+		-webkit-text-stroke: 0.06em #3a1d05;
+		paint-order: stroke fill;
+		text-shadow: 0 0.04em 0.06em rgba(0, 0, 0, 0.55);
+		user-select: none;
 	}
 	.bonus-spin-center-base {
 		position: absolute;

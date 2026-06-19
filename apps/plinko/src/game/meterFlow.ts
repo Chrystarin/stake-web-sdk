@@ -5,7 +5,7 @@ import {
 	scheduleBonusMeterDrainDuringRoll,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
-import { seedSpinMeterForCurrentTier } from './plinkoSessionMeters';
+import { seedBonusMeterForCurrentTier, seedSpinMeterForCurrentTier } from './plinkoSessionMeters';
 import { meterController } from './stateGame.svelte';
 import { stateGame } from './stateGame.svelte';
 
@@ -205,6 +205,9 @@ export function syncBallPerDropTier() {
 	// meter UI matches the new balls-per-drop tier immediately on switch (independent of the
 	// server-authoritative bonus-meter flow).
 	seedSpinMeterForCurrentTier();
+	// Bonus meter is a PER-TIER SESSION meter: re-seed the HUD to the selected tier's stored value (or
+	// its tier base start). Skip during an active bonus round (the HUD shows the in-round level meter).
+	if (!stateGame.bonusRoundActive) seedBonusMeterForCurrentTier();
 	if (stateGame.authoritativeMeterFlow || stateGame.serverMeterLimitsActive) return;
 	meterController.setBallPerDrop(stateGame.ballPerDrop);
 }

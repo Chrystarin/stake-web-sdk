@@ -12,8 +12,9 @@ export const PLINKO_BET_MODE_BY_BALLS: Record<number, string> = {
 	50: 'basefifty',
 };
 
-/** Dedicated BONUS trigger modes (match `plinko_data.BONUS_MODE_BY_BALLS`). There is NO freespin
- * trigger mode — the free spin fires IN-DROP inside the base modes (per-drop meter). */
+/** Dedicated BONUS trigger modes (match `plinko_data.BONUS_MODE_BY_BALLS`). The client auto-fires one
+ * when the bonus meter fills. Cost = the tier cost (same as the base mode), and the bonus payout is
+ * SIZED so the mode is compliant — so triggering deducts exactly one normal bet, not 49×. */
 export const PLINKO_BONUS_MODE_BY_BALLS: Record<number, string> = {
 	1: 'bonusone',
 	10: 'bonusten',
@@ -44,9 +45,9 @@ export function bonusTriggerModeForBalls(ballsPerDrop: number): string {
 }
 
 /**
- * The mode the next `/wallet/play` should use: the dedicated free BONUS trigger mode when the bonus
- * meter is full (`stateGame.pendingFeatureTrigger`, auto-fired), otherwise the normal tier mode. The
- * free spin needs no mode — it fires in-drop inside the base book.
+ * The mode the next `/wallet/play` should use: the dedicated BONUS trigger mode when the bonus meter is
+ * full (`stateGame.pendingFeatureTrigger`, auto-fired), otherwise the normal tier mode. The free spin
+ * needs no mode — it fires in-drop inside the base book.
  */
 export function plinkoActiveBetMode(): string {
 	const balls = plinkoBallsPerDrop();

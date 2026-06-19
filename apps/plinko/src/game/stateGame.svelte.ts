@@ -72,7 +72,7 @@ export const stateGame = $state({
 	bonusSessionWinAmount: 0,
 	/** Set when `bonusRoulette` / `bonusRound` awards balls this wager round. */
 	bonusAwardedThisRound: false,
-	/** Set when a meter is full and the next bet must use the RGS feature-trigger mode. */
+	/** Set when the bonus meter is full and the next bet must auto-fire the RGS bonus trigger mode. */
 	pendingFeatureTrigger: null as 'spin' | 'bonus' | null,
 	/** When true, meter fills and roulettes follow RGS book events / outcome flags only. */
 	authoritativeMeterFlow: false,
@@ -122,6 +122,11 @@ export const stateGame = $state({
 		| undefined,
 	/** Hold win popup until session-meter free spin finishes (book omits `freeSpinTrigger`). */
 	deferWinPopupForFreeSpin: false,
+	/** `freeSpinTrigger` payload stashed when it arrives DURING a bonus round — the wheel runs after the
+	 * bonus balls finish (in-bonus free spin), driven by `settleBonusRoundWhenFinished`. */
+	pendingBonusFreeSpinPayload: undefined as
+		| { segment?: string; multiplier?: number; amount?: number }
+		| undefined,
 	autoMode: false,
 	autoPlayStarted: false,
 	autoPlayStopping: false,

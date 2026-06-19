@@ -53,10 +53,9 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		releaseRoundInteractionLocks();
 		if (isInsufficientBalanceError(error)) {
 			// Recoverable: the rejected play was never debited. Stop autoplay so the loop doesn't keep
-			// re-firing the same unaffordable bet, clear any pending feature trigger, and re-sync the
-			// authoritative balance (from the error payload if present, else a fresh wallet read) so
-			// the HUD shows the true funds. No fatal error modal — the shared handler shows the
-			// friendly "insufficient funds" message instead.
+			// re-firing the same unaffordable bet, and re-sync the authoritative balance (from the error
+			// payload if present, else a fresh wallet read) so the HUD shows the true funds. No fatal
+			// error modal — the shared handler shows the friendly "insufficient funds" message instead.
 			stateGame.autoPlayStopping = true;
 			stateGame.autoMode = false;
 			stateGame.pendingFeatureTrigger = null;

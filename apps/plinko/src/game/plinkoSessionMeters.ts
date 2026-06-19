@@ -2,6 +2,7 @@ import { PUBLIC_CHROMATIC } from 'envs';
 import { stateBet, stateUrlDerived } from 'state-shared';
 
 import {
+	bonusMeterTierFor,
 	DEFAULT_ROW_COUNT,
 	PLINKO_DEFAULT_VARIANT_ID,
 	spinMeterTierFor,
@@ -12,15 +13,44 @@ import type { BookEvent } from './typesBookEvent';
 
 /** Dev-only mirror of RGS session spin meter when no live session is configured. */
 let devRgsSpinMeter = 0;
-/** Dev-only mirror of RGS session bonus meter / level when no live session is configured. */
-let devRgsBonusMeter = 0;
-let devRgsBonusLevel = 0;
 
 /** In-memory spin meter synced from RGS books; sent on the next `/wallet/play` meta. */
 let rgsSessionSpinMeter = 0;
-/** In-memory bonus meter / level synced from RGS books; sent on the next `/wallet/play` meta. */
-let rgsSessionBonusMeter = 0;
-let rgsSessionBonusLevel = 0;
+
+/**
+ * Bonus meter / level are a PER-TIER SESSION meter — each balls-per-drop tier keeps its own running
+ * value for the current play session (resets on a full page reload; no cross-device persistence). A
+ * fresh tier lazily initializes to its tier base (`bonusMeterTierFor(tier).start`: 0 on 1/10-ball,
+ * 1/8 on 20-ball, 1/4 on 50-ball). Keyed by the REAL selected tier (`stateGame.ballPerDrop`) — never
+ * the HUD's display value, which shows 1 during a bonus round.
+ */
+const rgsSessionBonusMeterByTier: Record<number, number> = {};
+const rgsSessionBonusLevelByTier: Record<number, number> = {};
+/** Dev-only mirror of the per-tier bonus meter / level when no live session is configured. */
+const devRgsBonusMeterByTier: Record<number, number> = {};
+const devRgsBonusLevelByTier: Record<number, number> = {};
+
+/** The real selected balls-per-drop tier that keys the per-tier bonus meter stores. */
+function currentBonusTier(): number {
+	return Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
+}
+
+/** Tier base start for the bonus meter (the value a fresh tier / a post-trigger reset shows). */
+export function bonusMeterTierStart(ballsPerDrop: number = currentBonusTier()): number {
+	return bonusMeterTierFor(ballsPerDrop).start;
+}
+
+/** Read a per-tier bonus-meter store, lazily seeding a fresh tier to its tier base start. */
+function readTierBonusMeter(store: Record<number, number>, tier: number): number {
+	if (store[tier] == null) store[tier] = bonusMeterTierStart(tier);
+	return Math.max(0, Math.floor(store[tier]));
+}
+
+/** Read a per-tier bonus-level store, lazily seeding a fresh tier to level 0. */
+function readTierBonusLevel(store: Record<number, number>, tier: number): number {
+	if (store[tier] == null) store[tier] = 0;
+	return Math.max(0, Math.floor(store[tier]));
+}
 
 export function hasActiveRgsSession(): boolean {
 	return !!(stateUrlDerived.rgsUrl()?.trim() && stateUrlDerived.sessionID()?.trim());
@@ -35,17 +65,18 @@ export function setRgsSessionSpinMeter(value: number): void {
 }
 
 export function getRgsSessionBonusMeter(): number {
-	return Math.max(0, Math.floor(rgsSessionBonusMeter));
+	return readTierBonusMeter(rgsSessionBonusMeterByTier, currentBonusTier());
 }
 
 export function getRgsSessionBonusLevel(): number {
-	return Math.max(0, Math.floor(rgsSessionBonusLevel));
+	return readTierBonusLevel(rgsSessionBonusLevelByTier, currentBonusTier());
 }
 
 export function setRgsSessionBonusMeter(value: number, level?: number): void {
-	rgsSessionBonusMeter = Math.max(0, Math.floor(value));
+	const tier = currentBonusTier();
+	rgsSessionBonusMeterByTier[tier] = Math.max(0, Math.floor(value));
 	if (level != null) {
-		rgsSessionBonusLevel = Math.max(0, Math.floor(level));
+		rgsSessionBonusLevelByTier[tier] = Math.max(0, Math.floor(level));
 	}
 }
 
@@ -65,13 +96,13 @@ export function getDevRgsSpinMeter(): number {
 	return devRgsSpinMeter;
 }
 
-/** Read bonus meter / level for local dev (simulates RGS session store). */
+/** Read bonus meter / level for local dev (simulates RGS session store) — per current tier. */
 export function getDevRgsBonusMeter(): number {
-	return devRgsBonusMeter;
+	return readTierBonusMeter(devRgsBonusMeterByTier, currentBonusTier());
 }
 
 export function getDevRgsBonusLevel(): number {
-	return devRgsBonusLevel;
+	return readTierBonusLevel(devRgsBonusLevelByTier, currentBonusTier());
 }
 
 /**
@@ -102,7 +133,7 @@ export function resolveRgsSpinMeterStart(
 export function resolveRgsBonusMeterStart(
 	_bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	if (!hasActiveRgsSession()) return devRgsBonusMeter;
+	if (!hasActiveRgsSession()) return getDevRgsBonusMeter();
 	return getRgsSessionBonusMeter();
 }
 
@@ -112,7 +143,7 @@ export function resolveRgsBonusMeterStart(
 export function resolveRgsBonusLevelStart(
 	_bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	if (!hasActiveRgsSession()) return devRgsBonusLevel;
+	if (!hasActiveRgsSession()) return getDevRgsBonusLevel();
 	return getRgsSessionBonusLevel();
 }
 
@@ -273,6 +304,22 @@ export function seedSpinMeterForCurrentTier(): void {
 	setRgsSessionSpinMeter(start);
 }
 
+/**
+ * Seed the bonus-meter HUD to the CURRENT balls-per-drop tier's max + stored per-tier SESSION value
+ * (or the tier base start when the tier is first seen this session). Called on tier switch + mount so
+ * switching tiers shows that tier's running meter. Unlike the per-drop spin meter, this does NOT reset
+ * the value — the bonus meter carries its per-tier session progress across rounds.
+ */
+export function seedBonusMeterForCurrentTier(): void {
+	const tier = currentBonusTier();
+	const { max } = bonusMeterTierFor(tier);
+	stateGame.bonusMeterBaseMax = max;
+	stateGame.bonusMeterMax = max;
+	const value = hasActiveRgsSession() ? getRgsSessionBonusMeter() : getDevRgsBonusMeter();
+	const level = hasActiveRgsSession() ? getRgsSessionBonusLevel() : getDevRgsBonusLevel();
+	applyBonusMeterDisplay(value, level);
+}
+
 /** Apply a `spinMeter` book event to the HUD (session-absolute, never regress mid-bet). */
 export function applySpinMeterBookEvent(bookValue: number): void {
 	const betStart = stateGame.betSpinMeterStart;
@@ -397,7 +444,8 @@ export function deriveBonusMeterFromBookEvents(events: BookEvent[]): DerivedBonu
 		}
 	}
 	if (bonusConsumed) {
-		bonusMeter = 0;
+		// Reset to the tier base start (0 on 1/10-ball, 1/8 on 20-ball, 1/4 on 50-ball), NOT 0.
+		bonusMeter = bonusMeterTierStart();
 		bonusLevel = 0;
 	}
 	return {
@@ -424,8 +472,9 @@ export function updateRgsSessionBonusMeter(bonusMeter: number, bonusLevel: numbe
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay()) return;
 
 	if (!hasActiveRgsSession()) {
-		devRgsBonusMeter = value;
-		devRgsBonusLevel = level;
+		const tier = currentBonusTier();
+		devRgsBonusMeterByTier[tier] = value;
+		devRgsBonusLevelByTier[tier] = level;
 	}
 }
 

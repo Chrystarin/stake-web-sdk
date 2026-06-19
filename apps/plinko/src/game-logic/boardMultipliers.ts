@@ -1,9 +1,10 @@
 import { formatCoefficientLabel } from '../lib/format';
 
 /** Canonical slot multipliers shown on the board (15 pockets, symmetric; center = spin slot).
- * Tuned with the math SDK (crimson_plinko `plinko_data.BOARD_SLOT_MULTIPLIERS`): the per-ball
- * expected value is ~0.957, keeping base RTP within the 90.0%-96.70% compliance range. Must stay
- * label-identical to the published `coefficientSets` so `alignCoefficientSet` maps server → board. */
+ * Tuned with the math SDK (crimson_plinko `plinko_data.BOARD_SLOT_MULTIPLIERS`): per-ball board EV
+ * ~0.957. The bonus is a SEPARATE `bonus<tier>` mode (not folded into base), so base modes are
+ * board-only (+ the rare in-drop free spin). Must stay label-identical to the published
+ * `coefficientSets` so `alignCoefficientSet` maps server → board. */
 export const BOARD_SLOT_MULTIPLIERS = [
 	100, 40, 15, 8, 1.5, 0.4, 0.2, 0, 0.2, 0.4, 1.5, 8, 15, 40, 100,
 ] as const;

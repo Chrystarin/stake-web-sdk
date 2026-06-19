@@ -1,4 +1,4 @@
-import { BONUS_LEVEL_LABELS, METER_TIER_CONFIG } from './constants';
+import { BONUS_LEVEL_LABELS, METER_TIER_CONFIG, bonusMeterTierFor } from './constants';
 
 export type MeterTierState = {
 	spinValue: number;
@@ -155,7 +155,10 @@ export const createMeterController = (
 
 	const resetBonusMeterForRoulette = () => {
 		if (state.bonusRoundActive) return;
-		state.bonusMeterValue = 0;
+		// Reset the SESSION bonus meter to the current tier's base start (0 on 1/10-ball, 1/8 on
+		// 20-ball, 1/4 on 50-ball), not 0.
+		const start = bonusMeterTierFor(state.ballPerDrop).start;
+		state.bonusMeterValue = Math.min(start, state.bonusMeterMax);
 	};
 
 	const startBonusRound = (freeBalls: number) => {

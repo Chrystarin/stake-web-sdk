@@ -9,7 +9,7 @@ import { isBonusMeterFull, meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
-import { hasActiveRgsSession } from './plinkoSessionMeters';
+import { bonusMeterTierStart, hasActiveRgsSession } from './plinkoSessionMeters';
 import { plinkoStakePerBall } from './plinkoBet';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
@@ -127,7 +127,19 @@ export function isPlayActionBlockedByBonusRoulette(): boolean {
 	if (stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus') {
 		return true;
 	}
+	// A FULL bonus meter blocks normal play until the bonus auto-fires — the deterministic trigger UX.
+	// Safe because `maybeAutoFireFeatureTrigger` WILL fire the bonus mode (live-RGS-gated).
 	return isBonusMeterFull();
+}
+
+/**
+ * The bonus meter is full (or a trigger is queued), so the bonus trigger bet is about to / is
+ * auto-firing. Keeps betting controls locked from meter-full until the bonus round actually starts.
+ */
+export function isFeatureTriggerImminent(): boolean {
+	if (stateGame.pendingFeatureTrigger != null) return true;
+	if (!hasActiveRgsSession()) return false;
+	return stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
 }
 
 export function isBonusPlayButtonDisabled(): boolean {
@@ -137,21 +149,6 @@ export function isBonusPlayButtonDisabled(): boolean {
 		isPlayActionBlockedByFreeSpinRoulette() ||
 		isPlayActionBlockedByBonusRoulette()
 	);
-}
-
-/**
- * A meter is full (or a trigger is already queued) so a feature trigger bet is about to / is
- * auto-firing. Keeps betting controls locked across the gap between the filling round settling
- * and the trigger round starting (live RGS only — dev-local has no trigger books to fire).
- */
-export function isFeatureTriggerImminent(): boolean {
-	if (stateGame.pendingFeatureTrigger != null) return true;
-	if (!hasActiveRgsSession()) return false;
-	// Only the BONUS meter auto-fires a free trigger bet; keep controls locked across the gap until it
-	// starts. The free spin is in-drop (no separate bet), so a full spin meter does NOT lock.
-	const bonusFull =
-		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
-	return bonusFull;
 }
 
 export function isBetControlsLocked(): boolean {
@@ -166,6 +163,7 @@ export function isBetControlsLocked(): boolean {
 		// this, fast clicks during settlement dispatch a BET the idle-only machine drops, leaving
 		// `isSubmitting` stuck and the controls locked.
 		stateXstateDerived.isPlaying() ||
+		// Bonus meter full → keep betting locked until the auto-fired bonus trigger starts.
 		isFeatureTriggerImminent()
 	);
 }
@@ -281,7 +279,12 @@ export function awardBonusBalls(count: number) {
 		stateGame.bonusRoundActive = true;
 		stateGame.bonusLevelProgress = 1;
 		stateGame.spinMeterValue = 0;
-		stateGame.bonusMeterValue = 0;
+		// The bonus fires in-drop from a base book (the persistent session meter is a visual indicator,
+		// not the exact trigger), so snap the meter to FULL as the bonus starts — the "fill → fire"
+		// reads coherently regardless of the served book / where the session meter actually was. The
+		// bonus-round level meter then sits at max (level-ups re-assert max); it resets to the tier
+		// start when the round ends (`resetBonusRoundVisualState` / `syncBonusMeterAfterBet`).
+		stateGame.bonusMeterValue = stateGame.bonusMeterMax;
 		stateGame.bonusMeterOverflowValue = 0;
 		stateGame.bonusSessionWinAmount = 0;
 	}
@@ -446,7 +449,11 @@ async function settleBonusRoundWhenFinished() {
 			stateGame.bonusBallsRemaining <= 0 &&
 			stateGame.pendingSpinRouletteAfterBonusLevelDepletion
 		) {
+			// A spin meter that filled during the bonus round opens the free-spin wheel after the balls
+			// deplete (session-meter / dev-local fallback). The Option #1 bonus is single-level with no
+			// in-bonus free spin, so there's no book-authored in-bonus wheel payload to run here.
 			stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
+			stateGame.pendingBonusFreeSpinPayload = undefined;
 			stateGame.bonusRoundSettlementInProgress = false;
 			triggerRoulette('spin');
 			return;
@@ -471,7 +478,8 @@ async function settleBonusRoundWhenFinished() {
 export function resetBonusRoundVisualState() {
 	stateGame.bonusRoundActive = false;
 	stateGame.bonusLevelProgress = 0;
-	stateGame.bonusMeterValue = 0;
+	// Bonus consumed: reset to the tier base start (0 on 1/10-ball, 1/8 on 20-ball, 1/4 on 50-ball).
+	stateGame.bonusMeterValue = Math.min(bonusMeterTierStart(), stateGame.bonusMeterMax || bonusMeterTierStart());
 	stateGame.bonusMeterOverflowValue = 0;
 	stateGame.pendingBonusLevelUpCount = 0;
 	stateGame.deferredBonusLevelUpCount = 0;
@@ -742,7 +750,7 @@ export function onMainPlayClick(onRegularBet: () => void) {
 	onRegularBet();
 }
 
-/** A round is in progress (anything that should block auto-firing the next trigger bet). */
+/** A round is in progress (anything that should block auto-firing the bonus trigger bet). */
 function isFeatureTriggerBlocked(): boolean {
 	return (
 		stateGame.pendingFeatureTrigger != null ||
@@ -759,19 +767,15 @@ function isFeatureTriggerBlocked(): boolean {
 }
 
 /**
- * Auto-fire the free BONUS trigger bet when the bonus meter is full: RGS serves a free book that runs
- * the bonus round and computes the payout, and the meter resets from that book. The FREE SPIN is NOT
- * auto-fired — it fires in-drop inside the base book (per-drop spin meter), so a full spin meter
- * needs no separate bet.
+ * Auto-fire the BONUS trigger bet when the bonus meter is full: RGS serves the `bonus<tier>` book (which
+ * runs the bonus round), and the meter resets afterwards. Deterministic — fires the moment the meter is
+ * full and the round machine is idle. The bonus mode costs the tier cost (one normal bet), NOT 49×.
+ * Live-RGS-only (dev-local has no trigger books; the session-meter fallback handles it there).
  */
 export function maybeAutoFireFeatureTrigger(dispatchBet: () => void): void {
-	// Trigger modes are RGS-only; dev-local play has no trigger books, so skip to avoid an
-	// auto-fire loop on a meter that a local base book can't reset.
 	if (!hasActiveRgsSession()) return;
 	if (isFeatureTriggerBlocked()) return;
-	const bonusFull =
-		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
-	if (!bonusFull) return;
+	if (!isBonusMeterFull()) return;
 	stateGame.pendingFeatureTrigger = 'bonus';
 	dispatchBet();
 }

@@ -68,15 +68,16 @@
 		stateGame.rouletteFlowInProgress;
 		// Stay locked until the round machine is fully idle (deferred end-round settlement).
 		stateXstate.value;
-		// Keep controls locked across the gap between a meter filling and the trigger round.
+		// Keep controls locked across the gap between the bonus meter filling and the trigger round.
 		stateGame.pendingFeatureTrigger;
-		stateGame.spinMeterValue;
-		stateGame.spinMeterMax;
 		stateGame.bonusMeterValue;
 		stateGame.bonusMeterMax;
 		return isBetControlsLocked();
 	});
 	const bonusPlayDisabled = $derived(isBonusPlayButtonDisabled() || props.bonusPlayDisabled);
+	// During a bonus round the drop is always single-ball (free balls), so the HUD shows 1 regardless
+	// of the selected tier. `stateGame.ballPerDrop` itself is left untouched (tier logic / meters).
+	const ballPerDropDisplay = $derived(stateGame.bonusRoundActive ? 1 : stateGame.ballPerDrop);
 	const availableBetPresets = $derived(
 		plinkoStakePerBallOptions().length
 			? plinkoStakePerBallOptions()
@@ -309,7 +310,7 @@
 			<div class="mobile-top-card">
 				{@render bettingFieldFrame()}
 				<span class="mobile-top-card-label">{context.i18nDerived.t('Ball per drop')}</span>
-				<span class="mobile-top-card-value">{stateGame.ballPerDrop}</span>
+				<span class="mobile-top-card-value">{ballPerDropDisplay}</span>
 			</div>
 			<div class="mobile-top-card">
 				{@render bettingFieldFrame()}
@@ -426,7 +427,7 @@
 					</button>
 					<div class="mobile-bet-popup-mid">
 						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Ball per drop')}</span>
-						<span class="mobile-bet-popup-value">{stateGame.ballPerDrop}</span>
+						<span class="mobile-bet-popup-value">{ballPerDropDisplay}</span>
 					</div>
 					<button
 						type="button"
@@ -613,7 +614,7 @@
 								/>
 							</button>
 							<div class="bp-bet-input-mid">
-								<span class="bp-select-display" aria-live="polite">{stateGame.ballPerDrop}</span>
+								<span class="bp-select-display" aria-live="polite">{ballPerDropDisplay}</span>
 							</div>
 							<button
 								type="button"

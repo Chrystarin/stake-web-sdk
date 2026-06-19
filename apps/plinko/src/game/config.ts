@@ -42,13 +42,13 @@ export default {
 			rtp: 0.97,
 			max_win: 1000.0,
 		},
-		// BONUS trigger modes (auto-fired when the bonus meter is full). cost 0 = FREE (EV-priced in
-		// the math summary). Must match the published math config.json. There is NO freespin trigger
-		// mode — the free spin fires in-drop inside the base modes.
-		bonusone: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		bonusten: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		bonustwenty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		bonusfifty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		// BONUS trigger modes (auto-fired when the bonus meter fills). cost = the TIER cost (same as the
+		// base mode) so the trigger debits exactly one normal bet — NOT 49×. The bonus payout is sized in
+		// the math so the mode stays compliant. Must match the published math config.json.
+		bonusone: { cost: 1.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		bonusten: { cost: 10.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		bonustwenty: { cost: 20.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		bonusfifty: { cost: 50.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 	},
 	/** [rowTierIndex 0..12] → slot multipliers (matches stake-math-sdk plinko_data.COEFFICIENT_SETS). */
 	coefficientSets: tierTable(DEFAULT_SLOT_MULTIPLIERS) as number[][],
