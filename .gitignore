@@ -38,6 +38,9 @@ storybook-static
 apps/**/src/game/resources/
 apps/**/src/game/sounds/
 
+#editor swap/temp files (e.g. Game.svelte.tmp.14424.<hash>)
+apps/**/*.tmp.*
+
 #vercel
 .vercel
 
