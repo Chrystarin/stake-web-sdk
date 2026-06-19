@@ -5,6 +5,7 @@ import {
 	scheduleBonusMeterDrainDuringRoll,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
+import { seedSpinMeterForCurrentTier } from './plinkoSessionMeters';
 import { meterController } from './stateGame.svelte';
 import { stateGame } from './stateGame.svelte';
 
@@ -200,6 +201,10 @@ export function onBonusRouletteFinished(wheelFreeBallCount?: number) {
 }
 
 export function syncBallPerDropTier() {
+	// Free-spin meter is PER-DROP: always re-seed the HUD to the selected tier's start + max so the
+	// meter UI matches the new balls-per-drop tier immediately on switch (independent of the
+	// server-authoritative bonus-meter flow).
+	seedSpinMeterForCurrentTier();
 	if (stateGame.authoritativeMeterFlow || stateGame.serverMeterLimitsActive) return;
 	meterController.setBallPerDrop(stateGame.ballPerDrop);
 }

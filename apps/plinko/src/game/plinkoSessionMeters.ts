@@ -1,7 +1,12 @@
 import { PUBLIC_CHROMATIC } from 'envs';
 import { stateBet, stateUrlDerived } from 'state-shared';
 
-import { DEFAULT_ROW_COUNT, PLINKO_DEFAULT_VARIANT_ID } from '../game-logic/constants';
+import {
+	DEFAULT_ROW_COUNT,
+	PLINKO_DEFAULT_VARIANT_ID,
+	spinMeterTierFor,
+} from '../game-logic/constants';
+import { plinkoBallsPerDrop } from './plinkoBet';
 import { stateGame } from './stateGame.svelte';
 import type { BookEvent } from './typesBookEvent';
 
@@ -79,10 +84,13 @@ export function getDevRgsBonusLevel(): number {
  * mapped onto this session value as a delta from the book's own start (`spinMeterSessionValueFromBook`).
  */
 export function resolveRgsSpinMeterStart(
-	_bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
+	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	if (!hasActiveRgsSession()) return devRgsSpinMeter;
-	return getRgsSessionSpinMeter();
+	// PER-DROP spin meter: each book seeds at its OWN tier-fixed `spinMeterStart` and fills in-drop;
+	// it does NOT carry across bets (resets every round). The tier start is a fixed value (0 / 1/8 /
+	// 1/4 of max), not a random stratum, so trusting the book is safe here. (The BONUS meter is still
+	// a session meter — see `resolveRgsBonusMeterStart`.)
+	return Math.max(0, Math.floor(bookEvent.spinMeterStart ?? 0));
 }
 
 /**
@@ -252,6 +260,19 @@ export function resetSpinMeterSession(): void {
 	updateRgsSessionSpinMeter(0);
 }
 
+/**
+ * Seed the spin-meter HUD to the CURRENT balls-per-drop tier's per-drop start + max (1-ball → max 1
+ * / start 0, no free spin). The free-spin meter is per-drop, so it resets to this start each round
+ * and re-seeds here when the player switches tier.
+ */
+export function seedSpinMeterForCurrentTier(): void {
+	const { max, start } = spinMeterTierFor(plinkoBallsPerDrop());
+	stateGame.spinMeterBaseMax = max;
+	stateGame.spinMeterMax = max;
+	stateGame.spinMeterValue = Math.min(Math.max(0, start), max);
+	setRgsSessionSpinMeter(start);
+}
+
 /** Apply a `spinMeter` book event to the HUD (session-absolute, never regress mid-bet). */
 export function applySpinMeterBookEvent(bookValue: number): void {
 	const betStart = stateGame.betSpinMeterStart;
@@ -268,17 +289,13 @@ export function applySpinMeterBookEvent(bookValue: number): void {
 	setRgsSessionSpinMeter(stateGame.spinMeterValue);
 }
 
-/** After a bet book finishes: display RGS result and sync spin meter for the next play meta. */
-export async function syncSpinMeterAfterBet(events: BookEvent[]): Promise<void> {
-	const derived = deriveSpinMeterFromBookEvents(events);
-	const hadFreeSpinReset =
-		events.some((event) => event.type === 'freeSpinTrigger') ||
-		stateGame.freeSpinAwardedThisRound;
-	const spinMeter = hadFreeSpinReset
-		? 0
-		: Math.max(derived, stateGame.spinMeterValue, getRgsSessionSpinMeter());
-	applySpinMeterDisplay(spinMeter);
-	updateRgsSessionSpinMeter(spinMeter);
+/**
+ * After a bet book finishes (bet re-enabled): the free-spin meter is PER-DROP, so reset it to the
+ * current tier's start value — ready for the next round, no cross-bet carry. The meter filled (and
+ * possibly fired the in-drop free spin) during the just-finished book's `spinMeter` events.
+ */
+export async function syncSpinMeterAfterBet(_events: BookEvent[]): Promise<void> {
+	seedSpinMeterForCurrentTier();
 }
 
 /** Offset lookup-table `spinMeter` events when injecting session carry-over (local dev). */

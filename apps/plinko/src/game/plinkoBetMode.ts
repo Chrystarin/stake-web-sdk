@@ -12,13 +12,8 @@ export const PLINKO_BET_MODE_BY_BALLS: Record<number, string> = {
 	50: 'basefifty',
 };
 
-/** Dedicated feature-trigger modes (match `plinko_data` FREESPIN/BONUS_MODE_BY_BALLS). */
-export const PLINKO_FREESPIN_MODE_BY_BALLS: Record<number, string> = {
-	1: 'freespinone',
-	10: 'freespinten',
-	20: 'freespintwenty',
-	50: 'freespinfifty',
-};
+/** Dedicated BONUS trigger modes (match `plinko_data.BONUS_MODE_BY_BALLS`). There is NO freespin
+ * trigger mode — the free spin fires IN-DROP inside the base modes (per-drop meter). */
 export const PLINKO_BONUS_MODE_BY_BALLS: Record<number, string> = {
 	1: 'bonusone',
 	10: 'bonusten',
@@ -28,7 +23,6 @@ export const PLINKO_BONUS_MODE_BY_BALLS: Record<number, string> = {
 
 export const PLINKO_BET_MODES = [
 	...Object.values(PLINKO_BET_MODE_BY_BALLS),
-	...Object.values(PLINKO_FREESPIN_MODE_BY_BALLS),
 	...Object.values(PLINKO_BONUS_MODE_BY_BALLS),
 ];
 
@@ -45,46 +39,35 @@ export function plinkoBetModeForBallsPerDrop(ballsPerDrop: number): string {
 	return modeForBalls(PLINKO_BET_MODE_BY_BALLS, ballsPerDrop);
 }
 
-export function freeSpinTriggerModeForBalls(ballsPerDrop: number): string {
-	return modeForBalls(PLINKO_FREESPIN_MODE_BY_BALLS, ballsPerDrop);
-}
-
 export function bonusTriggerModeForBalls(ballsPerDrop: number): string {
 	return modeForBalls(PLINKO_BONUS_MODE_BY_BALLS, ballsPerDrop);
 }
 
 /**
- * The mode the next `/wallet/play` should use: a dedicated free trigger mode when a meter is full
- * (`stateGame.pendingFeatureTrigger`, auto-fired), otherwise the normal balls-per-drop tier mode.
+ * The mode the next `/wallet/play` should use: the dedicated free BONUS trigger mode when the bonus
+ * meter is full (`stateGame.pendingFeatureTrigger`, auto-fired), otherwise the normal tier mode. The
+ * free spin needs no mode — it fires in-drop inside the base book.
  */
 export function plinkoActiveBetMode(): string {
 	const balls = plinkoBallsPerDrop();
-	if (stateGame.pendingFeatureTrigger === 'spin') return freeSpinTriggerModeForBalls(balls);
 	if (stateGame.pendingFeatureTrigger === 'bonus') return bonusTriggerModeForBalls(balls);
 	return plinkoBetModeForBallsPerDrop(balls);
 }
 
-/** Set `stateBet.activeBetModeKey` before `/wallet/play` (trigger mode when a meter is full). */
+/** Set `stateBet.activeBetModeKey` before `/wallet/play` (bonus trigger mode when its meter is full). */
 export function syncPlinkoBetModeFromUi(): void {
 	stateBet.activeBetModeKey = plinkoActiveBetMode();
 }
 
-/** True for the dedicated free-spin / bonus trigger modes. */
+/** True for the dedicated BONUS trigger mode (empty initial drop). */
 export function isPlinkoTriggerMode(mode: string | undefined): boolean {
 	if (!mode) return false;
-	return (
-		Object.values(PLINKO_FREESPIN_MODE_BY_BALLS).includes(mode) ||
-		Object.values(PLINKO_BONUS_MODE_BY_BALLS).includes(mode)
-	);
+	return Object.values(PLINKO_BONUS_MODE_BY_BALLS).includes(mode);
 }
 
 export function ballsPerDropForPlinkoBetMode(mode: string | undefined): number | undefined {
 	if (!mode) return undefined;
-	for (const map of [
-		PLINKO_BET_MODE_BY_BALLS,
-		PLINKO_FREESPIN_MODE_BY_BALLS,
-		PLINKO_BONUS_MODE_BY_BALLS,
-	]) {
+	for (const map of [PLINKO_BET_MODE_BY_BALLS, PLINKO_BONUS_MODE_BY_BALLS]) {
 		const entry = Object.entries(map).find(([, name]) => name === mode);
 		if (entry) return Number(entry[0]);
 	}

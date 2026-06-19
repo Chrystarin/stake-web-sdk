@@ -4,13 +4,29 @@ export const BET_PER_BALL_PRESETS = [0.01, 0.1, 0.2, 0.5, 1, 5, 10, 20, 50] as c
 /** Balls released per drop tier selector. */
 export const BALL_PER_DROP_TIERS = [1, 10, 20, 50] as const;
 
-/** Meter limits are identical for every balls-per-drop tier (no reward scaling). */
+/** BONUS-meter limits per balls-per-drop tier (session meter; identical scaling for now). */
 export const METER_TIER_CONFIG: Record<number, { startRatio: number; maxRatio: number }> = {
 	1: { startRatio: 0, maxRatio: 1 },
 	10: { startRatio: 0, maxRatio: 1 },
 	20: { startRatio: 0, maxRatio: 1 },
 	50: { startRatio: 0, maxRatio: 1 },
 };
+
+/** Per-drop FREE-SPIN meter (max + start) per balls-per-drop tier — mirror of
+ * `stake-math-sdk/games/crimson_plinko/plinko_data.SPIN_METER_TIER`. The meter resets to `start`
+ * each round and fires the free spin in-drop at `max`. 1-ball is absent (no free spin). */
+export const SPIN_METER_TIER: Record<number, { max: number; startRatio: number }> = {
+	10: { max: 6, startRatio: 0 },
+	20: { max: 10, startRatio: 0.125 },
+	50: { max: 21, startRatio: 0.25 },
+};
+
+/** Free-spin meter `{ max, start }` for a balls-per-drop tier (1-ball has no free spin → max 1). */
+export function spinMeterTierFor(ballsPerDrop: number): { max: number; start: number } {
+	const cfg = SPIN_METER_TIER[Math.max(1, Math.floor(ballsPerDrop))];
+	if (!cfg) return { max: 1, start: 0 };
+	return { max: cfg.max, start: Math.round(cfg.max * cfg.startRatio) };
+}
 
 /** Pyramid row counts available in the UI. */
 export const ROW_COUNT_OPTIONS = [10, 14, 20] as const;
@@ -68,17 +84,18 @@ export function bonusLevelBalls(level: number): number {
 /** Bonus roulette segment prizes (free balls). */
 export const BONUS_ROULETTE_SEGMENTS = [100, 20, 50, 50, 50, 80, 20, 20] as const;
 
-/** Free-spin wheel segment labels. Every multiplier is ≥ 1× so the free spin can only GROW the win
- * it landed on, never shrink it. The free spin is a FREE positive-EV feature (EV-priced for Stake
- * compliance, like the bonus). Must match `stake-math-sdk/games/crimson_plinko/
- * plinko_data.FREE_SPIN_SEGMENTS`. No BONUS segment (the bonus has its own meter). */
+/** Free-spin wheel segment labels — the original wheel's values, NO BONUS (the old BONUS slot
+ * repeats 2X). The free spin fires IN-DROP and the multiplier applies to the BET PER BALL, so it
+ * pays `stake_per_ball × M` on top of the drop. Rendered on the label-less wheel with a data-driven
+ * text overlay (FreeSpinRoulette.svelte). Must match `stake-math-sdk/games/crimson_plinko/
+ * plinko_data.FREE_SPIN_SEGMENTS` (same order). */
 export const FREE_SPIN_SEGMENTS = [
+	'2X',
+	'0.5X',
 	'1X',
-	'2X',
-	'1.5X',
-	'3X',
-	'2X',
 	'5X',
-	'1.5X',
 	'10X',
+	'2X',
+	'20X',
+	'15X',
 ] as const;

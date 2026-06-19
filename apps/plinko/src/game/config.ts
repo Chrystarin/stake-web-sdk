@@ -42,13 +42,9 @@ export default {
 			rtp: 0.97,
 			max_win: 1000.0,
 		},
-		// Feature-trigger modes (auto-fired when a meter is full). cost 0 = FREE for the player; both
-		// free spin and bonus are free positive-EV features (EV-priced in the math summary). Must
-		// match the published math config.json (run.py `set_trigger_mode_costs_free`).
-		freespinone: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		freespinten: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		freespintwenty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		freespinfifty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
+		// BONUS trigger modes (auto-fired when the bonus meter is full). cost 0 = FREE (EV-priced in
+		// the math summary). Must match the published math config.json. There is NO freespin trigger
+		// mode — the free spin fires in-drop inside the base modes.
 		bonusone: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 		bonusten: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 		bonustwenty: { cost: 0.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },

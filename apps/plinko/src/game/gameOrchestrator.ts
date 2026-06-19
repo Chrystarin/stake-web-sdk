@@ -147,12 +147,11 @@ export function isBonusPlayButtonDisabled(): boolean {
 export function isFeatureTriggerImminent(): boolean {
 	if (stateGame.pendingFeatureTrigger != null) return true;
 	if (!hasActiveRgsSession()) return false;
-	// A full spin or bonus meter auto-fires a free trigger bet next; keep controls locked across the
-	// gap until that bet starts so the player can't slip a normal bet in between.
-	const spinFull = stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
+	// Only the BONUS meter auto-fires a free trigger bet; keep controls locked across the gap until it
+	// starts. The free spin is in-drop (no separate bet), so a full spin meter does NOT lock.
 	const bonusFull =
 		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
-	return spinFull || bonusFull;
+	return bonusFull;
 }
 
 export function isBetControlsLocked(): boolean {
@@ -760,22 +759,19 @@ function isFeatureTriggerBlocked(): boolean {
 }
 
 /**
- * Auto-fire a free feature-trigger bet when a meter is full. RGS serves a free book that triggers
- * the feature and computes the payout (no client-side trigger or payout), and the meter resets from
- * that book. Both are free positive-EV features: a full spin meter fires the `freespin*` mode (its
- * watched drop × the ≥1 wheel — never decreases), a full bonus meter fires `bonus*`. The balance
- * only ever gets the credit (free → no debit).
+ * Auto-fire the free BONUS trigger bet when the bonus meter is full: RGS serves a free book that runs
+ * the bonus round and computes the payout, and the meter resets from that book. The FREE SPIN is NOT
+ * auto-fired — it fires in-drop inside the base book (per-drop spin meter), so a full spin meter
+ * needs no separate bet.
  */
 export function maybeAutoFireFeatureTrigger(dispatchBet: () => void): void {
 	// Trigger modes are RGS-only; dev-local play has no trigger books, so skip to avoid an
 	// auto-fire loop on a meter that a local base book can't reset.
 	if (!hasActiveRgsSession()) return;
 	if (isFeatureTriggerBlocked()) return;
-	const spinFull = stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax;
 	const bonusFull =
 		stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
-	if (!spinFull && !bonusFull) return;
-	// Spin takes priority; the other meter (if also full) fires on the next idle evaluation.
-	stateGame.pendingFeatureTrigger = spinFull ? 'spin' : 'bonus';
+	if (!bonusFull) return;
+	stateGame.pendingFeatureTrigger = 'bonus';
 	dispatchBet();
 }
