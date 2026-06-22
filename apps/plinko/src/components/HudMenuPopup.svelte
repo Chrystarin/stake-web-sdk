@@ -10,11 +10,30 @@
 		onOpenRules?: () => void;
 		onOpenHistory?: () => void;
 		onOpenHowToPlay?: () => void;
+		onClose?: () => void;
 	};
 
 	const props: Props = $props();
 	const context = getContext();
 	const t = (key: string) => context.i18nDerived.t(key);
+
+	let menuEl: HTMLDivElement;
+
+	// Close the menu when the player clicks/taps anywhere outside of it. The menu
+	// toggle buttons are excluded so their own click handler can toggle cleanly
+	// (otherwise an outside-close would fire before the toggle, reopening it).
+	$effect(() => {
+		function handlePointerDown(event: PointerEvent) {
+			const target = event.target as Element | null;
+			if (!target) return;
+			if (menuEl?.contains(target)) return;
+			if (target.closest('.top-hud-btn--menu, .mobile-icon-btn--menu')) return;
+			props.onClose?.();
+		}
+
+		document.addEventListener('pointerdown', handlePointerDown, true);
+		return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+	});
 
 	const menuIcons = {
 		fair: staticUrl('img/hamburg_menu_ico_fair_settings.png'),
@@ -24,7 +43,12 @@
 	} as const;
 </script>
 
-<div class="hud-menu-popup" class:hud-menu-popup--mobile={props.mobile} role="menu">
+<div
+	class="hud-menu-popup"
+	class:hud-menu-popup--mobile={props.mobile}
+	role="menu"
+	bind:this={menuEl}
+>
 	<!-- TODO: restore player profile row when avatar/name is wired up
 	<header class="hud-menu-profile">
 		<span class="hud-menu-avatar" aria-hidden="true"></span>

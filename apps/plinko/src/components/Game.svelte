@@ -1,6 +1,7 @@
 <script lang="ts">
 
 	import { onMount } from 'svelte';
+	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { page } from '$app/state';
 
 	import { stateBet, stateUrlDerived } from 'state-shared';
@@ -100,7 +101,17 @@
 
 	const context = getContext();
 
-	const mobile = isPortraitGameLayout();
+	/**
+	 * Match Background.svelte: re-evaluate the portrait/mobile layout reactively so the
+	 * game area and betting panel switch in lockstep with the background. Tracking the
+	 * window size keeps this in sync on resize / orientation change instead of being
+	 * frozen at the value computed on mount.
+	 */
+	const mobile = $derived.by(() => {
+		innerWidth.current;
+		innerHeight.current;
+		return isPortraitGameLayout();
+	});
 
 	/** TODO: remove — temporary preview of bonus congratulations typography on load. */
 	const DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD = false;
@@ -382,6 +393,7 @@
 						onOpenRules={() => openInfo('rules')}
 						onOpenHistory={() => openInfo('history')}
 						onOpenHowToPlay={() => openInfo('howToPlay')}
+						onClose={() => (stateGame.menuOpen = false)}
 					/>
 				{/if}
 			</div>
@@ -397,6 +409,7 @@
 			onOpenRules={() => openInfo('rules')}
 			onOpenHistory={() => openInfo('history')}
 			onOpenHowToPlay={() => openInfo('howToPlay')}
+			onClose={() => (stateGame.menuOpen = false)}
 		/>
 	{/if}
 
@@ -1198,18 +1211,18 @@
 
 		width: max-content;
 
-		min-width: 280px;
+		min-width: 150px;
 
 		max-width: 96vw;
 
-		padding: 32px 40px;
+		padding: 32px 24px;
 
 		text-align: center;
 
 		/* Coded equivalent of win_bg.svg: dark radial fill + green rounded border. */
 		background: radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%);
 
-		border: 3px solid #54f917;
+		border: 9px solid #54f917;
 
 		border-radius: 16px;
 
@@ -1219,7 +1232,7 @@
 
 		color: #54f917;
 
-		font-size: 1.375rem;
+		font-size: 1.58125rem;
 
 		font-weight: 400;
 
@@ -1249,7 +1262,7 @@
 
 		white-space: nowrap;
 
-		font-size: 1.625rem;
+		font-size: 1.3rem;
 
 		margin: 10px 0 0;
 
