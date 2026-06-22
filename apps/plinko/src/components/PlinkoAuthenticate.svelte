@@ -92,6 +92,18 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	function seedLocalDevSession(): void {
 		stateBet.currency = stateBet.currency || 'USD';
 		stateBet.balanceAmount = stateBet.balanceAmount || 1000;
+		// No RGS session → use the USD presets as the bet-level grid (the shared default placeholder
+		// would otherwise be treated as a foreign currency and scaled). Mirrors a USD RGS session.
+		// Idempotent: only assign when the grid differs, so this reactive effect doesn't re-trigger
+		// itself on a fresh array reference each run.
+		const presets = BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet);
+		const cur = stateConfig.betAmountOptions;
+		const alreadySeeded =
+			cur?.length === presets.length && presets.every((v, i) => cur[i] === v);
+		if (!alreadySeeded) {
+			stateConfig.betAmountOptions = [...presets];
+			stateConfig.betMenuOptions = [...presets];
+		}
 		seedSessionDefaults();
 	}
 

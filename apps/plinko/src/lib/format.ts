@@ -19,6 +19,21 @@ export const formatCoefficientLabel = (value: number): string => {
 	return Number(value).toFixed(value % 1 === 0 ? 0 : 1);
 };
 
+/**
+ * Compact bet-amount label: abbreviates 4-digit+ values (1000 → "1k", 1500 → "1.5k",
+ * 1_000_000 → "1m", 2_500_000 → "2.5m") and drops a trailing `.00` (1.00 → "1", 0.10 → "0.1",
+ * 0.01 → "0.01"). Up to 2 significant decimals are kept, with trailing zeros stripped.
+ */
+export const formatCompactAmount = (value: number): string => {
+	if (value == null || Number.isNaN(value)) return '';
+	// Round to `decimals`, then drop trailing zeros and any trailing decimal point.
+	const trim = (n: number, decimals: number) => Number(n.toFixed(decimals)).toString();
+	const abs = Math.abs(value);
+	if (abs >= 1_000_000) return `${trim(value / 1_000_000, 2)}m`;
+	if (abs >= 1_000) return `${trim(value / 1_000, 2)}k`;
+	return trim(value, 2);
+};
+
 export const formatAmount = (value: number, currency = ''): string => {
 	const formatted = value.toLocaleString(undefined, {
 		minimumFractionDigits: 2,

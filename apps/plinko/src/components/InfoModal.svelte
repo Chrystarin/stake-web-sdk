@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { stateBet } from 'state-shared';
 
-	import config from '../game/config';
+	import { plinkoBetLimits } from '../game/plinkoBet';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
 	import { formatHistoryMultiplier } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
@@ -28,11 +28,23 @@
 		stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `,
 	);
 
+	/** Currency-accurate bet/win limits (USD presets, RGS-scaled for other currencies). */
+	const betLimits = $derived(plinkoBetLimits());
+
 	/** Newest entries are stored first (index 0 = top of table). */
 	const historyRows = $derived(stateGame.history);
 
 	function formatMoney(value: number) {
 		return `${currencySign}${value.toFixed(2)}`;
+	}
+
+	/** Grouped amount without forcing decimals on whole numbers (e.g. 0.01, 2,500, 50,000). */
+	function formatLimit(value: number) {
+		const formatted =
+			value >= 1
+				? value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+				: value.toFixed(2);
+		return `${currencySign}${formatted}`;
 	}
 </script>
 
@@ -52,9 +64,9 @@
 				>
 					{#if stateGame.infoModalTab === 'rules'}
 						<h3 class="info-section-title">Bet limits</h3>
-						<p>Min bet: {config.minBet} {stateBet.currency}</p>
-						<p>Max bet: {config.maxBet} {stateBet.currency}</p>
-						<p>Max win: 20 000 {stateBet.currency}</p>
+						<p>Min bet: {formatLimit(betLimits.min)}</p>
+						<p>Max bet: {formatLimit(betLimits.max)}</p>
+						<p>Max win: {formatLimit(betLimits.maxWin)}</p>
 
 						<h3 class="info-section-title">Main Betting Components</h3>
 						<p>The betting interface is straightforward and matches the on-screen controls:</p>
@@ -210,7 +222,7 @@
 														class="info-mult-pill"
 														style:background={row.color}
 													>
-														{formatHistoryMultiplier(row.multiplier)}
+														{row.label ?? formatHistoryMultiplier(row.multiplier)}
 													</span>
 												</td>
 												<td>{formatMoney(row.win)}</td>
@@ -369,7 +381,7 @@
 		border-spacing: 0;
 	}
 	.info-history-table--head th {
-		text-align: left;
+		text-align: center;
 		font-size: 12px;
 		color: #e9eff9;
 		padding: 8px 10px;

@@ -25,6 +25,7 @@
 	import { stateXstate } from '../game/stateXstate';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/freeSpin';
+	import { formatCompactAmount } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	import './GameHud.scss';
@@ -109,7 +110,11 @@
 	);
 
 	function formatMoney(value: number) {
-		return `${currencySign}${value.toFixed(2)}`;
+		const formatted = value.toLocaleString('en-US', {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		});
+		return `${currencySign}${formatted}`;
 	}
 
 	function getClosestPresetIndex(presets: readonly number[], amount: number) {
@@ -327,7 +332,7 @@
 			<div class="mobile-top-card">
 				{@render bettingFieldFrame()}
 				<span class="mobile-top-card-label">{context.i18nDerived.t('Bet per ball')}</span>
-				<span class="mobile-top-card-value">{props.betAmount.toFixed(2)}</span>
+				<span class="mobile-top-card-value">{formatCompactAmount(props.betAmount)}</span>
 			</div>
 			<div class="mobile-top-card mobile-top-card--free-spin">
 				<div class="mobile-free-spin-meter">
@@ -472,7 +477,7 @@
 					</button>
 					<div class="mobile-bet-popup-mid">
 						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet per ball')}</span>
-						<span class="mobile-bet-popup-value">{props.betAmount.toFixed(2)}</span>
+						<span class="mobile-bet-popup-value">{formatCompactAmount(props.betAmount)}</span>
 					</div>
 					<button
 						type="button"
@@ -576,7 +581,7 @@
 								}}
 							>
 								<span class="bp-select-display" aria-live="polite">
-									{props.betAmount.toFixed(2)}
+									{formatCompactAmount(props.betAmount)}
 								</span>
 							</div>
 							<button
@@ -603,7 +608,7 @@
 										disabled={controlsLocked}
 										onclick={() => selectBetPerBallOption(preset)}
 									>
-										{preset.toFixed(2)}
+										{formatCompactAmount(preset)}
 									</button>
 								{/each}
 							</div>
