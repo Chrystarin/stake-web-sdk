@@ -468,6 +468,9 @@ async function settleBonusRoundWhenFinished() {
 		}
 		if (stateGame.bonusBallsRemaining <= 0) {
 			stateGame.bonusEndWinAmount = Math.max(0, getCombinedRoundWinAmount());
+			// Fold the whole bonus round into one My Bet History row (per-ball bonus lands were
+			// skipped in `onBallLanded`). Capture the session win before the reset clears it.
+			recordBonusWinHistory(stateGame.bonusSessionWinAmount);
 			resetBonusRoundVisualState();
 			stateGame.bonusEndAnnouncementOpen = true;
 		}
@@ -576,18 +579,26 @@ export function onBallLanded(
 	if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {
 		addSettledWinAmount(pending.amount * resolvedMultiplier);
 	}
-	if (!isSpinSlot) {
+	// Bonus-round ball lands are folded into ONE consolidated "Bonus" row at settlement
+	// (`recordBonusWinHistory`), so skip per-ball logging here to avoid double-counting.
+	if (!stateGame.bonusRoundActive) {
 		const bet = pending?.amount ?? stateBet.betAmount;
-		stateGame.history.unshift({
-			date: formatHistoryDate(new Date()),
-			bet,
-			multiplier: resolvedMultiplier,
-			win: bet * resolvedMultiplier,
-			color:
-				coeffs.length && rateIndex >= 0
-					? slotColorForRateIndex(coeffs, rateIndex)
-					: '#64748b',
-		});
+		if (isSpinSlot) {
+			// A spin-slot land has no pocket payout (it fills the free-spin meter), so log it with a
+			// blue "spin" pill and a 0 win — the resulting free-spin payout is its own row later.
+			recordSpinSlotHistory(bet);
+		} else {
+			stateGame.history.unshift({
+				date: formatHistoryDate(new Date()),
+				bet,
+				multiplier: resolvedMultiplier,
+				win: bet * resolvedMultiplier,
+				color:
+					coeffs.length && rateIndex >= 0
+						? slotColorForRateIndex(coeffs, rateIndex)
+						: '#64748b',
+			});
+		}
 	}
 	if (pending && isSpinSlot) {
 		onSpinSlotLand(ballId);
@@ -595,6 +606,77 @@ export function onBallLanded(
 	if (!stateGame.bonusBallsRemaining && stateGame.bonusRoundActive && !isGameOngoing()) {
 		void settleBonusRoundWhenFinished();
 	}
+}
+
+/** Distinct My Bet History accents for consolidated feature payout rows. */
+const FREE_SPIN_HISTORY_COLOR = '#A855F7';
+const BONUS_HISTORY_COLOR = '#FFB801';
+const SPIN_SLOT_HISTORY_COLOR = '#3B82F6';
+
+/** Spin-slot land: a real per-ball wager with no pocket payout (0 win), shown as a blue "spin". */
+export function recordSpinSlotHistory(bet: number) {
+	stateGame.history.unshift({
+		date: formatHistoryDate(new Date()),
+		bet,
+		multiplier: 0,
+		win: 0,
+		color: SPIN_SLOT_HISTORY_COLOR,
+		label: 'Spin',
+	});
+}
+
+/**
+ * Record a consolidated feature payout (free-spin wheel multiplier, or a whole bonus round) in My
+ * Bet History. Feature wins are authoritative-round wins that DON'T map to a single base-board ball
+ * land — left unrecorded, the per-ball rows would undercount the displayed total. Each call adds one
+ * labelled row so the recorded rows sum to the on-screen total.
+ */
+export function recordFeatureWinHistory(params: {
+	label: string;
+	multiplier: number;
+	win: number;
+	bet: number;
+	color: string;
+}) {
+	if (!(params.win > 0)) return;
+	stateGame.history.unshift({
+		date: formatHistoryDate(new Date()),
+		bet: params.bet,
+		multiplier: params.multiplier,
+		win: params.win,
+		color: params.color,
+		label: params.label,
+		// Free Spin / Bonus aren't a single per-ball wager, so blank the Bet column.
+		betPlaceholder: true,
+	});
+}
+
+/** Free-spin wheel payout: `win` is the INCREMENTAL credit (round total − pre-feature win). */
+export function recordFreeSpinWinHistory(multiplier: number, win: number, bet: number) {
+	recordFeatureWinHistory({
+		label: `Free Spin ${formatFeatureMultiplier(multiplier)}`,
+		multiplier,
+		win,
+		bet,
+		color: FREE_SPIN_HISTORY_COLOR,
+	});
+}
+
+/** Whole bonus round folded into one row; `win` is the full bonus-session win. */
+export function recordBonusWinHistory(win: number) {
+	const bet = plinkoStakePerBall();
+	recordFeatureWinHistory({
+		label: 'Bonus',
+		multiplier: bet > 0 ? win / bet : 0,
+		win,
+		bet,
+		color: BONUS_HISTORY_COLOR,
+	});
+}
+
+function formatFeatureMultiplier(multiplier: number): string {
+	const rounded = Math.round(multiplier * 100) / 100;
+	return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(2)}×`;
 }
 
 /**

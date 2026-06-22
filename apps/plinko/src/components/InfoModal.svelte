@@ -20,7 +20,7 @@
 	const sectionTitles: Record<InfoModalTab, string> = {
 		rules: 'Game Rules',
 		fair: 'Provably fair settings',
-		history: 'My bet History',
+		history: 'My Bet History',
 		howToPlay: 'How to Play?',
 	};
 
@@ -200,23 +200,21 @@
 						<div class="info-seed-box">e814403c4e1eb875b3cb6c2944a69829ce5214a35697176</div>
 					{:else}
 						<div class="info-history-pane">
-							<table class="info-history-table info-history-table--head">
-								<thead>
-									<tr>
-										<th>Date</th>
-										<th>Bet</th>
-										<th>Mult.</th>
-										<th>Win</th>
-									</tr>
-								</thead>
-							</table>
 							<div class="info-history-scroll">
-								<table class="info-history-table info-history-table--body">
+								<table class="info-history-table">
+									<thead>
+										<tr>
+											<th>Date</th>
+											<th>Bet</th>
+											<th>Mult.</th>
+											<th>Win</th>
+										</tr>
+									</thead>
 									<tbody>
 										{#each historyRows as row, index (`${row.date}-${row.bet}-${row.multiplier}-${index}`)}
 											<tr>
 												<td>{row.date}</td>
-												<td>{formatMoney(row.bet)}</td>
+												<td>{row.betPlaceholder ? '- - -' : formatMoney(row.bet)}</td>
 												<td>
 													<span
 														class="info-mult-pill"
@@ -374,13 +372,14 @@
 		width: 100%;
 		table-layout: fixed;
 		border-collapse: separate;
-		border-spacing: 0;
+		/* Single table: header + body share one column grid, so centered titles line up
+		 * exactly with the centered cell contents (no scrollbar / padding drift). */
+		border-spacing: 0 6px;
 	}
-	.info-history-table--head {
-		flex-shrink: 0;
-		border-spacing: 0;
-	}
-	.info-history-table--head th {
+	.info-history-table thead th {
+		position: sticky;
+		top: 0;
+		z-index: 1;
 		text-align: center;
 		font-size: 12px;
 		color: #e9eff9;
@@ -390,23 +389,20 @@
 		background: #0f1a28;
 		box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
 	}
-	.info-history-table--body {
-		border-spacing: 0 6px;
-	}
-	.info-history-table--head th:nth-child(1),
-	.info-history-table--body td:nth-child(1) {
+	.info-history-table th:nth-child(1),
+	.info-history-table td:nth-child(1) {
 		width: 32%;
 	}
-	.info-history-table--head th:nth-child(2),
-	.info-history-table--body td:nth-child(2) {
+	.info-history-table th:nth-child(2),
+	.info-history-table td:nth-child(2) {
 		width: 22%;
 	}
-	.info-history-table--head th:nth-child(3),
-	.info-history-table--body td:nth-child(3) {
+	.info-history-table th:nth-child(3),
+	.info-history-table td:nth-child(3) {
 		width: 22%;
 	}
-	.info-history-table--head th:nth-child(4),
-	.info-history-table--body td:nth-child(4) {
+	.info-history-table th:nth-child(4),
+	.info-history-table td:nth-child(4) {
 		width: 24%;
 	}
 	.info-history-empty {
@@ -417,6 +413,7 @@
 	}
 	.info-history-table td {
 		padding: 8px 10px;
+		text-align: center;
 		background: rgba(106, 124, 160, 0.45);
 		color: #f2f7ff;
 		font-size: 13px;

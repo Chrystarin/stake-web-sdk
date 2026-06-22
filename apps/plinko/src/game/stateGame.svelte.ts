@@ -14,6 +14,11 @@ export type HistoryEntry = {
 	multiplier: number;
 	win: number;
 	color: string;
+	/** Set for consolidated feature rows (e.g. "Free Spin 5×", "Bonus") and spin-slot rows ("spin")
+	 * so the My Bet History pill shows the label instead of a per-ball pocket multiplier. */
+	label?: string;
+	/** Blank the Bet column (shown as "- - -") for feature rows that aren't a single per-ball wager. */
+	betPlaceholder?: boolean;
 };
 export type InfoModalTab = 'rules' | 'fair' | 'history' | 'howToPlay';
 export type MsgBoxConfig = {

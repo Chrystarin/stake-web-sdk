@@ -5,6 +5,7 @@ import { eventEmitter } from '../../game/eventEmitter';
 import { resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
+import { getCombinedRoundWinAmount, recordFreeSpinWinHistory } from '../../game/gameOrchestrator';
 import { applyRgsRoundWinFromBet } from '../../game/rgsRoundWin';
 import {
 	freeSpinMultiplierFromSegment,
@@ -38,9 +39,21 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 			const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
 
 			if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
+				// Snapshot the win already logged ball-by-ball in My Bet History (base lands) before
+				// the wheel multiplier replaces the round total, so we can log only the incremental
+				// free-spin credit and keep the history sum equal to the displayed total. During a
+				// bonus round the consolidated "Bonus" row (recorded at bonus settlement) already
+				// captures this free-spin contribution, so don't add a separate row.
+				const winBeforeFeature = getCombinedRoundWinAmount();
 				stateGame.pendingDropWinAmount = totalWin;
 				if (stateGame.bonusRoundActive) {
 					stateGame.bonusSessionWinAmount = totalWin;
+				} else {
+					recordFreeSpinWinHistory(
+						multiplier,
+						getCombinedRoundWinAmount() - winBeforeFeature,
+						winBeforeFeature,
+					);
 				}
 				stateGame.freeSpinWinMultiplier = multiplier;
 				stateGame.winPopupMultiplier = multiplier;
