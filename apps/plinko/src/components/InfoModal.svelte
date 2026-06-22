@@ -172,7 +172,7 @@
 							</li>
 							<li>
 								<strong>Choose Ball Per Drop</strong> – Select how many cannonballs you want to release
-								in one round (common options include 10, 20, or 50).
+								in one round (common options include 1, 10, 20, or 50).
 							</li>
 							<li>
 								Press SPIN (or the play button) to drop the balls and watch them bounce down the
