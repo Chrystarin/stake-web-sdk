@@ -24,6 +24,6 @@ export default {
 	Sound: 'Sound',
 	'Provably fair settings': 'Provably fair settings',
 	'Game Rules': 'Game Rules',
-	'My bet History': 'My bet History',
+	'My Bet History': 'My Bet History',
 	'How to Play?': 'How to Play?',
 };

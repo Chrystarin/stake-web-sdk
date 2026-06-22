@@ -178,22 +178,9 @@
 					class:free-spin-wheel--animating={wheelSpinClass}
 					class:free-spin-wheel--visible={wheelVisible}
 					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-					src={staticUrl('img/free-spin-roulette-wheel-empty.png')}
+					src={staticUrl('img/free-spin-roulette-wheel.png')}
 					alt=""
 				/>
-				<div
-					class="free-spin-wheel-labels"
-					class:free-spin-wheel-labels--animating={wheelSpinClass}
-					class:free-spin-wheel-labels--visible={wheelVisible}
-					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-					style:--label-radius={labelRadiusPx}
-					style:--label-font-size={labelFontPx}
-					aria-hidden="true"
-				>
-					{#each FREE_SPIN_SEGMENTS as segment, i (i)}
-						<span class="free-spin-wheel-label" style:--seg-angle="{i * 45}deg">{segment}</span>
-					{/each}
-				</div>
 				<img
 					class="free-spin-center-base"
 					style:width={baseWidthPx}

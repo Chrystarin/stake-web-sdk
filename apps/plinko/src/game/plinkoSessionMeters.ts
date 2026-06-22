@@ -478,8 +478,21 @@ export function updateRgsSessionBonusMeter(bonusMeter: number, bonusLevel: numbe
 	}
 }
 
-/** Apply a `bonusMeter` book event to the HUD (session-absolute, never regress mid-bet). */
-export function applyBonusMeterBookEvent(bookValue: number, bookLevel: number): void {
+/** Apply a `bonusMeter` book event to the HUD. The TRIGGER-phase meter (no `eventMax`) is per-drop and
+ * only increases toward the per-tier max. The IN-BONUS "energy" meter (with `eventMax` = the level-up
+ * threshold) is set DIRECTLY so it can RESET to empty on a level-up and fill exactly as the book says. */
+export function applyBonusMeterBookEvent(
+	bookValue: number,
+	bookLevel: number,
+	eventMax?: number,
+): void {
+	if (eventMax && eventMax > 0) {
+		// In-bonus level-up meter: starts empty each level, fills to `eventMax`, resets on level-up.
+		stateGame.bonusMeterMax = eventMax;
+		stateGame.bonusMeterValue = Math.max(0, Math.min(Math.floor(bookValue), eventMax));
+		stateGame.bonusMeterLevel = bookLevel;
+		return;
+	}
 	const betStart = stateGame.betBonusMeterStart;
 	const betRelative = stateGame.bonusMeterBookValuesAreBetRelative;
 	const sessionValue = bonusMeterSessionValueFromBook(bookValue, betStart, betRelative);

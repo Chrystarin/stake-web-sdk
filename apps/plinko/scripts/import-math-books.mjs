@@ -5,16 +5,70 @@
  *   node scripts/import-math-books.mjs
  *   node scripts/import-math-books.mjs --limit 20
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, openSync, readSync, closeSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Published libraries can be 100s of MB / GBs (100k+ books) — too large for readFileSync (Node's max
+// string length). We only need a small sample, so read just the first chunk of the file and pull out
+// complete book objects from it.
+const MAX_BOOKS_PER_MODE = 30000;
+const HEAD_BYTES = 80 * 1024 * 1024; // 80 MB — well under the string limit, holds tens of thousands of books
+
+/** Read up to `HEAD_BYTES` from a file as UTF-8 (handles arbitrarily large files). */
+function readHead(path) {
+	const fd = openSync(path, 'r');
+	try {
+		const buf = Buffer.alloc(HEAD_BYTES);
+		const n = readSync(fd, buf, 0, HEAD_BYTES, 0);
+		return buf.subarray(0, n).toString('utf8');
+	} finally {
+		closeSync(fd);
+	}
+}
+
+/** Extract complete top-level `{...}` book objects from a (possibly truncated) JSON array / JSONL
+ * string via brace-counting (string-aware), up to `maxBooks`. Works for both `.json` and `.jsonl`. */
+function extractBooks(str, maxBooks) {
+	const books = [];
+	let depth = 0;
+	let inStr = false;
+	let esc = false;
+	let start = -1;
+	for (let i = 0; i < str.length; i++) {
+		const c = str[i];
+		if (inStr) {
+			if (esc) esc = false;
+			else if (c === '\\') esc = true;
+			else if (c === '"') inStr = false;
+			continue;
+		}
+		if (c === '"') inStr = true;
+		else if (c === '{') {
+			if (depth === 0) start = i;
+			depth += 1;
+		} else if (c === '}') {
+			depth -= 1;
+			if (depth === 0 && start >= 0) {
+				try {
+					books.push(JSON.parse(str.slice(start, i + 1)));
+				} catch {
+					/* truncated / malformed trailing object */
+				}
+				start = -1;
+				if (books.length >= maxBooks) break;
+			}
+		}
+	}
+	return books;
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appRoot = join(__dirname, '..');
 const limitArg = process.argv.find((a) => a.startsWith('--limit'));
 const limit = limitArg
 	? Number(limitArg.includes('=') ? limitArg.split('=')[1] : process.argv[process.argv.indexOf(limitArg) + 1])
-	: 12;
+	: 24;
 if (!Number.isFinite(limit) || limit < 1) {
 	console.error('Invalid --limit');
 	process.exit(1);
@@ -26,16 +80,13 @@ const booksDir = join(appRoot, '../../../stake-math-sdk/games/crimson_plinko/lib
 const TIER_MODES = ['baseone', 'baseten', 'basetwenty', 'basefifty'];
 
 function loadMode(mode) {
-	for (const ext of ['.json', '.jsonl']) {
-		const p = join(booksDir, `books_${mode}${ext}`);
-		if (!existsSync(p)) continue;
-		const raw = readFileSync(p, 'utf8').trim();
-		if (!raw) return [];
-		return ext === '.jsonl'
-			? raw.split('\n').filter(Boolean).map((line) => JSON.parse(line))
-			: JSON.parse(raw);
-	}
-	return [];
+	// Prefer the freshest books file by mtime among the formats that exist (.json array / .jsonl lines).
+	const candidates = [`books_${mode}.json`, `books_${mode}.jsonl`]
+		.map((name) => join(booksDir, name))
+		.filter(existsSync);
+	if (candidates.length === 0) return [];
+	candidates.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+	return extractBooks(readHead(candidates[0]), MAX_BOOKS_PER_MODE);
 }
 
 let allBooks = TIER_MODES.flatMap(loadMode);
@@ -64,23 +115,38 @@ function ballsPerDropForBook(book) {
 function isFeatureBook(book) {
 	return (book.events ?? []).some((event) => FEATURE_EVENT_TYPES.has(event.type));
 }
+// A free spin landing on BONUS also emits `bonusRoulette` (the chain). For a clean "bonus" sample we
+// want METER-triggered bonus books (bonus meter fills → roulette), NOT free-spin→BONUS chains.
+const isChainBonus = (book) =>
+	(book.events ?? []).some(
+		(e) => e.type === 'freeSpinTrigger' && String(e.segment ?? '').toUpperCase() === 'BONUS',
+	);
+const hasBonus = (book) =>
+	(book.events ?? []).some((e) => e.type === 'bonusRoulette') && !isChainBonus(book);
+const hasFreeSpin = (book) => (book.events ?? []).some((e) => e.type === 'freeSpinTrigger');
 
 /**
- * Cover every UI balls-per-drop tier and demonstrate features: one feature book per tier
- * (where available) + one base book per tier, then fill remaining slots in order.
+ * DEV/test fixtures only (does NOT affect published RTP — that comes from the LUT). To make features
+ * easy to test in dev-local play, cover BOTH feature types per tier and weight the sample heavily
+ * toward features: per tier take 2 bonus + 2 free-spin (none on 1-ball) + 1 base book, then fill.
  */
 function sampleBooks(source, maxCount) {
 	const picked = [];
-	const take = (predicate) => {
-		const match = source.find((book) => !picked.includes(book) && predicate(book));
-		if (match) picked.push(match);
+	const take = (predicate, n = 1) => {
+		let added = 0;
+		for (const book of source) {
+			if (added >= n) break;
+			if (!picked.includes(book) && predicate(book)) {
+				picked.push(book);
+				added += 1;
+			}
+		}
 	};
 
 	for (const tier of BALL_TIERS) {
-		take((book) => ballsPerDropForBook(book) === tier && isFeatureBook(book));
-	}
-	for (const tier of BALL_TIERS) {
-		take((book) => ballsPerDropForBook(book) === tier && !isFeatureBook(book));
+		take((book) => ballsPerDropForBook(book) === tier && hasBonus(book), 2);
+		take((book) => ballsPerDropForBook(book) === tier && hasFreeSpin(book), 2);
+		take((book) => ballsPerDropForBook(book) === tier && !isFeatureBook(book), 1);
 	}
 	for (const book of source) {
 		if (picked.length >= maxCount) break;

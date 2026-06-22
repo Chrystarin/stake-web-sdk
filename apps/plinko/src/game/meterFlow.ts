@@ -105,7 +105,11 @@ export function onCoinPegHit(ballId: number) {
 	stateGame.bonusPegMeterCreditedBallIds.add(ballId);
 
 	if (stateGame.authoritativeMeterFlow) {
-		meterController.bumpBonusMeterVisual(1);
+		// TRIGGER drop: provisional fill toward the per-tier max (authoritative `bonusMeter` events
+		// confirm it). DURING the bonus round the meter is driven entirely by the authoritative in-bonus
+		// `bonusMeter` events (which RESET on level-up), so skip the provisional bump here — otherwise it
+		// fights the reset and double-counts.
+		if (!stateGame.bonusRoundActive) meterController.bumpBonusMeterVisual(1);
 		return;
 	}
 

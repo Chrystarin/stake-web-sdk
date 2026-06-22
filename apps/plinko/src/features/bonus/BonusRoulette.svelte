@@ -107,8 +107,8 @@
 			index: i,
 		})),
 	);
-	// Wheel is data-driven: N equal slices (Aztec bonus wheel has 9), so the per-segment angle and the
-	// landing target both derive from the segment count rather than a hardcoded 45°.
+	// N equal slices (the labeled bonus wheel has 8 → 45° each); the per-segment angle and landing target
+	// derive from the segment count so they always match the wheel image.
 	const segAngle = $derived(segments.length > 0 ? 360 / segments.length : 45);
 
 	onMount(() => {
@@ -275,22 +275,9 @@
 						class:bonus-spin-wheel--animating={wheelSpinClass}
 						class:bonus-spin-wheel--visible={wheelVisible}
 						style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-						src={staticUrl('img/bonus-roulette-wheel-empty.png')}
+						src={staticUrl('img/bonus-roulette-wheel.png')}
 						alt="Bonus roulette wheel"
 					/>
-					<div
-						class="bonus-spin-wheel-labels"
-						class:bonus-spin-wheel-labels--animating={wheelSpinClass}
-						class:bonus-spin-wheel-labels--visible={wheelVisible}
-						style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-						style:--label-radius={labelRadiusPx}
-						style:--label-font-size={labelFontPx}
-						aria-hidden="true"
-					>
-						{#each segments as seg, i (i)}
-							<span class="bonus-spin-wheel-label" style:--seg-angle="{i * segAngle}deg">{seg.label}</span>
-						{/each}
-					</div>
 					<img
 						class="bonus-spin-center-base"
 						class:bonus-spin-center-base--visible={wheelVisible}

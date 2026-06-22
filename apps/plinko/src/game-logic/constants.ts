@@ -103,12 +103,12 @@ export function bonusLevelBalls(level: number): number {
 	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
 }
 
-/** Bonus roulette ABSOLUTE free-ball awards (9 Aztec segments) — mirror of stake-math-sdk
- * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT: the bonus is a free feature that dumps the
- * same big ball counts on every tier (rendered data-driven on `bonus-roulette-wheel-empty.png`). */
-export const BONUS_WHEEL_FREE_BALLS = [60, 90, 80, 40, 30, 100, 50, 70, 20] as const;
+/** Bonus roulette ABSOLUTE free-ball awards — ORIGINAL values baked into the labeled
+ * `bonus-roulette-wheel.png` (8 segments, clockwise from the top marker; index 0 = top = 100). Mirror
+ * of stake-math-sdk `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT. */
+export const BONUS_WHEEL_FREE_BALLS = [100, 20, 50, 50, 50, 80, 20, 20] as const;
 
-/** Bonus-wheel free-ball values. ABSOLUTE (Aztec), independent of the balls-per-drop tier. Mirror of
+/** Bonus-wheel free-ball values. ABSOLUTE, independent of the balls-per-drop tier. Mirror of
  * math `bonus_wheel_free_balls`. */
 export function bonusRouletteSegmentsForTier(_ballsPerDrop?: number): number[] {
 	return [...BONUS_WHEEL_FREE_BALLS];
@@ -117,25 +117,22 @@ export function bonusRouletteSegmentsForTier(_ballsPerDrop?: number): number[] {
 /** @deprecated use `bonusRouletteSegmentsForTier` (now tier-independent). */
 export const BONUS_ROULETTE_SEGMENTS = bonusRouletteSegmentsForTier();
 
-/** Free-spin wheel segment labels — Aztec values INCLUDING a BONUS slot (lands → a free bonus round).
- * The free spin fires IN-DROP and a numeric multiplier applies to the BET PER BALL (pays
- * `stake_per_ball × M` on top of the drop). Rendered on the label-less wheel with a data-driven text
- * overlay (FreeSpinRoulette.svelte). Must match `stake-math-sdk/games/crimson_plinko/
- * plinko_data.FREE_SPIN_SEGMENTS` (same order). */
+/** Free-spin wheel segment labels — ORIGINAL values baked into the labeled `free-spin-roulette-wheel.png`
+ * (clockwise from the top marker; index 0 = top = 2X). `BONUS` (1-in-8) chains a free bonus round; a
+ * numeric `M` pays `stake_per_ball × M` on top of the drop. Must match `stake-math-sdk/games/
+ * crimson_plinko/plinko_data.FREE_SPIN_SEGMENTS` (same order). */
 export const FREE_SPIN_SEGMENTS = [
-	'100X',
-	'10X',
+	'2X',
 	'0.5X',
 	'1X',
-	'2X',
-	'20X',
 	'5X',
+	'10X',
 	'BONUS',
+	'20X',
+	'15X',
 ] as const;
 
-/** Free-spin wheel landing WEIGHTS (index-aligned to FREE_SPIN_SEGMENTS; relative). The wheel shows 8
- * equal slices but LANDS weighted so the big 100X / BONUS jackpots are rare and 0.5X–5X land often —
- * keeping the wheel's mean ≈ 5.4 (compliant) while it still appears frequently. The math is authoritative
- * (the book carries the landed segment); these are mirrored for client-side display/animation only.
- * Mirror of stake-math-sdk `plinko_data.FREE_SPIN_WEIGHTS`. */
-export const FREE_SPIN_WEIGHTS = [1, 10, 22, 22, 20, 6, 18, 1] as const;
+/** Free-spin wheel landing WEIGHTS (index-aligned). EQUAL (the labeled wheel is 8 equal slices). The
+ * math is authoritative (the book carries the landed segment); mirrored for display only. Mirror of
+ * stake-math-sdk `plinko_data.FREE_SPIN_WEIGHTS`. */
+export const FREE_SPIN_WEIGHTS = [1, 1, 1, 1, 1, 1, 1, 1] as const;

@@ -70,7 +70,7 @@
 
 		<button type="button" class="hud-menu-item" onclick={() => props.onOpenHistory?.()}>
 			<img class="hud-menu-item-icon" src={menuIcons.history} alt="" aria-hidden="true" />
-			<span class="hud-menu-item-label">{t('My bet History')}</span>
+			<span class="hud-menu-item-label">{t('My Bet History')}</span>
 		</button>
 
 		<button type="button" class="hud-menu-item" onclick={() => props.onOpenHowToPlay?.()}>

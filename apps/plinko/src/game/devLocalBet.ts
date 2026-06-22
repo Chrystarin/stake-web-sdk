@@ -48,8 +48,36 @@ export async function playDevLocalBook(): Promise<boolean> {
 		return false;
 	}
 
-	const index = Math.floor(Math.random() * matchingBooks.length);
-	const book = matchingBooks[index];
+	// DEV-ONLY testing aid (no effect on published RTP): `?force=bonus` / `?force=freespin` makes
+	// dev-local play prefer a matching book that contains that feature, so you can summon it on demand.
+	// Falls back to the full pool when the tier has no such book (e.g. free spin on 1-ball).
+	let pool = matchingBooks;
+	const force =
+		typeof window !== 'undefined'
+			? new URLSearchParams(window.location.search)
+					.get('force')
+					?.toLowerCase()
+					.replace(/[^a-z]/g, '')
+			: undefined;
+	if (force === 'bonus' || force === 'freespin') {
+		const evs = (b) => b.events ?? b.state ?? [];
+		// A free spin landing on BONUS also produces a `bonusRoulette` (the chain) — exclude those for
+		// `?force=bonus` so we get the BONUS-METER trigger directly, not the free-spin wheel first.
+		const isChainBonus = (b) =>
+			evs(b).some(
+				(e) => e.type === 'freeSpinTrigger' && String(e.segment ?? '').toUpperCase() === 'BONUS',
+			);
+		const forced =
+			force === 'bonus'
+				? matchingBooks.filter(
+						(b) => evs(b).some((e) => e.type === 'bonusRoulette') && !isChainBonus(b),
+					)
+				: matchingBooks.filter((b) => evs(b).some((e) => e.type === 'freeSpinTrigger'));
+		if (forced.length) pool = forced;
+	}
+
+	const index = Math.floor(Math.random() * pool.length);
+	const book = pool[index];
 	const adaptedBook = adaptBookForCurrentSelection(book);
 
 	stateBet.balanceAmount -= wager;

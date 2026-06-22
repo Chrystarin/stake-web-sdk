@@ -12,7 +12,7 @@ export default {
 	gameID: 'one_eyed_willys_plinko',
 	rtp: 0.957,
 	minBet: 0.01,
-	maxBet: 1000,
+	maxBet: 2500,
 	// FOLDED-BONUS DESIGN: only the 4 BASE modes (cost = ball count). The bonus is FREE and folds into
 	// the base book on a rare per-tier quota — there is NO separate bonus mode. Must match the published
 	// math config.json (4 modes).

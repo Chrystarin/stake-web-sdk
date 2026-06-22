@@ -176,7 +176,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 	},
 	bonusMeter: async (bookEvent: BookEventOfType<'bonusMeter'>) => {
 		stateGame.authoritativeMeterFlow = true;
-		applyBonusMeterBookEvent(bookEvent.value, bookEvent.level ?? stateGame.bonusMeterLevel);
+		applyBonusMeterBookEvent(
+			bookEvent.value,
+			bookEvent.level ?? stateGame.bonusMeterLevel,
+			(bookEvent as { max?: number }).max,
+		);
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 		await waitForDropBatchCompletion();

@@ -24,6 +24,6 @@ export default {
 	Sound: '声音',
 	'Provably fair settings': '可验证公平设置',
 	'Game Rules': '游戏规则',
-	'My bet History': '我的投注历史',
+	'My Bet History': '我的投注历史',
 	'How to Play?': '如何游戏？',
 };
