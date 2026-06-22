@@ -758,11 +758,11 @@
 
 		position: absolute;
 
-		top: 0.55vw;
+		top: 2.5vw;
 
 		left: 0.9vw;
 
-		right: 0.9vw;
+		right: 2.6vw;
 
 		z-index: 20;
 
