@@ -196,13 +196,20 @@ export const stateGameDerived = {
 	},
 	get bonusPendingLevelHighlight(): number {
 		if (!stateGame.bonusRoundActive) return 0;
+		// Production uses the book-authored level queue; the session-meter fallback uses the deferred/
+		// pending counters. A level-up is pending if either has work left.
 		const levelUpQueued =
-			stateGame.pendingBonusLevelUpCount + stateGame.deferredBonusLevelUpCount;
+			stateGame.authoritativeBonusLevelQueue.length +
+			stateGame.pendingBonusLevelUpCount +
+			stateGame.deferredBonusLevelUpCount;
 		if (levelUpQueued <= 0) return 0;
 		const maxLevels = BONUS_LEVEL_LABELS.length;
 		if (stateGame.bonusLevelProgress >= maxLevels) return 0;
-		const available = Math.max(0, maxLevels - stateGame.bonusLevelProgress);
-		return stateGame.bonusLevelProgress + Math.min(available, levelUpQueued);
+		// Only blink once the in-bonus meter has visibly FILLED to max — i.e. the player can see the bar
+		// is "ready to level up" and is just waiting for the current level's balls to finish dropping.
+		const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 1;
+		if (stateGame.bonusMeterValue < max) return 0;
+		return stateGame.bonusLevelProgress + 1;
 	},
 	get isBonusBackgroundActive(): boolean {
 		if (stateGame.bonusRoundActive) return true;

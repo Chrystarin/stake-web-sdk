@@ -1,7 +1,7 @@
 export default [
 	{
-		"id": 1305,
-		"payoutMultiplier": 15410,
+		"id": 448,
+		"payoutMultiplier": 530,
 		"events": [
 			{
 				"index": 0,
@@ -34,8 +34,8 @@ export default [
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
-						"rateIndex": 11,
-						"multiplier": 5,
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -51,7 +51,7 @@ export default [
 			{
 				"index": 2,
 				"type": "bonusRoulette",
-				"freeBalls": 100
+				"freeBalls": 20
 			},
 			{
 				"index": 3,
@@ -63,179 +63,11 @@ export default [
 			{
 				"index": 4,
 				"type": "bonusRound",
-				"freeBalls": 100,
+				"freeBalls": 20,
 				"outcomes": [
 					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 9,
 						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -250,244 +82,6 @@ export default [
 					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 12,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 2,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -503,36 +97,15 @@ export default [
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
@@ -542,81 +115,11 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
@@ -626,17 +129,10 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -647,39 +143,18 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 5,
+						"rateIndex": 9,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 10,
@@ -689,25 +164,18 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
+						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 6,
@@ -717,32 +185,11 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 7,
 						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 7,
@@ -750,13 +197,6 @@ export default [
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 6,
@@ -771,311 +211,22 @@ export default [
 			},
 			{
 				"index": 5,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
+				"type": "setTotalWin",
+				"amount": 530
 			},
 			{
 				"index": 6,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 7,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 8,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 9,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 10,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 11,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 12,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 13,
-				"type": "bonusMeter",
-				"value": 9,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 14,
-				"type": "bonusMeter",
-				"value": 10,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 15,
-				"type": "bonusMeter",
-				"value": 11,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 16,
-				"type": "bonusMeter",
-				"value": 12,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 17,
-				"type": "bonusMeter",
-				"value": 13,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 18,
-				"type": "bonusMeter",
-				"value": 14,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 19,
-				"type": "bonusMeter",
-				"value": 15,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 20,
-				"type": "bonusMeter",
-				"value": 0,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 21,
-				"type": "bonusRound",
-				"freeBalls": 20,
-				"outcomes": [
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 2,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					}
-				],
-				"level": 2,
-				"ballsPlayed": 0
-			},
-			{
-				"index": 22,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 23,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 24,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 25,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 26,
-				"type": "setTotalWin",
-				"amount": 15410
-			},
-			{
-				"index": 27,
 				"type": "finalWin",
-				"amount": 15410
+				"amount": 530
 			}
 		],
 		"criteria": "basegame_bonus_balls_1",
-		"baseGameWins": 154.1,
+		"baseGameWins": 5.3,
 		"freeGameWins": 0
 	},
 	{
-		"id": 1505,
-		"payoutMultiplier": 11880,
+		"id": 1155,
+		"payoutMultiplier": 2530,
 		"events": [
 			{
 				"index": 0,
@@ -1108,8 +259,8 @@ export default [
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 9,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -1125,7 +276,7 @@ export default [
 			{
 				"index": 2,
 				"type": "bonusRoulette",
-				"freeBalls": 100
+				"freeBalls": 50
 			},
 			{
 				"index": 3,
@@ -1137,7 +288,7 @@ export default [
 			{
 				"index": 4,
 				"type": "bonusRound",
-				"freeBalls": 100,
+				"freeBalls": 50,
 				"outcomes": [
 					{
 						"rateIndex": 7,
@@ -1147,18 +298,11 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 10,
@@ -1168,7 +312,126 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -1178,413 +441,7 @@ export default [
 						"rateIndex": 10,
 						"multiplier": 1.5,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 12,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -1598,105 +455,7 @@ export default [
 						"rateIndex": 4,
 						"multiplier": 1.5,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -1721,6 +480,69 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 4,
 						"multiplier": 1.5,
 						"amount": 1,
@@ -1735,6 +557,27 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
@@ -1749,6 +592,20 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
@@ -1756,20 +613,6 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
@@ -1777,66 +620,24 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
+						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					}
 				],
@@ -1845,334 +646,17 @@ export default [
 			},
 			{
 				"index": 5,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
+				"type": "setTotalWin",
+				"amount": 2530
 			},
 			{
 				"index": 6,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 7,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 8,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 9,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 10,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 11,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 12,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 13,
-				"type": "bonusMeter",
-				"value": 9,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 14,
-				"type": "bonusMeter",
-				"value": 10,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 15,
-				"type": "bonusMeter",
-				"value": 11,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 16,
-				"type": "bonusMeter",
-				"value": 12,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 17,
-				"type": "bonusMeter",
-				"value": 13,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 18,
-				"type": "bonusMeter",
-				"value": 14,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 19,
-				"type": "bonusMeter",
-				"value": 15,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 20,
-				"type": "bonusMeter",
-				"value": 0,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 21,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 22,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 23,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 24,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 25,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 26,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 27,
-				"type": "bonusRound",
-				"freeBalls": 20,
-				"outcomes": [
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 12,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					}
-				],
-				"level": 2,
-				"ballsPlayed": 0
-			},
-			{
-				"index": 28,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 29,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 2,
-				"max": 15
-			},
-			{
-				"index": 30,
-				"type": "setTotalWin",
-				"amount": 11880
-			},
-			{
-				"index": 31,
 				"type": "finalWin",
-				"amount": 11880
+				"amount": 2530
 			}
 		],
 		"criteria": "basegame_bonus_balls_1",
-		"baseGameWins": 118.8,
+		"baseGameWins": 25.3,
 		"freeGameWins": 0
 	},
 	{
@@ -2234,8 +718,914 @@ export default [
 		"freeGameWins": 0
 	},
 	{
-		"id": 105,
-		"payoutMultiplier": 4320,
+		"id": 131,
+		"payoutMultiplier": 9440,
+		"events": [
+			{
+				"index": 0,
+				"type": "plinkoDrop",
+				"difficulty": 0,
+				"rowCount": 14,
+				"ballsPerDrop": 10,
+				"stakePerBall": 1,
+				"coefficients": [
+					100,
+					50,
+					20,
+					5,
+					1.5,
+					0.4,
+					0.2,
+					0,
+					0.2,
+					0.4,
+					1.5,
+					5,
+					20,
+					50,
+					100
+				],
+				"spinMeterMax": 6,
+				"bonusMeterMax": 6,
+				"spinMeterStart": 0,
+				"bonusMeterStart": 0,
+				"bonusLevelStart": 0,
+				"outcomes": [
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 3,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					}
+				]
+			},
+			{
+				"index": 1,
+				"type": "bonusMeter",
+				"value": 1,
+				"level": 0
+			},
+			{
+				"index": 2,
+				"type": "bonusMeter",
+				"value": 2,
+				"level": 0
+			},
+			{
+				"index": 3,
+				"type": "spinMeter",
+				"value": 1,
+				"max": 6
+			},
+			{
+				"index": 4,
+				"type": "bonusMeter",
+				"value": 3,
+				"level": 0
+			},
+			{
+				"index": 5,
+				"type": "spinMeter",
+				"value": 2,
+				"max": 6
+			},
+			{
+				"index": 6,
+				"type": "bonusMeter",
+				"value": 4,
+				"level": 0
+			},
+			{
+				"index": 7,
+				"type": "bonusMeter",
+				"value": 5,
+				"level": 0
+			},
+			{
+				"index": 8,
+				"type": "bonusMeter",
+				"value": 6,
+				"level": 0
+			},
+			{
+				"index": 9,
+				"type": "bonusRoulette",
+				"freeBalls": 80
+			},
+			{
+				"index": 10,
+				"type": "bonusMeter",
+				"value": 0,
+				"level": 1,
+				"max": 15
+			},
+			{
+				"index": 11,
+				"type": "bonusRound",
+				"freeBalls": 80,
+				"outcomes": [
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 3,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 3,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 3,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 3,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					}
+				],
+				"level": 1,
+				"ballsPlayed": 0
+			},
+			{
+				"index": 12,
+				"type": "bonusRound",
+				"freeBalls": 20,
+				"outcomes": [
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					}
+				],
+				"level": 2,
+				"ballsPlayed": 0
+			},
+			{
+				"index": 13,
+				"type": "freeSpinTrigger",
+				"multiplier": 20,
+				"segment": "20X",
+				"amount": 2000
+			},
+			{
+				"index": 14,
+				"type": "setTotalWin",
+				"amount": 9440
+			},
+			{
+				"index": 15,
+				"type": "finalWin",
+				"amount": 9440
+			}
+		],
+		"criteria": "basegame_bonus_balls_10",
+		"baseGameWins": 94.4,
+		"freeGameWins": 0
+	},
+	{
+		"id": 594,
+		"payoutMultiplier": 22990,
 		"events": [
 			{
 				"index": 0,
@@ -2275,7 +1665,49 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 12,
+						"multiplier": 20,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": true,
@@ -2289,50 +1721,8 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
+						"rateIndex": 5,
 						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2359,44 +1749,38 @@ export default [
 			},
 			{
 				"index": 4,
-				"type": "spinMeter",
-				"value": 1,
-				"max": 6
-			},
-			{
-				"index": 5,
 				"type": "bonusMeter",
 				"value": 4,
 				"level": 0
 			},
 			{
-				"index": 6,
+				"index": 5,
 				"type": "bonusMeter",
 				"value": 5,
 				"level": 0
 			},
 			{
-				"index": 7,
+				"index": 6,
 				"type": "bonusMeter",
 				"value": 6,
 				"level": 0
 			},
 			{
-				"index": 8,
+				"index": 7,
 				"type": "bonusRoulette",
-				"freeBalls": 50
+				"freeBalls": 100
 			},
 			{
-				"index": 9,
+				"index": 8,
 				"type": "bonusMeter",
 				"value": 0,
 				"level": 1,
 				"max": 15
 			},
 			{
-				"index": 10,
+				"index": 9,
 				"type": "bonusRound",
-				"freeBalls": 50,
+				"freeBalls": 100,
 				"outcomes": [
 					{
 						"rateIndex": 5,
@@ -2406,6 +1790,76 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
@@ -2415,6 +1869,545 @@ export default [
 					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 3,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 12,
+						"multiplier": 20,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 14,
+						"multiplier": 100,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2441,8 +2434,66 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 5,
 						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					}
+				],
+				"level": 1,
+				"ballsPlayed": 0
+			},
+			{
+				"index": 10,
+				"type": "bonusRound",
+				"freeBalls": 20,
+				"outcomes": [
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -2451,11 +2502,18 @@ export default [
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -2469,18 +2527,25 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
+						"rateIndex": 11,
+						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 8,
@@ -2497,6 +2562,27 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
@@ -2511,17 +2597,17 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
+						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
+						"rateIndex": 4,
+						"multiplier": 1.5,
 						"amount": 1,
-						"hitBonusPeg": true,
+						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -2539,1148 +2625,36 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 12,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
+						"rateIndex": 11,
+						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					}
 				],
-				"level": 1,
+				"level": 2,
 				"ballsPlayed": 0
 			},
 			{
 				"index": 11,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
+				"type": "freeSpinTrigger",
+				"multiplier": 15,
+				"segment": "15X",
+				"amount": 1500
 			},
 			{
 				"index": 12,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
+				"type": "setTotalWin",
+				"amount": 22990
 			},
 			{
 				"index": 13,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 14,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 15,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 16,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 17,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 18,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 19,
-				"type": "bonusMeter",
-				"value": 9,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 20,
-				"type": "bonusMeter",
-				"value": 10,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 21,
-				"type": "bonusMeter",
-				"value": 11,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 22,
-				"type": "bonusMeter",
-				"value": 12,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 23,
-				"type": "bonusMeter",
-				"value": 13,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 24,
-				"type": "setTotalWin",
-				"amount": 4320
-			},
-			{
-				"index": 25,
 				"type": "finalWin",
-				"amount": 4320
+				"amount": 22990
 			}
 		],
 		"criteria": "basegame_bonus_balls_10",
-		"baseGameWins": 43.2,
-		"freeGameWins": 0
-	},
-	{
-		"id": 313,
-		"payoutMultiplier": 6770,
-		"events": [
-			{
-				"index": 0,
-				"type": "plinkoDrop",
-				"difficulty": 0,
-				"rowCount": 14,
-				"ballsPerDrop": 10,
-				"stakePerBall": 1,
-				"coefficients": [
-					100,
-					50,
-					20,
-					5,
-					1.5,
-					0.4,
-					0.2,
-					0,
-					0.2,
-					0.4,
-					1.5,
-					5,
-					20,
-					50,
-					100
-				],
-				"spinMeterMax": 6,
-				"bonusMeterMax": 6,
-				"spinMeterStart": 0,
-				"bonusMeterStart": 0,
-				"bonusLevelStart": 0,
-				"outcomes": [
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					}
-				]
-			},
-			{
-				"index": 1,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 0
-			},
-			{
-				"index": 2,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 0
-			},
-			{
-				"index": 3,
-				"type": "spinMeter",
-				"value": 1,
-				"max": 6
-			},
-			{
-				"index": 4,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 0
-			},
-			{
-				"index": 5,
-				"type": "spinMeter",
-				"value": 2,
-				"max": 6
-			},
-			{
-				"index": 6,
-				"type": "spinMeter",
-				"value": 3,
-				"max": 6
-			},
-			{
-				"index": 7,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 0
-			},
-			{
-				"index": 8,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 0
-			},
-			{
-				"index": 9,
-				"type": "spinMeter",
-				"value": 4,
-				"max": 6
-			},
-			{
-				"index": 10,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 0
-			},
-			{
-				"index": 11,
-				"type": "bonusRoulette",
-				"freeBalls": 80
-			},
-			{
-				"index": 12,
-				"type": "bonusMeter",
-				"value": 0,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 13,
-				"type": "bonusRound",
-				"freeBalls": 80,
-				"outcomes": [
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 2,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					}
-				],
-				"level": 1,
-				"ballsPlayed": 0
-			},
-			{
-				"index": 14,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 15,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 16,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 17,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 18,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 19,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 20,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 21,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 22,
-				"type": "bonusMeter",
-				"value": 9,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 23,
-				"type": "setTotalWin",
-				"amount": 6770
-			},
-			{
-				"index": 24,
-				"type": "finalWin",
-				"amount": 6770
-			}
-		],
-		"criteria": "basegame_bonus_balls_10",
-		"baseGameWins": 67.7,
+		"baseGameWins": 229.9,
 		"freeGameWins": 0
 	},
 	{
@@ -4175,8 +3149,8 @@ export default [
 		"freeGameWins": 0
 	},
 	{
-		"id": 43,
-		"payoutMultiplier": 4570,
+		"id": 18,
+		"payoutMultiplier": 1680,
 		"events": [
 			{
 				"index": 0,
@@ -4209,18 +3183,18 @@ export default [
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
+						"rateIndex": 8,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": true
+						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 6,
@@ -4234,20 +3208,6 @@ export default [
 						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
 						"hitSpinSlot": true
 					},
 					{
@@ -4265,14 +3225,35 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
+						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -4286,24 +3267,24 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
+						"rateIndex": 8,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 11,
-						"multiplier": 5,
+						"rateIndex": 8,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -4317,35 +3298,28 @@ export default [
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
-						"hitBonusPeg": true,
+						"hitBonusPeg": false,
 						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					}
 				]
@@ -4358,39 +3332,39 @@ export default [
 			},
 			{
 				"index": 2,
-				"type": "spinMeter",
+				"type": "bonusMeter",
 				"value": 2,
-				"max": 10
+				"level": 0
 			},
 			{
 				"index": 3,
-				"type": "bonusMeter",
+				"type": "spinMeter",
 				"value": 2,
-				"level": 0
+				"max": 10
 			},
 			{
 				"index": 4,
-				"type": "spinMeter",
+				"type": "bonusMeter",
 				"value": 3,
-				"max": 10
+				"level": 0
 			},
 			{
 				"index": 5,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 0
-			},
-			{
-				"index": 6,
 				"type": "spinMeter",
-				"value": 4,
+				"value": 3,
 				"max": 10
 			},
 			{
-				"index": 7,
+				"index": 6,
 				"type": "bonusMeter",
 				"value": 4,
 				"level": 0
+			},
+			{
+				"index": 7,
+				"type": "spinMeter",
+				"value": 4,
+				"max": 10
 			},
 			{
 				"index": 8,
@@ -4406,15 +3380,15 @@ export default [
 			},
 			{
 				"index": 10,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 0
-			},
-			{
-				"index": 11,
 				"type": "spinMeter",
 				"value": 6,
 				"max": 10
+			},
+			{
+				"index": 11,
+				"type": "bonusMeter",
+				"value": 6,
+				"level": 0
 			},
 			{
 				"index": 12,
@@ -4424,44 +3398,133 @@ export default [
 			},
 			{
 				"index": 13,
-				"type": "spinMeter",
-				"value": 7,
-				"max": 10
-			},
-			{
-				"index": 14,
 				"type": "bonusMeter",
 				"value": 8,
 				"level": 0
 			},
 			{
+				"index": 14,
+				"type": "spinMeter",
+				"value": 7,
+				"max": 10
+			},
+			{
 				"index": 15,
+				"type": "spinMeter",
+				"value": 8,
+				"max": 10
+			},
+			{
+				"index": 16,
 				"type": "bonusMeter",
 				"value": 9,
 				"level": 0
 			},
 			{
-				"index": 16,
+				"index": 17,
+				"type": "spinMeter",
+				"value": 9,
+				"max": 10
+			},
+			{
+				"index": 18,
 				"type": "bonusRoulette",
 				"freeBalls": 20
 			},
 			{
-				"index": 17,
+				"index": 19,
 				"type": "bonusMeter",
 				"value": 0,
 				"level": 1,
 				"max": 15
 			},
 			{
-				"index": 18,
+				"index": 20,
 				"type": "bonusRound",
 				"freeBalls": 20,
 				"outcomes": [
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
 					{
 						"rateIndex": 10,
 						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -4486,6 +3549,633 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					}
+				],
+				"level": 1,
+				"ballsPlayed": 0
+			},
+			{
+				"index": 21,
+				"type": "setTotalWin",
+				"amount": 1680
+			},
+			{
+				"index": 22,
+				"type": "finalWin",
+				"amount": 1680
+			}
+		],
+		"criteria": "basegame_bonus_balls_20",
+		"baseGameWins": 16.8,
+		"freeGameWins": 0
+	},
+	{
+		"id": 36,
+		"payoutMultiplier": 21400,
+		"events": [
+			{
+				"index": 0,
+				"type": "plinkoDrop",
+				"difficulty": 0,
+				"rowCount": 14,
+				"ballsPerDrop": 20,
+				"stakePerBall": 1,
+				"coefficients": [
+					100,
+					50,
+					20,
+					5,
+					1.5,
+					0.4,
+					0.2,
+					0,
+					0.2,
+					0.4,
+					1.5,
+					5,
+					20,
+					50,
+					100
+				],
+				"spinMeterMax": 10,
+				"bonusMeterMax": 9,
+				"spinMeterStart": 1,
+				"bonusMeterStart": 0,
+				"bonusLevelStart": 0,
+				"outcomes": [
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					}
+				]
+			},
+			{
+				"index": 1,
+				"type": "bonusMeter",
+				"value": 1,
+				"level": 0
+			},
+			{
+				"index": 2,
+				"type": "bonusMeter",
+				"value": 2,
+				"level": 0
+			},
+			{
+				"index": 3,
+				"type": "bonusMeter",
+				"value": 3,
+				"level": 0
+			},
+			{
+				"index": 4,
+				"type": "bonusMeter",
+				"value": 4,
+				"level": 0
+			},
+			{
+				"index": 5,
+				"type": "spinMeter",
+				"value": 2,
+				"max": 10
+			},
+			{
+				"index": 6,
+				"type": "bonusMeter",
+				"value": 5,
+				"level": 0
+			},
+			{
+				"index": 7,
+				"type": "bonusMeter",
+				"value": 6,
+				"level": 0
+			},
+			{
+				"index": 8,
+				"type": "bonusMeter",
+				"value": 7,
+				"level": 0
+			},
+			{
+				"index": 9,
+				"type": "spinMeter",
+				"value": 3,
+				"max": 10
+			},
+			{
+				"index": 10,
+				"type": "bonusMeter",
+				"value": 8,
+				"level": 0
+			},
+			{
+				"index": 11,
+				"type": "bonusMeter",
+				"value": 9,
+				"level": 0
+			},
+			{
+				"index": 12,
+				"type": "spinMeter",
+				"value": 4,
+				"max": 10
+			},
+			{
+				"index": 13,
+				"type": "bonusRoulette",
+				"freeBalls": 80
+			},
+			{
+				"index": 14,
+				"type": "bonusMeter",
+				"value": 0,
+				"level": 1,
+				"max": 15
+			},
+			{
+				"index": 15,
+				"type": "bonusRound",
+				"freeBalls": 80,
+				"outcomes": [
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 1,
+						"multiplier": 50,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 12,
+						"multiplier": 20,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
@@ -4503,14 +4193,42 @@ export default [
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -4524,12 +4242,26 @@ export default [
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -4545,369 +4277,14 @@ export default [
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
+						"rateIndex": 2,
+						"multiplier": 20,
 						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					}
-				],
-				"level": 1,
-				"ballsPlayed": 0
-			},
-			{
-				"index": 19,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 20,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 21,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 22,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 23,
-				"type": "setTotalWin",
-				"amount": 4570
-			},
-			{
-				"index": 24,
-				"type": "finalWin",
-				"amount": 4570
-			}
-		],
-		"criteria": "basegame_bonus_balls_20",
-		"baseGameWins": 45.7,
-		"freeGameWins": 0
-	},
-	{
-		"id": 66,
-		"payoutMultiplier": 13950,
-		"events": [
-			{
-				"index": 0,
-				"type": "plinkoDrop",
-				"difficulty": 0,
-				"rowCount": 14,
-				"ballsPerDrop": 20,
-				"stakePerBall": 1,
-				"coefficients": [
-					100,
-					50,
-					20,
-					5,
-					1.5,
-					0.4,
-					0.2,
-					0,
-					0.2,
-					0.4,
-					1.5,
-					5,
-					20,
-					50,
-					100
-				],
-				"spinMeterMax": 10,
-				"bonusMeterMax": 9,
-				"spinMeterStart": 1,
-				"bonusMeterStart": 0,
-				"bonusLevelStart": 0,
-				"outcomes": [
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					}
-				]
-			},
-			{
-				"index": 1,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 0
-			},
-			{
-				"index": 2,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 0
-			},
-			{
-				"index": 3,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 0
-			},
-			{
-				"index": 4,
-				"type": "spinMeter",
-				"value": 2,
-				"max": 10
-			},
-			{
-				"index": 5,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 0
-			},
-			{
-				"index": 6,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 0
-			},
-			{
-				"index": 7,
-				"type": "spinMeter",
-				"value": 3,
-				"max": 10
-			},
-			{
-				"index": 8,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 0
-			},
-			{
-				"index": 9,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 0
-			},
-			{
-				"index": 10,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 0
-			},
-			{
-				"index": 11,
-				"type": "bonusMeter",
-				"value": 9,
-				"level": 0
-			},
-			{
-				"index": 12,
-				"type": "bonusRoulette",
-				"freeBalls": 50
-			},
-			{
-				"index": 13,
-				"type": "bonusMeter",
-				"value": 0,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 14,
-				"type": "bonusRound",
-				"freeBalls": 50,
-				"outcomes": [
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -4925,88 +4302,18 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
+						"rateIndex": 3,
+						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": true
+						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
+						"rateIndex": 12,
+						"multiplier": 20,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 8,
@@ -5023,6 +4330,13 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
@@ -5030,11 +4344,18 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": true
+						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 4,
@@ -5044,25 +4365,18 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 10,
+						"rateIndex": 4,
 						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
+						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 9,
@@ -5079,11 +4393,11 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 6,
@@ -5100,7 +4414,7 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 6,
+						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -5109,188 +4423,183 @@ export default [
 					{
 						"rateIndex": 9,
 						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 12,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 12,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 11,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 13,
-						"multiplier": 50,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
 					}
 				],
 				"level": 1,
 				"ballsPlayed": 0
 			},
 			{
-				"index": 15,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
-			},
-			{
 				"index": 16,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
+				"type": "bonusRound",
+				"freeBalls": 20,
+				"outcomes": [
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					}
+				],
+				"level": 2,
+				"ballsPlayed": 0
 			},
 			{
 				"index": 17,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
+				"type": "freeSpinTrigger",
+				"multiplier": 2,
+				"segment": "2X",
+				"amount": 200
 			},
 			{
 				"index": 18,
 				"type": "setTotalWin",
-				"amount": 13950
+				"amount": 21400
 			},
 			{
 				"index": 19,
 				"type": "finalWin",
-				"amount": 13950
+				"amount": 21400
 			}
 		],
 		"criteria": "basegame_bonus_balls_20",
-		"baseGameWins": 139.5,
+		"baseGameWins": 214,
 		"freeGameWins": 0
 	},
 	{
@@ -6121,8 +5430,8 @@ export default [
 		"freeGameWins": 0
 	},
 	{
-		"id": 4,
-		"payoutMultiplier": 13260,
+		"id": 7,
+		"payoutMultiplier": 13330,
 		"events": [
 			{
 				"index": 0,
@@ -6155,99 +5464,22 @@ export default [
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
+						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 13,
-						"multiplier": 50,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": true
+						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -6256,13 +5488,6 @@ export default [
 						"rateIndex": 9,
 						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
@@ -6270,98 +5495,63 @@ export default [
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
 						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 11,
 						"multiplier": 5,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -6370,76 +5560,6 @@ export default [
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 2,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 5,
@@ -6459,32 +5579,200 @@ export default [
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": true
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 12,
+						"multiplier": 20,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": true,
@@ -6500,6 +5788,27 @@ export default [
 					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -6520,15 +5829,15 @@ export default [
 			},
 			{
 				"index": 3,
-				"type": "spinMeter",
-				"value": 6,
-				"max": 21
-			},
-			{
-				"index": 4,
 				"type": "bonusMeter",
 				"value": 3,
 				"level": 0
+			},
+			{
+				"index": 4,
+				"type": "spinMeter",
+				"value": 6,
+				"max": 21
 			},
 			{
 				"index": 5,
@@ -6538,257 +5847,160 @@ export default [
 			},
 			{
 				"index": 6,
-				"type": "spinMeter",
-				"value": 8,
-				"max": 21
-			},
-			{
-				"index": 7,
 				"type": "bonusMeter",
 				"value": 4,
 				"level": 0
 			},
 			{
-				"index": 8,
-				"type": "spinMeter",
-				"value": 9,
-				"max": 21
-			},
-			{
-				"index": 9,
+				"index": 7,
 				"type": "bonusMeter",
 				"value": 5,
 				"level": 0
 			},
 			{
-				"index": 10,
+				"index": 8,
 				"type": "bonusMeter",
 				"value": 6,
 				"level": 0
 			},
 			{
-				"index": 11,
-				"type": "spinMeter",
-				"value": 10,
-				"max": 21
-			},
-			{
-				"index": 12,
+				"index": 9,
 				"type": "bonusMeter",
 				"value": 7,
 				"level": 0
 			},
 			{
-				"index": 13,
-				"type": "spinMeter",
-				"value": 11,
-				"max": 21
-			},
-			{
-				"index": 14,
+				"index": 10,
 				"type": "bonusMeter",
 				"value": 8,
 				"level": 0
 			},
 			{
-				"index": 15,
+				"index": 11,
 				"type": "spinMeter",
-				"value": 12,
+				"value": 8,
 				"max": 21
 			},
 			{
-				"index": 16,
-				"type": "spinMeter",
-				"value": 13,
-				"max": 21
-			},
-			{
-				"index": 17,
+				"index": 12,
 				"type": "bonusMeter",
 				"value": 9,
 				"level": 0
 			},
 			{
-				"index": 18,
+				"index": 13,
 				"type": "spinMeter",
-				"value": 14,
+				"value": 9,
 				"max": 21
 			},
 			{
-				"index": 19,
+				"index": 14,
 				"type": "bonusMeter",
 				"value": 10,
 				"level": 0
 			},
 			{
-				"index": 20,
+				"index": 15,
+				"type": "spinMeter",
+				"value": 10,
+				"max": 21
+			},
+			{
+				"index": 16,
 				"type": "bonusMeter",
 				"value": 11,
 				"level": 0
 			},
 			{
-				"index": 21,
+				"index": 17,
 				"type": "spinMeter",
-				"value": 15,
+				"value": 11,
 				"max": 21
 			},
 			{
-				"index": 22,
-				"type": "spinMeter",
-				"value": 16,
-				"max": 21
-			},
-			{
-				"index": 23,
+				"index": 18,
 				"type": "bonusMeter",
 				"value": 12,
 				"level": 0
 			},
 			{
-				"index": 24,
+				"index": 19,
 				"type": "spinMeter",
-				"value": 17,
+				"value": 12,
 				"max": 21
 			},
 			{
-				"index": 25,
+				"index": 20,
 				"type": "bonusMeter",
 				"value": 13,
 				"level": 0
 			},
 			{
-				"index": 26,
+				"index": 21,
 				"type": "spinMeter",
-				"value": 18,
+				"value": 13,
 				"max": 21
 			},
 			{
-				"index": 27,
-				"type": "spinMeter",
-				"value": 19,
-				"max": 21
-			},
-			{
-				"index": 28,
+				"index": 22,
 				"type": "bonusMeter",
 				"value": 14,
 				"level": 0
 			},
 			{
-				"index": 29,
-				"type": "spinMeter",
-				"value": 20,
-				"max": 21
-			},
-			{
-				"index": 30,
-				"type": "spinMeter",
-				"value": 21,
-				"max": 21
-			},
-			{
-				"index": 31,
+				"index": 23,
 				"type": "bonusMeter",
 				"value": 15,
 				"level": 0
 			},
 			{
-				"index": 32,
+				"index": 24,
 				"type": "spinMeter",
-				"value": 21,
+				"value": 14,
 				"max": 21
 			},
 			{
-				"index": 33,
+				"index": 25,
 				"type": "bonusMeter",
 				"value": 16,
 				"level": 0
 			},
 			{
-				"index": 34,
+				"index": 26,
 				"type": "spinMeter",
-				"value": 21,
+				"value": 15,
 				"max": 21
 			},
 			{
-				"index": 35,
+				"index": 27,
 				"type": "bonusMeter",
 				"value": 17,
 				"level": 0
 			},
 			{
-				"index": 36,
+				"index": 28,
 				"type": "spinMeter",
-				"value": 21,
+				"value": 16,
 				"max": 21
 			},
 			{
-				"index": 37,
-				"type": "freeSpinTrigger",
-				"multiplier": 15,
-				"segment": "15X",
-				"amount": 1500
-			},
-			{
-				"index": 38,
+				"index": 29,
 				"type": "bonusRoulette",
-				"freeBalls": 80
+				"freeBalls": 50
 			},
 			{
-				"index": 39,
+				"index": 30,
 				"type": "bonusMeter",
 				"value": 0,
 				"level": 1,
 				"max": 15
 			},
 			{
-				"index": 40,
+				"index": 31,
 				"type": "bonusRound",
-				"freeBalls": 80,
+				"freeBalls": 50,
 				"outcomes": [
 					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 9,
 						"multiplier": 0.4,
 						"amount": 1,
@@ -6796,7 +6008,28 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
@@ -6806,19 +6039,19 @@ export default [
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 11,
+						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -6831,15 +6064,8 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 9,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -6859,17 +6085,17 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
+						"rateIndex": 8,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
+						"rateIndex": 10,
+						"multiplier": 1.5,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -6883,15 +6109,8 @@ export default [
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 8,
@@ -6903,13 +6122,6 @@ export default [
 					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -6922,13 +6134,6 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
@@ -6939,12 +6144,33 @@ export default [
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -6959,6 +6185,13 @@ export default [
 					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -6971,8 +6204,8 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
+						"rateIndex": 6,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -6985,22 +6218,8 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
+						"rateIndex": 8,
 						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -7020,174 +6239,6 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
@@ -7195,8 +6246,15 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 1,
+						"multiplier": 50,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -7207,13 +6265,6 @@ export default [
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 6,
@@ -7223,29 +6274,8 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
+						"rateIndex": 6,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -7265,31 +6295,17 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
+						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
+						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -7298,12 +6314,40 @@ export default [
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
 						"hitSpinSlot": true
 					}
 				],
@@ -7311,107 +6355,23 @@ export default [
 				"ballsPlayed": 0
 			},
 			{
-				"index": 41,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 42,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 43,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 44,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 45,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 46,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 47,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 48,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 49,
-				"type": "bonusMeter",
-				"value": 9,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 50,
-				"type": "bonusMeter",
-				"value": 10,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 51,
-				"type": "bonusMeter",
-				"value": 11,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 52,
-				"type": "bonusMeter",
-				"value": 12,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 53,
+				"index": 32,
 				"type": "setTotalWin",
-				"amount": 13260
+				"amount": 13330
 			},
 			{
-				"index": 54,
+				"index": 33,
 				"type": "finalWin",
-				"amount": 13260
+				"amount": 13330
 			}
 		],
 		"criteria": "basegame_bonus_balls_50",
-		"baseGameWins": 132.6,
+		"baseGameWins": 133.3,
 		"freeGameWins": 0
 	},
 	{
-		"id": 5,
-		"payoutMultiplier": 22260,
+		"id": 26,
+		"payoutMultiplier": 6070,
 		"events": [
 			{
 				"index": 0,
@@ -7451,18 +6411,11 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 6,
@@ -7472,8 +6425,8 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 9,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -7481,20 +6434,27 @@ export default [
 					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 13,
-						"multiplier": 50,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 12,
-						"multiplier": 20,
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -7510,7 +6470,7 @@ export default [
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": true,
+						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -7521,7 +6481,35 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 11,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 3,
 						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -7531,56 +6519,14 @@ export default [
 						"rateIndex": 5,
 						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
+						"rateIndex": 9,
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -7591,45 +6537,24 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 2,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -7647,78 +6572,8 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 9,
 						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 12,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
@@ -7731,11 +6586,25 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
+						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 8,
@@ -7752,24 +6621,31 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
+						"rateIndex": 3,
+						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
+						"rateIndex": 4,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": true
+						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 10,
 						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -7787,8 +6663,92 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 3,
+						"multiplier": 5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -7809,51 +6769,51 @@ export default [
 			},
 			{
 				"index": 3,
+				"type": "spinMeter",
+				"value": 6,
+				"max": 21
+			},
+			{
+				"index": 4,
 				"type": "bonusMeter",
 				"value": 3,
 				"level": 0
 			},
 			{
-				"index": 4,
+				"index": 5,
+				"type": "spinMeter",
+				"value": 7,
+				"max": 21
+			},
+			{
+				"index": 6,
 				"type": "bonusMeter",
 				"value": 4,
 				"level": 0
 			},
 			{
-				"index": 5,
+				"index": 7,
 				"type": "bonusMeter",
 				"value": 5,
 				"level": 0
 			},
 			{
-				"index": 6,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 0
-			},
-			{
-				"index": 7,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 0
-			},
-			{
 				"index": 8,
 				"type": "bonusMeter",
-				"value": 8,
+				"value": 6,
 				"level": 0
 			},
 			{
 				"index": 9,
-				"type": "spinMeter",
-				"value": 6,
-				"max": 21
+				"type": "bonusMeter",
+				"value": 7,
+				"level": 0
 			},
 			{
 				"index": 10,
-				"type": "spinMeter",
-				"value": 7,
-				"max": 21
+				"type": "bonusMeter",
+				"value": 8,
+				"level": 0
 			},
 			{
 				"index": 11,
@@ -7869,96 +6829,90 @@ export default [
 			},
 			{
 				"index": 13,
+				"type": "bonusMeter",
+				"value": 11,
+				"level": 0
+			},
+			{
+				"index": 14,
 				"type": "spinMeter",
 				"value": 8,
 				"max": 21
 			},
 			{
-				"index": 14,
-				"type": "spinMeter",
-				"value": 9,
-				"max": 21
-			},
-			{
 				"index": 15,
 				"type": "bonusMeter",
-				"value": 11,
+				"value": 12,
 				"level": 0
 			},
 			{
 				"index": 16,
 				"type": "bonusMeter",
-				"value": 12,
-				"level": 0
-			},
-			{
-				"index": 17,
-				"type": "spinMeter",
-				"value": 10,
-				"max": 21
-			},
-			{
-				"index": 18,
-				"type": "bonusMeter",
 				"value": 13,
 				"level": 0
 			},
 			{
-				"index": 19,
+				"index": 17,
 				"type": "bonusMeter",
 				"value": 14,
 				"level": 0
 			},
 			{
-				"index": 20,
+				"index": 18,
 				"type": "bonusMeter",
 				"value": 15,
 				"level": 0
 			},
 			{
-				"index": 21,
+				"index": 19,
 				"type": "spinMeter",
-				"value": 11,
+				"value": 9,
 				"max": 21
 			},
 			{
-				"index": 22,
+				"index": 20,
 				"type": "bonusMeter",
 				"value": 16,
 				"level": 0
 			},
 			{
-				"index": 23,
+				"index": 21,
+				"type": "spinMeter",
+				"value": 10,
+				"max": 21
+			},
+			{
+				"index": 22,
 				"type": "bonusMeter",
 				"value": 17,
 				"level": 0
 			},
 			{
-				"index": 24,
+				"index": 23,
 				"type": "spinMeter",
-				"value": 12,
+				"value": 11,
 				"max": 21
 			},
 			{
-				"index": 25,
+				"index": 24,
 				"type": "bonusRoulette",
-				"freeBalls": 80
+				"freeBalls": 50
 			},
 			{
-				"index": 26,
+				"index": 25,
 				"type": "bonusMeter",
 				"value": 0,
 				"level": 1,
 				"max": 15
 			},
 			{
-				"index": 27,
+				"index": 26,
 				"type": "bonusRound",
-				"freeBalls": 80,
+				"freeBalls": 50,
 				"outcomes": [
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
+						"rateIndex": 5,
+						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -7968,258 +6922,6 @@ export default [
 						"multiplier": 0.4,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 2,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
-						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -8230,59 +6932,38 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
@@ -8293,105 +6974,7 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 2,
-						"multiplier": 20,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -8408,82 +6991,26 @@ export default [
 						"rateIndex": 11,
 						"multiplier": 5,
 						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 3,
-						"multiplier": 5,
-						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 9,
 						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -8496,8 +7023,197 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
 						"rateIndex": 5,
 						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -8510,7 +7226,35 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 5,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -8521,109 +7265,18 @@ export default [
 				"ballsPlayed": 0
 			},
 			{
-				"index": 28,
-				"type": "bonusMeter",
-				"value": 1,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 29,
-				"type": "bonusMeter",
-				"value": 2,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 30,
-				"type": "bonusMeter",
-				"value": 3,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 31,
-				"type": "bonusMeter",
-				"value": 4,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 32,
-				"type": "bonusMeter",
-				"value": 5,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 33,
-				"type": "bonusMeter",
-				"value": 6,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 34,
-				"type": "bonusMeter",
-				"value": 7,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 35,
-				"type": "bonusMeter",
-				"value": 8,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 36,
-				"type": "bonusMeter",
-				"value": 9,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 37,
-				"type": "bonusMeter",
-				"value": 10,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 38,
-				"type": "bonusMeter",
-				"value": 11,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 39,
-				"type": "bonusMeter",
-				"value": 12,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 40,
-				"type": "bonusMeter",
-				"value": 13,
-				"level": 1,
-				"max": 15
-			},
-			{
-				"index": 41,
+				"index": 27,
 				"type": "setTotalWin",
-				"amount": 22260
+				"amount": 6070
 			},
 			{
-				"index": 42,
+				"index": 28,
 				"type": "finalWin",
-				"amount": 22260
+				"amount": 6070
 			}
 		],
 		"criteria": "basegame_bonus_balls_50",
-		"baseGameWins": 222.6,
+		"baseGameWins": 60.7,
 		"freeGameWins": 0
 	},
 	{
@@ -9221,8 +7874,8 @@ export default [
 		"freeGameWins": 0
 	},
 	{
-		"id": 35,
-		"payoutMultiplier": 1860,
+		"id": 4,
+		"payoutMultiplier": 10740,
 		"events": [
 			{
 				"index": 0,
@@ -9255,22 +7908,15 @@ export default [
 				"bonusLevelStart": 0,
 				"outcomes": [
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
+						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
+						"rateIndex": 4,
+						"multiplier": 1.5,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -9279,77 +7925,7 @@ export default [
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
-						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": true,
 						"hitSpinSlot": false
 					},
 					{
@@ -9360,6 +7936,13 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
 						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
@@ -9367,7 +7950,7 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 6,
+						"rateIndex": 8,
 						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
@@ -9381,8 +7964,29 @@ export default [
 						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 5,
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 9,
 						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 13,
+						"multiplier": 50,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
@@ -9409,18 +8013,25 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
+						"rateIndex": 11,
+						"multiplier": 5,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": true
+						"hitSpinSlot": false
 					},
 					{
 						"rateIndex": 7,
@@ -9437,6 +8048,62 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 4,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
@@ -9449,6 +8116,76 @@ export default [
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 10,
+						"multiplier": 1.5,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 8,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 6,
+						"multiplier": 0.2,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 2,
+						"multiplier": 20,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 9,
+						"multiplier": 0.4,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": true,
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 7,
@@ -9465,41 +8202,6 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 5,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
 						"rateIndex": 6,
 						"multiplier": 0.2,
 						"amount": 1,
@@ -9507,74 +8209,46 @@ export default [
 						"hitSpinSlot": false
 					},
 					{
-						"rateIndex": 8,
-						"multiplier": 0.2,
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": false,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
 						"amount": 1,
 						"hitBonusPeg": true,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 7,
 						"multiplier": 0,
 						"amount": 1,
-						"hitBonusPeg": false,
+						"hitBonusPeg": true,
 						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 9,
 						"multiplier": 0.4,
 						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 9,
-						"multiplier": 0.4,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 10,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 6,
-						"multiplier": 0.2,
-						"amount": 1,
 						"hitBonusPeg": true,
 						"hitSpinSlot": false
+					},
+					{
+						"rateIndex": 7,
+						"multiplier": 0,
+						"amount": 1,
+						"hitBonusPeg": false,
+						"hitSpinSlot": true
 					},
 					{
 						"rateIndex": 8,
@@ -9582,41 +8256,20 @@ export default [
 						"amount": 1,
 						"hitBonusPeg": false,
 						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
-					},
-					{
-						"rateIndex": 4,
-						"multiplier": 1.5,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": false
-					},
-					{
-						"rateIndex": 7,
-						"multiplier": 0,
-						"amount": 1,
-						"hitBonusPeg": false,
-						"hitSpinSlot": true
 					}
 				]
 			},
 			{
 				"index": 1,
-				"type": "spinMeter",
-				"value": 6,
-				"max": 21
-			},
-			{
-				"index": 2,
 				"type": "bonusMeter",
 				"value": 1,
 				"level": 0
+			},
+			{
+				"index": 2,
+				"type": "spinMeter",
+				"value": 6,
+				"max": 21
 			},
 			{
 				"index": 3,
@@ -9638,138 +8291,192 @@ export default [
 			},
 			{
 				"index": 6,
-				"type": "spinMeter",
-				"value": 9,
-				"max": 21
-			},
-			{
-				"index": 7,
-				"type": "spinMeter",
-				"value": 10,
-				"max": 21
-			},
-			{
-				"index": 8,
 				"type": "bonusMeter",
 				"value": 3,
 				"level": 0
 			},
 			{
-				"index": 9,
+				"index": 7,
+				"type": "spinMeter",
+				"value": 9,
+				"max": 21
+			},
+			{
+				"index": 8,
 				"type": "bonusMeter",
 				"value": 4,
 				"level": 0
 			},
 			{
-				"index": 10,
+				"index": 9,
 				"type": "spinMeter",
-				"value": 11,
+				"value": 10,
 				"max": 21
 			},
 			{
-				"index": 11,
+				"index": 10,
 				"type": "bonusMeter",
 				"value": 5,
 				"level": 0
 			},
 			{
+				"index": 11,
+				"type": "spinMeter",
+				"value": 11,
+				"max": 21
+			},
+			{
 				"index": 12,
-				"type": "spinMeter",
-				"value": 12,
-				"max": 21
-			},
-			{
-				"index": 13,
-				"type": "spinMeter",
-				"value": 13,
-				"max": 21
-			},
-			{
-				"index": 14,
-				"type": "spinMeter",
-				"value": 14,
-				"max": 21
-			},
-			{
-				"index": 15,
-				"type": "spinMeter",
-				"value": 15,
-				"max": 21
-			},
-			{
-				"index": 16,
-				"type": "spinMeter",
-				"value": 16,
-				"max": 21
-			},
-			{
-				"index": 17,
 				"type": "bonusMeter",
 				"value": 6,
 				"level": 0
 			},
 			{
-				"index": 18,
+				"index": 13,
 				"type": "spinMeter",
-				"value": 17,
+				"value": 12,
 				"max": 21
 			},
 			{
-				"index": 19,
+				"index": 14,
 				"type": "spinMeter",
-				"value": 18,
+				"value": 13,
 				"max": 21
 			},
 			{
-				"index": 20,
+				"index": 15,
+				"type": "spinMeter",
+				"value": 14,
+				"max": 21
+			},
+			{
+				"index": 16,
 				"type": "bonusMeter",
 				"value": 7,
 				"level": 0
 			},
 			{
-				"index": 21,
-				"type": "spinMeter",
-				"value": 19,
-				"max": 21
-			},
-			{
-				"index": 22,
+				"index": 17,
 				"type": "bonusMeter",
 				"value": 8,
 				"level": 0
 			},
 			{
+				"index": 18,
+				"type": "spinMeter",
+				"value": 15,
+				"max": 21
+			},
+			{
+				"index": 19,
+				"type": "spinMeter",
+				"value": 16,
+				"max": 21
+			},
+			{
+				"index": 20,
+				"type": "bonusMeter",
+				"value": 9,
+				"level": 0
+			},
+			{
+				"index": 21,
+				"type": "spinMeter",
+				"value": 17,
+				"max": 21
+			},
+			{
+				"index": 22,
+				"type": "bonusMeter",
+				"value": 10,
+				"level": 0
+			},
+			{
 				"index": 23,
 				"type": "spinMeter",
-				"value": 20,
+				"value": 18,
 				"max": 21
 			},
 			{
 				"index": 24,
 				"type": "spinMeter",
-				"value": 21,
+				"value": 19,
 				"max": 21
 			},
 			{
 				"index": 25,
-				"type": "freeSpinTrigger",
-				"multiplier": 0.5,
-				"segment": "0.5X",
-				"amount": 50
+				"type": "bonusMeter",
+				"value": 11,
+				"level": 0
 			},
 			{
 				"index": 26,
-				"type": "setTotalWin",
-				"amount": 1860
+				"type": "spinMeter",
+				"value": 20,
+				"max": 21
 			},
 			{
 				"index": 27,
+				"type": "spinMeter",
+				"value": 21,
+				"max": 21
+			},
+			{
+				"index": 28,
+				"type": "bonusMeter",
+				"value": 12,
+				"level": 0
+			},
+			{
+				"index": 29,
+				"type": "spinMeter",
+				"value": 21,
+				"max": 21
+			},
+			{
+				"index": 30,
+				"type": "bonusMeter",
+				"value": 13,
+				"level": 0
+			},
+			{
+				"index": 31,
+				"type": "spinMeter",
+				"value": 21,
+				"max": 21
+			},
+			{
+				"index": 32,
+				"type": "bonusMeter",
+				"value": 14,
+				"level": 0
+			},
+			{
+				"index": 33,
+				"type": "spinMeter",
+				"value": 21,
+				"max": 21
+			},
+			{
+				"index": 34,
+				"type": "freeSpinTrigger",
+				"multiplier": 15,
+				"segment": "15X",
+				"amount": 1500
+			},
+			{
+				"index": 35,
+				"type": "setTotalWin",
+				"amount": 10740
+			},
+			{
+				"index": 36,
 				"type": "finalWin",
-				"amount": 1860
+				"amount": 10740
 			}
 		],
 		"criteria": "basegame_balls_50",
-		"baseGameWins": 18.6,
+		"baseGameWins": 107.4,
 		"freeGameWins": 0
 	},
 	{

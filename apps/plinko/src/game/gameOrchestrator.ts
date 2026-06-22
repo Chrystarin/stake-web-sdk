@@ -1,6 +1,6 @@
 import { stateBet } from 'state-shared';
 
-import { BONUS_LEVEL_LABELS, bonusLevelBalls } from '../game-logic/constants';
+import { BONUS_LEVEL_LABELS, FREE_SPIN_SEGMENTS, bonusLevelBalls } from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatHistoryDate } from '../lib/format';
@@ -260,7 +260,10 @@ async function applyAuthoritativeBonusLevel(level: {
 	showBonusLevelUpOverlay(level.level, level.freeBalls);
 	stateGame.authoritativeBonusOutcomes = level.outcomes;
 	stateGame.authoritativeBonusOutcomeIndex = 0;
-	stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+	// Level-up applied: DRAIN the (held-full) meter so the new level's bar visibly re-fills from
+	// empty as its balls drop. The meter held at max while the previous level's balls finished (the
+	// "ready to level up" blink); now that we've advanced, start the next fill fresh.
+	stateGame.bonusMeterValue = 0;
 	awardBonusBalls(level.freeBalls);
 }
 
@@ -440,30 +443,42 @@ export function waitForDropBatchCompletion(maxMs = 30_000): Promise<void> {
 	});
 }
 
-async function settleBonusRoundWhenFinished() {
+export async function settleBonusRoundWhenFinished() {
 	if (stateGame.bonusRoundSettlementInProgress) return;
 	stateGame.bonusRoundSettlementInProgress = true;
 	try {
 		await waitForDropBatchCompletion();
 		flushDeferredBonusLevelUp();
-		if (
-			stateGame.bonusBallsRemaining <= 0 &&
-			stateGame.pendingSpinRouletteAfterBonusLevelDepletion
-		) {
-			// A spin meter that filled during the bonus round opens the free-spin wheel after the balls
-			// deplete (session-meter / dev-local fallback). The Option #1 bonus is single-level with no
-			// in-bonus free spin, so there's no book-authored in-bonus wheel payload to run here.
-			stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
-			stateGame.pendingBonusFreeSpinPayload = undefined;
-			stateGame.bonusRoundSettlementInProgress = false;
-			triggerRoulette('spin');
-			return;
-		}
-		// Book-authored level-ups take priority over the client session-meter fallback.
+		// Book-authored level-ups take priority over the client session-meter fallback — and over the
+		// trailing in-bonus free spin: ALL levels' balls must drop (and level up) before the free spin
+		// fires (the `freeSpinTrigger` event is appended AFTER every `bonusRound` level in the book).
 		if (stateGame.bonusBallsRemaining <= 0 && consumeAuthoritativeBonusLevel()) {
 			return;
 		}
 		if (stateGame.bonusBallsRemaining <= 0 && consumePendingBonusLevelUp()) {
+			return;
+		}
+		if (
+			stateGame.bonusBallsRemaining <= 0 &&
+			stateGame.pendingSpinRouletteAfterBonusLevelDepletion
+		) {
+			// The spin meter filled during the bonus round → fire the in-bonus FREE SPIN now that every
+			// level's balls have dropped. The book authors the landed segment (`pendingBonusFreeSpinPayload`);
+			// set it so the wheel lands on it (its `stake × M` is already in the RGS finalWin). Without this
+			// the wheel would land on a random fallback segment. After the wheel closes,
+			// `onFreeSpinRouletteFinished` re-invokes this settler so the round actually ends (or advances).
+			stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
+			const inBonusFreeSpin = stateGame.pendingBonusFreeSpinPayload;
+			stateGame.pendingBonusFreeSpinPayload = undefined;
+			if (inBonusFreeSpin?.segment) {
+				stateGame.serverFreeSpinSegmentLabel = inBonusFreeSpin.segment;
+				const idx = FREE_SPIN_SEGMENTS.indexOf(
+					inBonusFreeSpin.segment as (typeof FREE_SPIN_SEGMENTS)[number],
+				);
+				stateGame.serverFreeSpinSegment = idx >= 0 ? idx : 0;
+			}
+			stateGame.bonusRoundSettlementInProgress = false;
+			triggerRoulette('spin');
 			return;
 		}
 		if (stateGame.bonusBallsRemaining <= 0) {

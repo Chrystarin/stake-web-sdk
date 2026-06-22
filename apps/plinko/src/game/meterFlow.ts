@@ -105,11 +105,23 @@ export function onCoinPegHit(ballId: number) {
 	stateGame.bonusPegMeterCreditedBallIds.add(ballId);
 
 	if (stateGame.authoritativeMeterFlow) {
-		// TRIGGER drop: provisional fill toward the per-tier max (authoritative `bonusMeter` events
-		// confirm it). DURING the bonus round the meter is driven entirely by the authoritative in-bonus
-		// `bonusMeter` events (which RESET on level-up), so skip the provisional bump here — otherwise it
-		// fights the reset and double-counts.
-		if (!stateGame.bonusRoundActive) meterController.bumpBonusMeterVisual(1);
+		if (stateGame.bonusRoundActive) {
+			// IN-BONUS energy meter: fill smoothly from the bonus balls' coin-peg hits. On reaching max,
+			// HOLD at max (do NOT reset) so the bar reads "ready to level up" and the next-level node
+			// blinks (`bonusPendingLevelHighlight`). The actual level-up + meter drain happens once the
+			// current level's balls finish dropping (`applyAuthoritativeBonusLevel` resets it to 0). Max =
+			// the level-up threshold (set by the single in-bonus `bonusMeter` event). The level number +
+			// extra balls stay server-authoritative (book `bonusRound` events); this only drives the
+			// visual fill so "bar fills → blink → balls finish → level up" reads correctly.
+			const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 1;
+			if (stateGame.bonusMeterValue < max) {
+				stateGame.bonusMeterValue = Math.min(max, stateGame.bonusMeterValue + 1);
+			}
+		} else {
+			// TRIGGER drop: provisional fill toward the per-tier max (authoritative `bonusMeter` events
+			// confirm it).
+			meterController.bumpBonusMeterVisual(1);
+		}
 		return;
 	}
 

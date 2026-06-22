@@ -5,7 +5,11 @@ import { eventEmitter } from '../../game/eventEmitter';
 import { resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
-import { getCombinedRoundWinAmount, recordFreeSpinWinHistory } from '../../game/gameOrchestrator';
+import {
+	getCombinedRoundWinAmount,
+	recordFreeSpinWinHistory,
+	settleBonusRoundWhenFinished,
+} from '../../game/gameOrchestrator';
 import { applyRgsRoundWinFromBet } from '../../game/rgsRoundWin';
 import {
 	freeSpinMultiplierFromSegment,
@@ -47,7 +51,13 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 				const winBeforeFeature = getCombinedRoundWinAmount();
 				stateGame.pendingDropWinAmount = totalWin;
 				if (stateGame.bonusRoundActive) {
-					stateGame.bonusSessionWinAmount = totalWin;
+					// In-bonus free spin: `totalWin` is the whole round (drop + bonus + this free spin), but
+					// getCombinedRoundWinAmount adds the base drop separately (baseRoundDropWinAmount). Store
+					// only the bonus portion (total − drop) so the drop isn't double-counted in the display.
+					stateGame.bonusSessionWinAmount = Math.max(
+						0,
+						totalWin - stateGame.baseRoundDropWinAmount,
+					);
 				} else {
 					recordFreeSpinWinHistory(
 						multiplier,
@@ -84,6 +94,15 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 
 	if (!stateGame.authoritativeMeterFlow && queuedRoulette) {
 		triggerRoulette(queuedRoulette);
+	}
+
+	// IN-BONUS free spin: this wheel was the trailing in-bonus free spin (fired by
+	// `settleBonusRoundWhenFinished` after the bonus balls depleted). The bonus round is still active and
+	// its payout is now folded into `bonusSessionWinAmount`, so re-invoke the settler to CONTINUE the
+	// round: it advances to any remaining level-up or, with nothing pending, ends the bonus round and
+	// releases settlement. Without this the round stayed stuck (bonus never ended → `finalWin` blocked).
+	if (stateGame.bonusRoundActive && stateGame.bonusBallsRemaining <= 0) {
+		void settleBonusRoundWhenFinished();
 	}
 
 	// Persist meter reset without blocking roulette close or round unlock.
