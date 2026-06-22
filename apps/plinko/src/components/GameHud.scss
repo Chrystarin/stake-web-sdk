@@ -487,7 +487,8 @@
 	}
 
 	&:disabled {
-		opacity: 0.45;
+		// Disabled stays fully visible — only the pointer + interactivity change.
+		opacity: 1;
 		cursor: not-allowed;
 		transform: none;
 	}
@@ -550,14 +551,14 @@
 	}
 
 	&:disabled {
-		opacity: 0.45;
+		// Disabled stays fully visible — only the pointer + interactivity change.
+		opacity: 1;
 		cursor: not-allowed;
 	}
 
 	&.bp-btn-auto--on {
-		filter:
-			drop-shadow(0 0 0.55vw rgba(201, 149, 46, 0.45))
-			drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
+		// Activated: dim instead of glowing; reverts to full opacity when off.
+		opacity: 0.6;
 	}
 }
 
@@ -602,12 +603,14 @@
 	}
 
 	&:disabled {
-		opacity: 0.45;
+		// Disabled stays fully visible — only the pointer + interactivity change.
+		opacity: 1;
 		cursor: not-allowed;
 	}
 
 	&.bp-fast-btn--on {
-		filter: drop-shadow(0 0 0.58vw rgba(110, 255, 164, 0.4));
+		// Activated: dim instead of glowing; reverts to full opacity when off.
+		opacity: 0.6;
 	}
 }
 
@@ -823,7 +826,8 @@
 	}
 
 	&:disabled {
-		opacity: 0.45;
+		// Disabled stays fully visible — only the pointer + interactivity change.
+		opacity: 1;
 		cursor: not-allowed;
 	}
 }
@@ -833,14 +837,13 @@
 	position: relative;
 }
 
+/* Activated (autobet / fast game): dim instead of glowing; reverts to full opacity when off. */
 .mobile-icon-btn--on {
-	filter: drop-shadow(0 0 0.6vw rgba(201, 149, 46, 0.42));
+	opacity: 0.6;
 }
 
-.mobile-icon-btn--fast-on:not(:disabled) {
-	filter:
-		drop-shadow(0 0 0.85vw rgba(84, 255, 159, 0.6))
-		drop-shadow(0 0 1.4vw rgba(84, 255, 159, 0.35));
+.mobile-icon-btn--fast-on {
+	opacity: 0.6;
 }
 
 .hud-play-count-badge,
