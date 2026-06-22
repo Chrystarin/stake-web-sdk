@@ -83,6 +83,10 @@ interface Peg {
   bounceEffect: number;
   bounceTime: number;
   isTouched: boolean;
+  /** Precomputed `${row}:${col}` key — avoids per-frame string allocation in hot loops. */
+  key: string;
+  /** Precomputed featured (bonus/coin) flag — avoids per-frame Set lookups with string keys. */
+  isFeatured: boolean;
 }
 
 interface Slot {
@@ -184,6 +188,14 @@ export class PlinkoEngine {
   private readonly featuredPegSprites = new Map<string, Sprite>();
   private readonly pegsByRow = new Map<number, Peg[]>();
   private featuredPegKeys = new Set<string>();
+  /** Per-row regular (non-featured) pegs — precomputed so the bounce hot path avoids `.filter` allocations. */
+  private readonly regularPegsByRow = new Map<number, Peg[]>();
+  /** Rows that contain at least one featured peg — O(1) replacement for `rowHasFeaturedPeg` scans. */
+  private readonly featuredRowsSet = new Set<number>();
+  /** Featured-peg horizontal span per row — precomputed so cluster queries avoid `.filter`/`.map`/spread. */
+  private readonly clusterSpanByRow = new Map<number, { minX: number; maxX: number }>();
+  /** Reused scratch buffer for ball-collision resolution (avoids a per-frame `filter` allocation). */
+  private readonly collisionScratch: Ball[] = [];
 
   
   
@@ -212,6 +224,32 @@ export class PlinkoEngine {
   private slotLabelLetterSpacingPx = 0;
   private slotLabelStrokeWidth = 1;
 
+  /**
+   * Memoized board geometry. The pyramid layout is constant for the whole duration of a
+   * drop, but the derived getters (peg/ball radius, lane spacing) are O(rows²) and were
+   * recomputed for every ball on every frame. We cache the results keyed on the raw layout
+   * inputs; the values are recomputed only when one of those inputs actually changes
+   * (rebuild / resize / window change), which never happens mid-drop. This is a pure
+   * memoization — the numbers produced are identical to the live computation, so ball
+   * physics and trajectories are unchanged.
+   */
+  private geomValid = false;
+  private geomCW = -1;
+  private geomCH = -1;
+  private geomRows = -1;
+  private geomTWS = -1;
+  private geomBWS = -1;
+  private geomHS = -1;
+  private geomWinW = -1;
+  private geomWinH = -1;
+  private geomPegSpacing = 0;
+  private geomBasePegSpacingX = 0;
+  private geomHScale = 1;
+  private geomMinPegSpacingX = 0;
+  private geomPegRadius = 2;
+  private geomBallRadius = 2;
+  private geomPegSpacingXByRow: number[] = [];
+
   private vw(vwValue: number): number {
     if (typeof window === 'undefined') {
       return (this.BASE_VIEWPORT_WIDTH * vwValue) / 100;
@@ -229,19 +267,91 @@ export class PlinkoEngine {
   }
 
   get pegRadius(): number {
-    const raw = this.layoutHeight * 0.0135 * this.elementScale;
-    if (!Number.isFinite(raw) || raw <= 0) return 2;
-    return Math.max(2, raw);
+    this.ensureGeom();
+    return this.geomPegRadius;
   }
 
   get ballRadius(): number {
-    // Use the same scaling strategy as pegs (container height + elementScale).
+    this.ensureGeom();
+    return this.geomBallRadius;
+  }
+
+  /**
+   * Recompute and cache the O(rows²) board geometry when (and only when) a raw layout
+   * input changed since the last call. During an active drop none of these inputs move,
+   * so every getter access after the first is an 8-field comparison and a field read.
+   */
+  private ensureGeom(): void {
+    const winW = typeof window !== 'undefined' ? window.innerWidth : 0;
+    const winH = typeof window !== 'undefined' ? window.innerHeight : 0;
+    if (
+      this.geomValid &&
+      this.geomCW === this.containerWidth &&
+      this.geomCH === this.containerHeight &&
+      this.geomRows === this.rows &&
+      this.geomTWS === this.topWidthScale &&
+      this.geomBWS === this.bottomWidthScale &&
+      this.geomHS === this.heightScale &&
+      this.geomWinW === winW &&
+      this.geomWinH === winH
+    ) {
+      return;
+    }
+
+    const pegSpacing = this.basePegSpacingY * this.verticalPegSpacingScale;
+    const basePegSpacingX = pegSpacing * (isMobile() ? 1.35 : 1.5);
+
+    // horizontalPegSpacingScale (shrink lanes when the widest row exceeds host width).
+    let hScale = 1;
+    if (this.containerWidth > 0 && this.rows > 0) {
+      const availableWidth = this.containerWidth * 0.99;
+      let maxNaturalSpan = 0;
+      for (let row = 0; row < this.rows; row++) {
+        const pegsInRow = row + 4;
+        maxNaturalSpan = Math.max(
+          maxNaturalSpan,
+          (pegsInRow - 1) * basePegSpacingX * this.rowWidthScale(row)
+        );
+      }
+      if (maxNaturalSpan > availableWidth && maxNaturalSpan > 0) {
+        hScale = availableWidth / maxNaturalSpan;
+      }
+    }
+
+    const byRow = new Array<number>(Math.max(0, this.rows));
+    let minX = Infinity;
+    for (let row = 0; row < this.rows; row++) {
+      const v = basePegSpacingX * this.rowWidthScale(row) * hScale;
+      byRow[row] = v;
+      if (v < minX) minX = v;
+    }
+    if (!Number.isFinite(minX)) minX = basePegSpacingX;
+
+    const prRaw = this.layoutHeight * 0.0135 * this.elementScale;
+    const pegRadius = !Number.isFinite(prRaw) || prRaw <= 0 ? 2 : Math.max(2, prRaw);
+
     const desiredRadius = this.layoutHeight * 0.0245 * this.elementScale;
-    // Keep enough clearance so a falling ball fits between neighboring pegs.
-    const laneSafeRadius = Math.max(1, (this.minPegSpacingX - this.pegRadius * 2) * 0.46);
-    const raw = Math.min(desiredRadius, laneSafeRadius);
-    if (!Number.isFinite(raw) || raw <= 0) return 2;
-    return Math.max(2, raw) * 0.9;
+    const laneSafeRadius = Math.max(1, (minX - pegRadius * 2) * 0.46);
+    const brRaw = Math.min(desiredRadius, laneSafeRadius);
+    const ballRadius = !Number.isFinite(brRaw) || brRaw <= 0 ? 2 : Math.max(2, brRaw) * 0.9;
+
+    this.geomPegSpacing = pegSpacing;
+    this.geomBasePegSpacingX = basePegSpacingX;
+    this.geomHScale = hScale;
+    this.geomPegSpacingXByRow = byRow;
+    this.geomMinPegSpacingX = minX;
+    this.geomPegRadius = pegRadius;
+    this.geomBallRadius = ballRadius;
+
+    this.geomCW = this.containerWidth;
+    this.geomCH = this.containerHeight;
+    this.geomRows = this.rows;
+    this.geomTWS = this.topWidthScale;
+    this.geomBWS = this.bottomWidthScale;
+    this.geomHS = this.heightScale;
+    this.geomWinW = winW;
+    this.geomWinH = winH;
+    this.geomValid = true;
   }
 
   get slotBounceHeight(): number {
@@ -294,11 +404,13 @@ export class PlinkoEngine {
   }
 
   get pegSpacing(): number {
-    return this.basePegSpacingY * this.verticalPegSpacingScale;
+    this.ensureGeom();
+    return this.geomPegSpacing;
   }
 
   private get basePegSpacingX(): number {
-    return this.pegSpacing * (isMobile() ? 1.35 : 1.5);
+    this.ensureGeom();
+    return this.geomBasePegSpacingX;
   }
 
   /** Interpolate top → bottom width scale across peg rows. */
@@ -310,20 +422,15 @@ export class PlinkoEngine {
 
   /** Shrinks horizontal lane spacing when the widest row exceeds the host width. */
   private get horizontalPegSpacingScale(): number {
-    if (this.containerWidth <= 0 || this.rows <= 0) return 1;
-    const base = this.basePegSpacingX;
-    const availableWidth = this.containerWidth * 0.99;
-    let maxNaturalSpan = 0;
-    for (let row = 0; row < this.rows; row++) {
-      const pegsInRow = row + 4;
-      maxNaturalSpan = Math.max(maxNaturalSpan, (pegsInRow - 1) * base * this.rowWidthScale(row));
-    }
-    if (maxNaturalSpan <= availableWidth || maxNaturalSpan <= 0) return 1;
-    return availableWidth / maxNaturalSpan;
+    this.ensureGeom();
+    return this.geomHScale;
   }
 
   pegSpacingXForRow(row: number): number {
-    return this.basePegSpacingX * this.rowWidthScale(row) * this.horizontalPegSpacingScale;
+    this.ensureGeom();
+    const v = this.geomPegSpacingXByRow[row];
+    if (v !== undefined) return v;
+    return this.geomBasePegSpacingX * this.rowWidthScale(row) * this.geomHScale;
   }
 
   /** Bottom-row spacing — used where a single lane width is needed. */
@@ -332,12 +439,8 @@ export class PlinkoEngine {
   }
 
   private get minPegSpacingX(): number {
-    if (this.rows <= 0) return this.basePegSpacingX;
-    let min = Infinity;
-    for (let row = 0; row < this.rows; row++) {
-      min = Math.min(min, this.pegSpacingXForRow(row));
-    }
-    return Number.isFinite(min) ? min : this.basePegSpacingX;
+    this.ensureGeom();
+    return this.geomMinPegSpacingX;
   }
 
   private syncLayoutScalesFromHost(): void {
@@ -1022,7 +1125,9 @@ export class PlinkoEngine {
           col,
           bounceEffect: 0,
           bounceTime: 0,
-          isTouched: false
+          isTouched: false,
+          key: `${row}:${col}`,
+          isFeatured: false
         });
         let rowPegs = this.pegsByRow.get(row);
         if (!rowPegs) {
@@ -1033,6 +1138,41 @@ export class PlinkoEngine {
       }
     }
     this.featuredPegKeys = this.getFeaturedPegKeys();
+    this.indexFeaturedPegs();
+  }
+
+  /**
+   * Precompute featured-peg lookups that the per-frame physics hot path otherwise rebuilt on
+   * every call (string-keyed Set lookups, `.filter` arrays, cluster min/max spreads). Pegs are
+   * static between rebuilds, so this runs once per layout and the hot path becomes allocation-free.
+   */
+  private indexFeaturedPegs(): void {
+    this.regularPegsByRow.clear();
+    this.featuredRowsSet.clear();
+    this.clusterSpanByRow.clear();
+
+    for (const peg of this.pegs) {
+      peg.isFeatured = this.featuredPegKeys.has(peg.key);
+      if (peg.isFeatured) this.featuredRowsSet.add(peg.row);
+    }
+
+    for (const [row, rowPegs] of this.pegsByRow) {
+      const regular: Peg[] = [];
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let hasFeatured = false;
+      for (const peg of rowPegs) {
+        if (peg.isFeatured) {
+          hasFeatured = true;
+          if (peg.x < minX) minX = peg.x;
+          if (peg.x > maxX) maxX = peg.x;
+        } else {
+          regular.push(peg);
+        }
+      }
+      this.regularPegsByRow.set(row, regular);
+      if (hasFeatured) this.clusterSpanByRow.set(row, { minX, maxX });
+    }
   }
 
   private generateSlots(): void {
@@ -1134,13 +1274,11 @@ export class PlinkoEngine {
   }
 
   private isFeaturedPeg(peg: Peg): boolean {
-    return this.featuredPegKeys.has(`${peg.row}:${peg.col}`);
+    return peg.isFeatured;
   }
 
   private rowHasFeaturedPeg(row: number): boolean {
-    if (row < 0) return false;
-    const rowPegs = this.pegsByRow.get(row) ?? [];
-    return rowPegs.some((peg) => this.isFeaturedPeg(peg));
+    return this.featuredRowsSet.has(row);
   }
 
   private smoothstep(t: number): number {
@@ -1160,12 +1298,7 @@ export class PlinkoEngine {
   }
 
   private getFeaturedClusterSpan(row: number): { minX: number; maxX: number } | null {
-    const featured = (this.pegsByRow.get(row) ?? []).filter((peg) => this.isFeaturedPeg(peg));
-    if (!featured.length) return null;
-    return {
-      minX: Math.min(...featured.map((peg) => peg.x)),
-      maxX: Math.max(...featured.map((peg) => peg.x)),
-    };
+    return this.clusterSpanByRow.get(row) ?? null;
   }
 
   private galtonLaneThreatensFeaturedCluster(row: number, laneX: number): boolean {
@@ -1179,7 +1312,7 @@ export class PlinkoEngine {
   private pickFlankBouncePeg(row: number, side: -1 | 1): Peg | null {
     const span = this.getFeaturedClusterSpan(row);
     if (!span) return null;
-    const regular = (this.pegsByRow.get(row) ?? []).filter((peg) => !this.isFeaturedPeg(peg));
+    const regular = this.regularPegsByRow.get(row) ?? [];
     if (side < 0) {
       const candidates = regular.filter((peg) => peg.x < span.minX);
       if (!candidates.length) return null;
@@ -1381,7 +1514,7 @@ export class PlinkoEngine {
     }
 
     const bounceCandidates = excludeFeaturedFromBounce
-      ? rowPegs.filter((peg) => !this.isFeaturedPeg(peg))
+      ? this.regularPegsByRow.get(row) ?? rowPegs.filter((peg) => !this.isFeaturedPeg(peg))
       : rowPegs;
     if (!bounceCandidates.length) {
       return { pathX, closestPeg: null, bounceIntensity: 0 };
@@ -1413,7 +1546,7 @@ export class PlinkoEngine {
     if (pathPoint.row < 0) return pathPoint.closestPeg;
 
     const rowPegs = this.pegsByRow.get(pathPoint.row) ?? [];
-    const regularPegs = rowPegs.filter((peg) => !this.isFeaturedPeg(peg));
+    const regularPegs = this.regularPegsByRow.get(pathPoint.row) ?? rowPegs;
     if (ball.creditBonusPegHit) {
       return this.pickNearestPeg(rowPegs, ball.x, false) ?? pathPoint.closestPeg;
     }
@@ -1880,8 +2013,16 @@ export class PlinkoEngine {
 
   /** Separate overlapping balls and apply a slight repulsion away from each other. */
   private resolveBallCollisions(): void {
-    const dropping = this.balls.filter((b) => b.isDropping && b.scale > 0);
-    if (dropping.length < 2) return;
+    const dropping = this.collisionScratch;
+    dropping.length = 0;
+    for (let i = 0; i < this.balls.length; i++) {
+      const b = this.balls[i];
+      if (b.isDropping && b.scale > 0) dropping.push(b);
+    }
+    if (dropping.length < 2) {
+      dropping.length = 0;
+      return;
+    }
 
     const minSep = this.ballRadius * 2 * this.pyramidConfig.ballSeparationFactor;
     const minSepSq = minSep * minSep;
@@ -1934,6 +2075,8 @@ export class PlinkoEngine {
         }
       }
     }
+    // Drop ball references so the scratch buffer doesn't pin them after the burst settles.
+    dropping.length = 0;
   }
 
   private updateBallPhysics(ball: Ball, currentTime: number): void {
@@ -2150,6 +2293,7 @@ export class PlinkoEngine {
 
   private drawAllPegsPixi(currentTime: number): void {
     const g = this.pegGraphics;
+    const pr = this.pegRadius;
     this.pegs.forEach((peg) => {
       if (peg.isTouched && currentTime - peg.bounceTime > 1000) {
         peg.isTouched = false;
@@ -2171,11 +2315,10 @@ export class PlinkoEngine {
         }
       }
 
-      const pr = this.pegRadius;
-      const isFeaturedPeg = this.featuredPegKeys.has(`${peg.row}:${peg.col}`);
+      const isFeaturedPeg = peg.isFeatured;
 
       if (isFeaturedPeg) {
-        const sprite = this.featuredPegSprites.get(`${peg.row}:${peg.col}`);
+        const sprite = this.featuredPegSprites.get(peg.key);
         const hasCoinSprite = !!(
           sprite &&
           this.coinPegTexture &&
