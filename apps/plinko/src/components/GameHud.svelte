@@ -66,6 +66,8 @@
 		stateGame.bonusRouletteOpen;
 		stateGame.dropRoundActive;
 		stateGame.rouletteFlowInProgress;
+		// Keep wager config locked for the full Autobet run (not just per-round flags).
+		stateGame.autoPlayStarted;
 		// Stay locked until the round machine is fully idle (deferred end-round settlement).
 		stateXstate.value;
 		// Keep controls locked across the gap between the bonus meter filling and the trigger round.
@@ -347,7 +349,7 @@
 				type="button"
 				class="mobile-icon-btn mobile-icon-btn--fast"
 				class:mobile-icon-btn--fast-on={stateGame.fastGameEnabled}
-				disabled={controlsLocked}
+				disabled={controlsLocked && !props.autoPlayStarted}
 				aria-pressed={stateGame.fastGameEnabled}
 				aria-label="Fast game"
 				onclick={() => {
@@ -722,7 +724,7 @@
 								type="button"
 								class="bp-fast-btn"
 								class:bp-fast-btn--on={stateGame.fastGameEnabled}
-								disabled={controlsLocked}
+								disabled={controlsLocked && !props.autoPlayStarted}
 								aria-pressed={stateGame.fastGameEnabled}
 								aria-label="Fast game"
 								onclick={() => {

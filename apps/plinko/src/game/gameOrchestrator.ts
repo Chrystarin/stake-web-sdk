@@ -158,6 +158,10 @@ export function isBetControlsLocked(): boolean {
 		stateGame.bonusBallsRemaining > 0 ||
 		stateGame.freeSpinRouletteOpen ||
 		stateGame.bonusRouletteOpen ||
+		// An active Autobet session keeps wager config locked across the whole run, including the
+		// idle gap between rounds where the per-round flags above all read false. Without this the
+		// bet-per-ball / ball-per-drop steppers become interactive mid-session.
+		stateGame.autoPlayStarted ||
 		// Round not fully settled until the xstate machine is back to idle (deferred end-round
 		// runs inside the `bet` state, after `playBet` already cleared the flags above). Without
 		// this, fast clicks during settlement dispatch a BET the idle-only machine drops, leaving
