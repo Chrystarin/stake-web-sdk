@@ -31,6 +31,9 @@
 	/** Currency-accurate bet/win limits (USD presets, RGS-scaled for other currencies). */
 	const betLimits = $derived(plinkoBetLimits());
 
+	/** Sub-tab within the Game Rules view: descriptive rules vs. the limits table. */
+	let rulesTab = $state<'rules' | 'limits'>('rules');
+
 	/** Newest entries are stored first (index 0 = top of table). */
 	const historyRows = $derived(stateGame.history);
 
@@ -63,12 +66,44 @@
 					class:info-modal-body--history={stateGame.infoModalTab === 'history'}
 				>
 					{#if stateGame.infoModalTab === 'rules'}
-						<h3 class="info-section-title">Bet limits</h3>
-						<p>Min bet: {formatLimit(betLimits.min)}</p>
-						<p>Max bet: {formatLimit(betLimits.max)}</p>
-						<p>Max win: {formatLimit(betLimits.maxWin)}</p>
+						<div class="info-tabs" role="tablist">
+							<button
+								type="button"
+								role="tab"
+								class="info-tab"
+								class:info-tab--active={rulesTab === 'rules'}
+								aria-selected={rulesTab === 'rules'}
+								onclick={() => (rulesTab = 'rules')}
+							>
+								Rules
+							</button>
+							<button
+								type="button"
+								role="tab"
+								class="info-tab"
+								class:info-tab--active={rulesTab === 'limits'}
+								aria-selected={rulesTab === 'limits'}
+								onclick={() => (rulesTab = 'limits')}
+							>
+								Limits
+							</button>
+						</div>
 
-						<h3 class="info-section-title">Main Betting Components</h3>
+						{#if rulesTab === 'limits'}
+							<div class="info-limits">
+								<div class="info-limits-row info-limits-row--head">
+									<span>Bet Limits</span>
+									<span>Max payout</span>
+								</div>
+								<div class="info-limits-row">
+									<span class="info-limits-value"
+										>{formatLimit(betLimits.min)}-{formatLimit(betLimits.max)}</span
+									>
+									<span class="info-limits-value">{formatLimit(betLimits.maxWin)}</span>
+								</div>
+							</div>
+						{:else}
+							<h3 class="info-section-title">Main Betting Components</h3>
 						<p>The betting interface is straightforward and matches the on-screen controls:</p>
 						<ul>
 							<li>
@@ -171,26 +206,127 @@
 							This creates exciting chain reactions where one triggered bonus can snowball into many
 							extra drops and bigger hauls.
 						</p>
+						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
-						<p><strong>How to Play (Step-by-Step)</strong></p>
-						<ol>
+						<div class="howto-pill-bar">
+							<span class="howto-pill">One-eyed Willy Plinko</span>
+						</div>
+
+						<h3 class="info-section-title">How to Play</h3>
+						<ol class="howto-steps">
 							<li>
-								<strong>Set your bet</strong> – Adjust the total BET or use the individual controls
-								below.
+								<strong>Select a Difficulty &amp; Rows</strong> — Choose from Easy, Medium, or Hard
+								difficulty settings, and configure the number of pin rows (Lines). Higher difficulty
+								settings and more rows add more pockets with larger potential payouts at the extreme
+								edges, but lower win chances in the center.
 							</li>
 							<li>
-								<strong>Choose Bet Per Ball</strong> – This is the stake for each individual cannonball
-								(typically starts as low as $0.01 and can go up to $200+ depending on the casino).
+								<strong>Enter Your Bet</strong> — Set your wager amount. You can use the quick buttons
+								to half (½) or double (2×) your bet, or select Max. You can also specify the Bet per
+								Ball and the total Ball per Drop count.
 							</li>
 							<li>
-								<strong>Choose Ball Per Drop</strong> – Select how many cannonballs you want to release
-								in one round (common options include 1, 10, 20, or 50).
+								<strong>Hit “Play / Spin” to Drop</strong> — Press the Play button to release the balls
+								from the top pirate hatch. The balls will deflect off the pegs randomly and drop down
+								into the multiplier pockets below. You can click rapidly to drop multiple balls
+								consecutively.
 							</li>
 							<li>
-								Press SPIN (or the play button) to drop the balls and watch them bounce down the
-								board.
+								<strong>See the Result</strong> — Your payout = Bet per Ball × Multiplier of the pocket
+								where each ball lands.
 							</li>
 						</ol>
+
+						<h3 class="info-section-title">Difficulty Levels &amp; Multipliers</h3>
+						<p>
+							Note: The exact multiplier layout shifts dynamically depending on the selected Rows
+							(Lines) and Difficulty configuration chosen by the player.
+						</p>
+						<ul>
+							<li>
+								<strong>Easy</strong> — Low volatility. The center pockets return a safe portion of
+								your bet, while the outer edge multipliers remain scaled for steady, small-scale
+								returns.
+							</li>
+							<li>
+								<strong>Medium</strong> — Balanced volatility. Payout ranges broaden, giving a mix of
+								baseline retention and moderate spike multipliers.
+							</li>
+							<li>
+								<strong>Hard</strong> — High volatility. Center pockets yield very low returns (0.2×),
+								but the extreme outer pockets scale dramatically up to massive top-tier payouts.
+							</li>
+						</ul>
+
+						<h3 class="info-section-title">Key Features</h3>
+						<ul>
+							<li><strong>RTP</strong> — ~95%–96% (varies slightly depending on settings).</li>
+							<li>
+								<strong>Auto Mode</strong> — Set a fixed number of automated ball drops, specify
+								loss/profit thresholds, and automatically scale your wagers based on wins or losses.
+							</li>
+							<li>
+								<strong>Fast-Paced</strong> — Supports continuous rapid ball drops simultaneously on
+								the active peg canvas.
+							</li>
+						</ul>
+
+						<h3 class="info-section-title">Controls &amp; Buttons</h3>
+						<p class="howto-subhead">Main Bet Panel</p>
+						<ul>
+							<li><strong>Manual</strong> — Switches to manual play mode.</li>
+							<li>
+								<strong>Auto</strong> — Switches to autobet mode and opens the automated setting
+								parameters.
+							</li>
+							<li><strong>Bet</strong> — Enter your wager amount for each individual ball.</li>
+							<li><strong>½</strong> — Halves the current bet amount.</li>
+							<li><strong>2×</strong> — Doubles the current bet amount.</li>
+							<li><strong>Max</strong> — Sets the bet to the maximum allowed limit.</li>
+							<li><strong>Difficulty</strong> — Selects between Easy, Medium, and Hard.</li>
+							<li><strong>Rows / Lines</strong> — Adjusts the peg grid matrix layer depth.</li>
+							<li>
+								<strong>Play Button</strong> — Drops the designated number of balls down the peg array.
+							</li>
+						</ul>
+						<p class="howto-subhead">Autobet Options (Auto Tab)</p>
+						<ul>
+							<li>
+								<strong>Number of bets</strong> — Sets how many rounds run automatically (0 =
+								unlimited).
+							</li>
+							<li>
+								<strong>On Win / On Loss</strong> — Automatically resets or increases the next wager by
+								a specific percentage (10% to 100%).
+							</li>
+							<li>
+								<strong>Stop on Profit</strong> — Stops autobet once your cumulative session profit
+								reaches this cap.
+							</li>
+							<li>
+								<strong>Stop on Loss</strong> — Stops autobet once your cumulative session loss crosses
+								this limit.
+							</li>
+						</ul>
+						<p class="howto-subhead">Settings Menu (Gear Icon)</p>
+						<ul>
+							<li>
+								<strong>Volume Icon / Slider</strong> — Mutes, unmutes, or adjusts background sound
+								levels from 0 to 100.
+							</li>
+							<li><strong>My bet history</strong> — Opens a rolling ledger log of your recent drops.</li>
+							<li>
+								<strong>Game Info</strong> — Opens the technical structural boundaries and the Game
+								Rules tab.
+							</li>
+						</ul>
+
+						<h3 class="info-section-title">Legal Notice</h3>
+						<p>
+							Malfunction voids all wins and plays. A consistent internet connection is required. In
+							the event of a disconnection, reload the game to finish any uncompleted rounds. The
+							expected return is calculated over millions of plays.
+						</p>
 					{:else if stateGame.infoModalTab === 'fair'}
 						<p><strong>Provably fair settings</strong></p>
 						<p>This game uses Provably Fair technology.</p>
@@ -311,6 +447,55 @@
 	.info-modal-body p {
 		margin: 0 0 8px;
 	}
+	.info-tabs {
+		display: flex;
+		justify-content: center;
+		gap: 8px;
+		margin: 0 0 18px;
+	}
+	.info-tab {
+		padding: 7px 22px;
+		border: none;
+		border-radius: 8px;
+		background: transparent;
+		color: #9ab8d0;
+		font-size: 14px;
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease;
+	}
+	.info-tab:hover {
+		color: #d6e8f7;
+	}
+	.info-tab--active {
+		background: rgba(126, 200, 255, 0.16);
+		color: #fff;
+	}
+	.info-limits {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+	.info-limits-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 16px;
+		padding-bottom: 10px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.info-limits-row--head {
+		color: #fff;
+		font-weight: 700;
+		font-size: 15px;
+	}
+	.info-limits-value {
+		color: #7ec8ff;
+		font-size: 14px;
+		font-weight: 600;
+	}
 	.info-section-title {
 		margin: 18px 0 8px;
 		font-size: 15px;
@@ -319,6 +504,40 @@
 	}
 	.info-section-title:first-child {
 		margin-top: 0;
+	}
+	/* Sticky game-name pill that stays pinned while the How to Play content scrolls. */
+	.howto-pill-bar {
+		position: sticky;
+		/* Pin to the body's padding-box top (top = -padding) so the bar's background
+		 * covers the full strip — otherwise a gap the height of the padding shows
+		 * scrolled content above the pill. */
+		top: -20px;
+		z-index: 2;
+		display: flex;
+		justify-content: center;
+		margin: -20px -20px 14px;
+		padding: 20px 20px 12px;
+		background: #0f1a28;
+	}
+	.howto-pill {
+		padding: 9px 24px;
+		border-radius: 999px;
+		background: rgba(126, 200, 255, 0.1);
+		border: 1px solid rgba(126, 200, 255, 0.3);
+		color: #fff;
+		font-size: 15px;
+		font-weight: 700;
+		line-height: 1.2;
+		text-align: center;
+	}
+	.howto-subhead {
+		margin: 14px 0 8px;
+		font-size: 14px;
+		font-weight: 700;
+		color: #fff;
+	}
+	.howto-steps li {
+		margin-bottom: 10px;
 	}
 	.info-modal-body ul,
 	.info-modal-body ol {
