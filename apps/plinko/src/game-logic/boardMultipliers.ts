@@ -1,12 +1,13 @@
 import { formatCoefficientLabel } from '../lib/format';
 
 /** Canonical slot multipliers shown on the board (15 pockets, symmetric; center = spin slot).
- * Tuned with the math SDK (crimson_plinko `plinko_data.BOARD_SLOT_MULTIPLIERS`): per-ball board EV
- * ~0.957. The bonus is a SEPARATE `bonus<tier>` mode (not folded into base), so base modes are
- * board-only (+ the rare in-drop free spin). Must stay label-identical to the published
- * `coefficientSets` so `alignCoefficientSet` maps server → board. */
+ * Aztec values, tuned with the math SDK (crimson_plinko `plinko_data.BOARD_SLOT_MULTIPLIERS`).
+ * FOLDED-BONUS DESIGN: the bonus is FREE and fires IN-DROP on a rare per-tier quota inside the base
+ * book, so to fund it (+ the in-drop free spin) under the 96.70% cap the board is LOWERED to a fair
+ * 14-row Galton EV of ~0.896 (base RTP = board + bonus_add + free_spin_add ≈ 0.957). Must stay
+ * label-identical to the published `coefficientSets` so `alignCoefficientSet` maps server → board. */
 export const BOARD_SLOT_MULTIPLIERS = [
-	100, 40, 15, 8, 1.5, 0.4, 0.2, 0, 0.2, 0.4, 1.5, 8, 15, 40, 100,
+	100, 50, 20, 5, 1.5, 0.4, 0.2, 0, 0.2, 0.4, 1.5, 5, 20, 50, 100,
 ] as const;
 
 /** Align server/config coefficients to the board table (same labels → board values). */

@@ -107,6 +107,9 @@
 			index: i,
 		})),
 	);
+	// Wheel is data-driven: N equal slices (Aztec bonus wheel has 9), so the per-segment angle and the
+	// landing target both derive from the segment count rather than a hardcoded 45°.
+	const segAngle = $derived(segments.length > 0 ? 360 / segments.length : 45);
 
 	onMount(() => {
 		if (props.mode === 'message') {
@@ -159,7 +162,7 @@
 	function startSpin() {
 		const winner = resolveWinnerIndex();
 		const extraRounds = 5 + Math.floor(Math.random() * 3);
-		const targetDeg = wheelRotationDeg + extraRounds * 360 - winner * 45;
+		const targetDeg = wheelRotationDeg + extraRounds * 360 - winner * segAngle;
 		let settled = false;
 		const settle = () => {
 			if (settled) return;
@@ -285,7 +288,7 @@
 						aria-hidden="true"
 					>
 						{#each segments as seg, i (i)}
-							<span class="bonus-spin-wheel-label" style:--seg-angle="{i * 45}deg">{seg.label}</span>
+							<span class="bonus-spin-wheel-label" style:--seg-angle="{i * segAngle}deg">{seg.label}</span>
 						{/each}
 					</div>
 					<img

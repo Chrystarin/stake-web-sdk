@@ -125,16 +125,15 @@ export function resolveRgsSpinMeterStart(
 }
 
 /**
- * Bonus meter at bet start = the carried CLIENT SESSION meter — see `resolveRgsSpinMeterStart` for
- * why the served book's `bonusMeterStart` (a weighted-random generation stratum, up to near-max) is
- * ignored: trusting it boosted the bonus meter to that stratum (and could false-trigger the bonus)
- * the moment a bet was placed.
+ * Bonus meter at bet start (OPTION A — PER-DROP, like the spin meter): each book seeds at its OWN
+ * tier-fixed `bonusMeterStart` and fills in-drop; it does NOT carry across bets (resets every round —
+ * statelessness). The tier start is a fixed value (3/4 / 5/8 / 2/5 of max, or 0 on 1-ball), NOT a
+ * random stratum, so trusting the book is safe here (same reasoning as `resolveRgsSpinMeterStart`).
  */
 export function resolveRgsBonusMeterStart(
-	_bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
+	bookEvent: Extract<BookEvent, { type: 'plinkoDrop' }>,
 ): number {
-	if (!hasActiveRgsSession()) return getDevRgsBonusMeter();
-	return getRgsSessionBonusMeter();
+	return Math.max(0, Math.floor(bookEvent.bonusMeterStart ?? 0));
 }
 
 /**
@@ -311,13 +310,14 @@ export function seedSpinMeterForCurrentTier(): void {
  * the value — the bonus meter carries its per-tier session progress across rounds.
  */
 export function seedBonusMeterForCurrentTier(): void {
-	const tier = currentBonusTier();
-	const { max } = bonusMeterTierFor(tier);
+	// PER-DROP bonus meter (Option A): reset to the current tier's start + max each round (no cross-bet
+	// carry — statelessness). Identical in spirit to `seedSpinMeterForCurrentTier`. 1-ball start is 0
+	// (cosmetic, never fires).
+	const { max, start } = bonusMeterTierFor(plinkoBallsPerDrop());
 	stateGame.bonusMeterBaseMax = max;
 	stateGame.bonusMeterMax = max;
-	const value = hasActiveRgsSession() ? getRgsSessionBonusMeter() : getDevRgsBonusMeter();
-	const level = hasActiveRgsSession() ? getRgsSessionBonusLevel() : getDevRgsBonusLevel();
-	applyBonusMeterDisplay(value, level);
+	stateGame.bonusMeterValue = Math.min(Math.max(0, start), max);
+	stateGame.bonusMeterLevel = 0;
 }
 
 /** Apply a `spinMeter` book event to the HUD (session-absolute, never regress mid-bet). */
@@ -503,19 +503,13 @@ function bonusMeterConsumedThisRound(events: BookEvent[]): boolean {
 }
 
 /** After a bet book finishes: display RGS result and sync bonus meter for the next play meta. */
-export async function syncBonusMeterAfterBet(events: BookEvent[]): Promise<void> {
-	const derived = deriveBonusMeterFromBookEvents(events);
-	const consumed = bonusMeterConsumedThisRound(events) || stateGame.bonusAwardedThisRound;
-	const bonusMeter = consumed
-		? derived.value
-		: Math.max(derived.value, stateGame.bonusMeterValue, getRgsSessionBonusMeter());
-	const bonusLevel = Math.max(
-		derived.level,
-		stateGame.bonusMeterLevel,
-		getRgsSessionBonusLevel(),
-	);
-	applyBonusMeterDisplay(bonusMeter, bonusLevel);
-	updateRgsSessionBonusMeter(bonusMeter, bonusLevel);
+export async function syncBonusMeterAfterBet(_events: BookEvent[]): Promise<void> {
+	// PER-DROP bonus meter (Option A): reset to the current tier's start each round — no cross-bet carry
+	// (statelessness). The meter filled (and possibly fired the in-drop bonus) during the just-finished
+	// book's `bonusMeter` events; a fired bonus's animation owns the display until it ends, after which
+	// this restores the tier start. Mirrors `syncSpinMeterAfterBet`.
+	if (stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
+	seedBonusMeterForCurrentTier();
 }
 
 /** Offset lookup-table `bonusMeter` events when injecting session carry-over (local dev). */

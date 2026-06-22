@@ -10,45 +10,41 @@ export default {
 	providerName: 'casino_tv',
 	gameName: 'one_eyed_willys_plinko',
 	gameID: 'one_eyed_willys_plinko',
-	rtp: 0.97,
+	rtp: 0.957,
 	minBet: 0.01,
 	maxBet: 1000,
+	// FOLDED-BONUS DESIGN: only the 4 BASE modes (cost = ball count). The bonus is FREE and folds into
+	// the base book on a rare per-tier quota — there is NO separate bonus mode. Must match the published
+	// math config.json (4 modes).
 	betModes: {
 		baseone: {
 			cost: 1.0,
 			feature: true,
 			buyBonus: false,
-			rtp: 0.97,
+			rtp: 0.957,
 			max_win: 1000.0,
 		},
 		baseten: {
 			cost: 10.0,
 			feature: true,
 			buyBonus: false,
-			rtp: 0.97,
+			rtp: 0.957,
 			max_win: 1000.0,
 		},
 		basetwenty: {
 			cost: 20.0,
 			feature: true,
 			buyBonus: false,
-			rtp: 0.97,
+			rtp: 0.957,
 			max_win: 1000.0,
 		},
 		basefifty: {
 			cost: 50.0,
 			feature: true,
 			buyBonus: false,
-			rtp: 0.97,
+			rtp: 0.957,
 			max_win: 1000.0,
 		},
-		// BONUS trigger modes (auto-fired when the bonus meter fills). cost = the TIER cost (same as the
-		// base mode) so the trigger debits exactly one normal bet — NOT 49×. The bonus payout is sized in
-		// the math so the mode stays compliant. Must match the published math config.json.
-		bonusone: { cost: 1.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		bonusten: { cost: 10.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		bonustwenty: { cost: 20.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
-		bonusfifty: { cost: 50.0, feature: true, buyBonus: false, rtp: 0.97, max_win: 1000.0 },
 	},
 	/** [rowTierIndex 0..12] → slot multipliers (matches stake-math-sdk plinko_data.COEFFICIENT_SETS). */
 	coefficientSets: tierTable(DEFAULT_SLOT_MULTIPLIERS) as number[][],

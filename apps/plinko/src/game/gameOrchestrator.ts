@@ -5,7 +5,7 @@ import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatHistoryDate } from '../lib/format';
 import { slotColorForRateIndex } from '../game-logic/slotColors';
-import { isBonusMeterFull, meterController } from './stateGame.svelte';
+import { meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
@@ -124,22 +124,19 @@ export function isPlayActionBlockedByFreeSpinRoulette(): boolean {
 
 export function isPlayActionBlockedByBonusRoulette(): boolean {
 	if (stateGame.bonusRoundActive) return false;
-	if (stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus') {
-		return true;
-	}
-	// A FULL bonus meter blocks normal play until the bonus auto-fires — the deterministic trigger UX.
-	// Safe because `maybeAutoFireFeatureTrigger` WILL fire the bonus mode (live-RGS-gated).
-	return isBonusMeterFull();
+	// FOLDED-BONUS DESIGN: only an ACTIVELY animating/pending bonus roulette blocks Play. A FULL bonus
+	// meter must NOT block — the bonus is fired by the served base book (math quota), not by the meter,
+	// so there is nothing to "wait for". (Blocking on a full meter here soft-locked the game once the
+	// auto-fire was removed.)
+	return stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus';
 }
 
 /**
- * The bonus meter is full (or a trigger is queued), so the bonus trigger bet is about to / is
- * auto-firing. Keeps betting controls locked from meter-full until the bonus round actually starts.
+ * FOLDED-BONUS DESIGN: the bonus is never client-triggered (no auto-fire / no separate bonus mode), so
+ * a full meter is never "imminent". Always false — kept so callers/imports stay stable.
  */
 export function isFeatureTriggerImminent(): boolean {
-	if (stateGame.pendingFeatureTrigger != null) return true;
-	if (!hasActiveRgsSession()) return false;
-	return stateGame.bonusMeterMax > 0 && stateGame.bonusMeterValue >= stateGame.bonusMeterMax;
+	return false;
 }
 
 export function isBonusPlayButtonDisabled(): boolean {
@@ -754,32 +751,12 @@ export function onMainPlayClick(onRegularBet: () => void) {
 	onRegularBet();
 }
 
-/** A round is in progress (anything that should block auto-firing the bonus trigger bet). */
-function isFeatureTriggerBlocked(): boolean {
-	return (
-		stateGame.pendingFeatureTrigger != null ||
-		stateGame.isSubmitting ||
-		stateGame.dropRoundActive ||
-		stateGame.bonusRoundActive ||
-		stateGame.bonusBallsRemaining > 0 ||
-		stateGame.freeSpinRouletteOpen ||
-		stateGame.bonusRouletteOpen ||
-		stateGame.rouletteFlowInProgress ||
-		isGameOngoing() ||
-		stateXstateDerived.isPlaying()
-	);
-}
-
 /**
- * Auto-fire the BONUS trigger bet when the bonus meter is full: RGS serves the `bonus<tier>` book (which
- * runs the bonus round), and the meter resets afterwards. Deterministic — fires the moment the meter is
- * full and the round machine is idle. The bonus mode costs the tier cost (one normal bet), NOT 49×.
- * Live-RGS-only (dev-local has no trigger books; the session-meter fallback handles it there).
+ * FOLDED-BONUS DESIGN: NO auto-fire. The bonus is FREE and fires IN-DROP inside the base book on the
+ * math's per-tier quota (there is no separate bonus mode to play). The client just animates the book's
+ * `bonusRoulette`/`bonusRound` events; the bonus meter is a pure visual. Kept as a no-op so the
+ * Game.svelte effect + imports stay stable.
  */
-export function maybeAutoFireFeatureTrigger(dispatchBet: () => void): void {
-	if (!hasActiveRgsSession()) return;
-	if (isFeatureTriggerBlocked()) return;
-	if (!isBonusMeterFull()) return;
-	stateGame.pendingFeatureTrigger = 'bonus';
-	dispatchBet();
+export function maybeAutoFireFeatureTrigger(_dispatchBet: () => void): void {
+	// intentionally empty — see doc comment.
 }

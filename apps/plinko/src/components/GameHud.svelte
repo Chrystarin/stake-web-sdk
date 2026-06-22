@@ -563,8 +563,10 @@
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
 								class="bp-bet-input-mid"
+								class:bp-bet-input-mid--disabled={controlsLocked}
 								role="button"
 								tabindex={controlsLocked ? -1 : 0}
+								aria-disabled={controlsLocked}
 								aria-label="Open bet per ball presets"
 								onmousedown={(e) => e.preventDefault()}
 								onclick={onBetPerBallPanelTrigger}

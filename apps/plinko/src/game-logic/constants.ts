@@ -4,28 +4,34 @@ export const BET_PER_BALL_PRESETS = [0.01, 0.1, 0.2, 0.5, 1, 5, 10, 20, 50] as c
 /** Balls released per drop tier selector. */
 export const BALL_PER_DROP_TIERS = [1, 10, 20, 50] as const;
 
-/** Reference BONUS-meter max (10-ball tier); per-tier max = this × maxRatio. Mirror of
- * stake-math-sdk plinko_data.BONUS_METER_MAX. */
-export const BONUS_METER_MAX_REF = 20;
+/** Cosmetic BONUS-meter max for tiers without a per-drop entry (1-ball): it fills visually but never
+ * fires. Mirror of stake-math-sdk plinko_data.BONUS_METER_COSMETIC_MAX. */
+export const BONUS_METER_COSMETIC_MAX = 20;
 
-/** BONUS-meter limits per balls-per-drop tier (SESSION meter). `startRatio` is the per-tier value the
- * meter resets to on a bonus trigger (and that a fresh tier first shows): 0 on 1/10-ball, 1/8 on
- * 20-ball, 1/4 on 50-ball — higher tiers start partially filled. Mirror of stake-math-sdk
- * plinko_data.METER_TIER_CONFIG. */
-export const METER_TIER_CONFIG: Record<number, { startRatio: number; maxRatio: number }> = {
-	1: { startRatio: 0, maxRatio: 1 },
-	10: { startRatio: 0, maxRatio: 1 },
-	20: { startRatio: 0.125, maxRatio: 1 },
-	50: { startRatio: 0.25, maxRatio: 1 },
+/** PER-DROP BONUS meter (max + start) per balls-per-drop tier (Option A) — mirror of
+ * `stake-math-sdk/games/crimson_plinko/plinko_data.BONUS_METER_TIER`. The meter ALWAYS starts EMPTY
+ * (startRatio 0 on every tier — no per-tier head start) and fires the bonus in-drop when this drop's
+ * coin-pegs fill it to `max`. So `max` IS the hits-to-fill, scaled per tier (more balls ⇒ higher bar).
+ * The 1-ball tier is ABSENT — one ball can't fill the meter, so its (cosmetic) meter never fires and its
+ * bonus comes from the math quota instead. */
+export const BONUS_METER_TIER: Record<number, { max: number; startRatio: number }> = {
+	10: { max: 6, startRatio: 0 },
+	20: { max: 9, startRatio: 0 },
+	50: { max: 17, startRatio: 0 },
 };
 
-/** Bonus-meter `{ max, start }` for a balls-per-drop tier (session meter). Start = the per-tier value
- * the meter resets to on a bonus trigger / when a fresh tier is first seen. Analogous to
- * `spinMeterTierFor`; mirror of stake-math-sdk plinko_data `scaled_bonus_meter_start`. */
+/** Bonus-meter `{ max, start }` for a balls-per-drop tier (PER-DROP). The meter resets to `start` each
+ * round and fires the bonus in-drop at `max`. 1-ball (no entry) is cosmetic → never fires (start 0).
+ * Analogous to `spinMeterTierFor`; mirror of stake-math-sdk plinko_data `scaled_bonus_meter_start`. */
 export function bonusMeterTierFor(ballsPerDrop: number): { max: number; start: number } {
-	const cfg = METER_TIER_CONFIG[Math.max(1, Math.floor(ballsPerDrop))] ?? METER_TIER_CONFIG[10];
-	const max = Math.max(1, Math.round(BONUS_METER_MAX_REF * cfg.maxRatio));
-	return { max, start: Math.round(max * cfg.startRatio) };
+	const cfg = BONUS_METER_TIER[Math.max(1, Math.floor(ballsPerDrop))];
+	if (!cfg) return { max: BONUS_METER_COSMETIC_MAX, start: 0 };
+	return { max: cfg.max, start: Math.round(cfg.max * cfg.startRatio) };
+}
+
+/** True for tiers whose per-drop bonus meter can fire the bonus in-drop (10/20/50); false for 1-ball. */
+export function bonusInDropForBalls(ballsPerDrop: number): boolean {
+	return Math.max(1, Math.floor(ballsPerDrop)) in BONUS_METER_TIER;
 }
 
 /** Per-drop FREE-SPIN meter (max + start) per balls-per-drop tier — mirror of
@@ -97,32 +103,39 @@ export function bonusLevelBalls(level: number): number {
 	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
 }
 
-/** Bonus roulette RELATIVE free-ball multipliers (8 segments, avg ≈ 1) — mirror of stake-math-sdk
- * `plinko_data.BONUS_WHEEL_RELATIVE`. The per-tier values are `round(m × tier balls)`, so the wheel
- * resizes with the balls-per-drop tier (rendered data-driven on `bonus-roulette-wheel-empty.png`). */
-export const BONUS_WHEEL_RELATIVE = [0.6, 0.8, 1.0, 1.2, 1.4, 1.0, 0.8, 1.2] as const;
+/** Bonus roulette ABSOLUTE free-ball awards (9 Aztec segments) — mirror of stake-math-sdk
+ * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT: the bonus is a free feature that dumps the
+ * same big ball counts on every tier (rendered data-driven on `bonus-roulette-wheel-empty.png`). */
+export const BONUS_WHEEL_FREE_BALLS = [60, 90, 80, 40, 30, 100, 50, 70, 20] as const;
 
-/** Per-tier bonus-wheel free-ball values (avg ≈ balls-per-drop). Mirror of math `bonus_wheel_free_balls`. */
-export function bonusRouletteSegmentsForTier(ballsPerDrop: number): number[] {
-	const balls = Math.max(1, Math.floor(ballsPerDrop));
-	return BONUS_WHEEL_RELATIVE.map((m) => Math.max(1, Math.round(m * balls)));
+/** Bonus-wheel free-ball values. ABSOLUTE (Aztec), independent of the balls-per-drop tier. Mirror of
+ * math `bonus_wheel_free_balls`. */
+export function bonusRouletteSegmentsForTier(_ballsPerDrop?: number): number[] {
+	return [...BONUS_WHEEL_FREE_BALLS];
 }
 
-/** @deprecated 10-ball reference values; use `bonusRouletteSegmentsForTier`. */
-export const BONUS_ROULETTE_SEGMENTS = bonusRouletteSegmentsForTier(10);
+/** @deprecated use `bonusRouletteSegmentsForTier` (now tier-independent). */
+export const BONUS_ROULETTE_SEGMENTS = bonusRouletteSegmentsForTier();
 
-/** Free-spin wheel segment labels — the original wheel's values, NO BONUS (the old BONUS slot
- * repeats 2X). The free spin fires IN-DROP and the multiplier applies to the BET PER BALL, so it
- * pays `stake_per_ball × M` on top of the drop. Rendered on the label-less wheel with a data-driven
- * text overlay (FreeSpinRoulette.svelte). Must match `stake-math-sdk/games/crimson_plinko/
+/** Free-spin wheel segment labels — Aztec values INCLUDING a BONUS slot (lands → a free bonus round).
+ * The free spin fires IN-DROP and a numeric multiplier applies to the BET PER BALL (pays
+ * `stake_per_ball × M` on top of the drop). Rendered on the label-less wheel with a data-driven text
+ * overlay (FreeSpinRoulette.svelte). Must match `stake-math-sdk/games/crimson_plinko/
  * plinko_data.FREE_SPIN_SEGMENTS` (same order). */
 export const FREE_SPIN_SEGMENTS = [
-	'2X',
+	'100X',
+	'10X',
 	'0.5X',
 	'1X',
-	'5X',
-	'10X',
 	'2X',
 	'20X',
-	'15X',
+	'5X',
+	'BONUS',
 ] as const;
+
+/** Free-spin wheel landing WEIGHTS (index-aligned to FREE_SPIN_SEGMENTS; relative). The wheel shows 8
+ * equal slices but LANDS weighted so the big 100X / BONUS jackpots are rare and 0.5X–5X land often —
+ * keeping the wheel's mean ≈ 5.4 (compliant) while it still appears frequently. The math is authoritative
+ * (the book carries the landed segment); these are mirrored for client-side display/animation only.
+ * Mirror of stake-math-sdk `plinko_data.FREE_SPIN_WEIGHTS`. */
+export const FREE_SPIN_WEIGHTS = [1, 10, 22, 22, 20, 6, 18, 1] as const;

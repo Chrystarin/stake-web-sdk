@@ -46,13 +46,19 @@ export function logPlinkoWinMismatchIfNeeded(
 		return;
 	}
 
-	// A free-spin round multiplies the drop AFTER the balls land (drop_win × wheel), so the raw
-	// playback outcomes (pre-multiply) intentionally differ from the settled total. Only the settled
-	// ball-land total must still match RGS; skip the outcomes comparisons for these rounds.
-	const compareOutcomes = !stateGame.freeSpinAwardedThisRound;
-	const rgsVsBallLands = !winsRoughlyEqual(actualFromRgs, fromBallLands);
-	const ballLandsVsOutcomes = compareOutcomes && !winsRoughlyEqual(fromBallLands, fromOutcomes);
-	const rgsVsOutcomes = compareOutcomes && !winsRoughlyEqual(actualFromRgs, fromOutcomes);
+	// FEATURE rounds (free spin / bonus) settle their win ASYNCHRONOUSLY: the wheel applies the
+	// RGS-authoritative round total only when it closes (`onFreeSpinRouletteFinished`), and the bonus
+	// balls credit as they drop — both can finish AFTER the `setTotalWin` / `finalWin` book events. So
+	// the ball-land total is legitimately incomplete at this point, and the RGS value is authoritative
+	// regardless. Skip the whole check for feature rounds (there is no client-computed total to
+	// validate); only PLAIN drops must match here (the ball animation == RGS settlement).
+	const featureRound =
+		stateGame.freeSpinAwardedThisRound ||
+		stateGame.bonusAwardedThisRound ||
+		stateGame.bonusRoundActive;
+	const rgsVsBallLands = !featureRound && !winsRoughlyEqual(actualFromRgs, fromBallLands);
+	const ballLandsVsOutcomes = !featureRound && !winsRoughlyEqual(fromBallLands, fromOutcomes);
+	const rgsVsOutcomes = !featureRound && !winsRoughlyEqual(actualFromRgs, fromOutcomes);
 
 	if (!rgsVsBallLands && !ballLandsVsOutcomes && !rgsVsOutcomes) return;
 

@@ -292,6 +292,11 @@
 	align-items: stretch;
 	align-self: stretch;
 	justify-content: center;
+	cursor: pointer;
+
+	&--disabled {
+		cursor: not-allowed;
+	}
 }
 
 .bp-stepper-btn {

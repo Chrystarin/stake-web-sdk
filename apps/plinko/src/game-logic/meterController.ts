@@ -1,4 +1,4 @@
-import { BONUS_LEVEL_LABELS, METER_TIER_CONFIG, bonusMeterTierFor } from './constants';
+import { BONUS_LEVEL_LABELS, bonusMeterTierFor, spinMeterTierFor } from './constants';
 
 export type MeterTierState = {
 	spinValue: number;
@@ -46,15 +46,10 @@ export const createMeterController = (
 ) => {
 	const state: MeterControllerState = externalState ?? { ...defaultState() };
 
-	const getScaledTierMax = (baseMax: number, ballCount: number): number => {
-		const tier = METER_TIER_CONFIG[ballCount];
-		if (!tier) return baseMax;
-		return Math.round(baseMax * tier.maxRatio);
-	};
-
 	const rebuildMeterTierMaxima = () => {
-		state.spinMeterMax = getScaledTierMax(state.spinMeterBaseMax, state.ballPerDrop);
-		state.bonusMeterMax = getScaledTierMax(state.bonusMeterBaseMax, state.ballPerDrop);
+		// Both meters are PER-DROP with per-tier absolute maxima (SPIN_METER_TIER / BONUS_METER_TIER).
+		state.spinMeterMax = spinMeterTierFor(state.ballPerDrop).max;
+		state.bonusMeterMax = bonusMeterTierFor(state.ballPerDrop).max;
 		state.spinMeterValue = Math.min(state.spinMeterValue, state.spinMeterMax);
 		state.bonusMeterValue = Math.min(state.bonusMeterValue, state.bonusMeterMax);
 	};
@@ -173,7 +168,6 @@ export const createMeterController = (
 
 	return {
 		state,
-		getScaledTierMax,
 		rebuildMeterTierMaxima,
 		spinMeterProgress,
 		bonusMeterProgress,
