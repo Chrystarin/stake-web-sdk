@@ -292,10 +292,18 @@
 	align-items: stretch;
 	align-self: stretch;
 	justify-content: center;
-	cursor: pointer;
 
-	&--disabled {
-		cursor: not-allowed;
+	// Only the bet-per-ball value is interactive (opens the presets panel) and carries
+	// role="button"; the ball-per-drop value is display-only, so the pointer cursor is
+	// scoped to the interactive variant and never shows on ball-per-drop.
+	&[role='button'] {
+		cursor: pointer;
+
+		// When the betting panel is locked (incl. free/bonus mode) show the same
+		// disabled cursor as the increase/decrease steppers.
+		&.bp-bet-input-mid--disabled {
+			cursor: not-allowed;
+		}
 	}
 }
 
