@@ -291,6 +291,7 @@ export function awardBonusBalls(count: number) {
 		stateGame.bonusMeterValue = stateGame.bonusMeterMax;
 		stateGame.bonusMeterOverflowValue = 0;
 		stateGame.bonusSessionWinAmount = 0;
+		stateGame.inBonusFreeSpinCreditTotal = 0;
 	}
 	if (
 		!stateGameDerived.hasPendingBonusBalls &&
@@ -483,9 +484,12 @@ export async function settleBonusRoundWhenFinished() {
 		}
 		if (stateGame.bonusBallsRemaining <= 0) {
 			stateGame.bonusEndWinAmount = Math.max(0, getCombinedRoundWinAmount());
-			// Fold the whole bonus round into one My Bet History row (per-ball bonus lands were
-			// skipped in `onBallLanded`). Capture the session win before the reset clears it.
-			recordBonusWinHistory(stateGame.bonusSessionWinAmount);
+			// Fold the bonus-ball wins into one My Bet History row (per-ball bonus lands were skipped
+			// in `onBallLanded`). Exclude any in-bonus free-spin credit — it's already logged as its
+			// own "Free Spin N×" row — so the two rows don't double-count. Capture before the reset.
+			recordBonusWinHistory(
+				stateGame.bonusSessionWinAmount - stateGame.inBonusFreeSpinCreditTotal,
+			);
 			resetBonusRoundVisualState();
 			stateGame.bonusEndAnnouncementOpen = true;
 		}
@@ -504,6 +508,7 @@ export function resetBonusRoundVisualState() {
 	stateGame.deferredBonusLevelUpCount = 0;
 	stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
 	stateGame.bonusSessionWinAmount = 0;
+	stateGame.inBonusFreeSpinCreditTotal = 0;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
 	stateGame.authoritativeBonusLevelQueue = [];

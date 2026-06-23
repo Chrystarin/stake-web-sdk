@@ -75,6 +75,9 @@ export const stateGame = $state({
 	baseRoundDropWinAmount: 0,
 	winAmount: 0,
 	bonusSessionWinAmount: 0,
+	/** Running sum of in-bonus free-spin credits already logged as their own "Free Spin" history
+	 * rows, so the consolidated "Bonus" row records only the bonus-ball portion (no double-count). */
+	inBonusFreeSpinCreditTotal: 0,
 	/** Set when `bonusRoulette` / `bonusRound` awards balls this wager round. */
 	bonusAwardedThisRound: false,
 	/** Set when the bonus meter is full and the next bet must auto-fire the RGS bonus trigger mode. */

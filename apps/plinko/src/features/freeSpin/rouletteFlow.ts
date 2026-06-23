@@ -41,30 +41,40 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 			const baseWin = getFreeSpinBaseRoundWin();
 			const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
 			const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
+			let appliedFeatureWin = false;
 
-			if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
-				// Snapshot the win already logged ball-by-ball in My Bet History (base lands) before
-				// the wheel multiplier replaces the round total, so we can log only the incremental
-				// free-spin credit and keep the history sum equal to the displayed total. During a
-				// bonus round the consolidated "Bonus" row (recorded at bonus settlement) already
-				// captures this free-spin contribution, so don't add a separate row.
+			if (stateGame.bonusRoundActive) {
+				// IN-BONUS free spin: `totalWin` is the whole round; the bonus portion is total − base
+				// drop. The bonus trigger book ships an EMPTY base drop, so `baseWin` is 0 here and must
+				// NOT gate this (that was dropping the in-bonus free-spin win from the history total).
+				// Fold the credit into the bonus session AND log it as its own "Free Spin N×" row;
+				// track the credit so the consolidated "Bonus" row excludes it (no double-count).
+				if (multiplier > 0 && totalWin > 0) {
+					const bonusPortion = Math.max(0, totalWin - stateGame.baseRoundDropWinAmount);
+					const credit = bonusPortion - stateGame.bonusSessionWinAmount;
+					if (credit > 0) {
+						recordFreeSpinWinHistory(multiplier, credit, stateGame.bonusSessionWinAmount);
+						stateGame.inBonusFreeSpinCreditTotal += credit;
+						stateGame.bonusSessionWinAmount = bonusPortion;
+					}
+					stateGame.pendingDropWinAmount = totalWin;
+					appliedFeatureWin = true;
+				}
+			} else if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
+				// Snapshot the win already logged ball-by-ball (base lands) before the wheel multiplier
+				// replaces the round total, so we log only the incremental free-spin credit and keep
+				// the history sum equal to the displayed total.
 				const winBeforeFeature = getCombinedRoundWinAmount();
 				stateGame.pendingDropWinAmount = totalWin;
-				if (stateGame.bonusRoundActive) {
-					// In-bonus free spin: `totalWin` is the whole round (drop + bonus + this free spin), but
-					// getCombinedRoundWinAmount adds the base drop separately (baseRoundDropWinAmount). Store
-					// only the bonus portion (total − drop) so the drop isn't double-counted in the display.
-					stateGame.bonusSessionWinAmount = Math.max(
-						0,
-						totalWin - stateGame.baseRoundDropWinAmount,
-					);
-				} else {
-					recordFreeSpinWinHistory(
-						multiplier,
-						getCombinedRoundWinAmount() - winBeforeFeature,
-						winBeforeFeature,
-					);
-				}
+				recordFreeSpinWinHistory(
+					multiplier,
+					getCombinedRoundWinAmount() - winBeforeFeature,
+					winBeforeFeature,
+				);
+				appliedFeatureWin = true;
+			}
+
+			if (appliedFeatureWin) {
 				stateGame.freeSpinWinMultiplier = multiplier;
 				stateGame.winPopupMultiplier = multiplier;
 				const wasWinPopupVisible = stateGame.showWinPopup;
