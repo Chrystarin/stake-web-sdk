@@ -1070,12 +1070,12 @@
 			)
 			scale(var(--game-layout-scale));
 
-		--plinko-area-scale: 0.55;
+		--plinko-area-scale: 0.525;
 		--plinko-area-top-width-scale: 0.85;
 		--plinko-area-bottom-width-scale: 0.85;
 		--plinko-area-height-scale: 1.1;
 		--plinko-area-offset-x-ratio: 0.007;
-		--plinko-area-offset-ratio: 0.17;
+		--plinko-area-offset-ratio: 0.1825;
 		--plinko-area-offset-y-extra-ratio: 0;
 		--plinko-area-offset-x: calc(var(--plinko-area-offset-x-ratio) * 100vw);
 		--plinko-host-width: calc(
@@ -1459,13 +1459,13 @@
 			)
 			scale(var(--game-layout-scale-mobile));
 
-		--plinko-area-scale-mobile: 1.05;
-		--plinko-area-top-width-scale-mobile: 0.85;
-		--plinko-area-bottom-width-scale-mobile: 0.85;
-		--plinko-area-height-scale-mobile: 1;
+		--plinko-area-scale-mobile: 0.8;
+		--plinko-area-top-width-scale-mobile: 1;
+		--plinko-area-bottom-width-scale-mobile: 1;
+		--plinko-area-height-scale-mobile: 1.35;
 		--plinko-area-offset-x-ratio-mobile: 0.01;
 		--plinko-area-offset-ratio-mobile: 0;
-		--plinko-area-offset-y-ratio-mobile: -0.04;
+		--plinko-area-offset-y-ratio-mobile: -0.01;
 
 		--plinko-area-offset-x-mobile: calc(var(--plinko-area-offset-x-ratio-mobile) * 100vw);
 		--plinko-host-width-mobile: calc(
