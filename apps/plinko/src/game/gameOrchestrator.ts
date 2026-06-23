@@ -1,4 +1,4 @@
-import { stateBet } from 'state-shared';
+import { stateBet, stateI18nDerived } from 'state-shared';
 
 import { isPlinkoReplay } from './plinkoReplay';
 import { BONUS_LEVEL_LABELS, FREE_SPIN_SEGMENTS, bonusLevelBalls } from '../game-logic/constants';
@@ -558,10 +558,13 @@ export function clearBonusMeterDrainTimer() {
 }
 
 export function showToast(message: string, type: 'info' | 'error' = 'info') {
-	stateGame.toastMessage = message;
+	// Translate at this single chokepoint so every toast follows the URL `lang`. Known catalog
+	// keys are localized; dynamic/interpolated messages have no key and pass through unchanged.
+	const text = stateI18nDerived.translate(message);
+	stateGame.toastMessage = text;
 	stateGame.toastType = type;
 	setTimeout(() => {
-		if (stateGame.toastMessage === message) stateGame.toastMessage = '';
+		if (stateGame.toastMessage === text) stateGame.toastMessage = '';
 	}, 4000);
 }
 
