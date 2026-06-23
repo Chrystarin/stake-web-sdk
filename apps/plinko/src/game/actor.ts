@@ -84,7 +84,7 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		}
 		const payload = error as { error?: string; message?: string } | undefined;
 		if (payload?.error === 'ERR_VAL' && String(payload?.message ?? '').toLowerCase().includes('amount')) {
-			console.error('[plinko] /wallet/play rejected — republish math with tier modes (baseone/baseten/…) if mode is not `base`', {
+			console.error('[plinko] /wallet/play rejected — republish math with tier modes (onedrop/tendrop/…) if mode is not `base`', {
 				...buildPlinkoPlayPayloadPreview(),
 				error: payload,
 			});

@@ -10,7 +10,7 @@ import { stateGame } from './stateGame.svelte';
 const MAX_BALLS_PER_DROP = Math.max(...BALL_PER_DROP_TIERS);
 
 /** Payout-multiplier cap (relative to the per-ball play amount) — mirror of math `wincap`. */
-const PLINKO_WINCAP = config.betModes.baseone?.max_win ?? 1000;
+const PLINKO_WINCAP = config.betModes.onedrop?.max_win ?? 1000;
 
 /** Active currency's RGS `betLevels` (the only RGS-valid amounts), ascending and positive. */
 function sortedRgsGrid(): number[] {
@@ -86,7 +86,7 @@ export function snapStakeToBetLevels(stake: number): number {
 
 /**
  * Base bet level for `/wallet/play` `amount` — must be a valid `betLevels` entry.
- * RGS debits `amount × mode cost` (e.g. baseten cost 10 → $1 play amount debits $10).
+ * RGS debits `amount × mode cost` (e.g. tendrop cost 10 → $1 play amount debits $10).
  *
  * Final guard: snap to the authoritative RGS grid so a stale/off-grid stake (e.g. left over after
  * a feature round on a non-USD currency) can never be sent and rejected as `ERR_VAL`.

@@ -17,28 +17,28 @@ export default {
 	// the base book on a rare per-tier quota — there is NO separate bonus mode. Must match the published
 	// math config.json (4 modes).
 	betModes: {
-		baseone: {
+		onedrop: {
 			cost: 1.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.957,
 			max_win: 1000.0,
 		},
-		baseten: {
+		tendrop: {
 			cost: 10.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.957,
 			max_win: 1000.0,
 		},
-		basetwenty: {
+		twentydrop: {
 			cost: 20.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.957,
 			max_win: 1000.0,
 		},
-		basefifty: {
+		fiftydrop: {
 			cost: 50.0,
 			feature: true,
 			buyBonus: false,

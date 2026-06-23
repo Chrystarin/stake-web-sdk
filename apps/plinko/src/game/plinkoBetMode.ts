@@ -5,10 +5,10 @@ import { plinkoBallsPerDrop } from './plinkoBet';
 
 /** RGS `/wallet/play` mode per balls-per-drop tier (matches `plinko_data.BET_MODE_BY_BALLS_PER_DROP`). */
 export const PLINKO_BET_MODE_BY_BALLS: Record<number, string> = {
-	1: 'baseone',
-	10: 'baseten',
-	20: 'basetwenty',
-	50: 'basefifty',
+	1: 'onedrop',
+	10: 'tendrop',
+	20: 'twentydrop',
+	50: 'fiftydrop',
 };
 
 /** FOLDED-BONUS DESIGN: only the 4 BASE modes exist. The bonus is FREE and fires in-drop inside the

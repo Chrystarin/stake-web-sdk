@@ -45,7 +45,7 @@ export function plinkoDropStratumMismatchMessage(
 		`Round book is for ${bookBalls} balls but the UI is set to ${uiBalls}. ` +
 		`Expected RGS mode ${plinkoBetModeForBallsPerDrop(uiBalls)}` +
 		(servedCriteria ? ` but book criteria is ${servedCriteria}` : '') +
-		`. Use tier bet modes (baseone/baseten/basetwenty/basefifty), republish math, new session, or ?localBooks=1 in dev. ` +
+		`. Use tier bet modes (onedrop/tendrop/twentydrop/fiftydrop), republish math, new session, or ?localBooks=1 in dev. ` +
 		`Sent meta: ${JSON.stringify(meta)}`
 	);
 }

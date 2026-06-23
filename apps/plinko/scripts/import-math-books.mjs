@@ -77,7 +77,7 @@ if (!Number.isFinite(limit) || limit < 1) {
 const booksDir = join(appRoot, '../../../stake-math-sdk/games/crimson_plinko/library/books');
 // One published book file per balls-per-drop tier (mode). Older single-mode `books_base`
 // is a pre-split fallback only.
-const TIER_MODES = ['baseone', 'baseten', 'basetwenty', 'basefifty'];
+const TIER_MODES = ['onedrop', 'tendrop', 'twentydrop', 'fiftydrop'];
 
 function loadMode(mode) {
 	// Prefer the freshest books file by mtime among the formats that exist (.json array / .jsonl lines).
