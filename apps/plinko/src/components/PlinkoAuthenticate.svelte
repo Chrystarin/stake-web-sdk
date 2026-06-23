@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { type Snippet } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/state';
 
 	import { Authenticate } from 'components-shared';
-	import { stateBet, stateConfig } from 'state-shared';
+	import { stateBet, stateConfig, stateUrlDerived } from 'state-shared';
 	import { BET_PER_BALL_PRESETS } from '../game-logic/constants';
 	import config from '../game/config';
 	import {
@@ -22,8 +22,26 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 
 	const props: Props = $props();
 
+	onMount(() => {
+		// Boot diagnostic: confirms (in the game frame) whether replay mode was detected and which
+		// replay params arrived, so a "nothing happens" launch can be told apart from a real failure.
+		console.info('[plinko][boot]', {
+			replay: stateUrlDerived.replay(),
+			game: stateUrlDerived.game(),
+			version: stateUrlDerived.version(),
+			mode: stateUrlDerived.mode(),
+			event: stateUrlDerived.event(),
+			amount: stateUrlDerived.amount(),
+			hasRgsUrl: Boolean(stateUrlDerived.rgsUrl()),
+			hasSessionID: Boolean(stateUrlDerived.sessionID()),
+		});
+	});
+
 	const useLocalDevSession = $derived.by(() => {
 		if (!import.meta.env.DEV) return false;
+		// Replay must always go through the shared Authenticate (which fetches the replay book), even in
+		// dev where a missing sessionID would otherwise drop into local-book mode.
+		if (stateUrlDerived.replay()) return false;
 		const rgs = page.url.searchParams.get('rgs_url')?.trim() ?? '';
 		const session = page.url.searchParams.get('sessionID')?.trim() ?? '';
 		const forceLocalBooks = page.url.searchParams.get('localBooks') === '1';

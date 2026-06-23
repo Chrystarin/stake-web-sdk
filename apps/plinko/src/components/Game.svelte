@@ -78,6 +78,7 @@
 
 	import EnableGameActor from './EnableGameActor.svelte';
 	import ResumeBet from './ResumeBet.svelte';
+	import ReplayDriver from './ReplayDriver.svelte';
 
 	import EnableSound from './EnableSound.svelte';
 
@@ -100,6 +101,9 @@
 
 
 	const context = getContext();
+
+	/** Stake deterministic replay (`?replay=true`) — drives playback headlessly + locks the UI. */
+	const isReplay = $derived(stateUrlDerived.replay());
 
 	/**
 	 * Match Background.svelte: re-evaluate the portrait/mobile layout reactively so the
@@ -244,6 +248,8 @@
 
 
 	async function placeBet() {
+		// Replay is passive playback of a recorded round — never place a wager.
+		if (isReplay) return;
 		// Ignore a bet while the previous round is still settling (machine not yet idle) — the
 		// idle-only xstate machine would drop the BET and leave `isSubmitting` stuck.
 		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying())
@@ -292,6 +298,14 @@
 
 		onMainPlayClick(placeBet);
 
+	}
+
+	/**
+	 * Replay "Play Again": reload the frame. Replay is fully driven by the URL params, so a reload
+	 * re-fetches `/bet/replay` and replays the exact same round from scratch — no leftover round state.
+	 */
+	function handleReplayAgain() {
+		window.location.reload();
 	}
 
 
@@ -343,6 +357,8 @@
 <EnableGameActor />
 
 <ResumeBet />
+
+<ReplayDriver />
 
 <EnableSound />
 
@@ -542,6 +558,8 @@
 
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
 
+			autoDismiss={isReplay}
+
 			onResultReady={(result) => onBonusRouletteResultReady(result.freeBallCount)}
 
 			onFinished={(result) => onBonusRouletteFinished(result.freeBallCount)}
@@ -564,6 +582,8 @@
 
 			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
 
+			autoDismiss={isReplay}
+
 			onClosed={onBonusEndAnnouncementClosed}
 
 		/>
@@ -580,6 +600,18 @@
 				devBonusCongratulationsPreviewOpen = false;
 			}}
 		/>
+	{/if}
+
+	{#if isReplay}
+		<div class="replay-ui" class:replay-ui--mobile={mobile}>
+			<div class="replay-badge">
+				<span class="replay-dot"></span>
+				REPLAY
+			</div>
+			<button type="button" class="replay-again-btn" onclick={handleReplayAgain}>
+				Play Again
+			</button>
+		</div>
 	{/if}
 
 </main>
@@ -1270,6 +1302,90 @@
 
 		color: #54f917;
 
+	}
+
+	/* Replay mode — floating badge + Play Again (top center). */
+	.replay-ui {
+		position: fixed;
+		top: 14px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 40;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		pointer-events: none;
+	}
+
+	.replay-ui--mobile {
+		top: 10px;
+	}
+
+	.replay-ui > * {
+		pointer-events: auto;
+	}
+
+	.replay-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 14px;
+		border-radius: 999px;
+		background: rgba(18, 18, 22, 0.82);
+		border: 1.5px solid #54f917;
+		color: #54f917;
+		font-size: 0.78rem;
+		font-weight: 700;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+		backdrop-filter: blur(2px);
+		user-select: none;
+	}
+
+	.replay-dot {
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		background: #54f917;
+		box-shadow: 0 0 8px #54f917;
+		animation: replay-pulse 1.2s ease-in-out infinite;
+	}
+
+	@keyframes replay-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.3;
+		}
+	}
+
+	.replay-again-btn {
+		appearance: none;
+		border: none;
+		cursor: pointer;
+		padding: 7px 18px;
+		border-radius: 999px;
+		background: #54f917;
+		color: #0c1408;
+		font-size: 0.78rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		box-shadow: 0 2px 12px rgba(84, 249, 23, 0.35);
+		transition:
+			transform 0.12s ease,
+			filter 0.12s ease;
+	}
+
+	.replay-again-btn:hover {
+		filter: brightness(1.08);
+		transform: translateY(-1px);
+	}
+
+	.replay-again-btn:active {
+		transform: translateY(0);
 	}
 
 	/* Mobile — layout from 992×1761 reference (Portrait_animationGuide / legacy mobile) */

@@ -20,6 +20,8 @@
 		targetFreeBalls?: number;
 		/** When true, wheel outcome must come from `targetFreeBalls` (RGS/math book). */
 		serverAuthoritative?: boolean;
+		/** Replay mode: auto-press the "press anywhere" announcement (no player to click). */
+		autoDismiss?: boolean;
 		onFinished?: (result: BonusRouletteResult) => void;
 		onResultReady?: (result: BonusRouletteResult) => void;
 		onClosed?: () => void;
@@ -210,6 +212,9 @@
 		);
 	}
 
+	/** Replay has no player to dismiss the "press anywhere" screen — show it briefly, then advance. */
+	const AUTO_DISMISS_DELAY_MS = 1800;
+
 	function startAnnouncementSequence() {
 		announcementVisible = true;
 		if (pendingResult && !resultReadyEmitted) {
@@ -218,6 +223,9 @@
 		}
 		requestAnimationFrame(() => (announcementBgVisible = true));
 		timers.push(setTimeout(() => (announcementTextVisible = true), 620));
+		if (props.autoDismiss) {
+			timers.push(setTimeout(() => onAnnouncementClick(), AUTO_DISMISS_DELAY_MS));
+		}
 	}
 
 	function onAnnouncementClick() {

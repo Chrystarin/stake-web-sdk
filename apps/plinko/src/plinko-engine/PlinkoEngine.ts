@@ -1,6 +1,9 @@
 import { Application, Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
+import { Spine, Physics, type Bone } from '@esotericsoftware/spine-pixi-v8';
 import { slotColorForMultiplier } from '../game-logic/slotColors';
 import { formatCoefficientLabel, isMobile } from '../lib/format';
+import { getGlowNumbersAsset } from '../lib/spine/glowNumbersAsset';
+import { readSkeletonData } from '../lib/spine/spineSkeletonData';
 import { staticUrl } from '../lib/staticUrl';
 
 export type BallDroppedEvent = {
@@ -123,7 +126,10 @@ export class PlinkoEngine {
 
 	updateScene(coefficients: number[], rows: number, animationEnabled?: boolean): void {
 		if (coefficients?.length) this.coefficients = coefficients;
-		if (rows) this.rows = rows;
+		// Visual pyramid is a fixed 12-row board; ignore the passed (math) rowCount so the 6→17
+		// layout stays stable. `rows` is kept in the signature for API compatibility.
+		void rows;
+		this.rows = PlinkoEngine.VISUAL_ROW_COUNT;
 		if (animationEnabled !== undefined) this.animationEnabled = animationEnabled;
 		if (!this.coefficients.length) {
 			return;
@@ -154,8 +160,47 @@ export class PlinkoEngine {
   private readonly bulletsLayer = new Container();
   private readonly ballsGraphics = new Graphics();
   private readonly slotAssetLayer = new Container();
+  /** Glow-number spine layer (sits between slot backgrounds and the real-number labels). */
+  private readonly slotSpineLayer = new Container();
   private readonly slotLabels: (Text | undefined)[] = [];
   private slotSprites: (Sprite | undefined)[] = [];
+
+  /** Single glow-number spine instance (the whole slot row); bones repositioned per slot. */
+  private glowSpine?: Spine;
+  private glowSpineReady = false;
+  /** Skeleton bone for each slot index (spatial left→right order), or undefined if unmapped. */
+  private glowBoneBySlotIndex: (Bone | undefined)[] = [];
+  /** Slot count the spine was authored for — only render glow when the board matches it. */
+  private static readonly GLOW_SPINE_SLOT_COUNT = 15;
+  /** Spine bones in spatial left→right order (15 numbers, center = Spin). */
+  private static readonly GLOW_BONE_ORDER = [
+    'number 100a', 'number 50a', 'number 20a', 'number 10a', 'number 2a', 'number 0.5a',
+    'number 0.2a', 'Spin', 'number 0.2b', 'number 0.5b', 'number 3b', 'number 10b',
+    'number 20b', 'number 50b', 'number 100b',
+  ] as const;
+  /** Hide the spine's baked glyphs (keep the animated glow cards) so the real number reads cleanly. */
+  private static readonly HIDE_GLOW_BAKED_NUMBERS = true;
+  /** Guards the global `Assets` alias registration so remounts don't re-add (and warn). */
+  private static glowAssetsRegistered = false;
+  /** Authored card width (px) used to derive a UNIFORM display scale (keeps the authored aspect). */
+  private static readonly GLOW_REF_CARD_WIDTH = 82;
+  /** Card width as a fraction of slot width — ~1 packs the glow cards edge-to-edge (tiny gaps). */
+  private static readonly GLOW_WIDTH_FILL = 1.02;
+  private static readonly GLOW_Y_OFFSET_RATIO = 0.52;
+
+  /** Multiplier-label IMAGES (`img/multiplier_slot_text_<label>.png`) keyed by the slot's label. */
+  private readonly multiplierTextTextures: Partial<Record<string, Sprite['texture']>> = {};
+  /** Image-based slot labels (parallel to `slotLabels`); a slot uses the sprite OR the text, not both. */
+  private slotLabelSprites: (Sprite | undefined)[] = [];
+  /** Label image files (loaded once, matched to slots by `slot.labelText`). `0.4` is awaited from the
+   * designer (the `1.4` asset showed a wrong value); until it exists the `0.4` slots fall back to text. */
+  private static readonly MULTIPLIER_TEXT_LABELS = ['0.2', '0.4', '1.5', '5', '20', '50', '100'] as const;
+  /** Label image height as a fraction of the slot body height. */
+  private static readonly SLOT_TEXT_HEIGHT_RATIO = 0.72;
+  /** Cap the label image to this fraction of the slot width (shrinks wide labels like "100"). */
+  private static readonly SLOT_TEXT_MAX_WIDTH_RATIO = 0.92;
+  /** Bottom margin (fraction of slot body height) below the bottom-aligned label. */
+  private static readonly SLOT_TEXT_BOTTOM_MARGIN_RATIO = 0.01;
   private readonly pendingDropTimeouts = new Set<ReturnType<typeof setTimeout>>();
   private readonly pendingBallRemovalTimeouts = new Set<ReturnType<typeof setTimeout>>();
   /** Balls queued by `dropBallBurst` that have not yet been spawned. */
@@ -186,6 +231,13 @@ export class PlinkoEngine {
   private static readonly MULTIPLIER_SLOT_REF_TEX_H = 63;
   private pixiReady = false;
   private readonly featuredPegSprites = new Map<string, Sprite>();
+  /** Centroid of the featured (coin) pegs — coin sprites are pulled toward it (visual only). */
+  private featuredCentroidX = 0;
+  private featuredCentroidY = 0;
+  /** How far each coin SPRITE is pulled toward the cluster centroid (0 = on its peg, 1 = at center). */
+  private static readonly COIN_CLUSTER_PULL = 0.25;
+  /** Coin diameter as a fraction of the lane spacing — scales the coins with the board at any viewport. */
+  private static readonly COIN_SIZE_FACTOR = 0.9;
   private readonly pegsByRow = new Map<number, Peg[]>();
   private featuredPegKeys = new Set<string>();
   /** Per-row regular (non-featured) pegs — precomputed so the bounce hot path avoids `.filter` allocations. */
@@ -215,6 +267,19 @@ export class PlinkoEngine {
   /** Vertical layout scale (from CSS `--plinko-area-height-scale`). */
   private heightScale = 1;
   private readonly BASE_ROWS = 8;
+  /** Pegs in the top row; each row below adds one (top 6 → bottom `rows-1+6` = 17 at 12 rows). */
+  private static readonly TOP_ROW_PEGS = 6;
+  /**
+   * Fixed VISUAL peg-row count. Decoupled from the math `rowCount` (kept for the server contract) —
+   * the ball is choreographed to its server slot index (`calculatePath` snaps to the slot center),
+   * so peg rows are purely cosmetic. Holds the 6→17 pyramid stable regardless of the rowCount passed.
+   */
+  private static readonly VISUAL_ROW_COUNT = 12;
+  /**
+   * Regular pegs to OMIT entirely (zero-based `row:col`) — clears the interior of the coin-peg
+   * triangle so the enlarged coins read as one tight cluster. No peg is added back in their place.
+   */
+  private static readonly REMOVED_PEG_KEYS = new Set(['3:4', '4:4', '4:5']);
   private animTickerBound = (): void => this.animateFrame();
   private tickerRegistered = false;
   private readonly BASE_VIEWPORT_WIDTH = 1920;
@@ -307,7 +372,7 @@ export class PlinkoEngine {
       const availableWidth = this.containerWidth * 0.99;
       let maxNaturalSpan = 0;
       for (let row = 0; row < this.rows; row++) {
-        const pegsInRow = row + 4;
+        const pegsInRow = row + PlinkoEngine.TOP_ROW_PEGS;
         maxNaturalSpan = Math.max(
           maxNaturalSpan,
           (pegsInRow - 1) * basePegSpacingX * this.rowWidthScale(row)
@@ -509,6 +574,10 @@ export class PlinkoEngine {
     this.resizeObserver?.disconnect();
     this.featuredPegSprites.forEach((sprite) => sprite.destroy());
     this.featuredPegSprites.clear();
+    this.glowSpine?.destroy({ children: true });
+    this.glowSpine = undefined;
+    this.glowSpineReady = false;
+    this.glowBoneBySlotIndex = [];
     this.app?.destroy(true, { children: true, texture: false });
   }
 
@@ -555,6 +624,7 @@ export class PlinkoEngine {
     this.pegGraphics.zIndex = 1;
     this.featuredPegLayer.zIndex = 1.5;
     this.slotAssetLayer.zIndex = 2;
+    this.slotSpineLayer.zIndex = 2.05;
     this.bulletsLayer.zIndex = 2.5;
     this.ballsGraphics.zIndex = 2.6;
     this.labelLayer.zIndex = 4;
@@ -562,6 +632,7 @@ export class PlinkoEngine {
     this.world.addChild(this.pegGraphics);
     this.world.addChild(this.featuredPegLayer);
     this.world.addChild(this.slotAssetLayer);
+    this.world.addChild(this.slotSpineLayer);
     this.world.addChild(this.labelLayer);
     this.world.addChild(this.bulletsLayer);
     this.world.addChild(this.ballsGraphics);
@@ -599,6 +670,14 @@ export class PlinkoEngine {
         const tier = i + 1;
         if (tierTex[i]) this.multiplierSlotTextures[tier] = tierTex[i];
       }
+
+      const textLabels = PlinkoEngine.MULTIPLIER_TEXT_LABELS;
+      const textTex = await Promise.all(
+        textLabels.map((label) => loadOptional(staticUrl(`img/multiplier_slot_text_${label}.png`)))
+      );
+      textLabels.forEach((label, i) => {
+        if (textTex[i]) this.multiplierTextTextures[label] = textTex[i];
+      });
     } catch {
       this.ballTexture = undefined;
       this.coinPegTexture = undefined;
@@ -608,6 +687,8 @@ export class PlinkoEngine {
     if (!this.multiplierSlotAssetsReady) {
       console.warn('[PlinkoEngine] multiplier slot images failed to load');
     }
+
+    await this.loadGlowSpine();
 
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.boundWindowResize, { passive: true });
@@ -665,7 +746,7 @@ export class PlinkoEngine {
     const maxH = Math.max(
       PlinkoEngine.MIN_LAYOUT_PX,
       Math.floor(window.innerHeight * 0.94),
-      Math.floor(this.vw(22) * ((this.rows + 4) / 8)),
+      Math.floor(this.vw(22) * ((this.rows + PlinkoEngine.TOP_ROW_PEGS) / 8)),
     );
     const aspectW = 96;
     const aspectH = 55;
@@ -716,6 +797,7 @@ export class PlinkoEngine {
     this.syncSlotAssetsAndLabels();
     this.refreshSlotLabelAppearance();
     this.fitWorldToSlotRow();
+    this.layoutGlowSpine();
     this.drawStaticPyramid();
     this.renderFrame();
   }
@@ -852,6 +934,107 @@ export class PlinkoEngine {
     return this.multiplierSlotTextures[tier];
   }
 
+  /** True when the glow spine loaded and the current board matches its authored slot count. */
+  private get glowSpineActive(): boolean {
+    return (
+      this.glowSpineReady &&
+      !!this.glowSpine &&
+      this.slots.length === PlinkoEngine.GLOW_SPINE_SLOT_COUNT
+    );
+  }
+
+  /**
+   * Load the glow-number spine once and add it to the slot layer. The skeleton is a single strip
+   * of 15 numbers; we drive each number's bone to its slot center in `layoutGlowSpine`. Baked
+   * glyphs are removed (the real multiplier is printed on top by the label layer) while the
+   * animated glow "cards" (the `Rectangle*` slots) are kept. Loading is best-effort: on any
+   * failure the board falls back to the existing slot sprites + labels.
+   */
+  private async loadGlowSpine(): Promise<void> {
+    try {
+      const asset = getGlowNumbersAsset();
+      const atlasAlias = `${asset.id}-atlas`;
+      const skeletonAlias = `${asset.id}-skeleton`;
+      // `Assets` is a global singleton; register the aliases only once across engine remounts
+      // (re-adding the same key logs a Pixi resolver "overwriting" warning).
+      if (!PlinkoEngine.glowAssetsRegistered) {
+        Assets.add({ alias: atlasAlias, src: asset.atlas, data: { images: asset.images } });
+        Assets.add({ alias: skeletonAlias, src: asset.skeleton });
+        PlinkoEngine.glowAssetsRegistered = true;
+      }
+      await Assets.load([atlasAlias, skeletonAlias]);
+
+      const atlas = Assets.get(atlasAlias);
+      const skeletonSource = Assets.get(skeletonAlias);
+      if (!atlas || !skeletonSource) {
+        console.warn('[PlinkoEngine] glow_numbers spine assets missing');
+        return;
+      }
+
+      const skeletonData = readSkeletonData(asset, atlas, skeletonSource);
+      const spine = new Spine({ skeletonData, autoUpdate: true });
+      spine.state.setAnimation(0, asset.animation, true);
+
+      this.glowBoneBySlotIndex = PlinkoEngine.GLOW_BONE_ORDER.map(
+        (name) => spine.skeleton.findBone(name) ?? undefined
+      );
+
+      if (PlinkoEngine.HIDE_GLOW_BAKED_NUMBERS) {
+        for (const slot of spine.skeleton.slots) {
+          const name = slot.data.name;
+          // Keep the animated glow cards (`Rectangle*`) and the center "spin" glyph; drop the
+          // baked number glyphs so the printed real multiplier is the only number shown.
+          const keep = name.startsWith('Rectangle') || name === 'spin' || name === 'UPDATED WALL SHIP';
+          if (!keep) spine.skeleton.setAttachment(name, null);
+        }
+      }
+
+      spine.visible = false;
+      this.slotSpineLayer.addChild(spine);
+      this.glowSpine = spine;
+      this.glowSpineReady = true;
+    } catch (err) {
+      console.warn('[PlinkoEngine] glow_numbers spine failed to load', err);
+      this.glowSpineReady = false;
+    }
+  }
+
+  /**
+   * Position the glow spine so each number sits exactly on its slot center (same x as the printed
+   * label) and on the slot row. One uniform scale controls glyph/card size; horizontal placement
+   * is per-bone (`bone.x = slotCenterX / scale`) so the authored center-wider spacing is replaced
+   * by the engine's responsive, peg-aligned slot centers. Bone overrides persist across frames
+   * (the spine's animation only drives slot colors, never bone transforms).
+   */
+  private layoutGlowSpine(): void {
+    const spine = this.glowSpine;
+    if (!spine) return;
+    if (!this.glowSpineActive) {
+      spine.visible = false;
+      return;
+    }
+
+    const h = this.slotHeight * 0.82;
+    const rowY = this.slots[0].y + h * PlinkoEngine.GLOW_Y_OFFSET_RATIO;
+    // UNIFORM scale driven by slot width: cards track slot width (GLOW_WIDTH_FILL controls the gaps)
+    // while keeping the authored card aspect (no vertical stretch). `slots[0]` is a corner
+    // (non-center) slot, so its width is the base unit width.
+    const unitWidth = this.slots[0].width;
+    const scale = (unitWidth * PlinkoEngine.GLOW_WIDTH_FILL) / PlinkoEngine.GLOW_REF_CARD_WIDTH;
+
+    spine.visible = true;
+    spine.scale.set(scale);
+    spine.position.set(0, rowY);
+
+    for (let i = 0; i < this.slots.length; i++) {
+      const bone = this.glowBoneBySlotIndex[i];
+      if (!bone) continue;
+      // Spine 4.3 exposes the local transform via `bone.pose` (set by application code).
+      bone.pose.setPosition(this.slots[i].centerX / scale, 0);
+    }
+    spine.skeleton.updateWorldTransform(Physics.update);
+  }
+
   private syncSlotAssetsAndLabels(): void {
     for (const s of this.slotSprites) {
       s?.destroy();
@@ -861,6 +1044,10 @@ export class PlinkoEngine {
       t?.destroy();
     }
     this.slotLabels.length = 0;
+    for (const s of this.slotLabelSprites) {
+      s?.destroy();
+    }
+    this.slotLabelSprites = [];
 
     if (!this.multiplierSlotAssetsReady) return;
 
@@ -878,8 +1065,22 @@ export class PlinkoEngine {
 
       if (this.isSpinSlotIndex(i)) {
         this.slotLabels.push(undefined);
+        this.slotLabelSprites.push(undefined);
         continue;
       }
+
+      // Prefer the label IMAGE (`multiplier_slot_text_<label>.png`); fall back to text if absent.
+      const labelTexture = this.multiplierTextTextures[this.slots[i].labelText];
+      if (labelTexture) {
+        const labelSprite = new Sprite(labelTexture);
+        // Bottom-center anchor so the label sits at the bottom of the tile.
+        labelSprite.anchor.set(0.5, 1);
+        this.labelLayer.addChild(labelSprite);
+        this.slotLabelSprites.push(labelSprite);
+        this.slotLabels.push(undefined);
+        continue;
+      }
+      this.slotLabelSprites.push(undefined);
 
       const slotBodyH = this.slotHeight * 0.82;
       const txt = new Text({
@@ -1114,9 +1315,10 @@ export class PlinkoEngine {
     const startY = this.topMargin + this.pegSpacing * 0.5;
     for (let row = 0; row < this.rows; row++) {
       const rowY = startY + row * this.pegSpacing;
-      const pegsInRow = row + 4;
+      const pegsInRow = row + PlinkoEngine.TOP_ROW_PEGS;
       const rowSpacingX = this.pegSpacingXForRow(row);
       for (let col = 0; col < pegsInRow; col++) {
+        if (PlinkoEngine.REMOVED_PEG_KEYS.has(`${row}:${col}`)) continue;
         const pegX = centerX - ((pegsInRow - 1) * rowSpacingX) / 2 + col * rowSpacingX;
         this.pegs.push({
           x: pegX,
@@ -1151,10 +1353,20 @@ export class PlinkoEngine {
     this.featuredRowsSet.clear();
     this.clusterSpanByRow.clear();
 
+    let centroidX = 0;
+    let centroidY = 0;
+    let featuredCount = 0;
     for (const peg of this.pegs) {
       peg.isFeatured = this.featuredPegKeys.has(peg.key);
-      if (peg.isFeatured) this.featuredRowsSet.add(peg.row);
+      if (peg.isFeatured) {
+        this.featuredRowsSet.add(peg.row);
+        centroidX += peg.x;
+        centroidY += peg.y;
+        featuredCount++;
+      }
     }
+    this.featuredCentroidX = featuredCount ? centroidX / featuredCount : 0;
+    this.featuredCentroidY = featuredCount ? centroidY / featuredCount : 0;
 
     for (const [row, rowPegs] of this.pegsByRow) {
       const regular: Peg[] = [];
@@ -1182,7 +1394,7 @@ export class PlinkoEngine {
     const centerX = this.containerWidth / 2;
     const bottomY = this.topMargin + (this.rows + 0.5) * this.pegSpacing - this.vw(0.52);
     const slotsCount = this.coefficients.length;
-    const lastRowPegs = this.rows + 3;
+    const lastRowPegs = this.rows - 1 + PlinkoEngine.TOP_ROW_PEGS;
     const bottomSpacingX = this.pegSpacingXForRow(this.rows - 1);
     const totalWidth = (lastRowPegs - 1) * bottomSpacingX * this.slotWidthScale;
     const availableWidth = this.containerWidth * 0.99;
@@ -1191,7 +1403,8 @@ export class PlinkoEngine {
       finalTotalWidth = availableWidth;
     }
     const middleIndex = Math.floor(slotsCount / 2);
-    const centerWeight = 1.55;
+    // Wider center to fit the spine's broader SPIN card (its authored width ~2× a number card).
+    const centerWeight = 1.95;
     const totalWeight = (slotsCount - 1) + centerWeight;
     const unitWidth = finalTotalWidth / totalWeight;
     const centerSlotWidth = unitWidth * centerWeight;
@@ -1224,19 +1437,20 @@ export class PlinkoEngine {
   }
 
   /**
-   * Gold featured pegs at fixed grid positions (1-based numbering as in design):
-   * row 7 peg 5, row 7 peg 8, row 8 peg 6 → zero-based keys 6:4, 6:7, 7:5.
-   * Matches 14-row layout (4 pegs top row … 17 bottom).
+   * Gold featured (coin) pegs as a SPREAD downward triangle (per the reference art): the top two
+   * coins are separated by a regular peg and the bottom drops two rows. Zero-based keys for the
+   * 12-row / 6-top layout: row 3 cols 3 & 5 (straddle center col 4, gap between), row 5 col 5
+   * (center, two rows below) — occupying more pegs to the left and below than a tight cluster.
    */
   private getFeaturedPegKeys(): Set<string> {
     const fixed: Array<[number, number]> = [
-      [6, 4],
-      [6, 5],
-      [7, 5]
+      [3, 3],
+      [3, 5],
+      [5, 5]
     ];
     const keys = new Set<string>();
     for (const [row, col] of fixed) {
-      if (row >= 0 && row < this.rows && col >= 0 && col < row + 4) {
+      if (row >= 0 && row < this.rows && col >= 0 && col < row + PlinkoEngine.TOP_ROW_PEGS) {
         keys.add(`${row}:${col}`);
       }
     }
@@ -2294,6 +2508,9 @@ export class PlinkoEngine {
   private drawAllPegsPixi(currentTime: number): void {
     const g = this.pegGraphics;
     const pr = this.pegRadius;
+    // Coin size tracks the LANE SPACING (not the height-only peg radius) so it scales with the board
+    // at every viewport/aspect — the spacing includes the horizontal width-fit the radius ignores.
+    const coinBaseSize = this.pegSpacingXForRow(4) * PlinkoEngine.COIN_SIZE_FACTOR;
     this.pegs.forEach((peg) => {
       if (peg.isTouched && currentTime - peg.bounceTime > 1000) {
         peg.isTouched = false;
@@ -2326,10 +2543,17 @@ export class PlinkoEngine {
         );
         if (hasCoinSprite && sprite) {
           const coinGrow = glowIntensity > 0 ? 1 + glowIntensity * 0.5 : 1;
-          const size = pr * 6.2 * coinGrow;
+          // Lane-spacing-based so the coins scale with the board (see `coinBaseSize`).
+          const size = coinBaseSize * coinGrow;
           const tw = sprite.texture.width || 1;
           sprite.scale.set(size / tw);
-          sprite.position.set(peg.x, peg.y);
+          // Pull the coin SPRITE toward the cluster centroid (the middle space) so the three coins
+          // sit closer together. Peg grid positions (regular + featured) are untouched — visual only.
+          const pull = PlinkoEngine.COIN_CLUSTER_PULL;
+          sprite.position.set(
+            peg.x + (this.featuredCentroidX - peg.x) * pull,
+            peg.y + (this.featuredCentroidY - peg.y) * pull
+          );
           sprite.visible = true;
         }
         if (glowIntensity > 0) {
@@ -2442,6 +2666,11 @@ export class PlinkoEngine {
   private layoutSlotAssetSprite(idx: number, x: number, y: number, w: number, h: number): void {
     const sp = this.slotSprites[idx];
     if (!sp || this.uniformSlotDisplayW <= 0 || this.uniformSlotDisplayH <= 0) return;
+    // Glow spine replaces the slot background art when it's the active slot count.
+    if (this.glowSpineActive) {
+      sp.visible = false;
+      return;
+    }
 
     const texW = sp.texture.width || PlinkoEngine.MULTIPLIER_SLOT_REF_TEX_W;
     const texH = sp.texture.height || PlinkoEngine.MULTIPLIER_SLOT_REF_TEX_H;
@@ -2486,6 +2715,23 @@ export class PlinkoEngine {
       if (label) {
         label.scale.set(textScale, textScale);
         label.position.set(Math.round(x + w / 2), Math.round(y + h * 0.52));
+      }
+
+      const labelSprite = this.slotLabelSprites[idx];
+      if (labelSprite) {
+        const texW = labelSprite.texture.width || 1;
+        const texH = labelSprite.texture.height || 1;
+        // Fit the label image to the slot body height, capped to a fraction of the slot width.
+        const targetH = h * PlinkoEngine.SLOT_TEXT_HEIGHT_RATIO;
+        let fit = targetH / texH;
+        const maxW = w * PlinkoEngine.SLOT_TEXT_MAX_WIDTH_RATIO;
+        if (texW * fit > maxW) fit = maxW / texW;
+        labelSprite.scale.set(fit * textScale);
+        // Horizontally centered; bottom-aligned to the tile with a small bottom margin.
+        labelSprite.position.set(
+          Math.round(x + w / 2),
+          Math.round(y + h * (1 - PlinkoEngine.SLOT_TEXT_BOTTOM_MARGIN_RATIO))
+        );
       }
     }
   }

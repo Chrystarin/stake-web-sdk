@@ -56,6 +56,13 @@ export const ROW_COUNT_OPTIONS = [10, 14, 20] as const;
 /** Default pyramid row count. */
 export const DEFAULT_ROW_COUNT = 14;
 
+/**
+ * Visual peg-pyramid row count rendered by the engine. DECOUPLED from the math `rowCount` (kept at
+ * DEFAULT_ROW_COUNT for the server contract) — the ball is choreographed to its server slot index
+ * regardless of peg rows, so this only shapes the on-screen pyramid (6 top → 17 bottom over 12 rows).
+ */
+export const PLINKO_VISUAL_ROWS = 12;
+
 /** Serialized on `plinkoDrop.difficulty` for RGS / published math (single default board). */
 export const PLINKO_DEFAULT_VARIANT_ID = 0;
 

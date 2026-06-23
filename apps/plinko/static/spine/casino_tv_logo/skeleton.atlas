@@ -1,0 +1,171 @@
+
+skeleton.png
+size: 1950,1806
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+effectsLogo/0
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/1
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/2
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/3
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/4
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/5
+  rotate: true
+  xy: 1156, 652
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/6
+  rotate: true
+  xy: 2, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/7
+  rotate: false
+  xy: 652, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+logo_adjust
+  rotate: true
+  xy: 1806, 1103
+  size: 701, 142
+  orig: 701, 142
+  offset: 0, 0
+  index: -1
+
+skeleton2.png
+size: 1806,1806
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+effectsLogo/10
+  rotate: true
+  xy: 2, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/11
+  rotate: false
+  xy: 652, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/8
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/9
+  rotate: true
+  xy: 1156, 652
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+
+skeleton3.png
+size: 1806,1806
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+effectsLogo/12
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/13
+  rotate: true
+  xy: 1156, 652
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/14
+  rotate: true
+  xy: 2, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/15
+  rotate: false
+  xy: 652, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+
+skeleton4.png
+size: 1806,1806
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+effectsLogo/16
+  rotate: false
+  xy: 2, 1156
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/17
+  rotate: true
+  xy: 1156, 652
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/18
+  rotate: true
+  xy: 2, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1
+effectsLogo/19
+  rotate: false
+  xy: 652, 2
+  size: 1152, 648
+  orig: 1152, 648
+  offset: 0, 0
+  index: -1

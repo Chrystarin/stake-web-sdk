@@ -1,5 +1,6 @@
 import { stateBet } from 'state-shared';
 
+import { isPlinkoReplay } from './plinkoReplay';
 import { BONUS_LEVEL_LABELS, FREE_SPIN_SEGMENTS, bonusLevelBalls } from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
@@ -148,8 +149,15 @@ export function isBonusPlayButtonDisabled(): boolean {
 	);
 }
 
+/** True when the round is being deterministically replayed (no human input — see Stake replay reqs). */
+export function isReplayMode(): boolean {
+	return isPlinkoReplay();
+}
+
 export function isBetControlsLocked(): boolean {
 	return (
+		// Replay is a passive playback of a recorded round — all wager/bet controls stay locked.
+		isReplayMode() ||
 		stateGame.isSubmitting ||
 		stateGame.dropRoundActive ||
 		stateGame.bonusBallsRemaining > 0 ||
@@ -314,6 +322,23 @@ export function playOneBonusBall() {
 	if (stateGame.bonusBallsRemaining <= 0) {
 		void settleBonusRoundWhenFinished();
 	}
+}
+
+/**
+ * REPLAY DRIVER — one step. In Stake's deterministic replay there is no player to click, but this
+ * Plinko's bonus round drops its free balls on player Play presses. So during replay we auto-drop the
+ * next pending bonus ball whenever the board is idle, until the round settles. Everything else
+ * self-resolves: the bonus wheel via `BonusRoulette`'s `autoDismiss` prop, the free-spin wheel
+ * auto-finishes, and the bonus-end announcement auto-dismisses. No-op outside replay.
+ */
+export function tickReplayBonusBalls(): void {
+	if (!isReplayMode()) return;
+	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining <= 0) return;
+	if (stateGame.bonusRouletteOpen || stateGame.freeSpinRouletteOpen) return;
+	if (stateGame.bonusEndAnnouncementOpen) return;
+	if (isGameOngoing()) return;
+	// `playOneBonusBall` applies its own `isBonusPlayButtonDisabled` guard (roulette / no pending balls).
+	playOneBonusBall();
 }
 
 function queueBonusLevelUpsFromOverflow(safeMax: number) {
@@ -846,6 +871,8 @@ export function onPageHidden() {
 }
 
 export function onMainPlayClick(onRegularBet: () => void) {
+	// Replay drives itself (see `runReplayBonusBallDrops`); ignore any human Play input.
+	if (isReplayMode()) return;
 	if (stateGameDerived.hasPendingBonusBalls) {
 		playOneBonusBall();
 		return;

@@ -4,7 +4,7 @@
 	import { PlinkoEngine, type BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 	import { getContext } from '../game/context';
 	import { registerBonusBallOutcome, takeAuthoritativeBonusOutcome } from '../game/gameOrchestrator';
-	import { coefficientsForRowCount } from '../game-logic/constants';
+	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import config from '../game/config';
 	import { stateGame } from '../game/stateGame.svelte';
@@ -39,7 +39,9 @@
 				? props.coefficients
 				: coefficientsForRowCount(config.coefficientSets as number[][], stateGame.rowCount);
 
-		engine.updateScene(coeffs, props.rows || stateGame.rowCount, props.animationEnabled ?? true);
+		// Visual pyramid uses a fixed row count (decoupled from the math rowCount); the ball is
+		// choreographed to its server slot index regardless of peg rows.
+		engine.updateScene(coeffs, PLINKO_VISUAL_ROWS, props.animationEnabled ?? true);
 		engine.refreshLayoutSync();
 	}
 
@@ -84,6 +86,8 @@
 				engine = eng;
 				await bootstrapEngine(eng);
 				if (disposed) return;
+				// Signal readiness so replay/resume can start playback now the board can spawn balls.
+				stateGame.plinkoEngineReady = true;
 
 				layoutObserver = new ResizeObserver(() => {
 					if (!eng?.hostHasLayoutExtent()) return;
@@ -105,6 +109,7 @@
 			layoutObserver?.disconnect();
 			eng?.destroy();
 			engine = undefined;
+			stateGame.plinkoEngineReady = false;
 		};
 	});
 

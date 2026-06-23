@@ -142,6 +142,9 @@ export const stateGame = $state({
 	autoRoundsLeft: 5,
 	autoRoundsDisplay: 5,
 	pendingSpacedSpawnTimers: 0,
+	/** True once the Pixi board has finished async init and can spawn balls. Replay waits on this
+	 * before starting playback (it fires on mount with no network delay to cover engine init). */
+	plinkoEngineReady: false,
 	/** True while a book-driven drop round is playing. */
 	dropRoundActive: false,
 	/** Set when free-spin wheel ran this round (book or session-meter fallback). */

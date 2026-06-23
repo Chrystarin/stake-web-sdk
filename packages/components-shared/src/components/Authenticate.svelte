@@ -111,15 +111,33 @@
 		stateBet.wageredBetAmount = (stateUrlDerived.amount() / API_AMOUNT_MULTIPLIER) || 0;
 		stateBet.activeBetModeKey = stateUrlDerived.mode();
 
-		const data = await requestReplay({
-			rgsUrl: stateUrlDerived.rgsUrl(),
-			game: stateUrlDerived.game(),
-			mode: stateUrlDerived.mode(),
-			version: stateUrlDerived.version(),
-			event: stateUrlDerived.event(),
-		});
+		try {
+			const data = await requestReplay({
+				rgsUrl: stateUrlDerived.rgsUrl(),
+				game: stateUrlDerived.game(),
+				mode: stateUrlDerived.mode(),
+				version: stateUrlDerived.version(),
+				event: stateUrlDerived.event(),
+			});
 
-		if(data) {
+			console.info('[replay] /bet/replay response', {
+				game: stateUrlDerived.game(),
+				version: stateUrlDerived.version(),
+				mode: stateUrlDerived.mode(),
+				event: stateUrlDerived.event(),
+				keys: data ? Object.keys(data as object) : null,
+				stateLength: Array.isArray((data as { state?: unknown[] })?.state)
+					? (data as { state?: unknown[] }).state?.length
+					: undefined,
+				error: (data as { error?: unknown })?.error,
+			});
+
+			// A replay payload carries the recorded round under `state`; without it there is nothing to
+			// play back (bad params / RGS error), so surface it instead of silently showing a dead board.
+			if (!data || (data as { error?: unknown }).error || !(data as { state?: unknown[] }).state) {
+				throw data ?? new Error('Empty replay response');
+			}
+
 			// @ts-ignore
 			stateBet.betToResume = {
 				...data,
@@ -127,6 +145,9 @@
 				active: true,
 				mode: stateUrlDerived.mode(),
 			};
+		} catch (error) {
+			console.error('[replay] failed to load replay', error);
+			stateModal.modal = { name: 'error', error };
 		}
 	};
 

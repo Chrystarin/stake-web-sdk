@@ -1,3 +1,5 @@
+import { stateUrlDerived } from 'state-shared';
+
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { plinkoBallsPerDrop, plinkoStakePerBall } from './plinkoBet';
@@ -40,7 +42,10 @@ function scaleOutcomesForUi(
  * Live RGS rounds return the bet unchanged.
  */
 export function alignBookForPlayback(bet: Bet): Bet {
-	if (hasActiveRgsSession()) return bet;
+	// Replay must reproduce the served book EXACTLY: never resize outcomes or strip meter events.
+	// (Replay has an `rgs_url` but no `sessionID`, so `hasActiveRgsSession()` is false here — the UI
+	// tier/stake are instead aligned to the book up front in `alignPlinkoUiToReplayBook`.)
+	if (hasActiveRgsSession() || stateUrlDerived.replay()) return bet;
 
 	const events = Array.isArray(bet.state) ? [...bet.state] : [];
 	if (bookHasFeatureSettlement(events)) return bet;

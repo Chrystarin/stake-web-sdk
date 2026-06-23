@@ -16,6 +16,7 @@
 		isGameOngoing,
 		isPlayActionBlockedByBonusRoulette,
 		isPlayActionBlockedByFreeSpinRoulette,
+		isReplayMode,
 		startAutoBet,
 		stopAutoBet,
 	} from '../game/gameOrchestrator';
@@ -77,7 +78,10 @@
 		stateGame.bonusMeterMax;
 		return isBetControlsLocked();
 	});
-	const bonusPlayDisabled = $derived(isBonusPlayButtonDisabled() || props.bonusPlayDisabled);
+	// Replay drives bonus-ball drops itself — keep the visible bonus-play button locked for the viewer.
+	const bonusPlayDisabled = $derived(
+		isBonusPlayButtonDisabled() || props.bonusPlayDisabled || isReplayMode(),
+	);
 	// During a bonus round the drop is always single-ball (free balls), so the HUD shows 1 regardless
 	// of the selected tier. `stateGame.ballPerDrop` itself is left untouched (tier logic / meters).
 	const ballPerDropDisplay = $derived(stateGame.bonusRoundActive ? 1 : stateGame.ballPerDrop);

@@ -27,6 +27,7 @@ import {
 	preludeEventsForPlayback,
 } from './authoritativeRoundBet';
 import { alignBookForPlayback } from './alignBookForPlayback';
+import { isPlinkoReplay } from './plinkoReplay';
 import {
 	bookBallsPerDrop as readBookBallsPerDrop,
 	getPlinkoDropFromBet,
@@ -259,7 +260,12 @@ export const playBet = async (bet: Bet) => {
 
 	snapshotBalanceAfterPlay();
 	const authoritativeDrop = getPlinkoDropFromBet(authoritativeBet);
-	stateGame.plinkoDropStratumMismatch = !plinkoDropMatchesUi(authoritativeDrop);
+	// Replay aligned the UI tier to the book (`alignPlinkoUiToReplayBook`), so the served drop is
+	// authoritative — never treat it as a stratum mismatch (which would suppress the resize-to-UI and
+	// pop an error toast over the replay).
+	stateGame.plinkoDropStratumMismatch = isPlinkoReplay()
+		? false
+		: !plinkoDropMatchesUi(authoritativeDrop);
 	if (stateGame.plinkoDropStratumMismatch) {
 		const message = plinkoDropStratumMismatchMessage(authoritativeDrop, undefined, authoritativeBet);
 		if (message) showToast(message, 'error');

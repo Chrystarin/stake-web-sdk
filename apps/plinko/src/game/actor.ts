@@ -19,6 +19,7 @@ import {
 } from './plinkoWalletSync';
 import type { Bet } from './typesBookEvent';
 import { closeActiveRgsRound } from './plinkoActiveRound';
+import { alignPlinkoUiToReplayBook, isPlinkoReplay } from './plinkoReplay';
 import { releaseRoundInteractionLocks } from './meterFlow';
 import { playBet } from './bookEventHandlerMap';
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
@@ -31,11 +32,25 @@ function isActiveRoundPlayError(error: unknown): boolean {
 }
 
 const primaryMachines = createPrimaryMachines<Bet>({
-	onResumeGameActive: async (betToResume) => {
+	// MUST stay synchronous: the shared `resumeGame` does `bet: onResumeGameActive(betToResume)`
+	// WITHOUT awaiting, so returning a Promise here would make `context.bet` an unresolved Promise —
+	// `playBet` then reads `.state` off the Promise (undefined), skips the whole drop animation, and the
+	// round/replay settles with no balls. Everything below is sync, so keep it sync.
+	onResumeGameActive: (betToResume) => {
 		const state = Array.isArray(betToResume.state) ? betToResume.state : [];
+		// Replay: align the UI tier/stake to the served book so playback reproduces it exactly (no-op
+		// for a genuine active-round resume, which carries no replay URL params).
+		alignPlinkoUiToReplayBook(state);
 		const normalizedBet: Bet = { ...betToResume, state };
 		if (state.length > 0) {
 			applySpinMeterDisplay(deriveSpinMeterFromBookEvents(state));
+		}
+		if (isPlinkoReplay()) {
+			console.info('[plinko][replay] starting playback', {
+				events: state.length,
+				ballsPerDrop: stateGame.ballPerDrop,
+				stakePerBall: stateBet.betAmount,
+			});
 		}
 		return normalizedBet;
 	},
