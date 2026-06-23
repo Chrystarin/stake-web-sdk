@@ -17,33 +17,36 @@ export default {
 	// the base book on a rare per-tier quota — there is NO separate bonus mode. Must match the published
 	// math config.json (4 modes).
 	betModes: {
+		// max_win is PER-TIER (mirror of math plinko_data.WINCAP_BY_BALLS): each tier's advertised max
+		// win must be achievable in that tier's own books (Stake: max win hits >= 1/20,000,000). The
+		// folded bonus's organic ceiling rises with ball count, so the caps ascend 200/250/300/400.
 		onedrop: {
 			cost: 1.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.957,
-			max_win: 1000.0,
+			max_win: 200.0,
 		},
 		tendrop: {
 			cost: 10.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.957,
-			max_win: 1000.0,
+			max_win: 250.0,
 		},
 		twentydrop: {
 			cost: 20.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.957,
-			max_win: 1000.0,
+			max_win: 300.0,
 		},
 		fiftydrop: {
 			cost: 50.0,
 			feature: true,
 			buyBonus: false,
 			rtp: 0.957,
-			max_win: 1000.0,
+			max_win: 400.0,
 		},
 	},
 	/** [rowTierIndex 0..12] → slot multipliers (matches stake-math-sdk plinko_data.COEFFICIENT_SETS). */

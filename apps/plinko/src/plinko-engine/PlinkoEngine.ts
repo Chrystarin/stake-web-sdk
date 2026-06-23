@@ -197,12 +197,16 @@ export class PlinkoEngine {
   /** Label image files (loaded once, matched to slots by `slot.labelText`). `0.4` is awaited from the
    * designer (the `1.4` asset showed a wrong value); until it exists the `0.4` slots fall back to text. */
   private static readonly MULTIPLIER_TEXT_LABELS = ['0.2', '0.4', '1.5', '5', '20', '50', '100'] as const;
-  /** Label image height as a fraction of the slot body height. */
+  /** Label image height as a fraction of the slot body height (drives the shared scale). */
   private static readonly SLOT_TEXT_HEIGHT_RATIO = 0.72;
-  /** Cap the label image to this fraction of the slot width (shrinks wide labels like "100"). */
-  private static readonly SLOT_TEXT_MAX_WIDTH_RATIO = 0.92;
-  /** Bottom margin (fraction of slot body height) below the bottom-aligned label. */
-  private static readonly SLOT_TEXT_BOTTOM_MARGIN_RATIO = 0.01;
+  /** Cap the (widest) label to this fraction of the slot width — applied uniformly to all labels. */
+  private static readonly SLOT_TEXT_MAX_WIDTH_RATIO = 0.95;
+  /** Horizontal center of the label within the slot (0.5 = dead center of `x..x+w`). */
+  private static readonly SLOT_TEXT_X_RATIO = 0.4625;
+  /** Vertical center of the label within the slot body (0.5 = dead center of `y..y+h`). */
+  private static readonly SLOT_TEXT_Y_RATIO = 0.7;
+  /** Single scale applied to EVERY label image so they all match (computed per layout). */
+  private uniformLabelScale = 1;
   private readonly pendingDropTimeouts = new Set<ReturnType<typeof setTimeout>>();
   private readonly pendingBallRemovalTimeouts = new Set<ReturnType<typeof setTimeout>>();
   /** Balls queued by `dropBallBurst` that have not yet been spawned. */
@@ -797,6 +801,7 @@ export class PlinkoEngine {
     this.generateSlots();
     this.updateUniformSlotAssetScale();
     this.syncSlotAssetsAndLabels();
+    this.computeUniformLabelScale();
     this.refreshSlotLabelAppearance();
     this.fitWorldToSlotRow();
     this.layoutGlowSpine();
@@ -1076,8 +1081,8 @@ export class PlinkoEngine {
       const labelTexture = this.multiplierTextTextures[this.slots[i].labelText];
       if (labelTexture) {
         const labelSprite = new Sprite(labelTexture);
-        // Bottom-center anchor so the label sits at the bottom of the tile.
-        labelSprite.anchor.set(0.5, 1);
+        // Centered anchor so the label sits in the middle of the slot.
+        labelSprite.anchor.set(0.5, 0.5);
         this.labelLayer.addChild(labelSprite);
         this.slotLabelSprites.push(labelSprite);
         this.slotLabels.push(undefined);
@@ -2690,6 +2695,31 @@ export class PlinkoEngine {
     sp.alpha = 1;
   }
 
+  /**
+   * One shared scale for ALL label images so they render at the same size/ratio. Sized to the slot
+   * body height, then reduced uniformly if the WIDEST label would exceed the slot width — so every
+   * label shrinks together rather than only the wide ones (which made "100" smaller than "5").
+   */
+  private computeUniformLabelScale(): void {
+    let maxTexW = 1;
+    let maxTexH = 1;
+    for (const tex of Object.values(this.multiplierTextTextures)) {
+      if (!tex) continue;
+      maxTexW = Math.max(maxTexW, tex.width || 1);
+      maxTexH = Math.max(maxTexH, tex.height || 1);
+    }
+    const refSlot = this.slots[0];
+    if (!refSlot) {
+      this.uniformLabelScale = 1;
+      return;
+    }
+    const w = refSlot.width - this.pegRadius;
+    const h = this.slotHeight * 0.82;
+    const targetH = h * PlinkoEngine.SLOT_TEXT_HEIGHT_RATIO;
+    const maxW = w * PlinkoEngine.SLOT_TEXT_MAX_WIDTH_RATIO;
+    this.uniformLabelScale = Math.min(targetH / maxTexH, maxW / maxTexW);
+  }
+
   private drawAllSlotsPixi(currentTime: number): void {
     if (!this.slots.length) return;
 
@@ -2732,18 +2762,11 @@ export class PlinkoEngine {
 
       const labelSprite = this.slotLabelSprites[idx];
       if (labelSprite) {
-        const texW = labelSprite.texture.width || 1;
-        const texH = labelSprite.texture.height || 1;
-        // Fit the label image to the slot body height, capped to a fraction of the slot width.
-        const targetH = h * PlinkoEngine.SLOT_TEXT_HEIGHT_RATIO;
-        let fit = targetH / texH;
-        const maxW = w * PlinkoEngine.SLOT_TEXT_MAX_WIDTH_RATIO;
-        if (texW * fit > maxW) fit = maxW / texW;
-        labelSprite.scale.set(fit * textScale);
-        // Horizontally centered; bottom-aligned to the tile with a small bottom margin.
+        // Same scale for every label (computed once in `computeUniformLabelScale`), centered in the slot.
+        labelSprite.scale.set(this.uniformLabelScale * textScale);
         labelSprite.position.set(
-          Math.round(x + w / 2),
-          Math.round(y + h * (1 - PlinkoEngine.SLOT_TEXT_BOTTOM_MARGIN_RATIO))
+          Math.round(x + w * PlinkoEngine.SLOT_TEXT_X_RATIO),
+          Math.round(y + h * PlinkoEngine.SLOT_TEXT_Y_RATIO)
         );
       }
     }

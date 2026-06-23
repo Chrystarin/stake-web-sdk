@@ -431,14 +431,6 @@
 
 	<div class="game-content">
 		<div class="game-area" class:game-area--pixi-fill={!mobile}>
-			{#if mobile}
-				<div class="top-hud">
-					<button type="button" class="top-hud-buy-bonus" aria-label="Buy bonus">
-						<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
-					</button>
-				</div>
-			{/if}
-
 			<div
 				class="container"
 				class:container--bonus={stateGameDerived.isBonusBackgroundActive}
@@ -938,46 +930,6 @@
 	}
 
 
-	.top-hud-buy-bonus {
-
-		position: absolute;
-
-		top: 0;
-
-		right: 0;
-
-		width: clamp(72px, 18vw, 112px);
-
-		height: clamp(72px, 18vw, 112px);
-
-		border: none;
-
-		background: transparent;
-
-		padding: 0;
-
-		margin: 0;
-
-		cursor: pointer;
-
-		z-index: 22;
-
-	}
-
-	.top-hud-buy-bonus img {
-
-		width: 100%;
-
-		height: 100%;
-
-		display: block;
-
-		object-fit: contain;
-
-		pointer-events: none;
-
-	}
-
 	.container {
 
 		/* Bonus meter — desktop proportions vs 96×55 frame (12×7.8 @ top 6) */
@@ -1426,24 +1378,6 @@
 		container-name: game-area;
 
 		transform: translateY(calc(var(--game-area-offset-y-ratio-mobile) * 100vw));
-
-	}
-
-	.game-root--mobile .game-area .top-hud {
-
-		position: absolute;
-
-		top: calc(var(--portrait-px) * 6);
-
-		right: calc(var(--portrait-px) * 6);
-
-		left: auto;
-
-		width: auto;
-
-		height: calc(var(--portrait-px) * 112);
-
-		z-index: 22;
 
 	}
 

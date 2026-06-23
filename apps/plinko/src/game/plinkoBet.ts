@@ -9,8 +9,15 @@ import { stateGame } from './stateGame.svelte';
 /** Largest balls-per-drop tier (used for the max-bet / max-win limit display). */
 const MAX_BALLS_PER_DROP = Math.max(...BALL_PER_DROP_TIERS);
 
-/** Payout-multiplier cap (relative to the per-ball play amount) — mirror of math `wincap`. */
-const PLINKO_WINCAP = config.betModes.onedrop?.max_win ?? 1000;
+/**
+ * Headline payout-multiplier cap (relative to the per-ball play amount) — mirror of math `wincap`.
+ * The cap is PER-TIER (200/250/300/400); the displayed "max payout" is the GAME maximum, so use the
+ * highest tier cap (fiftydrop, 400×) — the largest win any tier can produce.
+ */
+const PLINKO_WINCAP = Math.max(
+	...Object.values(config.betModes).map((m) => m.max_win ?? 0),
+	0,
+);
 
 /** Active currency's RGS `betLevels` (the only RGS-valid amounts), ascending and positive. */
 function sortedRgsGrid(): number[] {
