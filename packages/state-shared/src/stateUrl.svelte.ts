@@ -9,6 +9,7 @@ export type Key =
 	| 'rgs_url'
 	| 'lang'
 	| 'currency'
+	| 'balance'
 	| 'device'
 	| 'social'
 	| 'demo'
@@ -29,6 +30,12 @@ const lang = () =>
 const sessionID = () => getUrlSearchParam('sessionID') || '';
 const rgsUrl = () => getUrlSearchParam('rgs_url') || '';
 const social = () => getUrlSearchParam('social') === 'true';
+// Launch currency from the URL. Live play overrides this from `/wallet/authenticate`, but replay
+// never authenticates, so this is the only source of the player's currency in replay mode.
+const currency = () => getUrlSearchParam('currency') || '';
+// Launch balance (API units) from the URL — replay never authenticates a balance, so this is the
+// only source for the HUD balance display in replay mode.
+const balance = () => Number(getUrlSearchParam('balance')) || 0;
 
 // params for replay
 const replay = () => getUrlSearchParam('replay') === 'true';
@@ -44,6 +51,8 @@ export const stateUrlDerived = {
 	sessionID,
 	rgsUrl,
 	social,
+	currency,
+	balance,
 	// states for replay
 	replay,
 	amount,

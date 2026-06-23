@@ -126,6 +126,10 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	}
 
 	$effect(() => {
+		// Replay seeds its own stake / bet-level grid (handleReplay + alignPlinkoUiToReplayBook) from the
+		// recorded round. Skip the live-session seeding, which would re-snap a non-USD replay stake onto
+		// the USD presets and corrupt the displayed amounts.
+		if (stateUrlDerived.replay()) return;
 		if (useLocalDevSession) {
 			seedLocalDevSession();
 			return;

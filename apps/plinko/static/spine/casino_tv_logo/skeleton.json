@@ -1,7 +1,7 @@
 {
 "skeleton": {
 	"hash": "AKEZIigrb8zlDSKTIju+7cSvo6E",
-	"spine": "3.8.75",
+	"spine": "4.3.17",
 	"x": -960,
 	"y": -4.19,
 	"width": 1920,
@@ -45,25 +45,25 @@
 					"width": 1920,
 					"height": 1080
 				},
-				"effectsLogo/1": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/2": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/3": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/4": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/5": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/6": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/7": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/8": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/9": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/10": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/11": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/12": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/13": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/14": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/15": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/16": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/17": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/18": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 },
-				"effectsLogo/19": { "type": "linkedmesh", "parent": "effectsLogo/0", "width": 1920, "height": 1080 }
+				"effectsLogo/1": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/2": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/3": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/4": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/5": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/6": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/7": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/8": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/9": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/10": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/11": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/12": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/13": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/14": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/15": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/16": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/17": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/18": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 },
+				"effectsLogo/19": { "type": "linkedmesh", "source": "effectsLogo/0", "width": 1920, "height": 1080 }
 			}
 		}
 	}
@@ -72,7 +72,7 @@
 	"animation": {
 		"slots": {
 			"effectsLogo/0": {
-				"color": [
+				"rgba": [
 					{ "time": 0.6333, "color": "ffffffff", "curve": "stepped" },
 					{ "time": 0.6667, "color": "ffffffff" },
 					{ "time": 0.7, "color": "ffffff00" }
@@ -97,7 +97,7 @@
 				]
 			},
 			"logo_adjust": {
-				"color": [
+				"rgba": [
 					{ "color": "ffffff00", "curve": "stepped" },
 					{ "time": 0.6333, "color": "ffffff00" },
 					{ "time": 0.6667, "color": "ffffffff", "curve": "stepped" },
@@ -113,20 +113,22 @@
 		"bones": {
 			"logo_adjust": {
 				"scale": [
-					{ "time": 0.6667, "curve": 0.25, "c3": 0.75 },
+					{ "time": 0.6667, "curve": [ 0.25, 0, 0.75, 1, 0.25, 0, 0.75, 1 ] },
 					{ "time": 3, "x": 1.05, "y": 1.05, "curve": "stepped" },
 					{ "time": 3.3333, "x": 1.05, "y": 1.05 }
 				]
 			}
 		},
-		"deform": {
+		"attachments": {
 			"default": {
 				"logo_adjust": {
-					"logo_adjust": [
-						{ "curve": "stepped" },
-						{ "time": 0.6333, "curve": "stepped" },
-						{ "time": 0.6667 }
-					]
+					"logo_adjust": {
+						"deform": [
+							{ "curve": "stepped" },
+							{ "time": 0.6333, "curve": "stepped" },
+							{ "time": 0.6667 }
+						]
+					}
 				}
 			}
 		},

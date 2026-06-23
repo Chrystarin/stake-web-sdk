@@ -6,18 +6,27 @@
 	import { gameActor } from '../game/actor';
 	import { getContext } from '../game/context';
 	import { closeActiveRgsRound, hasReplayablePlinkoBookState } from '../game/plinkoActiveRound';
-	import { normalizePlinkoBetToResume } from '../game/plinkoReplay';
+	import { isPlinkoReplay, normalizePlinkoBetToResume } from '../game/plinkoReplay';
 	import { stateGame } from '../game/stateGame.svelte';
 
 	const context = getContext();
 
-	/** Give up waiting on the Pixi board after this long and start anyway (init failed / hidden tab). */
-	const ENGINE_READY_TIMEOUT_MS = 10_000;
+	/** Give up waiting after this long and start anyway (engine init failed / loader hung / hidden tab).
+	 * Must exceed the intro splash (~3.4s) so it never pre-empts a normal load. */
+	const READY_TIMEOUT_MS = 20_000;
+	/** After the splash finishes, wait this long for its fade-out to clear before the first ball drops. */
+	const REPLAY_START_BUFFER_MS = 700;
 
 	onMount(() => {
 		let settled = false;
-		let engineWaitScheduled = false;
+		let readyWaitScheduled = false;
 		const startedAt = Date.now();
+
+		// Replay/resume fires on mount with no network delay, so the board (and, in replay, the intro
+		// splash) may not be ready yet. Starting then would hide the drop behind the loader or drop the
+		// `plinkoDrop` spawn entirely (`if (!engine) return`). Gate on both before playing back.
+		const isReadyToPlay = () =>
+			stateGame.plinkoEngineReady && (!isPlinkoReplay() || stateGame.introLoaderComplete);
 
 		const trySettleActiveRound = () => {
 			if (settled) return;
@@ -38,30 +47,31 @@
 
 			const hasReplayState = hasReplayablePlinkoBookState(betToResume?.state);
 			if (betToResume?.active && hasReplayState) {
-				// The Pixi board must be initialized before playback, otherwise the `plinkoDrop` spawn is
-				// silently dropped (`if (!engine) return`). Replay/resume fires on mount with no network
-				// delay to cover engine init, so wait here until the board is ready (with a safety cap).
-				if (!stateGame.plinkoEngineReady && Date.now() - startedAt < ENGINE_READY_TIMEOUT_MS) {
-					if (!engineWaitScheduled) {
-						engineWaitScheduled = true;
-						const waitForEngine = () => {
+				if (!isReadyToPlay() && Date.now() - startedAt < READY_TIMEOUT_MS) {
+					if (!readyWaitScheduled) {
+						readyWaitScheduled = true;
+						const waitForReady = () => {
 							if (settled) return;
-							if (
-								stateGame.plinkoEngineReady ||
-								Date.now() - startedAt >= ENGINE_READY_TIMEOUT_MS
-							) {
-								engineWaitScheduled = false;
+							if (isReadyToPlay() || Date.now() - startedAt >= READY_TIMEOUT_MS) {
+								readyWaitScheduled = false;
 								trySettleActiveRound();
 								return;
 							}
-							requestAnimationFrame(waitForEngine);
+							requestAnimationFrame(waitForReady);
 						};
-						requestAnimationFrame(waitForEngine);
+						requestAnimationFrame(waitForReady);
 					}
 					return;
 				}
 				settled = true;
-				context.eventEmitter.broadcast({ type: 'resumeBet' });
+				// In replay, give the splash's fade-out a beat to clear so the drop starts on a fully
+				// visible board (the splash holds longer than engine init, so playback was starting behind it).
+				const fire = () => context.eventEmitter.broadcast({ type: 'resumeBet' });
+				if (isPlinkoReplay()) {
+					setTimeout(fire, REPLAY_START_BUFFER_MS);
+				} else {
+					fire();
+				}
 				return;
 			}
 

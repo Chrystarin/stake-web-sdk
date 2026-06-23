@@ -1,4 +1,4 @@
-import { stateBet, stateUrlDerived } from 'state-shared';
+import { stateBet, stateConfig, stateUrlDerived } from 'state-shared';
 
 import { ballsPerDropForPlinkoBetMode } from './plinkoBetMode';
 import { stateGame } from './stateGame.svelte';
@@ -76,11 +76,25 @@ export function alignPlinkoUiToReplayBook(state: BookEvent[]): void {
 	// Set the UI tier so `plinkoBallsPerDrop()` matches the served outcomes (no resize, no mismatch).
 	if (balls > 0) stateGame.ballPerDrop = balls;
 
-	// Per-ball stake: use the book's authored stake so the displayed win matches the recorded payout
-	// exactly (stake scaling becomes a 1:1 no-op during playback).
-	const bookStake = drop?.stakePerBall ?? 0;
-	if (bookStake > 0) {
-		stateBet.betAmount = bookStake;
-		stateBet.wageredBetAmount = bookStake;
+	// Per-ball stake: KEEP the player's real stake (set from the URL `amount`, in the player's currency,
+	// by `handleReplay`). The book's `stakePerBall` is its base authoring unit (e.g. 1), NOT the player's
+	// money — overriding with it would collapse every non-USD replay to base units and mis-scale the win
+	// (`win = wageredBetAmount × bookAmount/BOOK_AMOUNT_MULTIPLIER`). Fall back to the book stake only if
+	// the URL amount was missing.
+	if (!(stateBet.betAmount > 0)) {
+		const bookStake = drop?.stakePerBall ?? 0;
+		if (bookStake > 0) {
+			stateBet.betAmount = bookStake;
+			stateBet.wageredBetAmount = bookStake;
+		}
+	}
+
+	// Replay never authenticated, so there is no RGS bet-level grid. The snap helpers (`plinkoPlayAmount`,
+	// which `playBet` uses to (re)set `wageredBetAmount`) then fall back to the USD presets and would snap
+	// a non-USD stake onto the wrong grid. Seed the grid with the single replay stake so every snap is a
+	// no-op and the stake/currency survive playback intact.
+	if (stateBet.betAmount > 0) {
+		stateConfig.betAmountOptions = [stateBet.betAmount];
+		stateConfig.betMenuOptions = [stateBet.betAmount];
 	}
 }

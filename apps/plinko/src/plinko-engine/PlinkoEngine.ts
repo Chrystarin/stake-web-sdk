@@ -170,6 +170,8 @@ export class PlinkoEngine {
   private glowSpineReady = false;
   /** Skeleton bone for each slot index (spatial left→right order), or undefined if unmapped. */
   private glowBoneBySlotIndex: (Bone | undefined)[] = [];
+  /** Uniform display scale of the glow spine (used to convert the slot bounce offset to bone units). */
+  private glowScale = 1;
   /** Slot count the spine was authored for — only render glow when the board matches it. */
   private static readonly GLOW_SPINE_SLOT_COUNT = 15;
   /** Spine bones in spatial left→right order (15 numbers, center = Spin). */
@@ -1021,6 +1023,7 @@ export class PlinkoEngine {
     // (non-center) slot, so its width is the base unit width.
     const unitWidth = this.slots[0].width;
     const scale = (unitWidth * PlinkoEngine.GLOW_WIDTH_FILL) / PlinkoEngine.GLOW_REF_CARD_WIDTH;
+    this.glowScale = scale;
 
     spine.visible = true;
     spine.scale.set(scale);
@@ -2690,6 +2693,8 @@ export class PlinkoEngine {
   private drawAllSlotsPixi(currentTime: number): void {
     if (!this.slots.length) return;
 
+    const glowActive = this.glowSpineActive;
+
     for (let idx = 0; idx < this.slots.length; idx++) {
       const slot = this.slots[idx];
       slot.animationOffset = this.resolveSlotAnimationOffset(slot, currentTime);
@@ -2702,6 +2707,14 @@ export class PlinkoEngine {
       const sprite = this.slotSprites[idx];
       if (sprite) {
         this.layoutSlotAssetSprite(idx, x, y, w, h);
+      }
+
+      // Bounce the whole glow tile (card) with the slot, so the entire slot dips down and back up
+      // on a landing — not just the printed number. Skeleton y is up, so a downward (positive)
+      // offset maps to a negative bone y, divided out by the spine scale.
+      if (glowActive) {
+        const bone = this.glowBoneBySlotIndex[idx];
+        if (bone) bone.pose.y = -slot.animationOffset / this.glowScale;
       }
 
       let textScale = 1.1;
@@ -2733,6 +2746,11 @@ export class PlinkoEngine {
           Math.round(y + h * (1 - PlinkoEngine.SLOT_TEXT_BOTTOM_MARGIN_RATIO))
         );
       }
+    }
+
+    // Apply the per-slot bone bounce to the glow spine in one pass (kept in sync with the labels).
+    if (glowActive && this.glowSpine) {
+      this.glowSpine.skeleton.updateWorldTransform(Physics.update);
     }
   }
 

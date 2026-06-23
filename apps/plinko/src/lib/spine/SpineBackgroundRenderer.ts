@@ -66,6 +66,8 @@ export class SpineBackgroundRenderer {
 	private fitBounds = createWorldBounds();
 	private resizeObserver?: ResizeObserver;
 	private fitFrameId = 0;
+	/** Pixi Assets cache keys this renderer registered, for optional release on destroy. */
+	private loadedAssetKeys = new Set<string>();
 
 	constructor(hostElement: HTMLElement) {
 		this.hostElement = hostElement;
@@ -86,6 +88,9 @@ export class SpineBackgroundRenderer {
 			});
 
 			this.hostElement.appendChild(app.canvas);
+			// Pixi leaves the canvas `display: inline`, which adds a baseline gap; match the game
+			// background's block canvas so the splash fills its host exactly.
+			app.canvas.style.display = 'block';
 			this.app = app;
 
 			this.resizeObserver = new ResizeObserver(() => this.scheduleFitSpine());
@@ -116,7 +121,24 @@ export class SpineBackgroundRenderer {
 		});
 	}
 
-	destroy(): void {
+	/**
+	 * Manually advance the spine animation and paint one frame. Used by the intro splash to keep
+	 * rendering when `requestAnimationFrame` is throttled (e.g. a backgrounded/streamed tab), where
+	 * Pixi's shared ticker — and therefore `autoUpdate` — stalls. Safe no-op before init.
+	 */
+	advanceFrame(deltaSeconds: number): void {
+		if (!this.app || !this.spine) return;
+		this.spine.update(deltaSeconds);
+		this.app.render();
+	}
+
+	/**
+	 * @param options.releaseAssets Unload this renderer's textures from the global Pixi `Assets`
+	 *   cache. Long-lived background renderers leave this off (assets are reused); short-lived
+	 *   renderers like the intro splash MUST set it, otherwise their atlas pages (tens of MB of
+	 *   GPU memory) linger for the whole session and starve the game's ball renderer.
+	 */
+	destroy(options?: { releaseAssets?: boolean }): void {
 		cancelAnimationFrame(this.fitFrameId);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
@@ -127,6 +149,18 @@ export class SpineBackgroundRenderer {
 		this.app?.destroy(true, { children: true });
 		this.app = undefined;
 		this.currentAsset = undefined;
+
+		if (options?.releaseAssets) {
+			this.releaseLoadedAssets();
+		}
+	}
+
+	private releaseLoadedAssets(): void {
+		const keys = [...this.loadedAssetKeys];
+		this.loadedAssetKeys.clear();
+		this.skeletonDataCache.clear();
+		// Fire-and-forget: unload frees the texture sources from the shared cache + GPU.
+		void Promise.allSettled(keys.map((key) => Assets.unload(key))).catch(() => {});
 	}
 
 	private async loadSkeletonData(asset: SpineAssetDef): Promise<SkeletonData> {
@@ -143,6 +177,13 @@ export class SpineBackgroundRenderer {
 			data: { images: asset.images },
 		});
 		Assets.add({ alias: skeletonAlias, src: asset.skeleton });
+
+		this.loadedAssetKeys.add(atlasAlias);
+		this.loadedAssetKeys.add(skeletonAlias);
+		// Atlas page textures are cached by their image URL — track them so they free too.
+		for (const imageUrl of Object.values(asset.images)) {
+			this.loadedAssetKeys.add(imageUrl);
+		}
 
 		await Assets.load([atlasAlias, skeletonAlias]);
 
@@ -166,6 +207,7 @@ export class SpineBackgroundRenderer {
 
 		const alias = `${asset.id}-backdrop`;
 		Assets.add({ alias, src: backdropDef.src });
+		this.loadedAssetKeys.add(alias);
 		const texture = await Assets.load(alias);
 		return Sprite.from(texture);
 	}
@@ -196,7 +238,7 @@ export class SpineBackgroundRenderer {
 			autoUpdate: true,
 		});
 		spine.state.data.defaultMix = 0.2;
-		spine.state.setAnimation(0, asset.animation, true);
+		spine.state.setAnimation(0, asset.animation, asset.loop ?? true);
 
 		app.stage.removeChildren();
 

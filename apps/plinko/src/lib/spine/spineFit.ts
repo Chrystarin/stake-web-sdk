@@ -14,6 +14,7 @@ export type FitConfig = {
 	offsetXVw?: number;
 	offsetYVh?: number;
 	fitAnchor?: FitAnchor;
+	yUp?: boolean;
 };
 
 export const computeFitTransform = (
@@ -42,10 +43,14 @@ export const computeFitTransform = (
 		};
 	}
 
+	// Spine skeletons are authored y-up; most of our assets happen to render content below their
+	// root so the y-down math below lands them on screen. A y-up asset (content above the root,
+	// like the casino logo) needs the vertical term flipped or it parks entirely above the viewport.
+	const centerYTerm = config.yUp ? centerY * scale : -centerY * scale;
 	return {
 		scale,
 		x: viewportWidth / 2 - centerX * scale + offsetX,
-		y: viewportHeight / 2 - centerY * scale + offsetY,
+		y: viewportHeight / 2 + centerYTerm + offsetY,
 	};
 };
 
@@ -54,6 +59,7 @@ export const spineFitConfig = (asset: SpineAssetDef): FitConfig => ({
 	offsetXVw: asset.offsetXVw,
 	offsetYVh: asset.offsetYVh,
 	fitAnchor: asset.fitAnchor,
+	yUp: asset.yUp,
 });
 
 /** Viewport width-fill + bottom-center anchor using texture pixel dimensions. */

@@ -107,6 +107,13 @@
 	};
 
 	const handleReplay = async () => {
+		// Replay never authenticates, so the player's currency / balance can only come from the launch
+		// URL (live play gets them from `/wallet/authenticate`). Without this, amounts render as default USD.
+		const replayCurrency = stateUrlDerived.currency();
+		if (replayCurrency) stateBet.currency = replayCurrency as typeof stateBet.currency;
+		const replayBalance = stateUrlDerived.balance();
+		if (replayBalance > 0) stateBet.balanceAmount = replayBalance / API_AMOUNT_MULTIPLIER;
+
 		stateBet.betAmount = (stateUrlDerived.amount() / API_AMOUNT_MULTIPLIER) || 0;
 		stateBet.wageredBetAmount = (stateUrlDerived.amount() / API_AMOUNT_MULTIPLIER) || 0;
 		stateBet.activeBetModeKey = stateUrlDerived.mode();

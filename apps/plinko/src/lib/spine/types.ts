@@ -19,6 +19,8 @@ export type SpineAssetDef = {
 	atlas: string;
 	images: Record<string, string>;
 	animation: string;
+	/** Whether the animation loops. Defaults to true (background ambience). */
+	loop?: boolean;
 	boundsMode: BoundsMode;
 	/** Skeleton JSON/binary scale — must match the atlas page `scale` value. */
 	skeletonScale?: number;
@@ -37,4 +39,10 @@ export type SpineAssetDef = {
 	offsetYVh?: number;
 	/** Static image rendered behind the spine using the same fit bounds. */
 	backdrop?: SpineBackdropDef;
+	/**
+	 * Content is authored above the skeleton root (y-up) rather than below it. Flips the vertical
+	 * fit term so the spine lands in the viewport instead of parking above it. Only affects the
+	 * centered fit path (no `widthFillScale`/`fitAnchor`).
+	 */
+	yUp?: boolean;
 };

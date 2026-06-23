@@ -4,9 +4,10 @@
 
 	import { GlobalStyle } from 'components-ui-html';
 
-	import { LoaderStakeEngine, LoaderExample, LoadI18n } from 'components-shared';
+	import { LoadI18n } from 'components-shared';
 
 	import Game from '../components/Game.svelte';
+	import LoaderCasinoTvLogo from '../components/LoaderCasinoTvLogo.svelte';
 	import PlinkoAuthenticate from '../components/PlinkoAuthenticate.svelte';
 
 	import { setContext } from '../game/context';
@@ -28,14 +29,6 @@
 	const props: Props = $props();
 
 
-
-	let showYourLoader = $state(false);
-
-
-
-	const loaderUrlStakeEngine = staticUrl('stake-engine-loader.gif');
-
-	const loaderUrl = staticUrl('loader.gif');
 
 	setContext();
 
@@ -90,15 +83,7 @@
 
 
 
-		<LoaderStakeEngine src={loaderUrlStakeEngine} oncomplete={() => (showYourLoader = true)} />
-
-
-
-		{#if showYourLoader}
-
-			<LoaderExample src={loaderUrl} />
-
-		{/if}
+		<LoaderCasinoTvLogo />
 
 
 
@@ -137,18 +122,6 @@
 		min-height: 100vh;
 
 		min-height: 100dvh;
-
-	}
-
-
-
-	/* Let the game shell show through while stake-engine / example loaders run. */
-
-	.plinko-app-shell-content :global(.wrap),
-
-	.plinko-app-shell-content :global(.gif-loader-wrap) {
-
-		background-color: transparent !important;
 
 	}
 
