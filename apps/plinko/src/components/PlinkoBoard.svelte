@@ -71,6 +71,7 @@
 		let disposed = false;
 		let eng: PlinkoEngine | undefined;
 		let layoutObserver: ResizeObserver | undefined;
+		let hiddenDriver: ReturnType<typeof setInterval> | undefined;
 
 		const start = async () => {
 			await new Promise<void>((resolve) => {
@@ -90,6 +91,20 @@
 				// Signal readiness so replay/resume can start playback now the board can spawn balls.
 				stateGame.plinkoEngineReady = true;
 
+				// Keep in-flight drops advancing while the tab is backgrounded. The browser pauses
+				// Pixi's ticker (rAF) on hide, which would freeze the ball mid-drop and stall an
+				// active Autobet run (the round never settles). We drive the physics off a timer
+				// instead — only while hidden, so visible frames are left to rAF and never
+				// double-stepped. Background timers are throttled, so `advanceWhileHidden` steps by
+				// real elapsed time rather than once per tick.
+				let lastHiddenTs = performance.now();
+				hiddenDriver = setInterval(() => {
+					const now = performance.now();
+					const dt = (now - lastHiddenTs) / 1000;
+					lastHiddenTs = now;
+					if (document.hidden) eng?.advanceWhileHidden(dt);
+				}, 100);
+
 				layoutObserver = new ResizeObserver(() => {
 					if (!eng?.hostHasLayoutExtent()) return;
 					eng.bustResizeDedupe();
@@ -107,6 +122,8 @@
 
 		return () => {
 			disposed = true;
+			if (hiddenDriver) clearInterval(hiddenDriver);
+			hiddenDriver = undefined;
 			layoutObserver?.disconnect();
 			eng?.destroy();
 			engine = undefined;

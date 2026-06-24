@@ -35,8 +35,6 @@
 
 		maybeAutoFireFeatureTrigger,
 
-		onPageHidden,
-
 		setDropRequestHandler,
 
 		showToast,
@@ -197,15 +195,10 @@
 
 		});
 
-		const onVis = () => {
-
-			if (document.hidden) onPageHidden();
-
-		};
-
-		document.addEventListener('visibilitychange', onVis);
-
-		return () => document.removeEventListener('visibilitychange', onVis);
+		// Autobet intentionally keeps running while the tab is backgrounded (parity with the
+		// reference game). The Pixi ticker (rAF) pauses on hide, so the board drives its ball
+		// physics off a timer instead (see PlinkoEngine.advanceWhileHidden) and rounds keep
+		// settling. We therefore do NOT terminate Autobet on `visibilitychange`.
 
 	});
 
@@ -1032,7 +1025,7 @@
 
 		--plinko-area-scale: 0.525;
 		--plinko-area-top-width-scale: 0.85;
-		--plinko-area-bottom-width-scale: 0.85;
+		--plinko-area-bottom-width-scale: 0.8;
 		--plinko-area-height-scale: 1.1;
 		--plinko-area-offset-x-ratio: 0.007;
 		--plinko-area-offset-ratio: 0.1825;

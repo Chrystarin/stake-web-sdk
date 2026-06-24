@@ -867,12 +867,6 @@ function finishAutoBet() {
 	showToast('Autobet Finished');
 }
 
-export function onPageHidden() {
-	if (!stateGame.autoPlayStarted && !stateGame.autoPlayStopping) return;
-	finishAutoBet();
-	showToast('Autobet Finished — game was left');
-}
-
 export function onMainPlayClick(onRegularBet: () => void) {
 	// Replay drives itself (see `runReplayBonusBallDrops`); ignore any human Play input.
 	if (isReplayMode()) return;

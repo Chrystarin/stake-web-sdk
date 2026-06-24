@@ -288,6 +288,12 @@ export class PlinkoEngine {
   private static readonly REMOVED_PEG_KEYS = new Set(['3:4', '4:4', '4:5']);
   private animTickerBound = (): void => this.animateFrame();
   private tickerRegistered = false;
+  /** Fixed physics step used when manually advancing a backgrounded tab (matches ~60fps rAF). */
+  private static readonly HIDDEN_FRAME_MS = 1000 / 60;
+  /** Cap on physics steps per background tick, so a long hidden stretch can't fast-forward minutes. */
+  private static readonly HIDDEN_MAX_STEPS_PER_TICK = 120;
+  /** Sub-frame leftover carried between background ticks so paced advancement stays accurate. */
+  private hiddenStepCarryMs = 0;
   private readonly BASE_VIEWPORT_WIDTH = 1920;
   private readonly MAX_RENDER_RESOLUTION = 2;
   private frameTick = 0;
@@ -2029,6 +2035,32 @@ export class PlinkoEngine {
     if (!this.app || !this.tickerRegistered) return;
     this.app.ticker.remove(this.animTickerBound);
     this.tickerRegistered = false;
+  }
+
+  /**
+   * Advance the ball simulation while the tab is backgrounded. The browser pauses Pixi's ticker
+   * (rAF) when the tab is hidden, which would freeze every in-flight drop and stall Autobet (the
+   * round never settles, so the loop waits forever / times out). The board drives this off a
+   * timer instead — but background timers are throttled (often to ≥1s), so we step enough fixed
+   * 60fps physics frames to cover the real elapsed time. A drop therefore completes at roughly
+   * the same wall-clock rate it would if visible, and `onBallDropped` fires so the round settles.
+   * No-op when nothing is animating. Rendering is skipped (nothing is on screen); the ticker
+   * repaints the current state when the tab becomes visible again.
+   */
+  advanceWhileHidden(deltaSeconds: number): void {
+    if (!this.app || !this.isAnimating) return;
+    const elapsedMs = this.hiddenStepCarryMs + Math.max(0, deltaSeconds) * 1000;
+    let steps = Math.floor(elapsedMs / PlinkoEngine.HIDDEN_FRAME_MS);
+    if (steps > PlinkoEngine.HIDDEN_MAX_STEPS_PER_TICK) {
+      // Drop the backlog after a long stall so returning/odd timers can't fast-forward minutes.
+      steps = PlinkoEngine.HIDDEN_MAX_STEPS_PER_TICK;
+      this.hiddenStepCarryMs = 0;
+    } else {
+      this.hiddenStepCarryMs = elapsedMs - steps * PlinkoEngine.HIDDEN_FRAME_MS;
+    }
+    for (let i = 0; i < steps && this.isAnimating; i++) {
+      this.animateFrame();
+    }
   }
 
   private animateFrame(): void {
