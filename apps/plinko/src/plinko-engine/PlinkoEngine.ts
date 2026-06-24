@@ -289,7 +289,7 @@ export class PlinkoEngine {
   private animTickerBound = (): void => this.animateFrame();
   private tickerRegistered = false;
   private readonly BASE_VIEWPORT_WIDTH = 1920;
-  private readonly MAX_RENDER_RESOLUTION = 1.5;
+  private readonly MAX_RENDER_RESOLUTION = 2;
   private frameTick = 0;
   private slotLabelFontSize = 14;
   private slotLabelLetterSpacingPx = 0;

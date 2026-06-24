@@ -68,7 +68,7 @@ export class FreeSpinMeterEngine {
       antialias: true,
       autoDensity: true,
       backgroundAlpha: 0,
-      resolution: typeof window !== 'undefined' ? Math.min(1.5, window.devicePixelRatio || 1) : 1
+      resolution: typeof window !== 'undefined' ? Math.min(2, window.devicePixelRatio || 1) : 1
     });
     this.hostElement.appendChild(app.canvas as HTMLCanvasElement);
     this.app = app;
