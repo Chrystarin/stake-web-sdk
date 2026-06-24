@@ -180,10 +180,13 @@ export class SpineBackgroundRenderer {
 
 		this.loadedAssetKeys.add(atlasAlias);
 		this.loadedAssetKeys.add(skeletonAlias);
-		// Atlas page textures are cached by their image URL — track them so they free too.
-		for (const imageUrl of Object.values(asset.images)) {
-			this.loadedAssetKeys.add(imageUrl);
-		}
+		// NOTE: do NOT track the atlas page image URLs (skeleton.png, skeleton2.png, …) here.
+		// The spine atlas loader loads pages via its own low-level `loader.load()` and stores them
+		// inside the TextureAtlas — they are never registered as `Assets` cache entries under their
+		// URLs. They are freed when the atlas ALIAS is unloaded (Assets.unload → atlas loader
+		// unload() → TextureAtlas.dispose() → SpineTexture.dispose() → texture.destroy()). Adding the
+		// page URLs made `releaseLoadedAssets()` call `Assets.unload(<pageUrl>)` on ids that aren't in
+		// the cache, which logs a noisy "Asset id … was not found in the Cache" warning and no-ops.
 
 		await Assets.load([atlasAlias, skeletonAlias]);
 

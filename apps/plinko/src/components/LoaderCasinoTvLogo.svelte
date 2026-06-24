@@ -10,6 +10,7 @@
 		CASINO_TV_LOGO_DURATION_MS,
 		getCasinoTvLogoAsset,
 	} from '../lib/spine/casinoTvLogoAsset';
+	import { preloadAllAssets } from '../lib/preloadAssets';
 	import { stateGame } from '../game/stateGame.svelte';
 
 	type Props = {
@@ -66,19 +67,29 @@
 	onMount(() => {
 		renderer = new SpineBackgroundRenderer(host);
 
+		// Preload every game image + font in parallel with the intro spine, so the game is
+		// revealed fully cached and nothing (roulettes, overlays, fonts) pops in on first use.
+		// Always resolves (failures swallowed + internal timeout cap), so it can never trap the player.
+		const preloadPromise = preloadAllAssets();
+
 		void renderer
 			.init(getCasinoTvLogoAsset())
 			.then(async () => {
 				startHiddenDriver();
-				await waitForTimeout(CASINO_TV_LOGO_DURATION_MS);
+				// Hold the splash until BOTH the logo has played its minimum duration AND all assets
+				// have finished preloading — whichever takes longer.
+				await Promise.all([waitForTimeout(CASINO_TV_LOGO_DURATION_MS), preloadPromise]);
 				if (disposed) return;
 				finishLoader();
 			})
 			.catch((error) => {
-				// Never let a spine failure trap the player on the splash screen.
+				// Never let a spine failure trap the player on the splash screen — but still wait for
+				// assets (capped) so we don't reveal a half-loaded game.
 				console.error('[LoaderCasinoTvLogo] failed to render intro spine', error);
-				if (disposed) return;
-				finishLoader();
+				void preloadPromise.finally(() => {
+					if (disposed) return;
+					finishLoader();
+				});
 			});
 
 		return () => disposeRenderer();
