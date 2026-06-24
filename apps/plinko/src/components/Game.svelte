@@ -82,6 +82,8 @@
 
 	import EnableSound from './EnableSound.svelte';
 
+	import EnableMusic from './EnableMusic.svelte';
+
 	import GameHud from './GameHud.svelte';
 
 	import HudMenuPopup from './HudMenuPopup.svelte';
@@ -362,6 +364,8 @@
 
 <EnableSound />
 
+<EnableMusic />
+
 <EnableHotkey />
 
 <Modals>
@@ -405,6 +409,8 @@
 					<HudMenuPopup
 						soundEnabled={stateGame.soundEnabled}
 						onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
+						musicEnabled={stateGame.musicEnabled}
+						onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
 						onOpenFair={() => openInfo('fair')}
 						onOpenRules={() => openInfo('rules')}
 						onOpenHistory={() => openInfo('history')}
@@ -421,6 +427,8 @@
 			mobile
 			soundEnabled={stateGame.soundEnabled}
 			onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
+			musicEnabled={stateGame.musicEnabled}
+			onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
 			onOpenFair={() => openInfo('fair')}
 			onOpenRules={() => openInfo('rules')}
 			onOpenHistory={() => openInfo('history')}
