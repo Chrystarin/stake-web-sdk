@@ -5,7 +5,6 @@
 
 	import { plinkoBetLimits } from '../game/plinkoBet';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
-	import { formatHistoryMultiplier } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
@@ -370,28 +369,33 @@
 										<tr>
 											<th>Date</th>
 											<th>Bet</th>
+											<th>Bet/Ball</th>
+											<th>Ball/Drop</th>
 											<th>Mult.</th>
 											<th>Win</th>
 										</tr>
 									</thead>
 									<tbody>
-										{#each historyRows as row, index (`${row.date}-${row.bet}-${row.multiplier}-${index}`)}
+										{#each historyRows as row, index (`${row.date}-${row.bet}-${index}`)}
 											<tr>
 												<td>{row.date}</td>
-												<td>{row.betPlaceholder ? '- - -' : formatMoney(row.bet)}</td>
+												<td>{formatMoney(row.bet)}</td>
+												<td>{formatMoney(row.betPerBall)}</td>
+												<td>{row.ballPerDrop}</td>
 												<td>
-													<span
-														class="info-mult-pill"
-														style:background={row.color}
-													>
-														{row.label ?? formatHistoryMultiplier(row.multiplier)}
-													</span>
+													<div class="info-mult-chips">
+														{#each row.chips as chip}
+															<span class="info-mult-pill" style:background={chip.color}>
+																{chip.label}
+															</span>
+														{/each}
+													</div>
 												</td>
 												<td>{formatMoney(row.win)}</td>
 											</tr>
 										{:else}
 											<tr>
-												<td colspan="4" class="info-history-empty">No bets yet</td>
+												<td colspan="6" class="info-history-empty">No bets yet</td>
 											</tr>
 										{/each}
 									</tbody>
@@ -638,19 +642,27 @@
 	}
 	.info-history-table th:nth-child(1),
 	.info-history-table td:nth-child(1) {
-		width: 32%;
+		width: 20%;
 	}
 	.info-history-table th:nth-child(2),
 	.info-history-table td:nth-child(2) {
-		width: 22%;
+		width: 15%;
 	}
 	.info-history-table th:nth-child(3),
 	.info-history-table td:nth-child(3) {
-		width: 22%;
+		width: 15%;
 	}
 	.info-history-table th:nth-child(4),
 	.info-history-table td:nth-child(4) {
+		width: 12%;
+	}
+	.info-history-table th:nth-child(5),
+	.info-history-table td:nth-child(5) {
 		width: 24%;
+	}
+	.info-history-table th:nth-child(6),
+	.info-history-table td:nth-child(6) {
+		width: 14%;
 	}
 	.info-history-empty {
 		text-align: center;
@@ -675,11 +687,19 @@
 		border-top-right-radius: 8px;
 		border-bottom-right-radius: 8px;
 	}
+	/* Stack the round's multiplier chips (base game + optional Bonus / Free Spin) vertically. */
+	.info-mult-chips {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+	}
 	.info-mult-pill {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		min-width: 48px;
+		max-width: 100%;
 		height: 26px;
 		padding: 0 8px;
 		border-radius: 8px;
@@ -687,6 +707,7 @@
 		font-size: 13px;
 		font-weight: 700;
 		line-height: 1;
+		white-space: nowrap;
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 	}
 </style>

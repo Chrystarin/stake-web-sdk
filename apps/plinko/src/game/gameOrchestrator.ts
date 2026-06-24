@@ -1,17 +1,16 @@
-import { stateBet, stateI18nDerived } from 'state-shared';
+import { stateI18nDerived } from 'state-shared';
 
 import { isPlinkoReplay } from './plinkoReplay';
 import { BONUS_LEVEL_LABELS, FREE_SPIN_SEGMENTS, bonusLevelBalls } from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
-import { formatHistoryDate } from '../lib/format';
-import { slotColorForRateIndex } from '../game-logic/slotColors';
+import { formatCoefficientLabel, formatHistoryDate, formatHistoryMultiplier } from '../lib/format';
 import { meterController } from './stateGame.svelte';
-import { stateGame, stateGameDerived } from './stateGame.svelte';
+import { stateGame, stateGameDerived, type HistoryChip } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
 import { bonusMeterTierStart, hasActiveRgsSession } from './plinkoSessionMeters';
-import { plinkoStakePerBall } from './plinkoBet';
+import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
@@ -311,6 +310,9 @@ export function awardBonusBalls(count: number) {
 		stateGame.pendingSpacedSpawnTimers = 0;
 	}
 	stateGame.bonusBallsRemaining += amount;
+	// Every awarded free ball (entry round + level-ups) feeds the round's "N Bonus" chip.
+	roundBonusBallCount += amount;
+	refreshRoundHistoryEntry();
 }
 
 export function playOneBonusBall() {
@@ -509,12 +511,9 @@ export async function settleBonusRoundWhenFinished() {
 		}
 		if (stateGame.bonusBallsRemaining <= 0) {
 			stateGame.bonusEndWinAmount = Math.max(0, getCombinedRoundWinAmount());
-			// Fold the bonus-ball wins into one My Bet History row (per-ball bonus lands were skipped
-			// in `onBallLanded`). Exclude any in-bonus free-spin credit — it's already logged as its
-			// own "Free Spin N×" row — so the two rows don't double-count. Capture before the reset.
-			recordBonusWinHistory(
-				stateGame.bonusSessionWinAmount - stateGame.inBonusFreeSpinCreditTotal,
-			);
+			// Bonus play is finished: fold its total into the round's single history row (the "N Bonus"
+			// chip + the running round win) before the bonus state resets.
+			refreshRoundHistoryEntry();
 			resetBonusRoundVisualState();
 			stateGame.bonusEndAnnouncementOpen = true;
 		}
@@ -617,7 +616,6 @@ export function onBallLanded(
 
 	const coeffs =
 		stateGame.coefficients.length > 0 ? stateGame.coefficients : [];
-	const rateIndex = pending?.rateIndex ?? slotIndex;
 	const resolvedMultiplier = pending
 		? resolveOutcomeMultiplier(pending, coeffs)
 		: coeffs.length > 0 && slotIndex >= 0
@@ -627,27 +625,13 @@ export function onBallLanded(
 	if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {
 		addSettledWinAmount(pending.amount * resolvedMultiplier);
 	}
-	// Bonus-round ball lands are folded into ONE consolidated "Bonus" row at settlement
-	// (`recordBonusWinHistory`), so skip per-ball logging here to avoid double-counting.
-	if (!stateGame.bonusRoundActive) {
-		const bet = pending?.amount ?? stateBet.betAmount;
-		if (isSpinSlot) {
-			// A spin-slot land has no pocket payout (it fills the free-spin meter), so log it with a
-			// blue "spin" pill and a 0 win — the resulting free-spin payout is its own row later.
-			recordSpinSlotHistory(bet);
-		} else {
-			stateGame.history.unshift({
-				date: formatHistoryDate(new Date()),
-				bet,
-				multiplier: resolvedMultiplier,
-				win: bet * resolvedMultiplier,
-				color:
-					coeffs.length && rateIndex >= 0
-						? slotColorForRateIndex(coeffs, rateIndex)
-						: '#64748b',
-			});
-		}
+	// History is ONE row per round, not per ball. Each base-drop ball's pocket multiplier accumulates
+	// into the round's base-game total chip; bonus-round balls are covered by the "N Bonus" chip
+	// instead (`awardBonusBalls`). Spin-slot lands pay nothing (they fill the meter), so they add 0×.
+	if (!stateGame.bonusRoundActive && !isSpinSlot) {
+		roundBaseMultiplierTotal += resolvedMultiplier;
 	}
+	refreshRoundHistoryEntry();
 	if (pending && isSpinSlot) {
 		onSpinSlotLand(ballId);
 	}
@@ -656,75 +640,75 @@ export function onBallLanded(
 	}
 }
 
-/** Distinct My Bet History accents for consolidated feature payout rows. */
-const FREE_SPIN_HISTORY_COLOR = '#A855F7';
-const BONUS_HISTORY_COLOR = '#FFB801';
-const SPIN_SLOT_HISTORY_COLOR = '#3B82F6';
+// ── My Bet History — ONE consolidated row per round ──────────────────────────
+// Fixed accents per chip type (NOT keyed to the multiplier value): blue = base game,
+// orange = bonus, green = free spin.
+const BASE_HISTORY_COLOR = '#3B82F6';
+const BONUS_HISTORY_COLOR = '#F97316';
+const FREE_SPIN_HISTORY_COLOR = '#22C55E';
 
-/** Spin-slot land: a real per-ball wager with no pocket payout (0 win), shown as a blue "spin". */
-export function recordSpinSlotHistory(bet: number) {
-	stateGame.history.unshift({
-		date: formatHistoryDate(new Date()),
-		bet,
-		multiplier: 0,
-		win: 0,
-		color: SPIN_SLOT_HISTORY_COLOR,
-		label: 'Spin',
-	});
+/** Sum of base-game per-ball pocket multipliers for the active round. */
+let roundBaseMultiplierTotal = 0;
+/** Total bonus (free) balls awarded across the active round (entry + level-ups). */
+let roundBonusBallCount = 0;
+/** Free-spin wheel multipliers won during the active round (one "Free Spin xN" chip each). */
+let roundFreeSpinMultipliers: number[] = [];
+/** True once `beginRoundHistory` has created the active round's row at `history[0]`. */
+let roundHistoryActive = false;
+
+/** Build the round's multiplier chips: base-game total, optional "N Bonus", and "Free Spin xN"s. */
+function buildRoundHistoryChips(): HistoryChip[] {
+	const baseTotal = Math.round(roundBaseMultiplierTotal * 100) / 100;
+	const chips: HistoryChip[] = [
+		{ label: formatHistoryMultiplier(baseTotal), color: BASE_HISTORY_COLOR },
+	];
+	if (roundBonusBallCount > 0) {
+		chips.push({ label: `${roundBonusBallCount} Bonus`, color: BONUS_HISTORY_COLOR });
+	}
+	for (const multiplier of roundFreeSpinMultipliers) {
+		chips.push({
+			label: `Free Spin x${formatCoefficientLabel(multiplier)}`,
+			color: FREE_SPIN_HISTORY_COLOR,
+		});
+	}
+	return chips;
+}
+
+/** Push the current win + chips onto the active round's row. No-op before the round starts. */
+export function refreshRoundHistoryEntry() {
+	if (!roundHistoryActive) return;
+	const entry = stateGame.history[0];
+	if (!entry) return;
+	entry.win = Math.max(0, Number(stateGame.winAmount) || 0);
+	entry.chips = buildRoundHistoryChips();
 }
 
 /**
- * Record a consolidated feature payout (free-spin wheel multiplier, or a whole bonus round) in My
- * Bet History. Feature wins are authoritative-round wins that DON'T map to a single base-board ball
- * land — left unrecorded, the per-ball rows would undercount the displayed total. Each call adds one
- * labelled row so the recorded rows sum to the on-screen total.
+ * Start a new round's My Bet History row. Records ONE row per round (not per ball): the base-game
+ * total multiplier, plus a "N Bonus" chip and a "Free Spin xN" chip per feature, with the round's
+ * total win (base + bonus + free spin). The row updates live as the round resolves. Called once per
+ * round from `playBet`.
  */
-export function recordFeatureWinHistory(params: {
-	label: string;
-	multiplier: number;
-	win: number;
-	bet: number;
-	color: string;
-}) {
-	if (!(params.win > 0)) return;
+export function beginRoundHistory() {
+	roundBaseMultiplierTotal = 0;
+	roundBonusBallCount = 0;
+	roundFreeSpinMultipliers = [];
+	roundHistoryActive = true;
 	stateGame.history.unshift({
 		date: formatHistoryDate(new Date()),
-		bet: params.bet,
-		multiplier: params.multiplier,
-		win: params.win,
-		color: params.color,
-		label: params.label,
-		// Free Spin / Bonus aren't a single per-ball wager, so blank the Bet column.
-		betPlaceholder: true,
+		bet: plinkoWagerAmount(),
+		betPerBall: plinkoStakePerBall(),
+		ballPerDrop: plinkoBallsPerDrop(),
+		win: 0,
+		chips: buildRoundHistoryChips(),
 	});
 }
 
-/** Free-spin wheel payout: `win` is the INCREMENTAL credit (round total − pre-feature win). */
-export function recordFreeSpinWinHistory(multiplier: number, win: number, bet: number) {
-	recordFeatureWinHistory({
-		label: `Free Spin ${formatFeatureMultiplier(multiplier)}`,
-		multiplier,
-		win,
-		bet,
-		color: FREE_SPIN_HISTORY_COLOR,
-	});
-}
-
-/** Whole bonus round folded into one row; `win` is the full bonus-session win. */
-export function recordBonusWinHistory(win: number) {
-	const bet = plinkoStakePerBall();
-	recordFeatureWinHistory({
-		label: 'Bonus',
-		multiplier: bet > 0 ? win / bet : 0,
-		win,
-		bet,
-		color: BONUS_HISTORY_COLOR,
-	});
-}
-
-function formatFeatureMultiplier(multiplier: number): string {
-	const rounded = Math.round(multiplier * 100) / 100;
-	return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(2)}×`;
+/** Record a free-spin wheel multiplier as its own "Free Spin xN" chip on the round row. */
+export function recordFreeSpinWinHistory(multiplier: number) {
+	if (!(multiplier > 0)) return;
+	roundFreeSpinMultipliers = [...roundFreeSpinMultipliers, multiplier];
+	refreshRoundHistoryEntry();
 }
 
 /**

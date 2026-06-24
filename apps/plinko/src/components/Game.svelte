@@ -9,7 +9,7 @@
 
 
 
-	import { coefficientsForRowCount } from '../game-logic/constants';
+	import { coefficientsForRowCount, SIM_SPEED } from '../game-logic/constants';
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
@@ -465,7 +465,7 @@
 							coefficients={boardCoefficients}
 							rows={stateGame.rowCount}
 							animationEnabled={stateGame.animationEnabled}
-							animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
+							animationSpeed={stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal}
 							onBallDropped={onBallDropped}
 							onCoinPegHit={handleCoinPegHit}
 						/>
@@ -475,7 +475,7 @@
 						coefficients={boardCoefficients}
 						rows={stateGame.rowCount}
 						animationEnabled={stateGame.animationEnabled}
-						animationSpeed={stateGame.fastGameEnabled ? 3 : 0.7}
+						animationSpeed={stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal}
 						onBallDropped={onBallDropped}
 						onCoinPegHit={handleCoinPegHit}
 					/>
@@ -1023,12 +1023,12 @@
 			)
 			scale(var(--game-layout-scale));
 
-		--plinko-area-scale: 0.525;
-		--plinko-area-top-width-scale: 0.85;
-		--plinko-area-bottom-width-scale: 0.8;
+		--plinko-area-scale: 0.54;
+		--plinko-area-top-width-scale: 0.65;
+		--plinko-area-bottom-width-scale: 0.75;
 		--plinko-area-height-scale: 1.1;
 		--plinko-area-offset-x-ratio: 0.007;
-		--plinko-area-offset-ratio: 0.1825;
+		--plinko-area-offset-ratio: 0.175;
 		--plinko-area-offset-y-extra-ratio: 0;
 		--plinko-area-offset-x: calc(var(--plinko-area-offset-x-ratio) * 100vw);
 		--plinko-host-width: calc(

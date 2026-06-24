@@ -338,6 +338,43 @@ export class PlinkoEngine {
     return this.BASE_ROWS / this.rows;
   }
 
+  /**
+   * `pegSpacing` (px) reference that sets the peg-bounce height. The bounce arc peak is
+   * `bounceAmplitude / BOUNCE_REFERENCE_SPACING` of a row gap (~0.33 of a gap on desktop),
+   * constant across viewports. LOWER this to bounce higher, raise it to bounce lower.
+   */
+  private static readonly BOUNCE_REFERENCE_SPACING = 30;
+
+  /**
+   * Viewport scale for peg-bounce MOTION (arc height, lateral drift, vertical settle/impulse).
+   * The bounce must track the board's vertical row spacing so the ball rises the same fraction
+   * of a row gap at EVERY viewport. These terms previously used `elementScale`, which is a
+   * constant (the visual row count is fixed at VISUAL_ROW_COUNT), so the bounce was a fixed
+   * pixel height — too tall on short boards, too short on tall ones. Tying it to `pegSpacing`
+   * (which already scales with the viewport) makes the bounce scale with the viewport too.
+   */
+  private get bounceScale(): number {
+    const s = this.pegSpacing / PlinkoEngine.BOUNCE_REFERENCE_SPACING;
+    return Number.isFinite(s) && s > 0 ? s : this.elementScale;
+  }
+
+  /** Normal-mode `animationSpeed` baseline (mirrors SIM_SPEED.normal in game-logic/constants). */
+  private static readonly NORMAL_ANIMATION_SPEED = 0.7;
+  /** Floor on the speed-compressed bounce duration so a fast-mode hop stays long enough to read. */
+  private static readonly MIN_FAST_BOUNCE_MS = 90;
+
+  /**
+   * How many times faster than NORMAL play the sim is running (1 in normal, ~3.4 in Fast Game mode
+   * where animationSpeed = 2.4). Used ONLY to compress the bounce TIMING (duration + cooldown) so a
+   * hop still spans ~one row and the ball bounces on (nearly) every peg at speed — like normal mode —
+   * instead of holding one long arc across several rows. The bounce shape/depth is untouched, so
+   * bounces stay crisp, and normal mode (factor 1) is unchanged. Clamped to ≥ 1 so it never stretches.
+   */
+  private get simSpeedFactor(): number {
+    const f = this.animationSpeed / PlinkoEngine.NORMAL_ANIMATION_SPEED;
+    return Number.isFinite(f) && f >= 1 ? f : 1;
+  }
+
   /** Measured host height (includes CSS `--plinko-area-height-scale` on the host element). */
   private get layoutHeight(): number {
     return this.containerHeight;
@@ -1993,7 +2030,13 @@ export class PlinkoEngine {
       bouncedRows: new Set<number>(),
       lastBounceTime: 0,
       visitedPoints: new Set<number>(),
-      currentSpeed: this.pyramidConfig.normalSpeed,
+      // Spawn already moving at the mode's cruise speed so the airspace fall from spawn → first peg
+      // isn't stuck at normal speed while the rest of the board runs fast. `normalSpeed * animationSpeed`
+      // is the cruise base speed; the max() keeps normal mode's slightly-faster historical launch.
+      currentSpeed: Math.max(
+        this.pyramidConfig.normalSpeed,
+        this.pyramidConfig.normalSpeed * this.animationSpeed
+      ),
       isInBounce: false,
       bounceStartTime: 0,
       bounceDuration: this.pyramidConfig.bounceDuration,
@@ -2138,20 +2181,20 @@ export class PlinkoEngine {
               this.pyramidConfig.bounceAmplitude *
               ball.bounceHeightMultiplier *
               Math.sin(bounceProgress * Math.PI) *
-              this.elementScale;
+              this.bounceScale;
             const directedDrift =
               ball.bounceTravelDir *
               this.pyramidConfig.bounceAmplitude *
               ball.driftMultiplier *
               0.132 *
-              this.elementScale *
+              this.bounceScale *
               Math.sin(bounceProgress * Math.PI);
             const wobble =
               this.pyramidConfig.horizontalDrift *
               ball.driftMultiplier *
               0.18 *
               Math.sin(bounceProgress * Math.PI * 2) *
-              this.elementScale;
+              this.bounceScale;
             ball.x =
               baseX +
               ball.velocityX * this.pyramidConfig.laneCentering +
@@ -2333,6 +2376,24 @@ export class PlinkoEngine {
     dropping.length = 0;
   }
 
+  /**
+   * Factor in (0, 1] that slows currentPoint advancement on path segments longer than one row gap,
+   * keeping the ball's on-screen speed consistent regardless of segment length. Returns exactly 1
+   * for normal (≤ one row) segments — i.e. everywhere a peg bounce happens — so only the long final
+   * plunge into the slot is tamed; bounces and normal-mode feel are untouched. Floored so a very
+   * long segment can never make the ball crawl.
+   */
+  private segmentSpeedNormalization(ball: Ball): number {
+    const pathLen = ball.path.length;
+    if (pathLen < 2) return 1;
+    const segProgress = ball.currentPoint * (pathLen - 1);
+    const segIdx = Math.min(pathLen - 2, Math.max(0, Math.floor(segProgress)));
+    const segDeltaY = Math.abs(ball.path[segIdx + 1].y - ball.path[segIdx].y);
+    const rowGap = this.pegSpacing;
+    if (!(rowGap > 0) || segDeltaY <= rowGap) return 1;
+    return Math.max(0.35, rowGap / segDeltaY);
+  }
+
   private updateBallPhysics(ball: Ball, currentTime: number): void {
     let baseSpeed = this.pyramidConfig.normalSpeed * this.animationSpeed;
     baseSpeed += this.pyramidConfig.gravityEffect * (ball.currentPoint + 0.5);
@@ -2361,14 +2422,22 @@ export class PlinkoEngine {
       this.pyramidConfig.minSpeed,
       Math.min(ball.currentSpeed, this.pyramidConfig.maxSpeed)
     );
-    ball.currentPoint += ball.currentSpeed;
+
+    // Keep the ball's ON-SCREEN speed consistent across path segments of different lengths. Almost
+    // every segment spans exactly one row gap, but the final segment (last peg row → slot center) is
+    // ~2.3× longer and has no bounce, so advancing currentPoint at the same rate made the ball lurch
+    // into the slot — the "sudden speed-up near the bottom / gold pegs" in Fast Game mode (the long
+    // segment ran at ~3.8× a normal row's on-screen speed). Slow the advance on longer-than-a-row
+    // segments so the descent stays smooth; segments at/under one row gap are unaffected (factor = 1),
+    // so peg bounces and normal-mode feel are unchanged.
+    ball.currentPoint += ball.currentSpeed * this.segmentSpeedNormalization(ball);
 
     const maxLaneDrift = this.minPegSpacingX * 0.28;
     ball.velocityX = Math.max(-maxLaneDrift, Math.min(maxLaneDrift, ball.velocityX));
     if (!ball.isInBounce) {
-      ball.velocityY += this.pyramidConfig.verticalGravity * this.elementScale;
+      ball.velocityY += this.pyramidConfig.verticalGravity * this.bounceScale;
       ball.velocityY *= this.pyramidConfig.verticalDamping;
-      const maxVerticalOffset = this.pyramidConfig.bounceAmplitude * this.elementScale * 0.4;
+      const maxVerticalOffset = this.pyramidConfig.bounceAmplitude * this.bounceScale * 0.4;
       ball.velocityY = Math.max(-maxVerticalOffset, Math.min(maxVerticalOffset, ball.velocityY));
     } else {
       ball.velocityY *= 0.9;
@@ -2442,6 +2511,9 @@ export class PlinkoEngine {
     const pathLength = ball.path.length;
     const segmentProgress = ball.currentPoint * (pathLength - 1);
     const segmentIndex = Math.floor(segmentProgress);
+    // Shorten the cooldown in fast mode so the ball is free to bounce again ~one row later instead
+    // of coasting past several pegs between hits (see simSpeedFactor).
+    const bounceCooldown = this.pyramidConfig.bounceCooldown / this.simSpeedFactor;
 
     for (
       let i = Math.max(0, segmentIndex - 1);
@@ -2452,7 +2524,7 @@ export class PlinkoEngine {
       if (
         pathPoint.bounceIntensity <= 0 ||
         ball.bouncedRows.has(pathPoint.row) ||
-        currentTime - ball.lastBounceTime <= this.pyramidConfig.bounceCooldown
+        currentTime - ball.lastBounceTime <= bounceCooldown
       ) {
         continue;
       }
@@ -2505,10 +2577,16 @@ export class PlinkoEngine {
         }
         ball.isInBounce = true;
         ball.bounceStartTime = currentTime;
-        ball.bounceDuration =
-          this.pyramidConfig.bounceDuration *
-          ball.bounceDurationMultiplier *
-          (0.85 + Math.random() * 0.3);
+        // Compress the hop in fast mode so it spans ~one row (bounce on nearly every peg, like normal
+        // mode) instead of one long arc across several; floored at MIN_FAST_BOUNCE_MS so the arc stays
+        // long enough to read. Normal mode (simSpeedFactor 1) keeps the full 240 ms duration.
+        ball.bounceDuration = Math.max(
+          PlinkoEngine.MIN_FAST_BOUNCE_MS,
+          (this.pyramidConfig.bounceDuration *
+            ball.bounceDurationMultiplier *
+            (0.85 + Math.random() * 0.3)) /
+            this.simSpeedFactor
+        );
         ball.bounceTravelDir = travelDir;
         ball.x = contactX + (ball.x - contactX) * 0.15;
         ball.y = Math.min(ball.y, contactY);
@@ -2516,7 +2594,7 @@ export class PlinkoEngine {
         const impulseScale =
           this.pyramidConfig.bounceImpulseMin +
           Math.random() * (this.pyramidConfig.bounceImpulseMax - this.pyramidConfig.bounceImpulseMin);
-        const force = pathPoint.bounceIntensity * impulseScale * this.elementScale;
+        const force = pathPoint.bounceIntensity * impulseScale * this.bounceScale;
         ball.velocityX = travelDir * force * 2.82;
         ball.velocityY = Math.min(0, -force * this.pyramidConfig.bounceLift * 0.52);
 

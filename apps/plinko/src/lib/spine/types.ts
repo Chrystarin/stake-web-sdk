@@ -45,4 +45,16 @@ export type SpineAssetDef = {
 	 * centered fit path (no `widthFillScale`/`fitAnchor`).
 	 */
 	yUp?: boolean;
+	/**
+	 * Only affects the centered fit path (no `widthFillScale`/`fitAnchor`). When the viewport is
+	 * portrait (taller than wide), fit the whole skeleton *inside* the viewport (contain) instead
+	 * of cropping to fill it (cover), so a wide/landscape asset like the intro logo stays fully
+	 * visible and centered rather than clipped on both sides.
+	 */
+	containInPortrait?: boolean;
+	/**
+	 * Extra inset applied to the `containInPortrait` fit so the asset isn't edge-to-edge
+	 * (0.9 = leave a 10% margin). Defaults to 1 (touches the viewport width).
+	 */
+	portraitContainScale?: number;
 };

@@ -5,7 +5,7 @@
 	import { getContext } from '../game/context';
 	import { registerBonusBallOutcome, takeAuthoritativeBonusOutcome } from '../game/gameOrchestrator';
 	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
-	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS } from '../game-logic/constants';
+	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import config from '../game/config';
 	import { stateGame } from '../game/stateGame.svelte';
@@ -135,7 +135,7 @@
 		plinkoDrop: ({ outcomes, fastMode }) => {
 			if (!engine) return;
 			syncEngineScene();
-			engine.animationSpeed = fastMode ? 3 : 0.7;
+			engine.animationSpeed = fastMode ? SIM_SPEED.fast : SIM_SPEED.normal;
 			spawnOutcomes(outcomes);
 		},
 		bonusBallDrop: ({ stake }) => {

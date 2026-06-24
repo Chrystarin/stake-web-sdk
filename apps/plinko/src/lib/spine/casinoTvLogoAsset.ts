@@ -25,6 +25,11 @@ export const getCasinoTvLogoAsset = (): SpineAssetDef => ({
 	boundsMode: 'authored',
 	// This skeleton's artwork sits above the root (y-up); without this it fits off the top edge.
 	yUp: true,
+	// The logo is authored 16:9 (1920×1085). On a narrow portrait/mobile screen the default cover
+	// fit scales it to fill the height, blowing the width past the viewport so it's clipped on both
+	// sides. Contain it instead so the whole logo stays centered and visible, with a small margin.
+	containInPortrait: true,
+	portraitContainScale: 0.9,
 });
 
 /** Backdrop image shown behind the intro spine (CSS background, cover). */

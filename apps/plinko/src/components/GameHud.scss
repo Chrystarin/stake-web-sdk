@@ -790,6 +790,10 @@
 
 .mobile-top-card {
 	position: relative;
+	// Establish a container so the label/value scale to the card's own width.
+	// Card width is grid-proportional to the viewport, so text still scales with
+	// the viewport, but is pinned to the actual box and can never be clipped.
+	container-type: inline-size;
 	height: clamp(25px, 6.3vw, 38px);
 	padding: clamp(3px, 0.8vw, 6px) clamp(6px, 1.2vw, 9px);
 	border: none;
@@ -806,12 +810,18 @@
 }
 
 .mobile-top-card-label {
-	font-size: clamp(9px, 2.09vw, 12px);
+	// Scale with the card width (cqi) so long labels like "BALL PER DROP" shrink
+	// to fit instead of being clipped on narrow phones. Clamped to stay legible on
+	// large screens and to still fit on very narrow (≤320px) phones.
+	font-size: clamp(5.75px, 13.225cqi, 13.8px);
 	font-weight: 800;
 	color: #f6be3a;
 	line-height: 1;
 	text-transform: uppercase;
 	white-space: nowrap;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
 	margin-bottom: var(--bp-label-value-gap);
 }

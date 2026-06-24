@@ -15,6 +15,8 @@ export type FitConfig = {
 	offsetYVh?: number;
 	fitAnchor?: FitAnchor;
 	yUp?: boolean;
+	containInPortrait?: boolean;
+	portraitContainScale?: number;
 };
 
 export const computeFitTransform = (
@@ -27,10 +29,21 @@ export const computeFitTransform = (
 	const centerX = offset.x + size.x / 2;
 	const centerY = offset.y + size.y / 2;
 
+	// Portrait + `containInPortrait`: a wide (landscape) asset would overflow the narrow viewport
+	// under the usual cover fit (`Math.max`), clipping it on both sides. Contain it (`Math.min`)
+	// instead so the whole skeleton stays visible and centered, with an optional margin.
+	const containPortrait =
+		config.widthFillScale == null &&
+		config.containInPortrait === true &&
+		viewportHeight > viewportWidth;
+
 	const scale =
 		config.widthFillScale != null
 			? (viewportWidth / size.x) * config.widthFillScale
-			: Math.max(viewportWidth / size.x, viewportHeight / size.y);
+			: containPortrait
+				? Math.min(viewportWidth / size.x, viewportHeight / size.y) *
+					(config.portraitContainScale ?? 1)
+				: Math.max(viewportWidth / size.x, viewportHeight / size.y);
 
 	const offsetX = (config.offsetXVw ?? 0) * viewportWidth;
 	const offsetY = (config.offsetYVh ?? 0) * viewportHeight;
@@ -60,6 +73,8 @@ export const spineFitConfig = (asset: SpineAssetDef): FitConfig => ({
 	offsetYVh: asset.offsetYVh,
 	fitAnchor: asset.fitAnchor,
 	yUp: asset.yUp,
+	containInPortrait: asset.containInPortrait,
+	portraitContainScale: asset.portraitContainScale,
 });
 
 /** Viewport width-fill + bottom-center anchor using texture pixel dimensions. */

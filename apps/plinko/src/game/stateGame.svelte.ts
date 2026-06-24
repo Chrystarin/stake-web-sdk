@@ -8,17 +8,27 @@ import { createMeterController } from '../game-logic/meterController';
 import type { Bet, BookEvent, PlinkoBallOutcome } from './typesBookEvent';
 import { plinkoWagerAmount } from './plinkoBet';
 
+/** One multiplier pill in a round's My Bet History row. */
+export type HistoryChip = {
+	/** Pill text, e.g. "x12.5" (base game), "10 Bonus", "Free Spin x5". */
+	label: string;
+	/** Pill background color. */
+	color: string;
+};
+
+/** ONE row per round (not per ball) — base game + bonus + free spin folded together. */
 export type HistoryEntry = {
 	date: string;
+	/** Total wager for the round (bet per ball × balls per drop). */
 	bet: number;
-	multiplier: number;
+	/** Per-ball stake for the round. */
+	betPerBall: number;
+	/** Balls dropped in the round (the round's ball-per-drop tier). */
+	ballPerDrop: number;
+	/** Total win for the round: base game + bonus + free spin. */
 	win: number;
-	color: string;
-	/** Set for consolidated feature rows (e.g. "Free Spin 5×", "Bonus") and spin-slot rows ("spin")
-	 * so the My Bet History pill shows the label instead of a per-ball pocket multiplier. */
-	label?: string;
-	/** Blank the Bet column (shown as "- - -") for feature rows that aren't a single per-ball wager. */
-	betPlaceholder?: boolean;
+	/** Multiplier pills: base-game total, optional "N Bonus", and one "Free Spin xN" per free spin. */
+	chips: HistoryChip[];
 };
 export type InfoModalTab = 'rules' | 'fair' | 'history' | 'howToPlay';
 export type MsgBoxConfig = {

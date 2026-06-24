@@ -81,6 +81,8 @@ const FONT_SPECS: readonly string[] = [
 	"400 1rem 'Poppins'",
 	"600 1rem 'Poppins'",
 	"700 1rem 'Poppins'",
+	"800 1rem 'Poppins'",
+	"900 1rem 'Poppins'",
 	"1rem 'PiecesOfEight'",
 	"1rem 'PotatoSans'",
 	"1rem 'Perpetua'",

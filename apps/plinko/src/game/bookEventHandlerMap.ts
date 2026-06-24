@@ -7,8 +7,10 @@ import { eventEmitter } from './eventEmitter';
 import { plinkoBallsPerDrop, plinkoPlayAmount, plinkoStakePerBall } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import {
+	beginRoundHistory,
 	enqueueAuthoritativeBonusLevel,
 	loadAuthoritativeBonusOutcomes,
+	refreshRoundHistoryEntry,
 	startAuthoritativeBonusRound,
 	waitForBonusRoundCompletion,
 	waitForDropBatchCompletion,
@@ -230,6 +232,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		await waitForDropBatchCompletion();
 		logPlinkoWinMismatchIfNeeded(bookEvent.amount, 'setTotalWin');
 		applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
+		refreshRoundHistoryEntry();
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
 		recordBookEvent({ bookEvent });
@@ -245,6 +248,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
 			}
 		}
+		// Settle the round's My Bet History row to the authoritative total (base + bonus + free spin).
+		refreshRoundHistoryEntry();
 	},
 };
 
@@ -305,6 +310,8 @@ export const playBet = async (bet: Bet) => {
 	stateGame.spinSlotMeterCreditedBallIds = new Set();
 	stateGame.bonusPegMeterCreditedBallIds = new Set();
 	stateGame.dropRoundActive = true;
+	// Open this round's single My Bet History row (base game + bonus + free spin fold into it).
+	beginRoundHistory();
 	stateGame.authoritativeBonusLevelQueue = [];
 	// Stale in-bonus free-spin payload must not carry across bets (set later by this book's
 	// `freeSpinTrigger` event if a free spin fires during the bonus round).

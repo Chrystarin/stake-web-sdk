@@ -6,7 +6,6 @@ import { resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
 import {
-	getCombinedRoundWinAmount,
 	recordFreeSpinWinHistory,
 	settleBonusRoundWhenFinished,
 } from '../../game/gameOrchestrator';
@@ -43,17 +42,22 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 			const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
 			let appliedFeatureWin = false;
 
+			// A numeric free spin fired → always add its "Free Spin xN" chip to the round row, even
+			// when the base drop itself won nothing (a free spin can follow an all-spin-slot base
+			// drop). The round win is synced separately via `applyRgsRoundWinFromBet` / `finalWin`.
+			if (multiplier > 0 && totalWin > 0) {
+				recordFreeSpinWinHistory(multiplier);
+			}
+
 			if (stateGame.bonusRoundActive) {
 				// IN-BONUS free spin: `totalWin` is the whole round; the bonus portion is total − base
 				// drop. The bonus trigger book ships an EMPTY base drop, so `baseWin` is 0 here and must
-				// NOT gate this (that was dropping the in-bonus free-spin win from the history total).
-				// Fold the credit into the bonus session AND log it as its own "Free Spin N×" row;
-				// track the credit so the consolidated "Bonus" row excludes it (no double-count).
+				// NOT gate this. Fold the credit into the bonus session (the round win sync picks it up;
+				// the "Free Spin xN" chip was already added above).
 				if (multiplier > 0 && totalWin > 0) {
 					const bonusPortion = Math.max(0, totalWin - stateGame.baseRoundDropWinAmount);
 					const credit = bonusPortion - stateGame.bonusSessionWinAmount;
 					if (credit > 0) {
-						recordFreeSpinWinHistory(multiplier, credit, stateGame.bonusSessionWinAmount);
 						stateGame.inBonusFreeSpinCreditTotal += credit;
 						stateGame.bonusSessionWinAmount = bonusPortion;
 					}
@@ -61,16 +65,7 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 					appliedFeatureWin = true;
 				}
 			} else if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
-				// Snapshot the win already logged ball-by-ball (base lands) before the wheel multiplier
-				// replaces the round total, so we log only the incremental free-spin credit and keep
-				// the history sum equal to the displayed total.
-				const winBeforeFeature = getCombinedRoundWinAmount();
 				stateGame.pendingDropWinAmount = totalWin;
-				recordFreeSpinWinHistory(
-					multiplier,
-					getCombinedRoundWinAmount() - winBeforeFeature,
-					winBeforeFeature,
-				);
 				appliedFeatureWin = true;
 			}
 
