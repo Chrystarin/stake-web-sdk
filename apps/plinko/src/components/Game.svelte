@@ -1394,13 +1394,13 @@
 			)
 			scale(var(--game-layout-scale-mobile));
 
-		--plinko-area-scale-mobile: 0.8;
+		--plinko-area-scale-mobile: 0.75;
 		--plinko-area-top-width-scale-mobile: 1;
 		--plinko-area-bottom-width-scale-mobile: 1;
-		--plinko-area-height-scale-mobile: 1.35;
+		--plinko-area-height-scale-mobile: 1.5;
 		--plinko-area-offset-x-ratio-mobile: 0.01;
 		--plinko-area-offset-ratio-mobile: 0;
-		--plinko-area-offset-y-ratio-mobile: -0.01;
+		--plinko-area-offset-y-ratio-mobile: -0.03;
 
 		--plinko-area-offset-x-mobile: calc(var(--plinko-area-offset-x-ratio-mobile) * 100vw);
 		--plinko-host-width-mobile: calc(
