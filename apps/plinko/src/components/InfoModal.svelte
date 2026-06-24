@@ -147,11 +147,11 @@
 								calculated).
 							</li>
 							<li>
-								<strong>BET PER BALL</strong> – Base amount wagered on each single cannonball. Adjust
+								<strong>BET PER BALL</strong> – Base amount wagered on each single ball. Adjust
 								with + / − buttons.
 							</li>
 							<li>
-								<strong>BALL PER DROP</strong> – Number of cannonballs released per round. Adjust with
+								<strong>BALL PER DROP</strong> – Number of balls released per round. Adjust with
 								+ / − buttons.
 							</li>
 						</ul>
@@ -171,76 +171,70 @@
 						<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
 						<p>
 							The bottom of the board features a row of colored multiplier slots (from low in the
-							center to high on the edges).
+							center to high on the edges); the dead-center pocket is the SPIN (0×) slot, which pays nothing but fills the Free Spin meter.
 						</p>
 						<ul>
 							<li>
-								<strong>Low-value slots</strong> (center, often green/blue) = smaller returns
-								(sometimes below 1x).
+								<strong>Low-value slots</strong> (near the center, green/yellow) = small returns,
+								below 1×.
 							</li>
 							<li>
-								<strong>High-value slots</strong> (outer edges, often red/purple) = huge multipliers
-								(up to 100x per ball, with bonus rounds reaching your tier's max payout — from 200x
-									on a single ball up to 400x with more balls per drop).
+								<strong>High-value slots</strong> (outer edges, orange through pink/magenta) = huge multipliers
+								(up to 100× per ball, with bonus rounds reaching your tier's max payout — from 200×
+									on a single ball up to 400× with more balls per drop).
 							</li>
 						</ul>
 						<p>
-							A “SPIN” label appears in the center of the multiplier bar. Multiplier values are
-							clearly shown and can vary based on your chosen volatility/risk settings. The more balls
-							and higher risk you select, the bigger the potential payouts.
+							The board layout is fixed — you control your own risk through your Bet per Ball and Ball
+							per Drop, not a difficulty or rows setting. Dropping more balls spreads them across more
+							pockets and raises the top potential payout.
 						</p>
 
 						<h3 class="info-section-title">Key Features &amp; Settings</h3>
 						<p>
-							<strong>Theme</strong> — Immersive pirate adventure under a blood-red crimson sky: a
-							giant pirate skull captain wearing a tricorn hat sits atop the ship deck board, with
-							flying Jolly Roger flags, stormy seas, distant ghost ships, flaming torches, and
-							dramatic moonlit atmosphere.
-						</p>
-						<p>
 							<strong>RTP</strong> — Approximately 95.7% (varies slightly with play).
 						</p>
 						<p>
-							<strong>Volatility</strong> — Tunable through your bet and ball choices — longer dry
-							spells possible, but big multiplier landings deliver massive wins.
+							<strong>Volatility</strong> — High. Most balls settle near the center for small returns, so dry
+							spells are possible, but rare edge landings and the bonus features can deliver big wins.
 						</p>
 
-						<h3 class="info-section-title">Bonus Feature</h3>
-						<p><strong>Free Spin / Crimson Fury Bonus</strong></p>
+						<h3 class="info-section-title">Bonus Features</h3>
+						<p><strong>Free Spin</strong> — multiplier wheel</p>
 						<p>
-							The game features a FREE SPIN progress bar (visible on the right side of the multiplier
-							bar). Every time you play and plinko balls hit “SPIN” spots, the Multiplier Roulette
-							meter fills up with crimson energy.
+							The FREE SPIN meter (lower-right of the board) fills as balls land in the center SPIN
+							(0×) slot. When it fills during a drop, a wheel adds a multiplier of your Bet per Ball,
+							from 0.5× up to 20×, on top of your win.
 						</p>
 						<p>
-							Every time you play and plinko balls hit the 3 gold pegs at the middle, the Bonus
-							feature meter at the top fills up and will trigger the Free Balls Bonus Feature.
+							One segment of that wheel is BONUS, which chains straight into a Bonus round. The Free
+							Spin feature is not available on the single-ball drop.
 						</p>
-						<p>When the meter at the top reaches full capacity, the FREE SPIN bonus automatically triggers:</p>
+						<p><strong>Bonus</strong> — free balls</p>
 						<ul>
-							<li>You receive a batch of free ball drops (no additional cost).</li>
+							<li>The Bonus meter (top-center of the board) fills as balls strike the 3 gold coin pegs.</li>
 							<li>
-								Additional hits or good landings during the free spins can further fill the meter and
-								award even more free drops.
+								When it fills during a drop, a wheel awards a batch of free balls that drop
+								automatically at no extra cost.
 							</li>
 						</ul>
 						<p>
-							When the meter at the left reaches full capacity, the Multiplier Roulette Spin bonus
-							automatically triggers:
+							Strong bonus rounds can level up as more coin pegs are hit during the bonus, awarding
+							even more free balls.
 						</p>
 						<ul>
 							<li>
-								The Current Bet amount will have a chance to get a multiplier from the Multiplier
-								Roulette Spin.
+								Free balls are staked at your current Bet per Ball and drop on their own — you don't
+								pay anything extra for them.
 							</li>
 							<li>
-								This Multiplier Roulette also has a chance to trigger a bonus free balls feature (one
-								segment shows a Free Bonus within the set of multipliers).
+								Both meters are per-drop: they fill from the current drop's hits and reset each round,
+								so they don't carry over between bets.
 							</li>
 						</ul>
 						<p>
-							This creates exciting chain reactions where one triggered bonus can snowball into many
-							extra drops and bigger hauls.
+							Because both features resolve inside the same drop, one round can pay the base drop plus
+							a Free Spin multiplier and a batch of bonus balls.
 						</p>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
