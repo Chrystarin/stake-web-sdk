@@ -198,8 +198,7 @@
 							dramatic moonlit atmosphere.
 						</p>
 						<p>
-							<strong>RTP</strong> — Approximately 95%–96% (varies slightly depending on settings and
-							casino).
+							<strong>RTP</strong> — Approximately 95.7% (varies slightly with play).
 						</p>
 						<p>
 							<strong>Volatility</strong> — Tunable through your bet and ball choices — longer dry
