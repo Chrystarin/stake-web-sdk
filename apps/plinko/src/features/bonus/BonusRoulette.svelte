@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { bonusRouletteSegmentsForTier } from '../../game-logic/constants';
+	import { assertAuthoritativeOutcome } from '../../game/plinkoFairnessGuard';
 	import { stateGame } from '../../game/stateGame.svelte';
 	import { isMobile } from '../../lib/format';
 	import { staticUrl } from '../../lib/staticUrl';
@@ -157,6 +158,12 @@
 			const match = segments.findIndex((s) => s.freeBalls === props.targetFreeBalls);
 			if (match >= 0) return match;
 		}
+		// Provably-fair guard: a live spin must resolve to the book's `targetFreeBalls` segment. Falling
+		// back to segment 0 / a client-random segment live would break fairness, so surface it (throws in DEV).
+		assertAuthoritativeOutcome('BonusRoulette spin without a matching authoritative segment', {
+			targetFreeBalls: props.targetFreeBalls,
+			serverAuthoritative: props.serverAuthoritative,
+		});
 		if (props.serverAuthoritative) return 0;
 		return Math.floor(Math.random() * segments.length);
 	}

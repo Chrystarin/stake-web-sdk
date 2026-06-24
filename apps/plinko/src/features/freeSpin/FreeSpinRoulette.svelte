@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
+	import { assertAuthoritativeOutcome } from '../../game/plinkoFairnessGuard';
 	import { staticUrl } from '../../lib/staticUrl';
 
 	export type FreeSpinRouletteResult = {
@@ -98,6 +99,14 @@
 	);
 
 	function startSpin() {
+		// Provably-fair guard: a live spin must land on the book's `targetSegmentIndex`. Falling back to
+		// segment 0 / a client-random segment live would break fairness, so surface it (throws in DEV).
+		if (!(props.targetSegmentIndex != null && props.targetSegmentIndex >= 0)) {
+			assertAuthoritativeOutcome('FreeSpinRoulette spin without authoritative targetSegmentIndex', {
+				targetSegmentIndex: props.targetSegmentIndex,
+				serverAuthoritative: props.serverAuthoritative,
+			});
+		}
 		const winner =
 			props.targetSegmentIndex != null && props.targetSegmentIndex >= 0
 				? props.targetSegmentIndex % FREE_SPIN_SEGMENTS.length

@@ -18,7 +18,7 @@ import {
 	syncPlinkoWalletAfterRound,
 } from './plinkoWalletSync';
 import type { Bet } from './typesBookEvent';
-import { closeActiveRgsRound } from './plinkoActiveRound';
+import { alignPlinkoUiToResumeBook, closeActiveRgsRound } from './plinkoActiveRound';
 import { alignPlinkoUiToReplayBook, isPlinkoReplay } from './plinkoReplay';
 import { releaseRoundInteractionLocks } from './meterFlow';
 import { playBet } from './bookEventHandlerMap';
@@ -41,6 +41,10 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		// Replay: align the UI tier/stake to the served book so playback reproduces it exactly (no-op
 		// for a genuine active-round resume, which carries no replay URL params).
 		alignPlinkoUiToReplayBook(state);
+		// Genuine active-round resume (not replay): align the UI balls-per-drop tier to the resumed
+		// book. Launch defaults the tier to 10, but a resumed bonus round can be 20/50 — without this
+		// `playBet`'s stratum check false-positives and pops an error toast across the top of the screen.
+		alignPlinkoUiToResumeBook(state, (betToResume as { mode?: string }).mode);
 		const normalizedBet: Bet = { ...betToResume, state };
 		if (state.length > 0) {
 			applySpinMeterDisplay(deriveSpinMeterFromBookEvents(state));

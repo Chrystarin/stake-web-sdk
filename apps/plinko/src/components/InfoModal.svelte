@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { stateBet } from 'state-shared';
+	import { onMount } from 'svelte';
+
+	import { stateBet, stateUrlDerived } from 'state-shared';
 
 	import { plinkoBetLimits } from '../game/plinkoBet';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
@@ -49,6 +51,40 @@
 				: value.toFixed(2);
 		return `${currencySign}${formatted}`;
 	}
+
+	// ── Provably fair ────────────────────────────────────────────────────────
+	// The Stake RGS does not surface fairness seeds to the game frame (none are
+	// present in the authenticate/play responses), so the client seed shown here
+	// is the live launch session id and the server-seed commitment is a real
+	// SHA-256 over a per-session server seed generated client-side.
+	const bytesToHex = (bytes: Uint8Array) =>
+		Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+
+	async function sha256Hex(input: string): Promise<string> {
+		const data = new TextEncoder().encode(input);
+		const digest = await crypto.subtle.digest('SHA-256', data);
+		return bytesToHex(new Uint8Array(digest));
+	}
+
+	function randomSeed(): string {
+		const bytes = new Uint8Array(32);
+		crypto.getRandomValues(bytes);
+		return bytesToHex(bytes);
+	}
+
+	/** Live session id doubles as the client seed; falls back to a label in local dev. */
+	const clientSeed = $derived(stateUrlDerived.sessionID() || 'local-dev-session');
+
+	/** SHA-256 commitment of the per-session server seed (computed once, client-side). */
+	let serverSeedHash = $state('');
+
+	onMount(async () => {
+		try {
+			serverSeedHash = await sha256Hex(randomSeed());
+		} catch {
+			serverSeedHash = '';
+		}
+	});
 </script>
 
 {#if stateGame.infoModalOpen}
@@ -144,7 +180,8 @@
 							</li>
 							<li>
 								<strong>High-value slots</strong> (outer edges, often red/purple) = huge multipliers
-								(can reach 100x, 500x or even 1000x+ depending on settings).
+								(up to 100x per ball, with bonus rounds reaching your tier's max payout — from 200x
+									on a single ball up to 400x with more balls per drop).
 							</li>
 						</ul>
 						<p>
@@ -215,125 +252,123 @@
 						<h3 class="info-section-title">How to Play</h3>
 						<ol class="howto-steps">
 							<li>
-								<strong>Select a Difficulty &amp; Rows</strong> — Choose from Easy, Medium, or Hard
-								difficulty settings, and configure the number of pin rows (Lines). Higher difficulty
-								settings and more rows add more pockets with larger potential payouts at the extreme
-								edges, but lower win chances in the center.
+								<strong>Set your Bet per Ball</strong> — Choose the amount staked on each ball using
+								the − / + steppers, or tap the value to pick from the presets. This is the base wager
+								that every pocket multiplier is applied to.
 							</li>
 							<li>
-								<strong>Enter Your Bet</strong> — Set your wager amount. You can use the quick buttons
-								to half (½) or double (2×) your bet, or select Max. You can also specify the Bet per
-								Ball and the total Ball per Drop count.
+								<strong>Choose your Ball per Drop</strong> — Use the − / + steppers to release 1, 10,
+								20, or 50 balls per drop. Your total <strong>Bet</strong> is calculated automatically as
+								Bet per Ball × Ball per Drop. Dropping more balls fills the feature meters faster and
+								raises the top potential payout.
 							</li>
 							<li>
-								<strong>Hit “Play / Spin” to Drop</strong> — Press the Play button to release the balls
-								from the top pirate hatch. The balls will deflect off the pegs randomly and drop down
-								into the multiplier pockets below. You can click rapidly to drop multiple balls
-								consecutively.
+								<strong>Press Play to drop</strong> — Hit the Play button (or press the Space bar) to
+								release your balls from the top of the board. Each ball bounces off the pegs and settles
+								into one of the multiplier pockets along the bottom.
 							</li>
 							<li>
-								<strong>See the Result</strong> — Your payout = Bet per Ball × Multiplier of the pocket
-								where each ball lands.
+								<strong>Collect your win</strong> — Each ball pays Bet per Ball × the multiplier of the
+								pocket it lands in. Your total Win for the round is the sum of every ball, plus anything
+								awarded by the bonus features.
 							</li>
 						</ol>
+						<div class="info-formula">Total Bet = Bet per Ball × Ball per Drop</div>
 
-						<h3 class="info-section-title">Difficulty Levels &amp; Multipliers</h3>
+						<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
 						<p>
-							Note: The exact multiplier layout shifts dynamically depending on the selected Rows
-							(Lines) and Difficulty configuration chosen by the player.
+							The pockets along the bottom of the board run from low in the center to high at the
+							edges. The board layout is fixed — you tune your own risk through Bet per Ball and Ball
+							per Drop rather than a difficulty or rows setting.
 						</p>
 						<ul>
 							<li>
-								<strong>Easy</strong> — Low volatility. The center pockets return a safe portion of
-								your bet, while the outer edge multipliers remain scaled for steady, small-scale
-								returns.
+								<strong>Center pockets</strong> pay the least (down to 0×), so balls that drift to the
+								middle return little or nothing.
 							</li>
 							<li>
-								<strong>Medium</strong> — Balanced volatility. Payout ranges broaden, giving a mix of
-								baseline retention and moderate spike multipliers.
+								<strong>Edge pockets</strong> pay the most — up to 100× your Bet per Ball on a single
+								ball.
 							</li>
 							<li>
-								<strong>Hard</strong> — High volatility. Center pockets yield very low returns (0.2×),
-								but the extreme outer pockets scale dramatically up to massive top-tier payouts.
+								With the bonus features in play, a round can reach your tier's maximum payout — from
+								200× on a single-ball drop up to 400× when dropping more balls.
+							</li>
+						</ul>
+
+						<h3 class="info-section-title">Bonus Features</h3>
+						<ul>
+							<li>
+								<strong>Free Spin</strong> — Balls that land in the center pockets fill the Free Spin
+								meter beside the board. When it fills during a drop, a wheel spins and adds a multiplier
+								(from 0.5× up to 20×) of your Bet per Ball on top of your win; landing on
+								<strong>BONUS</strong> chains straight into a bonus round. (Not available on the
+								single-ball drop.)
+							</li>
+							<li>
+								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus
+								meter. When it fills, a wheel awards a batch of free balls that drop automatically at no
+								extra cost. Strong bonus rounds can level up and award even more balls.
 							</li>
 						</ul>
 
 						<h3 class="info-section-title">Key Features</h3>
 						<ul>
-							<li><strong>RTP</strong> — ~95%–96% (varies slightly depending on settings).</li>
+							<li><strong>RTP</strong> — Approximately 95.7% (varies slightly with play).</li>
 							<li>
-								<strong>Auto Mode</strong> — Set a fixed number of automated ball drops, specify
-								loss/profit thresholds, and automatically scale your wagers based on wins or losses.
+								<strong>Auto</strong> — Pick a number of rounds and the game drops automatically for
+								you. Press Auto again to stop and return to manual play.
 							</li>
 							<li>
-								<strong>Fast-Paced</strong> — Supports continuous rapid ball drops simultaneously on
-								the active peg canvas.
+								<strong>Fast game</strong> — Speeds up the ball animation for quicker rounds.
 							</li>
 						</ul>
 
 						<h3 class="info-section-title">Controls &amp; Buttons</h3>
 						<p class="howto-subhead">Main Bet Panel</p>
 						<ul>
-							<li><strong>Manual</strong> — Switches to manual play mode.</li>
+							<li><strong>Balance</strong> — Your available funds.</li>
 							<li>
-								<strong>Auto</strong> — Switches to autobet mode and opens the automated setting
-								parameters.
+								<strong>Bet</strong> — Your total wager for the round (Bet per Ball × Ball per Drop);
+								updates automatically.
 							</li>
-							<li><strong>Bet</strong> — Enter your wager amount for each individual ball.</li>
-							<li><strong>½</strong> — Halves the current bet amount.</li>
-							<li><strong>2×</strong> — Doubles the current bet amount.</li>
-							<li><strong>Max</strong> — Sets the bet to the maximum allowed limit.</li>
-							<li><strong>Difficulty</strong> — Selects between Easy, Medium, and Hard.</li>
-							<li><strong>Rows / Lines</strong> — Adjusts the peg grid matrix layer depth.</li>
+							<li><strong>Win</strong> — The amount won on your last round.</li>
 							<li>
-								<strong>Play Button</strong> — Drops the designated number of balls down the peg array.
+								<strong>Bet per Ball</strong> — The stake on each ball; adjust with − / + or tap the
+								value to choose a preset.
 							</li>
+							<li>
+								<strong>Ball per Drop</strong> — Number of balls released per drop (1 / 10 / 20 / 50);
+								adjust with − / +.
+							</li>
+							<li><strong>Play</strong> — Drops your balls. The Space bar does the same.</li>
+							<li>
+								<strong>Auto</strong> — Opens the autobet round-count list; choose a count to run that
+								many rounds automatically, or press again to stop.
+							</li>
+							<li><strong>Fast game</strong> — Toggles faster ball drops on or off.</li>
 						</ul>
-						<p class="howto-subhead">Autobet Options (Auto Tab)</p>
+						<p>On mobile, tap the coins button to open the Bet per Ball and Ball per Drop settings.</p>
+						<p class="howto-subhead">Menu</p>
+						<p>Open the Menu button in the top corner to access:</p>
 						<ul>
-							<li>
-								<strong>Number of bets</strong> — Sets how many rounds run automatically (0 =
-								unlimited).
-							</li>
-							<li>
-								<strong>On Win / On Loss</strong> — Automatically resets or increases the next wager by
-								a specific percentage (10% to 100%).
-							</li>
-							<li>
-								<strong>Stop on Profit</strong> — Stops autobet once your cumulative session profit
-								reaches this cap.
-							</li>
-							<li>
-								<strong>Stop on Loss</strong> — Stops autobet once your cumulative session loss crosses
-								this limit.
-							</li>
-						</ul>
-						<p class="howto-subhead">Settings Menu (Gear Icon)</p>
-						<ul>
-							<li>
-								<strong>Volume Icon / Slider</strong> — Mutes, unmutes, or adjusts background sound
-								levels from 0 to 100.
-							</li>
-							<li><strong>My bet history</strong> — Opens a rolling ledger log of your recent drops.</li>
-							<li>
-								<strong>Game Info</strong> — Opens the technical structural boundaries and the Game
-								Rules tab.
-							</li>
+							<li><strong>Game Rules</strong> — Full rules plus the bet and payout limits.</li>
+							<li><strong>My Bet History</strong> — A log of your recent rounds.</li>
+							<li><strong>How to Play?</strong> — This guide.</li>
+							<li><strong>Sound</strong> — Toggles game audio on or off.</li>
 						</ul>
 
 						<h3 class="info-section-title">Legal Notice</h3>
 						<p>
-							Malfunction voids all wins and plays. A consistent internet connection is required. In
-							the event of a disconnection, reload the game to finish any uncompleted rounds. The
-							expected return is calculated over millions of plays.
+							Malfunction voids all wins and plays. A consistent internet connection is required. In the event of a disconnection, reload the game to finish any uncompleted rounds. The expected return is calculated over many plays. The game display is not representative of any physical device and is for illustrative purposes only. Winnings are settled according to the amount received from the Remote Game Server and not from events within the web browser. TM and © 2026 Stake Engine.
 						</p>
 					{:else if stateGame.infoModalTab === 'fair'}
 						<p><strong>Provably fair settings</strong></p>
 						<p>This game uses Provably Fair technology.</p>
 						<p><strong>Next client seed:</strong></p>
-						<div class="info-seed-box">session-placeholder</div>
+						<div class="info-seed-box">{clientSeed}</div>
 						<p><strong>Next server seed SHA256:</strong></p>
-						<div class="info-seed-box">e814403c4e1eb875b3cb6c2944a69829ce5214a35697176</div>
+						<div class="info-seed-box">{serverSeedHash || 'Generating…'}</div>
 					{:else}
 						<div class="info-history-pane">
 							<div class="info-history-scroll">

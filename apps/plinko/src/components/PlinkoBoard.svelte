@@ -4,6 +4,7 @@
 	import { PlinkoEngine, type BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 	import { getContext } from '../game/context';
 	import { registerBonusBallOutcome, takeAuthoritativeBonusOutcome } from '../game/gameOrchestrator';
+	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
 	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import config from '../game/config';
@@ -135,6 +136,12 @@
 				registerBonusBallOutcome(dropped.ballId, authoredOutcome);
 				return;
 			}
+			// Provably-fair guard: in a live RGS round every bonus ball must come from a book outcome.
+			// Reaching this client-random fallback live would break fairness, so surface it (throws in DEV).
+			assertAuthoritativeOutcome('bonusBallDrop: no authoritative outcome for ball', {
+				outcomeIndex: stateGame.authoritativeBonusOutcomeIndex,
+				outcomeCount: stateGame.authoritativeBonusOutcomes.length,
+			});
 			const dropped = engine.dropBall(-1);
 			if (!dropped) return;
 			const isSpinSlot = isSpinSlotRateIndex(dropped.targetIndex, props.coefficients.length);

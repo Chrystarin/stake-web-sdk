@@ -58,10 +58,14 @@
 	-->
 
 	<nav class="hud-menu-list">
+		<!-- Provably fair settings menu entry temporarily hidden. The underlying
+		     code (onOpenFair prop, openInfo('fair') wiring, and the InfoModal
+		     "fair" content) is intentionally kept for now so this can be restored.
 		<button type="button" class="hud-menu-item" onclick={() => props.onOpenFair?.()}>
 			<img class="hud-menu-item-icon" src={menuIcons.fair} alt="" aria-hidden="true" />
 			<span class="hud-menu-item-label">{t('Provably fair settings')}</span>
 		</button>
+		-->
 
 		<button type="button" class="hud-menu-item" onclick={() => props.onOpenRules?.()}>
 			<img class="hud-menu-item-icon" src={menuIcons.rules} alt="" aria-hidden="true" />
