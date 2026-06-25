@@ -52,11 +52,12 @@
 	}
 	.rate-lbl {
 		font-family: 'Poppins', system-ui, sans-serif;
-		font-size: 2.5rem;
+		/* vw-driven so it tracks the viewport; px bounds keep it sane on very small/large screens. */
+		font-size: clamp(30px, 3.1vw, 56px);
 		font-weight: 900;
 		color: #fee663;
-		/* em so the stroke scales with the font (≈1.2px at the 40px desktop size). */
-		-webkit-text-stroke: 0.03em #fee663;
+		/* em so the stroke scales with the font (≈2px at the 40px desktop size). */
+		-webkit-text-stroke: 0.05em #fee663;
 		paint-order: stroke fill;
 	}
 	.sep {
@@ -66,11 +67,12 @@
 	}
 	.amount-lbl {
 		font-family: 'Poppins', system-ui, sans-serif;
-		font-size: 1.8rem;
+		/* vw-driven so it tracks the viewport; px bounds keep it sane on very small/large screens. */
+		font-size: clamp(22px, 2.25vw, 40px);
 		font-weight: 900;
 		color: #fff;
-		/* em so the stroke scales with the font (≈0.9px at the ~29px desktop size). */
-		-webkit-text-stroke: 0.031em #fff;
+		/* em so the stroke scales with the font (≈1.4px at the ~29px desktop size). */
+		-webkit-text-stroke: 0.05em #fff;
 		paint-order: stroke fill;
 	}
 	.suffix {
@@ -80,12 +82,11 @@
 	}
 
 	/*
-	 * Portrait / mobile: the root font-size floors at 8px on narrow screens, so the rem-based
-	 * desktop sizes collapse to ~half (20px multiplier) and look tiny. Re-scale with the
-	 * viewport using px+vw clamps — the convention used across the mobile UI (e.g. the
-	 * roulettes) — with px floors at the desktop size so it never gets smaller, and px
-	 * ceilings so it can't blow up on a portrait tablet. Keeps the multiplier↔amount ratio
-	 * (~1.38) from the reference.
+	 * Portrait / mobile: portrait viewports are far narrower, so they need a much larger vw
+	 * coefficient than the landscape base (~13vw vs ~3vw) to stay proportionate. Same vw-driven
+	 * px+clamp convention used across the mobile UI (e.g. the roulettes): px floors at the
+	 * desktop size so it never gets smaller, px ceilings so it can't blow up on a portrait
+	 * tablet. Keeps the multiplier↔amount ratio (~1.38) from the reference.
 	 */
 	.result-overlay--portrait .result-wrapper {
 		gap: clamp(16px, 4vw, 28px);
