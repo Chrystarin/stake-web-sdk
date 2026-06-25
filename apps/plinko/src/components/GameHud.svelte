@@ -113,6 +113,11 @@
 			: String(stateGame.autoRoundsLeft),
 	);
 
+	// A bonus that fires mid-Autobet terminates the run (see `triggerRoulette`): while it winds down
+	// (still `autoPlayStarted` but `autoPlayStopping`) the Autobet toggle goes inert and drops its
+	// remaining-rounds badge, so the player can't re-arm it and no stale count lingers.
+	const autoBetStopping = $derived(props.autoPlayStarted && stateGame.autoPlayStopping);
+
 	function formatMoney(value: number) {
 		const formatted = value.toLocaleString('en-US', {
 			minimumFractionDigits: 2,
@@ -196,6 +201,8 @@
 
 	function onAutoButtonClick(event: MouseEvent) {
 		event.stopPropagation();
+		// Inert while a mid-Autobet bonus is terminating the run.
+		if (autoBetStopping) return;
 		if (controlsLocked && !props.autoPlayStarted) return;
 		if (props.autoMode) {
 			stateGame.autoMode = false;
@@ -232,7 +239,9 @@
 
 	function onMainActionClick() {
 		if (isPlayButtonDisabled) return;
-		if (props.hasPendingBonusBalls || !props.autoMode) {
+		// While a mid-Autobet bonus terminates the run the main button is the (bonus / plain) Play button,
+		// never the Autobet stop — so don't treat a press as "stop autobet".
+		if (props.hasPendingBonusBalls || !props.autoMode || autoBetStopping) {
 			props.onPlay();
 			return;
 		}
@@ -268,6 +277,8 @@
 
 	function onMobileAutoButtonClick(event: MouseEvent) {
 		event.stopPropagation();
+		// Inert while a mid-Autobet bonus is terminating the run.
+		if (autoBetStopping) return;
 		if (props.autoPlayStarted) {
 			onAutoGameStopClick();
 			autoPanelOpen = false;
@@ -394,13 +405,13 @@
 					type="button"
 					class="mobile-icon-btn mobile-icon-btn--autobet"
 					class:mobile-icon-btn--on={props.autoMode || props.autoPlayStarted}
-					disabled={controlsLocked && !props.autoPlayStarted}
+					disabled={(controlsLocked && !props.autoPlayStarted) || autoBetStopping}
 					aria-pressed={props.autoMode || props.autoPlayStarted}
 					aria-label="Autobet"
 					onclick={onMobileAutoButtonClick}
 				>
 					<img src={staticUrl('img/auto-bet-btn-mobile.png')} alt="" aria-hidden="true" />
-					{#if props.autoMode || props.autoPlayStarted}
+					{#if (props.autoMode || props.autoPlayStarted) && !autoBetStopping}
 						<span class="mobile-autobet-count-badge">{mobileAutoCountDisplay}</span>
 					{/if}
 				</button>
@@ -674,7 +685,7 @@
 								<span class="bp-bonus-count-badge">{props.bonusBallsRemaining}</span>
 							{/if}
 						</button>
-					{:else if props.autoPlayStarted}
+					{:else if props.autoPlayStarted && !autoBetStopping}
 						<button
 							type="button"
 							class="bp-btn-play bp-btn-play--narrow"
@@ -702,7 +713,7 @@
 								class="bp-btn-auto"
 								class:bp-btn-auto--on={props.autoMode}
 								class:bp-btn-auto--running={props.autoPlayStarted}
-								disabled={controlsLocked && !props.autoPlayStarted}
+								disabled={(controlsLocked && !props.autoPlayStarted) || autoBetStopping}
 								aria-pressed={props.autoMode}
 								title={props.autoMode ? 'Manual' : 'Auto'}
 								onclick={onAutoButtonClick}
@@ -710,7 +721,7 @@
 								<span class="bp-btn-auto-ico" aria-hidden="true">
 									<img src={staticUrl('img/auto-bet-btn.png')} alt="" />
 								</span>
-								{#if props.autoMode}
+								{#if props.autoMode && !autoBetStopping}
 									<span class="bp-auto-count-badge">{props.autoRoundsLeft}</span>
 								{/if}
 							</button>

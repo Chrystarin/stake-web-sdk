@@ -79,6 +79,8 @@ export function triggerRoulette(source: RouletteSource) {
 		return;
 	}
 	if (stateGame.autoPlayStarted) {
+		// Free spin PAUSES Autobet (it resumes after the wheel closes); a bonus TERMINATES the run — the
+		// player plays the bonus round out manually, and Autobet does not place further bets.
 		if (source === 'spin') stateGame.autoPlayPausedByFreeSpin = true;
 		else stateGame.autoPlayStopping = true;
 	}

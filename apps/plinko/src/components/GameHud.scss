@@ -601,15 +601,17 @@
 		transform: scale(1.04);
 	}
 
+	&.bp-btn-auto--on {
+		// On = full opacity.
+		opacity: 1;
+	}
+
+	// Declared after `--on` so a disabled toggle always reads as dimmed even while "on" — e.g. a
+	// bonus terminating an Autobet run (equal specificity, later rule wins).
 	&:disabled {
 		// Disabled = low opacity.
 		opacity: 0.6;
 		cursor: not-allowed;
-	}
-
-	&.bp-btn-auto--on {
-		// On = full opacity.
-		opacity: 1;
 	}
 }
 
