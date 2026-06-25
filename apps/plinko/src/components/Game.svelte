@@ -130,6 +130,10 @@
 	/** TODO: remove — temporary preview of bonus level-up overlay on load. */
 	const DEV_SHOW_BONUS_LEVEL_UP_ON_LOAD = false;
 
+	/** TODO: remove — open the bonus roulette the moment the game loads (pairs with DEBUG_KEEP_OPEN in
+	 * BonusRoulette.svelte, which holds it on screen). Bonus will NOT resolve while this is on. */
+	const DEV_SHOW_BONUS_ROULETTE_ON_LOAD = false;
+
 	let gameRootEl = $state<HTMLElement | undefined>(undefined);
 
 
@@ -179,6 +183,10 @@
 			stateGame.bonusLevelUpAddedBalls = 80;
 			stateGame.bonusLevelUpOverlayOpen = true;
 			stateGame.bonusLevelUpOverlayVisible = true;
+		}
+
+		if (DEV_SHOW_BONUS_ROULETTE_ON_LOAD) {
+			stateGame.bonusRouletteOpen = true;
 		}
 
 		if (DEV_SHOW_WIN_MODAL_ON_LOAD) {
@@ -1323,13 +1331,33 @@
 
 		box-sizing: border-box;
 
+		/* Square at minimum, widening to a landscape rectangle as the win amount gets longer.
+		   `--win-sq` is the 1:1 floor (sized for the short-amount content so it reads square);
+		   height stays pinned to it while `max-content` lets a longer amount push the width wider.
+		   The divider uses a relative width (below) so the *amount* — not the divider — drives how
+		   wide the card grows.
+		   NOTE: floor + padding are in `rem` (like the text) so the aspect ratio is identical on
+		   desktop and mobile — the SDK scales the root font-size per device, and px/vw units would
+		   leave the floor fixed while the text grew, making mobile read as a wide rectangle. */
+		--win-sq: 15rem;
+
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+		justify-content: center;
+
 		width: max-content;
 
-		min-width: 150px;
+		height: var(--win-sq);
+
+		min-width: var(--win-sq);
 
 		max-width: 96vw;
 
-		padding: 32px 24px;
+		padding: 0 3.5rem;
 
 		text-align: center;
 
@@ -1358,7 +1386,9 @@
 
 		display: block;
 
-		width: 72px;
+		/* Relative width so the divider tracks the card instead of forcing its min-width
+		   (lets the win amount drive how wide the card grows). */
+		width: 60%;
 
 		height: 3px;
 

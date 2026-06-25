@@ -4,7 +4,7 @@
 	import { bonusRouletteSegmentsForTier } from '../../game-logic/constants';
 	import { assertAuthoritativeOutcome } from '../../game/plinkoFairnessGuard';
 	import { stateGame } from '../../game/stateGame.svelte';
-	import { isMobile } from '../../lib/format';
+	import { isPortraitGameLayout } from '../../lib/format';
 	import { staticUrl } from '../../lib/staticUrl';
 
 	export type BonusRouletteResult = {
@@ -34,12 +34,47 @@
 	const props: Props = $props();
 
 	/** Shared wheel diameter from viewport; label/base/marker derive from this. */
-	const ROULETTE_SIZE_VW = 0.72;
 	const LABEL_HEIGHT_TO_WIDTH = 594 / 1280;
+	/** Per the bonus art, the "FREE BALLS" banner is wider than the wheel — it's the widest element and
+	 * therefore drives the horizontal budget (the wheel = label / LABEL_TO_WHEEL). */
+	const LABEL_TO_WHEEL = 1.1;
+	/** Label width as a fraction of the viewport. Mobile fills the screen to match the reference art;
+	 * desktop keeps the prior, smaller footprint (≈0.8/1.1 ≈ 0.72vw wheel as before). */
+	const MOBILE_LABEL_VW = 0.96;
+	const DESKTOP_LABEL_VW = 0.8;
+	/** Vertical gap between the banner and the wheel, as a fraction of the wheel diameter. Sized so the
+	 * marker spear's tail (which pokes ~0.105·wheel above the rim) clears the banner. */
+	const LABEL_GAP_TO_WHEEL = 0.1;
 	/** Bonus medallion sits inside the wheel's center hole (~0.53 of the wheel). */
 	const BASE_TO_WHEEL = 0.53;
-	const MARKER_WIDTH_TO_WHEEL = (151 / 1348) * 0.65;
-	const MARKER_HEIGHT_TO_WHEEL = (435 / 1348) * 0.65;
+	// Marker intrinsic size is 168×416 (bonus-spin-marker.png); ÷1348 reference × 0.65 preserves its aspect.
+	const MARKER_WIDTH_TO_WHEEL = (168 / 1348) * 0.65;
+	const MARKER_HEIGHT_TO_WHEEL = (416 / 1348) * 0.65;
+
+	// ─── Tuning knobs: independently scale & reposition the three roulette pieces ───────────────────
+	// *_SCALE:    1 = base size (what the layout computes); >1 = larger, <1 = smaller.
+	// *_OFFSET_X: horizontal shift as a fraction of the wheel diameter (positive = right).
+	// *_OFFSET_Y: vertical shift as a fraction of the wheel diameter (positive = down).
+	// The wheel's center medallion scales/moves with the wheel. The marker stays pinned to the (scaled)
+	// wheel rim by default, so its offsets only fine-tune from there.
+	// Note: pieces are clipped at the screen edges (the overlay hides overflow), so very large scales
+	// will crop — lower the scale or nudge with the offsets.
+	const LABEL_SCALE = 1.2;
+	const LABEL_OFFSET_X = 0;
+	const LABEL_OFFSET_Y = 0;
+
+	const WHEEL_SCALE = 1.2;
+	const WHEEL_OFFSET_X = 0;
+	const WHEEL_OFFSET_Y = -0.2;
+
+	const MARKER_SCALE = 1.85;
+	const MARKER_OFFSET_X = 0;
+	const MARKER_OFFSET_Y = -0.2;
+
+	// ⚠️ DEBUG ONLY — set back to `false` before shipping. When true, the roulette assembles and then
+	// stays on screen (no auto-spin, no auto-advance to the announcement) so the layout can be inspected.
+	// The bonus round will NOT resolve while this is on.
+	const DEBUG_KEEP_OPEN = false;
 
 	let slidePhase = $state<'enter' | 'idle' | 'exit'>('enter');
 	let bgJoined = $state(false);
@@ -58,21 +93,32 @@
 	let pendingResult: BonusRouletteResult | null = null;
 	let resultReadyEmitted = false;
 	const timers: ReturnType<typeof setTimeout>[] = [];
-	const mobile = isMobile();
+	// Mobile UA *or* tall-narrow portrait layout — matches how the rest of the game (Background, Result,
+	// Game, BonusLevelUpOverlay) picks its mobile/portrait assets, so the mobile art shows in both.
+	const portrait = isPortraitGameLayout();
 
 	function updateRouletteLayout() {
 		const stage = stageEl;
 		if (!stage) return;
 		const rect = stage.getBoundingClientRect();
 		if (rect.width <= 0 || rect.height <= 0) return;
-		const labelGapPx = Math.min(Math.max(window.innerWidth * 0.015, 4), 16);
-		const vwCap = window.innerWidth * ROULETTE_SIZE_VW;
-		const maxWidth = Math.min(vwCap, rect.width);
-		const fromHeight = Math.max(0, rect.height - labelGapPx) / (1 + LABEL_HEIGHT_TO_WIDTH);
-		rouletteSizePx = Math.max(0, Math.floor(Math.min(maxWidth, fromHeight)));
+		// The banner is the widest element, so the horizontal budget caps the label width; the wheel is
+		// derived from it (wheel = label / LABEL_TO_WHEEL), matching the reference proportions.
+		const labelVwCap = window.innerWidth * (portrait ? MOBILE_LABEL_VW : DESKTOP_LABEL_VW);
+		const maxLabelWidth = Math.min(labelVwCap, rect.width);
+		const wheelFromWidth = maxLabelWidth / LABEL_TO_WHEEL;
+		// Column height = label height + gap + wheel, all expressed as multiples of the wheel diameter.
+		const columnToWheel = LABEL_TO_WHEEL * LABEL_HEIGHT_TO_WIDTH + LABEL_GAP_TO_WHEEL + 1;
+		const wheelFromHeight = Math.max(0, rect.height) / columnToWheel;
+		rouletteSizePx = Math.max(0, Math.floor(Math.min(wheelFromWidth, wheelFromHeight)));
 	}
 
-	const labelWidthPx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
+	const labelWidthPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * LABEL_TO_WHEEL)}px` : undefined,
+	);
+	const labelGapPx = $derived(
+		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * LABEL_GAP_TO_WHEEL)}px` : undefined,
+	);
 	const stackSizePx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
 	const baseWidthPx = $derived(
 		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * BASE_TO_WHEEL)}px` : undefined,
@@ -83,9 +129,18 @@
 	const markerHeightPx = $derived(
 		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_HEIGHT_TO_WHEEL)}px` : undefined,
 	);
+	// Marker sits at the wheel rim; tracking WHEEL_SCALE keeps it on the (scaled) rim by default.
 	const markerYOffsetPx = $derived(
-		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5)}px` : undefined,
+		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5 * WHEEL_SCALE)}px` : undefined,
 	);
+
+	// Tuning offsets, resolved to px from the wheel diameter (positive X → right, positive Y → down).
+	const labelOffsetXPx = $derived(`${Math.round(rouletteSizePx * LABEL_OFFSET_X)}px`);
+	const labelOffsetYPx = $derived(`${Math.round(rouletteSizePx * LABEL_OFFSET_Y)}px`);
+	const wheelOffsetXPx = $derived(`${Math.round(rouletteSizePx * WHEEL_OFFSET_X)}px`);
+	const wheelOffsetYPx = $derived(`${Math.round(rouletteSizePx * WHEEL_OFFSET_Y)}px`);
+	const markerOffsetXPx = $derived(`${Math.round(rouletteSizePx * MARKER_OFFSET_X)}px`);
+	const markerOffsetYPx = $derived(`${Math.round(rouletteSizePx * MARKER_OFFSET_Y)}px`);
 	// Data-driven labels on the label-less `bonus-roulette-wheel-empty.png`: segment `i` sits at `i*45°`
 	// from the top marker (same angle the spin lands on), so the value under the marker matches the
 	// book result. Per-tier values (resize with balls-per-drop). Radius/font tunables mirror the
@@ -141,6 +196,9 @@
 			labelVisible = true;
 			wheelVisible = true;
 			markerVisible = true;
+			// DEBUG_KEEP_OPEN: hold the assembled roulette on screen — skip the spin (and the announcement
+			// it leads into) so the layout stays visible for inspection.
+			if (DEBUG_KEEP_OPEN) return;
 			const spinTimer = setTimeout(() => startSpin(), 760);
 			timers.push(spinTimer);
 		}, 620);
@@ -276,7 +334,7 @@
 		<div
 			class="bonus-spin-bg-drop"
 			class:bonus-spin-bg-drop--visible={bgJoined}
-			style:background-image="url({mobile ? staticUrl('img/bonus-roulette-background-mobile.png') : staticUrl('img/bonus-roulette-background.png')})"
+			style:background-image="url({portrait ? staticUrl('img/bonus-roulette-background-mobile.png') : staticUrl('img/bonus-roulette-background.png')})"
 		></div>
 		<div class="bonus-spin-content">
 			<div class="bonus-spin-stage" bind:this={stageEl}>
@@ -284,6 +342,10 @@
 					class="bonus-spin-title"
 					class:bonus-spin-title--visible={labelVisible}
 					style:width={labelWidthPx}
+					style:margin-bottom={labelGapPx}
+					style:--label-scale={LABEL_SCALE}
+					style:--label-offset-x={labelOffsetXPx}
+					style:--label-offset-y={labelOffsetYPx}
 					src={staticUrl('img/bonus-roulette-label.png')}
 					alt="Free balls"
 				/>
@@ -294,7 +356,10 @@
 						style:width={markerWidthPx}
 						style:height={markerHeightPx}
 						style:--marker-y-offset={markerYOffsetPx}
-						src={staticUrl('img/free-spin-marker.png')}
+						style:--marker-scale={MARKER_SCALE}
+						style:--marker-offset-x={markerOffsetXPx}
+						style:--marker-offset-y={markerOffsetYPx}
+						src={staticUrl('img/bonus-spin-marker.png')}
 						alt=""
 					/>
 					<img
@@ -303,6 +368,9 @@
 						class:bonus-spin-wheel--animating={wheelSpinClass}
 						class:bonus-spin-wheel--visible={wheelVisible}
 						style:--wheel-rotation-deg="{wheelRotationDeg}deg"
+						style:--wheel-scale={WHEEL_SCALE}
+						style:--wheel-offset-x={wheelOffsetXPx}
+						style:--wheel-offset-y={wheelOffsetYPx}
 						src={staticUrl('img/bonus-roulette-wheel.png')}
 						alt="Bonus roulette wheel"
 					/>
@@ -310,6 +378,9 @@
 						class="bonus-spin-center-base"
 						class:bonus-spin-center-base--visible={wheelVisible}
 						style:width={baseWidthPx}
+						style:--wheel-scale={WHEEL_SCALE}
+						style:--wheel-offset-x={wheelOffsetXPx}
+						style:--wheel-offset-y={wheelOffsetYPx}
 						src={staticUrl('img/bonus-roulette-center-base.png')}
 						alt=""
 					/>
@@ -323,10 +394,10 @@
 			type="button"
 			class="bonus-announcement"
 			class:bonus-announcement--win={props.mode === 'message'}
-			class:bonus-announcement--mobile={mobile}
+			class:bonus-announcement--mobile={portrait}
 			class:bonus-announcement--bg-visible={announcementBgVisible}
 			class:bonus-announcement--text-visible={announcementTextVisible}
-			style:background-image="url({mobile ? staticUrl('img/announcement-message-background-mobile.png') : staticUrl('img/announcement-message-background.png')})"
+			style:background-image="url({portrait ? staticUrl('img/announcement-message-background-mobile.png') : staticUrl('img/announcement-message-background.png')})"
 			onclick={onAnnouncementClick}
 		>
 			<div class="bonus-announcement-main">
@@ -403,14 +474,16 @@
 		object-fit: contain;
 		margin-bottom: clamp(0.25rem, 1.5vw, 1rem);
 		opacity: 0;
-		transform: translateY(-140%);
+		transform-origin: 50% 0%;
+		transform: translateY(-140%) scale(var(--label-scale, 1));
 		transition:
 			transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
 			opacity 0.32s ease;
 	}
 	.bonus-spin-title--visible {
 		opacity: 1;
-		transform: translateY(0);
+		transform: translate(var(--label-offset-x, 0px), var(--label-offset-y, 0px))
+			scale(var(--label-scale, 1));
 	}
 	.bonus-spin-wheel-stack {
 		position: relative;
@@ -426,7 +499,7 @@
 		left: 50%;
 		top: 50%;
 		object-fit: contain;
-		transform: translate(-50%, -50%) translateY(-150vh);
+		transform: translate(-50%, -50%) translateY(-150vh) scale(var(--marker-scale, 1));
 		transform-origin: 50% 50%;
 		opacity: 0;
 		pointer-events: none;
@@ -436,7 +509,12 @@
 		z-index: 2;
 	}
 	.bonus-spin-marker--visible {
-		transform: translate(-50%, -50%) translateY(var(--marker-y-offset, 0px));
+		transform: translate(-50%, -50%)
+			translate(
+				var(--marker-offset-x, 0px),
+				calc(var(--marker-y-offset, 0px) + var(--marker-offset-y, 0px))
+			)
+			scale(var(--marker-scale, 1));
 		opacity: 1;
 	}
 	.bonus-spin-wheel {
@@ -446,11 +524,12 @@
 		object-fit: contain;
 		transform-origin: 50% 50%;
 		--wheel-rotation-deg: 0deg;
-		transform: translateY(125vh) rotate(var(--wheel-rotation-deg));
+		transform: translateY(125vh) rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
 		opacity: 0;
 	}
 	.bonus-spin-wheel--visible {
-		transform: translateY(0) rotate(var(--wheel-rotation-deg));
+		transform: translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
+			rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
 		opacity: 1;
 		transition:
 			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
@@ -505,7 +584,7 @@
 		top: 50%;
 		height: auto;
 		object-fit: contain;
-		transform: translate(-50%, -50%) translateY(125vh);
+		transform: translate(-50%, -50%) translateY(125vh) scale(var(--wheel-scale, 1));
 		opacity: 0;
 		z-index: 3;
 		transition:
@@ -513,7 +592,9 @@
 			opacity 0.34s ease;
 	}
 	.bonus-spin-center-base--visible {
-		transform: translate(-50%, -50%) translateY(0);
+		transform: translate(-50%, -50%)
+			translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
+			scale(var(--wheel-scale, 1));
 		opacity: 1;
 	}
 	.bonus-announcement {
