@@ -176,6 +176,11 @@ export const stateGame = $state({
 	infoModalOpen: false,
 	infoModalTab: 'rules' as InfoModalTab,
 	menuOpen: false,
+	/** Buy-bonus tier-select modal visibility. */
+	buyBonusModalOpen: false,
+	/** Full RGS mode of a pending buy-bonus purchase (e.g. `buystandard10`); drives `plinkoActiveBetMode`
+	 * for that one bet, then clears when the round settles. `null` during normal play. */
+	pendingBuyBonusMode: null as string | null,
 	toastMessage: '' as string,
 	toastType: 'info' as 'info' | 'error',
 	msgBox: null as MsgBoxConfig | null,

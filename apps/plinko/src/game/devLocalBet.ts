@@ -33,13 +33,30 @@ export async function playDevLocalBook(): Promise<boolean> {
 		);
 		return false;
 	}
+	const allBooks = books as (Bet & { events: Bet['state'] })[];
+	const evs = (b: Bet & { events?: Bet['state'] }) => b.events ?? b.state ?? [];
+	// A free spin landing on BONUS chains into a bonus (and shows the free-spin wheel first).
+	const isChainBonus = (b: Bet & { events?: Bet['state'] }) =>
+		evs(b).some(
+			(e) => e.type === 'freeSpinTrigger' && String(e.segment ?? '').toUpperCase() === 'BONUS',
+		);
 	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
-	const matchingBooks = (books as (Bet & { events: Bet['state'] })[]).filter((book) =>
-		bookMatchesBallsPerDrop(book, ballsPerDrop),
-	);
+
+	// BUY BONUS (dev): a purchase isn't tier-matched — it plays the drop + bonus. Locally we don't have
+	// dedicated buy books (those are a separate published mode), so reuse a NON-CHAIN bonus book (no
+	// leading free-spin wheel) to exercise the skip-wheel + "you won N drops" flow. The wager already
+	// reflects the buy cost (plinkoActiveBetMode → buy mode).
+	const buyPending = Boolean(stateGame.pendingBuyBonusMode);
+	const matchingBooks = buyPending
+		? allBooks.filter(
+				(book) => evs(book).some((e) => e.type === 'bonusRoulette') && !isChainBonus(book),
+			)
+		: allBooks.filter((book) => bookMatchesBallsPerDrop(book, ballsPerDrop));
 	if (!matchingBooks.length) {
 		console.warn(
-			`[One-Eyed Willy's Plinko] No local books for ballsPerDrop=${ballsPerDrop}. Run sync-math-books after regenerating math strata.`,
+			buyPending
+				? "[One-Eyed Willy's Plinko] No local bonus books to demo a buy. Re-run import-math-books with bonus samples."
+				: `[One-Eyed Willy's Plinko] No local books for ballsPerDrop=${ballsPerDrop}. Run sync-math-books after regenerating math strata.`,
 		);
 		return false;
 	}
@@ -60,13 +77,8 @@ export async function playDevLocalBook(): Promise<boolean> {
 					.replace(/[^a-z]/g, '')
 			: undefined;
 	if (force === 'bonus' || force === 'freespin') {
-		const evs = (b) => b.events ?? b.state ?? [];
-		// A free spin landing on BONUS also produces a `bonusRoulette` (the chain) — exclude those for
-		// `?force=bonus` so we get the BONUS-METER trigger directly, not the free-spin wheel first.
-		const isChainBonus = (b) =>
-			evs(b).some(
-				(e) => e.type === 'freeSpinTrigger' && String(e.segment ?? '').toUpperCase() === 'BONUS',
-			);
+		// `?force=bonus` excludes free-spin→BONUS chains (shared `isChainBonus`) so we get the BONUS-METER
+		// trigger directly, not the free-spin wheel first.
 		const forced =
 			force === 'bonus'
 				? matchingBooks.filter(

@@ -14,6 +14,7 @@
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
 	import { canAffordPlinkoWager, maxAffordableStakePerBall, plinkoWagerAmount, snapStakeToBetLevels } from '../game/plinkoBet';
+	import { buyBonusModeName, syncPlinkoBetModeFromUi, type BuyBonusTier } from '../game/plinkoBetMode';
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
@@ -87,6 +88,8 @@
 	import HudMenuPopup from './HudMenuPopup.svelte';
 
 	import InfoModal from './InfoModal.svelte';
+
+	import BuyBonusModal from './BuyBonusModal.svelte';
 
 	import MsgBox from './MsgBox.svelte';
 
@@ -345,6 +348,62 @@
 
 	}
 
+	// Buy bonus — can't open mid-round / mid-bonus / in replay.
+	const buyBonusDisabled = $derived.by(() => {
+		stateGame.isSubmitting;
+		stateGame.dropRoundActive;
+		stateGame.bonusRoundActive;
+		stateGame.bonusRouletteOpen;
+		stateGame.freeSpinRouletteOpen;
+		stateGame.autoPlayStarted;
+		stateXstate.value;
+		return isReplay || isBetControlsLocked() || isGameOngoing() || stateGame.bonusRoundActive;
+	});
+
+	function openBuyBonus() {
+		if (buyBonusDisabled) return;
+		stateGame.menuOpen = false;
+		stateGame.buyBonusModalOpen = true;
+	}
+
+	// Buy bonus is TEMPORARILY DISABLED: the buy-bonus MATH modes were reverted (git stash in
+	// stake-math-sdk), so sending a buy mode would hit a nonexistent RGS mode. The UI is kept intact but
+	// the Activate buttons are inert. To re-enable: restore the buy math, then set this to true.
+	const BUY_BONUS_ENABLED = false as boolean;
+
+	/** A tier's Activate: route the next bet through that buy mode, then place it. The pending mode is
+	 * cleared by the revert effect once the round fully settles. (No-op while disabled.) */
+	function handleBuyBonusActivate(tier: BuyBonusTier) {
+		if (!BUY_BONUS_ENABLED) return;
+		stateGame.buyBonusModalOpen = false;
+		// Resolve the buy mode for the CURRENT balls-per-drop (the buy plays that drop + the bonus).
+		stateGame.pendingBuyBonusMode = buyBonusModeName(tier.key, stateGame.ballPerDrop);
+		syncPlinkoBetModeFromUi();
+		placeBet();
+	}
+
+	// Buy bonus is one-shot (is_feature=false): once the purchased round has started AND fully settled,
+	// drop the pending mode so the next bet reverts to the normal tier mode.
+	let buyBonusInFlight = false;
+	$effect(() => {
+		const playing =
+			stateGame.isSubmitting ||
+			stateGame.dropRoundActive ||
+			stateGame.bonusRoundActive ||
+			stateXstateDerived.isPlaying();
+		if (!stateGame.pendingBuyBonusMode) {
+			buyBonusInFlight = false;
+			return;
+		}
+		if (playing) {
+			buyBonusInFlight = true;
+		} else if (buyBonusInFlight) {
+			buyBonusInFlight = false;
+			stateGame.pendingBuyBonusMode = null;
+			syncPlinkoBetModeFromUi();
+		}
+	});
+
 </script>
 
 
@@ -375,6 +434,8 @@
 
 <InfoModal />
 
+<BuyBonusModal disabled={buyBonusDisabled} onActivate={handleBuyBonusActivate} />
+
 <BonusLevelUpOverlay />
 
 
@@ -385,7 +446,18 @@
 		<Background />
 	</div>
 
-
+	{#if !isReplay}
+		<button
+			type="button"
+			class="buy-bonus-trigger"
+			class:buy-bonus-trigger--mobile={mobile}
+			disabled={buyBonusDisabled}
+			onclick={openBuyBonus}
+			aria-label="Buy bonus"
+		>
+			<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
+		</button>
+	{/if}
 
 	{#if !mobile}
 		<header class="top-hud">
@@ -550,6 +622,8 @@
 			targetFreeBalls={stateGame.serverBonusFreeBalls}
 
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
+
+			skipSpin={!!stateGame.pendingBuyBonusMode}
 
 			autoDismiss={isReplay}
 
@@ -841,6 +915,50 @@
 
 		transition: transform 0.12s ease;
 
+	}
+
+	/* Buy bonus trigger — desktop top-left, mobile top-right. */
+	.buy-bonus-trigger {
+		position: absolute;
+		top: 2.2vw;
+		left: 1vw;
+		z-index: 25;
+		width: 5vw;
+		height: 5vw;
+		min-width: 54px;
+		min-height: 54px;
+		padding: 0;
+		border: none;
+		background: none;
+		cursor: pointer;
+		transition:
+			transform 0.12s ease,
+			filter 0.12s ease;
+	}
+
+	.buy-bonus-trigger img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		pointer-events: none;
+		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+	}
+
+	.buy-bonus-trigger:hover:not(:disabled) {
+		transform: scale(1.06);
+	}
+
+	.buy-bonus-trigger:disabled {
+		cursor: not-allowed;
+		filter: grayscale(0.7) brightness(0.55);
+	}
+
+	.buy-bonus-trigger--mobile {
+		top: 10px;
+		right: 10px;
+		left: auto;
+		width: 62px;
+		height: 62px;
 	}
 
 	/* Desktop — absolute inset uses almost full viewport (HUD/panel overlay) */

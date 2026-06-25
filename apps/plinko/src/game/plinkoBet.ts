@@ -3,7 +3,7 @@ import { stateBet, stateConfig } from 'state-shared';
 
 import { BALL_PER_DROP_TIERS, BET_PER_BALL_PRESETS } from '../game-logic/constants';
 import config from './config';
-import { plinkoActiveBetMode } from './plinkoBetMode';
+import { buyBonusModeName, plinkoActiveBetMode } from './plinkoBetMode';
 import { stateGame } from './stateGame.svelte';
 
 /** Largest balls-per-drop tier (used for the max-bet / max-win limit display). */
@@ -127,6 +127,24 @@ export function canAffordPlinkoWager(): boolean {
 	const wager = plinkoWagerAmount();
 	// A free feature-trigger bet has wager 0 — still affordable.
 	return wager >= 0 && wager <= stateBet.balanceAmount;
+}
+
+/** Published cost (×bet-per-ball) of a buy tier at a balls-per-drop, from `config.betModes`. */
+export function buyBonusCost(tierKey: string, ballsPerDrop: number): number {
+	const mode = buyBonusModeName(tierKey, ballsPerDrop);
+	const modeConfig = config.betModes[mode as keyof typeof config.betModes];
+	return modeConfig?.cost ?? 0;
+}
+
+/** Price (in the player's currency) to buy a tier at the current balls-per-drop = cost × per-ball stake. */
+export function buyBonusPrice(tierKey: string, ballsPerDrop: number): number {
+	return plinkoPlayAmount() * buyBonusCost(tierKey, ballsPerDrop);
+}
+
+/** Whether the player can afford a buy-bonus tier at the current stake + balls-per-drop. */
+export function canAffordBuyBonus(tierKey: string, ballsPerDrop: number): boolean {
+	const price = buyBonusPrice(tierKey, ballsPerDrop);
+	return price > 0 && price <= stateBet.balanceAmount;
 }
 
 /** Max affordable per-ball stake for the current tier and balance. */

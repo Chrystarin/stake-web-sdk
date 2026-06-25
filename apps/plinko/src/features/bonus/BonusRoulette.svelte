@@ -21,6 +21,9 @@
 		targetFreeBalls?: number;
 		/** When true, wheel outcome must come from `targetFreeBalls` (RGS/math book). */
 		serverAuthoritative?: boolean;
+		/** Buy bonus: skip the wheel spin entirely and announce "you won `targetFreeBalls` drops" directly
+		 * (the entry count is fixed by the purchase, so there's nothing to spin for). */
+		skipSpin?: boolean;
 		/** Replay mode: auto-press the "press anywhere" announcement (no player to click). */
 		autoDismiss?: boolean;
 		onFinished?: (result: BonusRouletteResult) => void;
@@ -117,6 +120,16 @@
 	onMount(() => {
 		if (props.mode === 'message') {
 			requestAnimationFrame(() => (slidePhase = 'idle'));
+			startAnnouncementSequence();
+			return cleanup;
+		}
+		// Buy bonus: the entry count is fixed by the purchase — skip the wheel and announce it directly,
+		// still emitting onResultReady/onFinished so the bonus-round award flow is unchanged.
+		if (props.skipSpin) {
+			requestAnimationFrame(() => (slidePhase = 'idle'));
+			const freeBallCount = Math.max(0, Math.floor(props.targetFreeBalls ?? 0));
+			pendingResult = { segmentIndex: 0, segmentLabel: String(freeBallCount), freeBallCount };
+			wonFreeBalls = freeBallCount;
 			startAnnouncementSequence();
 			return cleanup;
 		}
