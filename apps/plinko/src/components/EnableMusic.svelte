@@ -11,7 +11,7 @@
 
 	onMount(() => {
 		const howl = new Howl({
-			src: [staticUrl('sound/background_music.mp3')],
+			src: [staticUrl('sound/background_music.m4a')],
 			loop: true,
 			volume: 0.35,
 			// HTML5 streaming is better suited to a long music file than buffering it fully.
