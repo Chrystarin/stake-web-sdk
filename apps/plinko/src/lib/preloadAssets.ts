@@ -53,6 +53,8 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/auto-bet-btn.png',
 	'img/fast-game-btn.png',
 	'img/empty-btn.png',
+	'img/empty-btn-brown.png',
+	'img/loading_vector.png',
 	'img/play-btn-mobile.png',
 	'img/fast-game-btn-mobile.png',
 	'img/auto-bet-btn-mobile.png',

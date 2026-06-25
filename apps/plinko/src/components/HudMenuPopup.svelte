@@ -86,13 +86,7 @@
 
 		<div class="hud-menu-divider" aria-hidden="true"></div>
 
-		<button
-			type="button"
-			class="hud-menu-item hud-menu-item--switch"
-			role="switch"
-			aria-checked={props.soundEnabled ?? true}
-			onclick={() => props.onToggleSound?.()}
-		>
+		<div class="hud-menu-item hud-menu-item--switch">
 			<svg
 				class="hud-menu-item-icon"
 				viewBox="0 0 24 24"
@@ -113,22 +107,20 @@
 				{/if}
 			</svg>
 			<span class="hud-menu-item-label">{t('Sound')}</span>
-			<span
+			<button
+				type="button"
 				class="hud-menu-switch"
 				class:hud-menu-switch--on={props.soundEnabled ?? true}
-				aria-hidden="true"
+				role="switch"
+				aria-checked={props.soundEnabled ?? true}
+				aria-label={t('Sound')}
+				onclick={() => props.onToggleSound?.()}
 			>
 				<span class="hud-menu-switch-knob"></span>
-			</span>
-		</button>
+			</button>
+		</div>
 
-		<button
-			type="button"
-			class="hud-menu-item hud-menu-item--switch"
-			role="switch"
-			aria-checked={props.musicEnabled ?? false}
-			onclick={() => props.onToggleMusic?.()}
-		>
+		<div class="hud-menu-item hud-menu-item--switch">
 			<svg
 				class="hud-menu-item-icon"
 				viewBox="0 0 24 24"
@@ -147,14 +139,18 @@
 				{/if}
 			</svg>
 			<span class="hud-menu-item-label">{t('Music')}</span>
-			<span
+			<button
+				type="button"
 				class="hud-menu-switch"
 				class:hud-menu-switch--on={props.musicEnabled ?? false}
-				aria-hidden="true"
+				role="switch"
+				aria-checked={props.musicEnabled ?? false}
+				aria-label={t('Music')}
+				onclick={() => props.onToggleMusic?.()}
 			>
 				<span class="hud-menu-switch-knob"></span>
-			</span>
-		</button>
+			</button>
+		</div>
 	</nav>
 </div>
 
@@ -318,6 +314,16 @@
 		white-space: nowrap;
 	}
 
+	/* Switch rows are static containers; only the toggle itself is interactive,
+	   so the row must not show a pointer cursor or hover highlight. */
+	.hud-menu-item--switch {
+		cursor: default;
+	}
+
+	.hud-menu-item--switch:hover {
+		background: transparent;
+	}
+
 	.hud-menu-item--switch .hud-menu-item-label {
 		flex: 1 1 auto;
 	}
@@ -329,9 +335,12 @@
 		width: 2.4vw;
 		height: 1.3vw;
 		min-width: 2.4vw;
+		padding: 0;
+		border: none;
 		border-radius: 999px;
 		background: rgba(255, 255, 255, 0.2);
 		transition: background-color 0.15s ease;
+		cursor: pointer;
 	}
 
 	.hud-menu-switch--on {

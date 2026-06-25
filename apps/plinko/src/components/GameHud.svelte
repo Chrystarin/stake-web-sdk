@@ -107,6 +107,23 @@
 				: playDisabledMain,
 	);
 
+	// True while a bet is being submitted or its balls are in flight, back to false the moment the
+	// round settles. Drives the loading spinner that replaces the Play button while a round runs.
+	// Note: deliberately excludes `dropRoundActive` — that flag also spans the player-input bonus
+	// window, where the button must stay an actionable Play (drop bonus balls), not a spinner.
+	const roundInSession = $derived.by(() => {
+		stateGame.isSubmitting;
+		stateGame.isAnimating;
+		stateGame.expectedOutcomeByBallId.size;
+		stateGame.pendingSpacedSpawnTimers;
+		return stateGame.isSubmitting || isGameOngoing();
+	});
+	// The loading spinner replaces the Play button only for regular rounds. During a bonus round the
+	// button must keep showing the free-balls count badge, so the spinner is suppressed there.
+	const showPlayLoading = $derived(
+		roundInSession && !props.hasPendingBonusBalls && !stateGame.bonusRoundActive,
+	);
+
 	const mobileAutoCountDisplay = $derived(
 		props.autoMode || props.autoPlayStarted
 			? String(props.autoRoundsLeft ?? stateGame.autoRoundsDisplay)
@@ -382,13 +399,25 @@
 			<button
 				type="button"
 				class="mobile-icon-btn mobile-icon-btn--play"
+				class:mobile-icon-btn--play-loading={showPlayLoading}
 				disabled={isPlayButtonDisabled}
 				aria-label="Bet"
+				aria-busy={showPlayLoading}
 				onclick={onMainActionClick}
 			>
-				<img src={staticUrl('img/play-btn-mobile.png')} alt="" aria-hidden="true" />
-				{#if props.hasPendingBonusBalls}
-					<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
+				{#if showPlayLoading}
+					<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
+					<img
+						class="mobile-play-spinner"
+						src={staticUrl('img/loading_vector.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+				{:else}
+					<img src={staticUrl('img/play-btn-mobile.png')} alt="" aria-hidden="true" />
+					{#if props.hasPendingBonusBalls}
+						<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
+					{/if}
 				{/if}
 			</button>
 			<button
@@ -670,19 +699,31 @@
 						<button
 							type="button"
 							class="bp-btn-play"
+							class:bp-btn-play--loading={showPlayLoading}
 							disabled={isPlayButtonDisabled}
 							aria-label="Bet"
+							aria-busy={showPlayLoading}
 							onclick={props.onPlay}
 						>
-							<img
-								src={staticUrl(
-									props.hasPendingBonusBalls ? 'img/empty-btn.png' : 'img/play-btn.png',
-								)}
-								alt=""
-								aria-hidden="true"
-							/>
-							{#if props.hasPendingBonusBalls}
-								<span class="bp-bonus-count-badge">{props.bonusBallsRemaining}</span>
+							{#if showPlayLoading}
+								<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
+								<img
+									class="bp-btn-play-spinner"
+									src={staticUrl('img/loading_vector.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+							{:else}
+								<img
+									src={staticUrl(
+										props.hasPendingBonusBalls ? 'img/empty-btn.png' : 'img/play-btn.png',
+									)}
+									alt=""
+									aria-hidden="true"
+								/>
+								{#if props.hasPendingBonusBalls}
+									<span class="bp-bonus-count-badge">{props.bonusBallsRemaining}</span>
+								{/if}
 							{/if}
 						</button>
 					{:else if props.autoPlayStarted && !autoBetStopping}

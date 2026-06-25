@@ -535,6 +535,36 @@
 		cursor: not-allowed;
 		transform: none;
 	}
+
+	// While a round is running the button shows the empty frame with a spinning loader.
+	// Keep it full opacity (even though disabled) so the spinner reads clearly.
+	&--loading:disabled {
+		opacity: 1;
+	}
+}
+
+.bp-btn-play-spinner {
+	position: absolute;
+	// Center via auto margins so the animated transform is pure rotation — keeping the pivot at the
+	// image's true center (translate-based centering made the rotation wobble off-axis).
+	inset: 0;
+	margin: auto;
+	width: 42% !important;
+	height: auto !important;
+	aspect-ratio: 1;
+	transform-origin: center center;
+	animation: bp-play-spin 0.9s linear infinite;
+	pointer-events: none;
+	z-index: 3;
+}
+
+@keyframes bp-play-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .bp-bonus-count-badge,
@@ -901,6 +931,24 @@
 .mobile-icon-btn--play {
 	transform: scale(1.75);
 	position: relative;
+}
+
+// Keep the play button fully opaque while loading so the spinner reads clearly.
+.mobile-icon-btn--play-loading:disabled {
+	opacity: 1;
+}
+
+.mobile-play-spinner {
+	position: absolute;
+	inset: 0;
+	margin: auto;
+	width: 42% !important;
+	height: auto !important;
+	aspect-ratio: 1;
+	transform-origin: center center;
+	animation: bp-play-spin 0.9s linear infinite;
+	pointer-events: none;
+	z-index: 3;
 }
 
 /* Autobet / fast game: off = low opacity, on = full opacity. */

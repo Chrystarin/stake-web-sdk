@@ -191,7 +191,10 @@
 
 						<h3 class="info-section-title">Key Features &amp; Settings</h3>
 						<p>
-							<strong>RTP</strong> — Approximately 95.7% (varies slightly with play).
+							<strong>RTP</strong> — Approximately 95% - 96%.
+						</p>
+						<p>
+							<strong>Max Win</strong> — Up to x400.
 						</p>
 						<p>
 							<strong>Volatility</strong> — High. Most balls settle near the center for small returns, so dry
@@ -306,7 +309,8 @@
 
 						<h3 class="info-section-title">Key Features</h3>
 						<ul>
-							<li><strong>RTP</strong> — Approximately 95.7% (varies slightly with play).</li>
+							<li><strong>RTP</strong> — Approximately 95% - 96%.</li>
+							<li><strong>Max Win</strong> — Up to x400.</li>
 							<li>
 								<strong>Auto</strong> — Pick a number of rounds and the game drops automatically for
 								you. Press Auto again to stop and return to manual play.
@@ -347,7 +351,8 @@
 							<li><strong>Game Rules</strong> — Full rules plus the bet and payout limits.</li>
 							<li><strong>My Bet History</strong> — A log of your recent rounds.</li>
 							<li><strong>How to Play?</strong> — This guide.</li>
-							<li><strong>Sound</strong> — Toggles game audio on or off.</li>
+							<li><strong>Sound</strong> — Toggles game sound on or off.</li>
+							<li><strong>Music</strong> — Toggles game music on or off.</li>
 						</ul>
 
 						<h3 class="info-section-title">Legal Notice</h3>

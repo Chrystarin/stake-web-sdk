@@ -210,6 +210,8 @@
 
 	.bb-activate {
 		width: 100%;
+		/* Pin to the bottom of the card; the card-inner bottom padding leaves a small margin below. */
+		margin-top: auto;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
