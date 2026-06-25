@@ -1145,10 +1145,14 @@
 		--plinko-area-top-width-scale: 0.65;
 		--plinko-area-bottom-width-scale: 0.75;
 		--plinko-area-height-scale: 1.1;
-		--plinko-area-offset-x-ratio: 0.007;
-		--plinko-area-offset-ratio: 0.175;
+		/* Offsets are expressed as fractions of the fitted game-area box (same units that
+		   size the frame), NOT of raw 100vw. This keeps the plinko host glued to the frame
+		   when the viewport is height-constrained — otherwise the frame stays fixed (driven
+		   by height) while a vw-based offset drifts the board up/down. */
+		--plinko-area-offset-x-ratio: 0.01;
+		--plinko-area-offset-ratio: 0.38;
 		--plinko-area-offset-y-extra-ratio: 0;
-		--plinko-area-offset-x: calc(var(--plinko-area-offset-x-ratio) * 100vw);
+		--plinko-area-offset-x: calc(var(--plinko-area-offset-x-ratio) * var(--game-area-fit-width));
 		--plinko-host-width: calc(
 			var(--game-area-fit-width) * var(--plinko-area-scale) *
 				max(var(--plinko-area-top-width-scale), var(--plinko-area-bottom-width-scale))
@@ -1157,7 +1161,8 @@
 			var(--game-area-fit-height) * var(--plinko-area-scale) * var(--plinko-area-height-scale)
 		);
 		--plinko-area-offset-y: calc(
-			(var(--plinko-area-offset-ratio) + var(--plinko-area-offset-y-extra-ratio)) * 100vw
+			(var(--plinko-area-offset-ratio) + var(--plinko-area-offset-y-extra-ratio)) *
+				var(--game-area-fit-height)
 		);
 	}
 

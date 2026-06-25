@@ -530,8 +530,8 @@
 	}
 
 	&:disabled {
-		// Disabled stays fully visible — only the pointer + interactivity change.
-		opacity: 1;
+		// Disabled = low opacity.
+		opacity: 0.6;
 		cursor: not-allowed;
 		transform: none;
 	}
@@ -593,21 +593,23 @@
 	align-items: center;
 	justify-content: center;
 	filter: drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
-	transition: transform 0.12s ease, filter 0.12s ease;
+	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
+	// Off = low opacity (default state).
+	opacity: 0.6;
 
 	&:hover:not(:disabled) {
 		transform: scale(1.04);
 	}
 
 	&:disabled {
-		// Disabled stays fully visible — only the pointer + interactivity change.
-		opacity: 1;
+		// Disabled = low opacity.
+		opacity: 0.6;
 		cursor: not-allowed;
 	}
 
 	&.bp-btn-auto--on {
-		// Activated: dim instead of glowing; reverts to full opacity when off.
-		opacity: 0.6;
+		// On = full opacity.
+		opacity: 1;
 	}
 }
 
@@ -639,7 +641,9 @@
 	align-items: center;
 	justify-content: center;
 	cursor: pointer;
-	transition: transform 0.12s ease, filter 0.12s ease;
+	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
+	// Off = low opacity (default state).
+	opacity: 0.6;
 
 	img {
 		width: 100%;
@@ -653,14 +657,14 @@
 	}
 
 	&:disabled {
-		// Disabled stays fully visible — only the pointer + interactivity change.
-		opacity: 1;
+		// Disabled = low opacity.
+		opacity: 0.6;
 		cursor: not-allowed;
 	}
 
 	&.bp-fast-btn--on {
-		// Activated: dim instead of glowing; reverts to full opacity when off.
-		opacity: 0.6;
+		// On = full opacity.
+		opacity: 1;
 	}
 }
 
@@ -886,8 +890,8 @@
 	}
 
 	&:disabled {
-		// Disabled stays fully visible — only the pointer + interactivity change.
-		opacity: 1;
+		// Disabled = low opacity.
+		opacity: 0.6;
 		cursor: not-allowed;
 	}
 }
@@ -897,13 +901,15 @@
 	position: relative;
 }
 
-/* Activated (autobet / fast game): dim instead of glowing; reverts to full opacity when off. */
-.mobile-icon-btn--on {
+/* Autobet / fast game: off = low opacity, on = full opacity. */
+.mobile-icon-btn--autobet,
+.mobile-icon-btn--fast {
 	opacity: 0.6;
 }
 
+.mobile-icon-btn--on,
 .mobile-icon-btn--fast-on {
-	opacity: 0.6;
+	opacity: 1;
 }
 
 .hud-play-count-badge,
