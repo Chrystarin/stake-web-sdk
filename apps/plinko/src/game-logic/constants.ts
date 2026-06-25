@@ -82,9 +82,9 @@ export const AUTO_BET_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100] as const;
 /** Minimum milliseconds between consecutive ball spawns. */
 export const MIN_MS_BETWEEN_BALL_SPAWNS = 400;
 
-/** Normal vs fast simulation speed multipliers. (`fast` reduced 20% from 3.0 → 2.4 so peg
+/** Normal vs fast simulation speed multipliers. (`fast` reduced 25% from 2.4 → 1.8 so peg
  * bounces stay readable — see PlinkoEngine speed-factor handling.) */
-export const SIM_SPEED = { normal: 0.7, fast: 2.4 } as const;
+export const SIM_SPEED = { normal: 0.7, fast: 1.4 } as const;
 
 /** Bonus level ladder labels. */
 export const BONUS_LEVEL_LABELS = [1, 2, 4, 8, 16, 32, 64, 128, 256] as const;

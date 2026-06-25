@@ -12,10 +12,11 @@ export const PLINKO_BET_MODE_BY_BALLS: Record<number, string> = {
 	50: 'fiftydrop',
 };
 
-/** One purchasable Crimson Fury bonus tier. A buy plays the player's current balls-per-drop drop AND a
- * forced bonus seeded with `freeBalls` fixed free balls ("N balls + M free balls"). Because the drop EV
- * scales with balls-per-drop, the COST lives per (tier × balls-per-drop) in `config.betModes` — resolve it
- * with `buyBonusModeName`. Mirrors the published math buy modes (game_config.py). */
+/** One purchasable Crimson Fury bonus tier. A buy is BONUS-ONLY: it plays no paid base drop. The round
+ * opens with the bonus meter full, firing the bonus seeded with `freeBalls` FIXED entry balls; the in-bonus
+ * level-up / chain hits then add MORE balls on top (combined total). COST is ×bet-per-ball and lives per
+ * tier in `config.betModes` (independent of balls-per-drop → 4 modes) — resolve it with `buyBonusModeName`.
+ * `freeBalls` = the tier's math entry count (mirror plinko_data.BUY_BONUS_TIER_DEFS). */
 export type BuyBonusTier = {
 	key: string;
 	name: string;
@@ -24,23 +25,19 @@ export type BuyBonusTier = {
 };
 
 export const BUY_BONUS_TIERS: readonly BuyBonusTier[] = [
-	{ key: 'standard', name: 'Standard', freeBalls: 25, tagline: 'Base enhanced turbulence and chain potential.' },
-	{ key: 'enhanced', name: 'Enhanced', freeBalls: 35, tagline: 'Moderate head-start on the Fury meter.' },
-	{ key: 'premium', name: 'Premium', freeBalls: 50, tagline: 'Larger batch with solid Fury progression.' },
-	{ key: 'superfury', name: 'Super Fury', freeBalls: 80, tagline: 'Massive starting batch and strong chain reactions.' },
+	{ key: 'standard', name: 'Standard', freeBalls: 71, tagline: 'Base enhanced turbulence and chain potential.' },
+	{ key: 'enhanced', name: 'Enhanced', freeBalls: 86, tagline: 'Moderate head-start on the Fury meter.' },
+	{ key: 'premium', name: 'Premium', freeBalls: 125, tagline: 'Larger batch with solid Fury progression.' },
+	{ key: 'superfury', name: 'Super Fury', freeBalls: 179, tagline: 'Massive starting batch and strong chain reactions.' },
 ];
 
-/** Balls-per-drop tiers a buy can be priced for (mirror math BUY_BONUS_BALLS_PER_DROP). */
-export const BUY_BONUS_BPDS = [1, 10, 20, 50] as const;
-
-/** RGS mode for a buy tier at a balls-per-drop (mirror math `buy_bonus_mode_name`), e.g. buystandard10. */
-export function buyBonusModeName(tierKey: string, ballsPerDrop: number): string {
-	const bpd = Math.max(1, Math.floor(ballsPerDrop));
-	return `buy${tierKey}${bpd}`;
+/** RGS mode for a buy tier (mirror math `buy_bonus_mode_name`), e.g. buystandard. */
+export function buyBonusModeName(tierKey: string): string {
+	return `buy${tierKey}`;
 }
 
-export const PLINKO_BUY_BONUS_MODES: readonly string[] = BUY_BONUS_TIERS.flatMap((tier) =>
-	BUY_BONUS_BPDS.map((bpd) => buyBonusModeName(tier.key, bpd)),
+export const PLINKO_BUY_BONUS_MODES: readonly string[] = BUY_BONUS_TIERS.map((tier) =>
+	buyBonusModeName(tier.key),
 );
 
 export function buyBonusTierByKey(key: string | null | undefined): BuyBonusTier | undefined {
@@ -82,10 +79,11 @@ export function syncPlinkoBetModeFromUi(): void {
 	stateBet.activeBetModeKey = plinkoActiveBetMode();
 }
 
-/** FOLDED-BONUS DESIGN: there are no trigger modes (the bonus is in the base book). Always false —
- * kept so callers/imports stay stable. */
-export function isPlinkoTriggerMode(_mode: string | undefined): boolean {
-	return false;
+/** A "trigger mode" book carries an EMPTY initial drop (the balls arrive via `bonusRound`), so the client
+ * must NOT try to animate the drop. The base modes fold the bonus into a real drop (not trigger modes),
+ * but the BUY BONUS modes are bonus-only (empty drop), so they ARE trigger modes. */
+export function isPlinkoTriggerMode(mode: string | undefined): boolean {
+	return isPlinkoBuyBonusMode(mode);
 }
 
 export function ballsPerDropForPlinkoBetMode(mode: string | undefined): number | undefined {

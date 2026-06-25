@@ -5,6 +5,7 @@ import { stateBet } from 'state-shared';
 import { stateGame } from './stateGame.svelte';
 import { alignBookForPlayback } from './alignBookForPlayback';
 import { plinkoWagerAmount } from './plinkoBet';
+import { buyBonusTierByKey } from './plinkoBetMode';
 import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
 
 type PlinkoDropEvent = Extract<Bet['state'][number], { type: 'plinkoDrop' }>;
@@ -42,15 +43,36 @@ export async function playDevLocalBook(): Promise<boolean> {
 		);
 	const ballsPerDrop = Math.max(1, Math.floor(stateGame.ballPerDrop || 1));
 
-	// BUY BONUS (dev): a purchase isn't tier-matched — it plays the drop + bonus. Locally we don't have
-	// dedicated buy books (those are a separate published mode), so reuse a NON-CHAIN bonus book (no
-	// leading free-spin wheel) to exercise the skip-wheel + "you won N drops" flow. The wager already
-	// reflects the buy cost (plinkoActiveBetMode → buy mode).
+	// BUY BONUS (dev): a buy is bonus-only — the real book is an EMPTY drop + bonusRoulette + bonusRound.
+	// Prefer a real buy book (empty drop) whose entry matches the purchased tier; fall back to any other
+	// bonus-only book, then any non-chain bonus book. The wager already reflects the buy cost
+	// (plinkoActiveBetMode → buy mode).
 	const buyPending = Boolean(stateGame.pendingBuyBonusMode);
+	const isBonusBook = (book: Bet & { events?: Bet['state'] }) =>
+		evs(book).some((e) => e.type === 'bonusRoulette') && !isChainBonus(book);
+	const isEmptyDrop = (book: Bet & { events?: Bet['state'] }) => {
+		const drop = evs(book).find((e) => e.type === 'plinkoDrop') as PlinkoDropEvent | undefined;
+		return !!drop && (drop.outcomes?.length ?? drop.ballsPerDrop ?? 0) === 0;
+	};
+	const entryFreeBalls = (book: Bet & { events?: Bet['state'] }) => {
+		const r = evs(book).find((e) => e.type === 'bonusRoulette') as { freeBalls?: number } | undefined;
+		return r?.freeBalls ?? 0;
+	};
+	// The purchased tier's entry count (e.g. buystandard → 71), to pick the matching real buy book.
+	const tierEntry = buyPending
+		? (buyBonusTierByKey((stateGame.pendingBuyBonusMode ?? '').replace(/^buy/, ''))?.freeBalls ?? 0)
+		: 0;
+	function pickBuyBooks(): (Bet & { events: Bet['state'] })[] {
+		const tierMatch = allBooks.filter(
+			(book) => isEmptyDrop(book) && isBonusBook(book) && entryFreeBalls(book) === tierEntry,
+		);
+		if (tierMatch.length) return tierMatch;
+		const anyEmptyDrop = allBooks.filter((book) => isEmptyDrop(book) && isBonusBook(book));
+		if (anyEmptyDrop.length) return anyEmptyDrop;
+		return allBooks.filter(isBonusBook); // last resort: a base-mode bonus book (non-empty drop)
+	}
 	const matchingBooks = buyPending
-		? allBooks.filter(
-				(book) => evs(book).some((e) => e.type === 'bonusRoulette') && !isChainBonus(book),
-			)
+		? pickBuyBooks()
 		: allBooks.filter((book) => bookMatchesBallsPerDrop(book, ballsPerDrop));
 	if (!matchingBooks.length) {
 		console.warn(

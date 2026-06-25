@@ -18,7 +18,7 @@
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
-	import { applyRgsSessionMetersToDisplay } from '../game/plinkoSessionMeters';
+	import { applyBonusMeterDisplay, applyRgsSessionMetersToDisplay } from '../game/plinkoSessionMeters';
 
 	import { getContext } from '../game/context';
 
@@ -366,18 +366,24 @@
 		stateGame.buyBonusModalOpen = true;
 	}
 
-	// Buy bonus is TEMPORARILY DISABLED: the buy-bonus MATH modes were reverted (git stash in
-	// stake-math-sdk), so sending a buy mode would hit a nonexistent RGS mode. The UI is kept intact but
-	// the Activate buttons are inert. To re-enable: restore the buy math, then set this to true.
-	const BUY_BONUS_ENABLED = false as boolean;
+	// Buy bonus is LIVE: the 4 bonus-only buy modes (buystandard/enhanced/premium/superfury) are published
+	// in the math. Cost is ×bet-per-ball and independent of balls-per-drop. Set false to disable the
+	// Activate buttons (the modal UI still opens) if the math is ever unpublished.
+	const BUY_BONUS_ENABLED = true as boolean;
 
-	/** A tier's Activate: route the next bet through that buy mode, then place it. The pending mode is
-	 * cleared by the revert effect once the round fully settles. (No-op while disabled.) */
+	/** A tier's Activate: route the next bet through that buy mode, then place it. A buy is bonus-only, so
+	 * we pre-fill the bonus meter to FULL for immediate feedback (the book also opens with it full); the
+	 * bonus fires at once, the roulette lands on the bought entry balls, and chain hits add more on top.
+	 * The pending mode is cleared by the revert effect once the round fully settles. */
 	function handleBuyBonusActivate(tier: BuyBonusTier) {
 		if (!BUY_BONUS_ENABLED) return;
 		stateGame.buyBonusModalOpen = false;
-		// Resolve the buy mode for the CURRENT balls-per-drop (the buy plays that drop + the bonus).
-		stateGame.pendingBuyBonusMode = buyBonusModeName(tier.key, stateGame.ballPerDrop);
+		// Bonus-only buy → mode is per tier (bpd-independent).
+		stateGame.pendingBuyBonusMode = buyBonusModeName(tier.key);
+		// Show the bonus meter FULL the instant the buy round starts. The book carries a full
+		// bonus_meter_start too, but the client ignores the book's start for the session meter (anti
+		// stratum-jump), so we set the HUD value directly here.
+		applyBonusMeterDisplay(stateGame.bonusMeterMax);
 		syncPlinkoBetModeFromUi();
 		placeBet();
 	}

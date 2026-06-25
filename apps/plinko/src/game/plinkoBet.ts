@@ -129,21 +129,21 @@ export function canAffordPlinkoWager(): boolean {
 	return wager >= 0 && wager <= stateBet.balanceAmount;
 }
 
-/** Published cost (×bet-per-ball) of a buy tier at a balls-per-drop, from `config.betModes`. */
-export function buyBonusCost(tierKey: string, ballsPerDrop: number): number {
-	const mode = buyBonusModeName(tierKey, ballsPerDrop);
+/** Published cost (×bet-per-ball) of a buy tier, from `config.betModes`. Bonus-only buy → bpd-independent. */
+export function buyBonusCost(tierKey: string): number {
+	const mode = buyBonusModeName(tierKey);
 	const modeConfig = config.betModes[mode as keyof typeof config.betModes];
 	return modeConfig?.cost ?? 0;
 }
 
-/** Price (in the player's currency) to buy a tier at the current balls-per-drop = cost × per-ball stake. */
-export function buyBonusPrice(tierKey: string, ballsPerDrop: number): number {
-	return plinkoPlayAmount() * buyBonusCost(tierKey, ballsPerDrop);
+/** Price (in the player's currency) to buy a tier = cost × per-ball stake. */
+export function buyBonusPrice(tierKey: string): number {
+	return plinkoPlayAmount() * buyBonusCost(tierKey);
 }
 
-/** Whether the player can afford a buy-bonus tier at the current stake + balls-per-drop. */
-export function canAffordBuyBonus(tierKey: string, ballsPerDrop: number): boolean {
-	const price = buyBonusPrice(tierKey, ballsPerDrop);
+/** Whether the player can afford a buy-bonus tier at the current stake. */
+export function canAffordBuyBonus(tierKey: string): boolean {
+	const price = buyBonusPrice(tierKey);
 	return price > 0 && price <= stateBet.balanceAmount;
 }
 

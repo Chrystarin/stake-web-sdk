@@ -15,8 +15,6 @@
 	const props: Props = $props();
 
 	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
-	/** Current balls-per-drop — the buy plays this drop, then the bonus, and the price scales with it. */
-	const ballPerDrop = $derived(Math.max(1, Math.floor(stateGame.ballPerDrop || 1)));
 
 	function formatMoney(value: number) {
 		return `${currencySign}${value.toLocaleString('en-US', {
@@ -30,7 +28,7 @@
 	}
 
 	function activate(tier: BuyBonusTier) {
-		if (props.disabled || !canAffordBuyBonus(tier.key, ballPerDrop)) return;
+		if (props.disabled || !canAffordBuyBonus(tier.key)) return;
 		props.onActivate(tier);
 	}
 </script>
@@ -46,9 +44,8 @@
 
 			<div class="bb-cards">
 				{#each BUY_BONUS_TIERS as tier}
-					{@const price = buyBonusPrice(tier.key, ballPerDrop)}
-					{@const affordable = canAffordBuyBonus(tier.key, ballPerDrop)}
-					{@const totalBalls = ballPerDrop + tier.freeBalls}
+					{@const price = buyBonusPrice(tier.key)}
+					{@const affordable = canAffordBuyBonus(tier.key)}
 					<div class="bb-card">
 						<img class="bb-card-frame" src={staticUrl('img/buy_bonus_panel.png')} alt="" aria-hidden="true" />
 						<div class="bb-card-inner">
@@ -60,10 +57,7 @@
 								alt=""
 								aria-hidden="true"
 							/>
-							<div class="bb-card-total">{totalBalls} Balls</div>
-							<div class="bb-card-breakdown">
-								({ballPerDrop} Balls + <span class="bb-free">{tier.freeBalls} Free</span>)
-							</div>
+							<div class="bb-card-total"><span class="bb-free">{tier.freeBalls}</span> Free Balls</div>
 							<button
 								type="button"
 								class="bb-activate"
@@ -208,14 +202,6 @@
 		font-size: clamp(17px, 3vw, 26px);
 		color: #ffffff;
 		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
-	}
-
-	.bb-card-breakdown {
-		font-family: 'PotatoSans', sans-serif;
-		/* ~half of .bb-card-total (clamp 17/26px → 8.5/13px); px/vw based, not rem. */
-		font-size: clamp(8.5px, 1.5vw, 13px);
-		color: #d8d2c4;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 	}
 
 	.bb-free {

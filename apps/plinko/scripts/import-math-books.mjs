@@ -78,6 +78,10 @@ const booksDir = join(appRoot, '../../../stake-math-sdk/games/crimson_plinko/lib
 // One published book file per balls-per-drop tier (mode). Older single-mode `books_base`
 // is a pre-split fallback only.
 const TIER_MODES = ['onedrop', 'tendrop', 'twentydrop', 'fiftydrop'];
+// BUY BONUS modes (bonus-only: empty drop + bonusRoulette + bonusRound). Sampled so dev-local play can
+// exercise the REAL buy flow (the announced entry count is the tier's true value, not a reused book).
+const BUY_MODES = ['buystandard', 'buyenhanced', 'buypremium', 'buysuperfury'];
+const BUY_BOOKS_PER_MODE = 3;
 
 function loadMode(mode) {
 	// Prefer the freshest books file by mtime among the formats that exist (.json array / .jsonl lines).
@@ -93,6 +97,9 @@ let allBooks = TIER_MODES.flatMap(loadMode);
 if (allBooks.length === 0) {
 	allBooks = loadMode('base'); // legacy single-mode fallback
 }
+// A few real buy books per tier (each large — bonus-only with many free balls), force-included below so
+// dev-local buys play the genuine bonus-only flow (empty drop → full meter → roulette → chain balls).
+const buyBooks = BUY_MODES.flatMap((mode) => loadMode(mode).slice(0, BUY_BOOKS_PER_MODE));
 
 if (allBooks.length === 0) {
 	console.warn(
@@ -156,7 +163,9 @@ function sampleBooks(source, maxCount) {
 	return picked.slice(0, maxCount);
 }
 
-const books = sampleBooks(allBooks, limit);
+// Always include the buy books (deduped), then fill the rest with the tier sample.
+const sampled = sampleBooks(allBooks, Math.max(1, limit - buyBooks.length));
+const books = [...buyBooks, ...sampled].slice(0, Math.max(limit, buyBooks.length));
 
 writeFileSync(join(outDir, 'base_books.ts'), `export default ${JSON.stringify(books, null, '\t')} as const;\n`);
 
