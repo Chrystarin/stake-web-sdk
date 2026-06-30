@@ -464,13 +464,32 @@
 
 		{#if mobileBetPopupOpen}
 			<div class="mobile-bet-popup" role="dialog" aria-label="Bet settings">
-				{@render bettingFieldFrame()}
-				<div class="mobile-bet-popup-row mobile-bet-popup-row--stat">
+				<img
+					class="bp-field-frame mobile-bet-popup-base"
+					src={staticUrl('img/mobile_popup_bet_modal_base.png')}
+					alt=""
+					aria-hidden="true"
+				/>
+				<div class="mobile-bet-popup-row">
 					{@render bettingFieldFrame()}
+					<span class="mobile-bet-popup-step mobile-bet-popup-step--static" aria-hidden="true">
+						<img
+							src={staticUrl('img/betting-component-input-decrease.png')}
+							alt=""
+							aria-hidden="true"
+						/>
+					</span>
 					<div class="mobile-bet-popup-mid">
 						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet')}</span>
 						<span class="mobile-bet-popup-value">{formatMoney(props.totalBetAmount)}</span>
 					</div>
+					<span class="mobile-bet-popup-step mobile-bet-popup-step--static" aria-hidden="true">
+						<img
+							src={staticUrl('img/betting-component-input-increase.png')}
+							alt=""
+							aria-hidden="true"
+						/>
+					</span>
 				</div>
 				<div class="mobile-bet-popup-row">
 					{@render bettingFieldFrame()}

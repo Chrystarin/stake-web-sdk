@@ -787,85 +787,22 @@
 
 	}
 
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-track) {
+	.game-root--mobile .game-area > .container .bonus-level-behind-game-area :global(.bonus-level-track) {
 
+		/* Higher specificity than the desktop `.container ...` track rule (100%/100%) so the mobile
+		   track adopts the tile coordinate space (65vw × 33.6vw). This locks the gold-arch base image
+		   to the number tiles — both share one box — instead of the base sizing to the fit-width box
+		   (which left the arch floating high above the tiles). */
 		width: var(--mobile-bonus-track-width);
 
 		height: var(--mobile-bonus-track-height);
 
 	}
 
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(1)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.1124);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.6548);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(2)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.2016);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.5357);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(3)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.2791);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.3869);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(4)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.3721);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.2976);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(5)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.4961);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.2679);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(6)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.6124);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.3051);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(7)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.7054);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.4018);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(8)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.7752);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.5357);
-
-	}
-
-	.game-root--mobile .bonus-level-behind-game-area :global(.bonus-level-node:nth-child(9)) {
-
-		left: calc(var(--mobile-bonus-track-width) * 0.8837);
-
-		top: calc(var(--mobile-bonus-track-height) * 0.6548);
-
-	}
+	/* Mobile deliberately does NOT override the per-tile node positions: it reuses the desktop
+	   defaults from BonusLevel.svelte. Those positions are tuned to the gold-arch base image at the
+	   desktop track aspect ratio, so as long as the mobile track matches that aspect (see
+	   --mobile-bonus-track-height below), the numbers sit in the arch segments exactly like desktop. */
 
 	.top-hud {
 
@@ -1083,7 +1020,10 @@
 		--bonus-overlay-offset-x: 0.3%;
 		--bonus-overlay-offset-y: 0.3%;
 		--mobile-bonus-track-width: 65vw;
-		--mobile-bonus-track-height: 33.6vw;
+		/* Height = width / 2.419 so the mobile track matches the desktop track aspect ratio. This keeps
+		   the gold arch the same flatness as desktop and lets the shared default tile positions land in
+		   the arch segments. (65 / 2.419 ≈ 26.87) */
+		--mobile-bonus-track-height: 26.87vw;
 
 		/* Largest 96:55 box inside game-area, no crop */
 		--game-area-max-w: min(var(--game-area-width-cap, 100vw), 100cqw);
@@ -1331,15 +1271,16 @@
 
 		box-sizing: border-box;
 
-		/* Square at minimum, widening to a landscape rectangle as the win amount gets longer.
-		   `--win-sq` is the 1:1 floor (sized for the short-amount content so it reads square);
-		   height stays pinned to it while `max-content` lets a longer amount push the width wider.
-		   The divider uses a relative width (below) so the *amount* — not the divider — drives how
-		   wide the card grows.
-		   NOTE: floor + padding are in `rem` (like the text) so the aspect ratio is identical on
-		   desktop and mobile — the SDK scales the root font-size per device, and px/vw units would
-		   leave the floor fixed while the text grew, making mobile read as a wide rectangle. */
-		--win-sq: 15rem;
+		/* Landscape rectangle matching the win_bg.svg reference art (120×104 ≈ 1.4:1 wide), widening
+		   further as the win amount gets longer. `--win-w` is the width floor (so a short amount still
+		   reads as a wide landscape card) and `--win-h` the fixed height; `max-content` lets a longer
+		   amount push the width past the floor. The divider uses a relative width (below) so the
+		   *amount* — not the divider — drives how wide the card grows.
+		   NOTE: floor + height + padding are in `rem` (like the text) so the aspect ratio is identical
+		   on desktop and mobile — the SDK scales the root font-size per device, and px/vw units would
+		   leave the box fixed while the text grew, distorting the shape on mobile. */
+		--win-w: 16.5rem;
+		--win-h: 11.5rem;
 
 		display: flex;
 
@@ -1351,9 +1292,9 @@
 
 		width: max-content;
 
-		height: var(--win-sq);
+		height: var(--win-h);
 
-		min-width: var(--win-sq);
+		min-width: var(--win-w);
 
 		max-width: 96vw;
 
@@ -1361,12 +1302,14 @@
 
 		text-align: center;
 
-		/* Coded equivalent of win_bg.svg: dark radial fill + green rounded border. */
+		/* Coded equivalent of win_bg.svg: dark radial fill + green rounded border. The border and
+		   radius are in `rem` too so they stay proportionate to the card on mobile (a fixed px border
+		   reads as chunky once the SDK scales the root font-size down). */
 		background: radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%);
 
-		border: 9px solid #54f917;
+		border: 0.5rem solid #54f917;
 
-		border-radius: 16px;
+		border-radius: 1rem;
 
 	}
 
@@ -1577,8 +1520,8 @@
 				100vw
 		);
 
-		--bonus-level-left-ratio: 0.415;
-		--bonus-level-top-ratio: -0.07;
+		--bonus-level-left-ratio: 0.495;
+		--bonus-level-top-ratio: -0.11;
 		--bonus-level-width-ratio: 0.61;
 		--bonus-level-height-ratio: 0.336;
 		/* Optional mobile-specific overlay tuning (falls back to desktop vars). */
