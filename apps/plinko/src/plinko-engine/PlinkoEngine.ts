@@ -413,7 +413,11 @@ export class PlinkoEngine {
     }
 
     const pegSpacing = this.basePegSpacingY * this.verticalPegSpacingScale;
-    const basePegSpacingX = pegSpacing * (isMobile() ? 1.35 : 1.5);
+    // Horizontal lane spacing. The portrait CSS layout (.game-root--mobile) is shared by a real
+    // phone AND a narrow desktop window, so the board geometry must NOT depend on UA — otherwise
+    // a phone (isMobile) renders a narrower board than the tuned desktop-portrait. Use one value
+    // everywhere; hScale below still shrinks lanes if a row exceeds the host width.
+    const basePegSpacingX = pegSpacing * 1.5;
 
     // horizontalPegSpacingScale (shrink lanes when the widest row exceeds host width).
     let hScale = 1;
@@ -473,16 +477,15 @@ export class PlinkoEngine {
     return this.layoutHeight * 0.018 * this.elementScale;
   }
 
+  // Vertical margins frame the pyramid inside the host. Kept UA-independent so the shared portrait
+  // layout (real phone + narrow desktop window) lands the board at the same height; a phone-only
+  // 0 margin previously made the board sit higher than the tuned desktop-portrait.
   get topMargin(): number {
-    return isMobile()
-      ? 0
-      : Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
+    return Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
   }
 
   get bottomMargin(): number {
-    return isMobile()
-      ? 0
-      : Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
+    return Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
   }
 
   get slotHeight(): number {
@@ -932,9 +935,14 @@ export class PlinkoEngine {
     }
   }
 
-  /** Desktop render offset — board sits lower so spawn airspace stays visible. */
+  /**
+   * Render offset — the board sits lower inside a taller canvas so the spawn airspace above the
+   * top peg stays visible. Applied UA-independently: the portrait CSS layout is shared by a real
+   * phone and a narrow desktop window, so gating this on isMobile() made the phone drop the offset
+   * and float the board higher than the tuned desktop-portrait. One value keeps them identical.
+   */
   private getWorldViewportYOffset(): number {
-    return isMobile() ? 0 : this.layoutHeight * 0.085;
+    return this.layoutHeight * 0.085;
   }
 
   /** Pixi buffer height: host size plus viewport offset so bottom slots are not clipped. */
