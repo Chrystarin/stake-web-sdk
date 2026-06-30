@@ -3,7 +3,8 @@
 
 	import { stateBet, stateUrlDerived } from 'state-shared';
 
-	import { plinkoBetLimits } from '../game/plinkoBet';
+	import { buyBonusCost, plinkoBetLimits } from '../game/plinkoBet';
+	import { BUY_BONUS_TIERS } from '../game/plinkoBetMode';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
 	import { staticUrl } from '../lib/staticUrl';
 
@@ -237,6 +238,41 @@
 						<p>
 							Because both features resolve inside the same drop, one round can pay the base drop plus
 							a Free Spin multiplier and a batch of bonus balls.
+						</p>
+
+						<h3 class="info-section-title">Buy Bonus</h3>
+						<p>
+							The <strong>Buy Bonus</strong> button lets you instantly trigger the Crimson Fury bonus
+							without waiting for the Bonus meter to fill. Pick a tier and the bonus starts straight
+							away with that tier's batch of free balls — there is no separate paid drop.
+						</p>
+						<ul>
+							{#each BUY_BONUS_TIERS as tier}
+								<li>
+									<strong>{tier.name}</strong> — {tier.freeBalls} free balls, costs
+									{buyBonusCost(tier.key)}× your Bet per Ball.
+									{#if tier.headStart > 0}
+										Starts the Fury meter {Math.round(tier.headStart * 100)}% filled.
+									{:else}
+										No Fury meter head-start.
+									{/if}
+								</li>
+							{/each}
+						</ul>
+						<p>
+							The price is your <strong>Bet per Ball × the tier's multiplier</strong> (for example, at
+							$1.00 per ball the Standard tier costs $80.00) and does not depend on your Ball per Drop.
+						</p>
+						<p>
+							<strong>Fury Meter Head-Start</strong> — higher tiers begin the bonus with the level-up
+							meter already part-filled, so they reach the first level-up sooner and chain into extra
+							free balls more often.
+						</p>
+						<p>
+							A bought bonus plays exactly like a naturally triggered one: the free balls drop at your
+							current Bet per Ball, the round can level up for even more balls, and an in-bonus Free Spin
+							multiplier can still land. The balls you bought and any balls won during the bonus are
+							added together into your total.
 						</p>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}

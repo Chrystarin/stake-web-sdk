@@ -21,14 +21,17 @@ export type BuyBonusTier = {
 	key: string;
 	name: string;
 	freeBalls: number;
+	/** Fury-meter head-start fraction (0..1): the in-bonus level-up meter starts this filled. Mirror of
+	 * the math plinko_data.BUY_BONUS_TIER_DEFS `head_start`. */
+	headStart: number;
 	tagline: string;
 };
 
 export const BUY_BONUS_TIERS: readonly BuyBonusTier[] = [
-	{ key: 'standard', name: 'Standard', freeBalls: 71, tagline: 'Base enhanced turbulence and chain potential.' },
-	{ key: 'enhanced', name: 'Enhanced', freeBalls: 81, tagline: 'Moderate head-start on the Fury meter.' },
-	{ key: 'premium', name: 'Premium', freeBalls: 113, tagline: 'Larger batch with solid Fury progression.' },
-	{ key: 'superfury', name: 'Super Fury', freeBalls: 141, tagline: 'Massive starting batch and strong chain reactions.' },
+	{ key: 'standard', name: 'Standard', freeBalls: 71, headStart: 0, tagline: 'Base enhanced turbulence and chain potential.' },
+	{ key: 'enhanced', name: 'Enhanced', freeBalls: 81, headStart: 0.2, tagline: 'Moderate head-start on the Fury meter.' },
+	{ key: 'premium', name: 'Premium', freeBalls: 113, headStart: 0.4, tagline: 'Larger batch with solid Fury progression.' },
+	{ key: 'superfury', name: 'Super Fury', freeBalls: 141, headStart: 0.7, tagline: 'Massive starting batch and strong chain reactions.' },
 ];
 
 /** RGS mode for a buy tier (mirror math `buy_bonus_mode_name`), e.g. buystandard. */
