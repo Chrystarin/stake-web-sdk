@@ -9,7 +9,7 @@
 
 
 
-	import { coefficientsForRowCount, SIM_SPEED } from '../game-logic/constants';
+	import { BONUS_LEVEL_LABELS, coefficientsForRowCount, SIM_SPEED } from '../game-logic/constants';
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
@@ -134,6 +134,19 @@
 	 * BonusRoulette.svelte, which holds it on screen). Bonus will NOT resolve while this is on. */
 	const DEV_SHOW_BONUS_ROULETTE_ON_LOAD = false;
 
+	/** DEBUG: enter bonus mode on load and light up ALL bonus level bars as if every level is unlocked.
+	 * Forces bonusRoundActive (which also flips on the bonus background) and pins bonusLevelProgress to
+	 * the full count so every node uses its active image. Purely a visual override — set back to false
+	 * to restore normal flow. */
+	const DEV_SHOW_ALL_BONUS_LEVELS_ON_LOAD = true;
+
+	/** DEBUG: force the bonus meter's visual fill to a fixed value in 0..1 (e.g. 0.5 = half full).
+	 * Purely cosmetic — it only feeds the <BonusMeter> progress prop and does NOT touch the real
+	 * meter value, bonus trigger logic, or anything else. Leave as null to use the live meter.
+	 * Can also be changed live from the dev console: plinkoSetBonusMeter(0.5) / plinkoSetBonusMeter(null). */
+	const DEV_BONUS_METER_PROGRESS: number | null = null;
+	let devBonusMeterProgress = $state<number | null>(DEV_BONUS_METER_PROGRESS);
+
 	let gameRootEl = $state<HTMLElement | undefined>(undefined);
 
 
@@ -148,9 +161,10 @@
 
 	/** Track `stateGame` meter fields directly — getters on `stateGameDerived` are not reactive. */
 	const bonusMeterProgress = $derived(
-		stateGame.bonusMeterMax > 0
-			? Math.min(1, Math.max(0, stateGame.bonusMeterValue / stateGame.bonusMeterMax))
-			: 0,
+		devBonusMeterProgress ??
+			(stateGame.bonusMeterMax > 0
+				? Math.min(1, Math.max(0, stateGame.bonusMeterValue / stateGame.bonusMeterMax))
+				: 0),
 	);
 
 	const spinMeterProgress = $derived(
@@ -175,6 +189,15 @@
 
 		installPlinkoDevDebug();
 
+		if (import.meta.env.DEV) {
+			// Live cosmetic override for the bonus meter fill — see DEV_BONUS_METER_PROGRESS above.
+			// plinkoSetBonusMeter(0.5) fills to half; plinkoSetBonusMeter(null) restores the live value.
+			(window as Window & { plinkoSetBonusMeter?: (value: number | null) => void }).plinkoSetBonusMeter =
+				(value) => {
+					devBonusMeterProgress = value === null ? null : Math.min(1, Math.max(0, value));
+				};
+		}
+
 		applyClientMeterDefaults(config.spinMeterMax, config.bonusMeterMax);
 		applyRgsSessionMetersToDisplay();
 
@@ -187,6 +210,11 @@
 
 		if (DEV_SHOW_BONUS_ROULETTE_ON_LOAD) {
 			stateGame.bonusRouletteOpen = true;
+		}
+
+		if (DEV_SHOW_ALL_BONUS_LEVELS_ON_LOAD) {
+			stateGame.bonusRoundActive = true;
+			stateGame.bonusLevelProgress = BONUS_LEVEL_LABELS.length;
 		}
 
 		if (DEV_SHOW_WIN_MODAL_ON_LOAD) {

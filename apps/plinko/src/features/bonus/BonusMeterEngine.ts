@@ -29,6 +29,9 @@ export class BonusMeterEngine {
   private fillStartTipLocal?: { x: number; y: number };
   /** Right tip of fill art — used near full (ray at 2π runs off the texture's bottom edge). */
   private fillEndTipLocal?: { x: number; y: number };
+  /** Solid-core centerline of the fill arch in texture space, one point per opaque column
+   *  (ascending x). The marker rides this polyline so it stays glued to the visible bright tip. */
+  private fillCenterlineLocal?: Array<{ x: number; y: number }>;
   markerLeftPx: number = 0;
   markerTopPx: number = 0;
   markerSizePx: number = 10;
@@ -42,8 +45,9 @@ export class BonusMeterEngine {
   // Fallback marker alignment if texture sampling is unavailable.
   private readonly markerRadiusOffsetByHeight = -0.2;
   private readonly markerAngleOffsetRad = 0.0;
-  // Nudge marker downward by this fraction of markerSizePx (positive = lower).
-  private readonly markerVerticalNudgeFraction = 0.25;
+  // Nudge marker downward by this fraction of markerSizePx (positive = lower). The marker now
+  // lands on the fill centerline directly, so no vertical correction is needed.
+  private readonly markerVerticalNudgeFraction = 0;
 
 	async init(host: HTMLElement): Promise<void> {
 		this.hostElement = host;
@@ -147,7 +151,9 @@ export class BonusMeterEngine {
     this.meterSprite.position.set(offsetX, offsetY);
     this.meterSprite.width = scaledBaseWidth;
     this.meterSprite.height = scaledBaseHeight;
-    this.markerSizePx = Math.max(8, scaledBaseHeight * 0.5);
+    // Sized to cover the fill's glow halo at the tip (the bright core plus its soft bloom),
+    // so the leading edge sits under the dot rather than peeking out around it.
+    this.markerSizePx = Math.max(8, scaledBaseHeight * 0.72);
     this.updateMeterFill();
   }
 
@@ -170,6 +176,8 @@ export class BonusMeterEngine {
     // Marker follows the current fill endpoint along the top arc.
     const markerAngle = endAngle + this.markerAngleOffsetRad;
     const epsilon = 0.0001;
+    // At rest (fully empty / fully full) snap straight onto the art tip, so the dot settles
+    // exactly on the end of the bar.
     if (clampedProgress <= epsilon && this.fillStartTipLocal) {
       this.setMarkerPosition(this.toWorldX(this.fillStartTipLocal.x), this.toWorldY(this.fillStartTipLocal.y));
       return;
@@ -178,14 +186,19 @@ export class BonusMeterEngine {
       this.setMarkerPosition(this.toWorldX(this.fillEndTipLocal.x), this.toWorldY(this.fillEndTipLocal.y));
       return;
     }
-    const sampledPos = this.getMarkerPositionFromFillTexture(markerAngle);
-    if (sampledPos) {
-      this.setMarkerPosition(sampledPos.x, sampledPos.y);
+
+    // Ride the fill's own centerline at the leading angle. The bright core ends where this line
+    // meets the mask cut, so the dot lands exactly on the visible tip — and because we read the
+    // centerline directly (rather than ray-casting the band, which skims a long, off-tip stretch
+    // wherever the ray grazes the shallow arch) it stays glued across the whole sweep, with no
+    // progress-dependent drift to correct for.
+    const tip = this.getCenterlineTipWorld(markerAngle);
+    if (tip) {
+      this.setMarkerPosition(tip.x, tip.y);
       return;
     }
-    // Near either end of the flattened arch the leading ray runs almost horizontal
-    // and can miss every texel; snap to the actual art tip on the matching side so
-    // the marker stays on the fill edge instead of dropping to the baseline below.
+    // Past either end of the arch the lookup has no segment to interpolate; snap to the matching
+    // art tip so the marker rests on the fill edge instead of dropping to the baseline below.
     const nullFallbackTip = clampedProgress >= 0.5 ? this.fillEndTipLocal : this.fillStartTipLocal;
     if (nullFallbackTip) {
       this.setMarkerPosition(this.toWorldX(nullFallbackTip.x), this.toWorldY(nullFallbackTip.y));
@@ -217,12 +230,14 @@ export class BonusMeterEngine {
       this.fillAlphaWidth = width;
       this.fillAlphaHeight = height;
       this.cacheFillTips();
+      this.cacheFillCenterline();
     } catch {
       this.fillAlphaData = undefined;
       this.fillAlphaWidth = 0;
       this.fillAlphaHeight = 0;
       this.fillStartTipLocal = undefined;
       this.fillEndTipLocal = undefined;
+      this.fillCenterlineLocal = undefined;
     }
   }
 
@@ -278,47 +293,63 @@ export class BonusMeterEngine {
     this.fillEndTipLocal = maxX >= 0 ? { x: maxX, y: (maxXTop + maxXBot) / 2 } : undefined;
   }
 
-  private getMarkerPositionFromFillTexture(angle: number): { x: number; y: number } | null {
-    if (!this.fillTexture || !this.fillAlphaData || !this.fillAlphaWidth || !this.fillAlphaHeight) return null;
-    const texW = this.fillAlphaWidth;
-    const texH = this.fillAlphaHeight;
-    const scaleX = this.meterNativeWidth / texW;
-    const scaleY = this.meterNativeHeight / texH;
+  /** Per-column center of the solid fill core (alpha > threshold), ascending x. The marker rides
+   *  this polyline so it tracks the bright tip exactly, with none of the grazing-ray drift a
+   *  single radial sample suffers near the ends of the shallow arch. */
+  private cacheFillCenterline(): void {
+    if (!this.fillAlphaData || !this.fillAlphaWidth || !this.fillAlphaHeight) {
+      this.fillCenterlineLocal = undefined;
+      return;
+    }
+    // Match the tip threshold so the centerline tracks the solid core, not the faint outer glow.
+    const threshold = 80;
+    const w = this.fillAlphaWidth;
+    const h = this.fillAlphaHeight;
+    const line: Array<{ x: number; y: number }> = [];
+    for (let x = 0; x < w; x++) {
+      let top = -1;
+      let bot = -1;
+      for (let y = 0; y < h; y++) {
+        if (this.fillAlphaData[(y * w + x) * 4 + 3] <= threshold) continue;
+        if (top < 0) top = y;
+        bot = y;
+      }
+      if (top >= 0) line.push({ x, y: (top + bot) / 2 });
+    }
+    this.fillCenterlineLocal = line.length >= 2 ? line : undefined;
+  }
 
-    // Cast the ray in WORLD space so non-uniform texture scaling doesn't skew the angle.
-    // The mask arc uses world-space geometry; sampling in texture space at the same numeric
-    // angle introduces drift whenever scaleX ≠ scaleY (different at higher progress values).
+  /**
+   * World position of the arch centerline at the given leading-ray angle. Angles from the mask
+   * center increase monotonically left→right along the arch, so we walk the centerline polyline
+   * and interpolate within the segment that straddles the target angle. Returns null when the
+   * angle falls past either end of the arch (handled by the art-tip fallbacks).
+   */
+  private getCenterlineTipWorld(angle: number): { x: number; y: number } | null {
+    const line = this.fillCenterlineLocal;
+    if (!line || line.length < 2) return null;
     const worldCx = this.meterOffsetXPx + this.meterNativeWidth / 2;
     const worldCy = this.meterOffsetYPx + this.meterNativeHeight;
-    const dx = Math.cos(angle);
-    const dy = Math.sin(angle);
-    const maxRadius = Math.max(this.meterNativeWidth, this.meterNativeHeight);
-
-    let firstHit = -1;
-    let lastHit = -1;
-    let lastSolidHit = -1;
-    for (let r = 0; r <= maxRadius; r += 0.5) {
-      const worldX = worldCx + dx * r;
-      const worldY = worldCy + dy * r;
-      const texX = Math.round((worldX - this.meterOffsetXPx) / scaleX);
-      const texY = Math.round((worldY - this.meterOffsetYPx) / scaleY);
-      if (texX < 0 || texX >= texW || texY < 0 || texY >= texH) continue;
-      const alpha = this.fillAlphaData[(texY * texW + texX) * 4 + 3];
-      if (alpha > 20) {
-        if (firstHit < 0) firstHit = r;
-        lastHit = r;
+    let prevAngle: number | null = null;
+    let prevX = 0;
+    let prevY = 0;
+    for (const point of line) {
+      const wx = this.toWorldX(point.x);
+      const wy = this.toWorldY(point.y);
+      // Arch points sit above the center (wy < worldCy), so the raw atan2 is negative; shift it
+      // into [π, 2π] — the same range the mask sweep uses — where it rises monotonically.
+      let a = Math.atan2(wy - worldCy, wx - worldCx);
+      if (a < 0) a += Math.PI * 2;
+      if (prevAngle !== null && angle >= Math.min(prevAngle, a) && angle <= Math.max(prevAngle, a)) {
+        const span = a - prevAngle;
+        const t = Math.abs(span) < 1e-6 ? 0 : (angle - prevAngle) / span;
+        return { x: prevX + (wx - prevX) * t, y: prevY + (wy - prevY) * t };
       }
-      // Track the outer edge of the solid fill core (excluding the faint outer glow).
-      if (alpha > 80) lastSolidHit = r;
+      prevAngle = a;
+      prevX = wx;
+      prevY = wy;
     }
-    if (firstHit < 0 || lastHit < 0) return null;
-    // Place marker at the outer solid-fill edge so it sits right on the visible tip.
-    // midpoint was still offset at higher progress; lastHit overshoots into the glow.
-    const tipR = lastSolidHit >= 0 ? lastSolidHit : (firstHit + lastHit) / 2;
-    return {
-      x: worldCx + dx * tipR,
-      y: worldCy + dy * tipR,
-    };
+    return null;
   }
 
   private toWorldX(localX: number): number {

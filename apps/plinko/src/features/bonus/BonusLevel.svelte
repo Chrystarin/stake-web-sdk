@@ -120,7 +120,7 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 	}
 	.bonus-level-node:nth-child(5) {
 		left: 49%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.208333);
+		top: calc(var(--bonus-level-track-height, 100%) * 0.2);
 		--bonus-level-node-width: 68;
 		--bonus-level-node-height: 50;
 	}
@@ -144,7 +144,7 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 	}
 	.bonus-level-node:nth-child(9) {
 		left: 89%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.691667);
+		top: calc(var(--bonus-level-track-height, 100%) * 0.71);
 		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 62;
 	}
