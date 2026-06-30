@@ -165,6 +165,7 @@
 		const next = idx + (delta > 0 ? 1 : -1);
 		if (next < 0 || next >= presets.length) return;
 		props.onBetAmountChange(presets[next]);
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
 
 	function isBetAmountStepDisabled(delta: number) {
