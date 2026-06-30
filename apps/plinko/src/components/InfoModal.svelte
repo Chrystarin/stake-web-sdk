@@ -383,7 +383,11 @@
 									<tbody>
 										{#each historyRows as row, index (`${row.date}-${row.bet}-${index}`)}
 											<tr>
-												<td>{row.date}</td>
+												<td>
+													{#each row.date.split(' ') as part}
+														<span class="info-history-datepart">{part}</span>{' '}
+													{/each}
+												</td>
 												<td>{formatMoney(row.bet)}</td>
 												<td>{formatMoney(row.betPerBall)}</td>
 												<td>{row.ballPerDrop}</td>
@@ -669,6 +673,13 @@
 	.info-history-table td:nth-child(6) {
 		width: 14%;
 	}
+	/* Keep the time and the date each on a single line; the cell wraps only at the
+	 * space between them, so a tight column puts the date on its own line under the
+	 * time instead of breaking mid-value. */
+	.info-history-datepart {
+		display: inline-block;
+		white-space: nowrap;
+	}
 	.info-history-empty {
 		text-align: center;
 		color: #9ab8d0;
@@ -714,5 +725,60 @@
 		line-height: 1;
 		white-space: nowrap;
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+	}
+
+	/* Narrow screens: the 6-column history table is too tight for 13px text +
+	 * 10px cell padding, so figures bleed to the cell edges. Shrink fonts,
+	 * padding and chip sizing so every value fits without truncation. */
+	@media (max-width: 480px) {
+		.info-history-scroll {
+			padding: 0 10px 16px;
+		}
+		.info-history-table thead th {
+			font-size: 10px;
+			padding: 6px 3px;
+		}
+		.info-history-table td {
+			font-size: 10px;
+			padding: 6px 3px;
+		}
+		.info-history-table {
+			border-spacing: 0 5px;
+		}
+		/* Rebalance columns for the narrow viewport: the "Ball/Drop" header needs
+		 * more room than 12%, borrowed from the over-wide single-chip Mult. column. */
+		.info-history-table th:nth-child(4),
+		.info-history-table td:nth-child(4) {
+			width: 16%;
+		}
+		.info-history-table th:nth-child(5),
+		.info-history-table td:nth-child(5) {
+			width: 20%;
+		}
+		/* Date wraps to two lines anyway, so trim it to give the Win column enough
+		 * room for large grouped amounts (e.g. $5,250.00). */
+		.info-history-table th:nth-child(1),
+		.info-history-table td:nth-child(1) {
+			width: 18%;
+		}
+		.info-history-table th:nth-child(6),
+		.info-history-table td:nth-child(6) {
+			width: 16%;
+		}
+		/* Longer labels ("Free Spin x0.5", "71 Bonus") are wider than "x10"; with
+		 * nowrap they overflow the Mult. column, so let them wrap and grow in height
+		 * to keep the full value visible inside the cell. */
+		.info-mult-pill {
+			min-width: 36px;
+			max-width: 100%;
+			min-height: 22px;
+			height: auto;
+			padding: 3px 6px;
+			font-size: 11px;
+			white-space: normal;
+			line-height: 1.15;
+			text-align: center;
+			word-break: break-word;
+		}
 	}
 </style>
