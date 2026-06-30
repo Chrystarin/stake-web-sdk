@@ -1018,10 +1018,17 @@
 	}
 }
 
+.mobile-coins-wrap {
+	position: relative;
+	width: 100%;
+	display: flex;
+	justify-content: center;
+}
+
 .mobile-bet-popup {
 	position: fixed;
-	left: clamp(10px, 3vw, 18px);
-	bottom: clamp(10px, 3vw, 18px);
+	right: 2vw;
+	bottom: 28.5vw;
 	width: min(62vw, 360px);
 	z-index: 1100;
 	display: flex;
@@ -1029,10 +1036,10 @@
 	gap: clamp(10px, 2.4vw, 16px);
 	padding: clamp(8px, 1.7vw, 12px);
 	pointer-events: auto;
-	/* Render the popup scaled down, anchored to its bottom-left corner so it stays
-	   pinned above the coins button. Scaling uniformly preserves every proportion. */
+	/* Pin the popup 2vw from the viewport's right edge, sitting just above the controls.
+	   Scaling from the bottom-right keeps that right edge fixed as it shrinks. */
 	transform: scale(0.625);
-	transform-origin: bottom left;
+	transform-origin: bottom right;
 
 	> .bp-field-frame {
 		border-radius: clamp(10px, 2.2vw, 14px);
@@ -1059,6 +1066,11 @@
 		position: relative;
 		z-index: 1;
 	}
+}
+
+/* BET is a read-only total — no steppers, so the label/value span the full row width. */
+.mobile-bet-popup-row--stat {
+	grid-template-columns: minmax(0, 1fr);
 }
 
 .mobile-bet-popup-step {
@@ -1088,13 +1100,6 @@
 		opacity: 0.45;
 		cursor: not-allowed;
 	}
-}
-
-/* BET row steppers are decorative only — they keep the three rows visually uniform
-   but BET is a derived total, so they stay inert (no pointer / no fade). */
-.mobile-bet-popup-step--static {
-	cursor: default;
-	pointer-events: none;
 }
 
 .mobile-bet-popup-mid {

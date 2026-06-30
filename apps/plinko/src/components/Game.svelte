@@ -1317,7 +1317,8 @@
 
 		color: #54f917;
 
-		font-size: 1.58125rem;
+		/* 1.58125rem base, +20%. */
+		font-size: 1.8975rem;
 
 		font-weight: 400;
 
@@ -1349,7 +1350,8 @@
 
 		white-space: nowrap;
 
-		font-size: 1.3rem;
+		/* 1.3rem base, +20%. */
+		font-size: 1.56rem;
 
 		margin: 10px 0 0;
 
@@ -1522,7 +1524,9 @@
 
 		--bonus-level-left-ratio: 0.495;
 		--bonus-level-top-ratio: -0.11;
-		--bonus-level-width-ratio: 0.61;
+		/* Uniform shrink of the bonus bar so its arc edges align with the pirate-hat brim. */
+		--mobile-bonus-level-scale: 0.97;
+		--bonus-level-width-ratio: 0.6;
 		--bonus-level-height-ratio: 0.336;
 		/* Optional mobile-specific overlay tuning (falls back to desktop vars). */
 		--bonus-overlay-scale-mobile: var(--bonus-overlay-scale);
@@ -1578,6 +1582,10 @@
 	.game-root--mobile .game-area > .container .bonus-level-behind-game-area {
 
 		left: calc(var(--game-area-fit-width) * var(--bonus-level-left-ratio));
+
+		/* Shrink the whole bar (arch + tiles) a touch so its edges tuck into the pirate-hat brim.
+		   Scales about the box centre, so it stays centred on the hat. */
+		transform: translateX(-50%) scale(var(--mobile-bonus-level-scale, 1));
 
 	}
 

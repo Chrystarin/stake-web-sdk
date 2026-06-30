@@ -321,6 +321,12 @@
 		const onDocumentClick = (event: MouseEvent) => {
 			const target = event.target as HTMLElement | null;
 			if (!target) return;
+			// Close the mobile bet popup on any click outside the coins control. The wrap
+			// holds both the popup and its toggle button, so excluding it lets the button's
+			// own toggle handle open/close and keeps clicks inside the popup from closing it.
+			if (mobileBetPopupOpen && !target.closest('.mobile-coins-wrap')) {
+				mobileBetPopupOpen = false;
+			}
 			if (
 				target.closest('.bp-auto-wrap') ||
 				target.closest('.bp-autobet-panel') ||
@@ -421,15 +427,18 @@
 					{/if}
 				{/if}
 			</button>
-			<button
-				type="button"
-				class="mobile-icon-btn mobile-icon-btn--coins"
-				aria-expanded={mobileBetPopupOpen}
-				aria-label="Open bet settings"
-				onclick={toggleMobileBetPopup}
-			>
-				<img src={staticUrl('img/coins-btn-mobile.png')} alt="" aria-hidden="true" />
-			</button>
+			<div class="mobile-coins-wrap">
+				<button
+					type="button"
+					class="mobile-icon-btn mobile-icon-btn--coins"
+					aria-expanded={mobileBetPopupOpen}
+					aria-label="Open bet settings"
+					onclick={toggleMobileBetPopup}
+				>
+					<img src={staticUrl('img/coins-btn-mobile.png')} alt="" aria-hidden="true" />
+				</button>
+				{@render mobileBetPopup()}
+			</div>
 			<div class="mobile-autobet-wrap">
 				<button
 					type="button"
@@ -462,103 +471,91 @@
 			</div>
 		</div>
 
-		{#if mobileBetPopupOpen}
-			<div class="mobile-bet-popup" role="dialog" aria-label="Bet settings">
-				<img
-					class="bp-field-frame mobile-bet-popup-base"
-					src={staticUrl('img/mobile_popup_bet_modal_base.png')}
-					alt=""
-					aria-hidden="true"
-				/>
-				<div class="mobile-bet-popup-row">
-					{@render bettingFieldFrame()}
-					<span class="mobile-bet-popup-step mobile-bet-popup-step--static" aria-hidden="true">
-						<img
-							src={staticUrl('img/betting-component-input-decrease.png')}
-							alt=""
-							aria-hidden="true"
-						/>
-					</span>
-					<div class="mobile-bet-popup-mid">
-						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet')}</span>
-						<span class="mobile-bet-popup-value">{formatMoney(props.totalBetAmount)}</span>
+		{#snippet mobileBetPopup()}
+			{#if mobileBetPopupOpen}
+				<div class="mobile-bet-popup" role="dialog" aria-label="Bet settings">
+					<img
+						class="bp-field-frame mobile-bet-popup-base"
+						src={staticUrl('img/mobile_popup_bet_modal_base.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+					<div class="mobile-bet-popup-row mobile-bet-popup-row--stat">
+						{@render bettingFieldFrame()}
+						<div class="mobile-bet-popup-mid">
+							<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet')}</span>
+							<span class="mobile-bet-popup-value">{formatMoney(props.totalBetAmount)}</span>
+						</div>
 					</div>
-					<span class="mobile-bet-popup-step mobile-bet-popup-step--static" aria-hidden="true">
-						<img
-							src={staticUrl('img/betting-component-input-increase.png')}
-							alt=""
-							aria-hidden="true"
-						/>
-					</span>
-				</div>
-				<div class="mobile-bet-popup-row">
-					{@render bettingFieldFrame()}
-					<button
-						type="button"
-						class="mobile-bet-popup-step"
-						disabled={isBallPerDropStepDisabled(-1)}
-						aria-label="Decrease ball per drop"
-						onclick={() => adjustBallPerDrop(-1)}
-					>
-						<img
-							src={staticUrl('img/betting-component-input-decrease.png')}
-							alt=""
-							aria-hidden="true"
-						/>
-					</button>
-					<div class="mobile-bet-popup-mid">
-						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Ball per drop')}</span>
-						<span class="mobile-bet-popup-value">{ballPerDropDisplay}</span>
+					<div class="mobile-bet-popup-row">
+						{@render bettingFieldFrame()}
+						<button
+							type="button"
+							class="mobile-bet-popup-step"
+							disabled={isBallPerDropStepDisabled(-1)}
+							aria-label="Decrease ball per drop"
+							onclick={() => adjustBallPerDrop(-1)}
+						>
+							<img
+								src={staticUrl('img/betting-component-input-decrease.png')}
+								alt=""
+								aria-hidden="true"
+							/>
+						</button>
+						<div class="mobile-bet-popup-mid">
+							<span class="mobile-bet-popup-label">{context.i18nDerived.t('Ball per drop')}</span>
+							<span class="mobile-bet-popup-value">{ballPerDropDisplay}</span>
+						</div>
+						<button
+							type="button"
+							class="mobile-bet-popup-step"
+							disabled={isBallPerDropStepDisabled(1)}
+							aria-label="Increase ball per drop"
+							onclick={() => adjustBallPerDrop(1)}
+						>
+							<img
+								src={staticUrl('img/betting-component-input-increase.png')}
+								alt=""
+								aria-hidden="true"
+							/>
+						</button>
 					</div>
-					<button
-						type="button"
-						class="mobile-bet-popup-step"
-						disabled={isBallPerDropStepDisabled(1)}
-						aria-label="Increase ball per drop"
-						onclick={() => adjustBallPerDrop(1)}
-					>
-						<img
-							src={staticUrl('img/betting-component-input-increase.png')}
-							alt=""
-							aria-hidden="true"
-						/>
-					</button>
-				</div>
-				<div class="mobile-bet-popup-row">
-					{@render bettingFieldFrame()}
-					<button
-						type="button"
-						class="mobile-bet-popup-step"
-						disabled={isBetAmountStepDisabled(-1)}
-						aria-label="Decrease bet per ball"
-						onclick={() => adjustBetAmountStep(-1)}
-					>
-						<img
-							src={staticUrl('img/betting-component-input-decrease.png')}
-							alt=""
-							aria-hidden="true"
-						/>
-					</button>
-					<div class="mobile-bet-popup-mid">
-						<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet per ball')}</span>
-						<span class="mobile-bet-popup-value">{formatCompactAmount(props.betAmount)}</span>
+					<div class="mobile-bet-popup-row">
+						{@render bettingFieldFrame()}
+						<button
+							type="button"
+							class="mobile-bet-popup-step"
+							disabled={isBetAmountStepDisabled(-1)}
+							aria-label="Decrease bet per ball"
+							onclick={() => adjustBetAmountStep(-1)}
+						>
+							<img
+								src={staticUrl('img/betting-component-input-decrease.png')}
+								alt=""
+								aria-hidden="true"
+							/>
+						</button>
+						<div class="mobile-bet-popup-mid">
+							<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet per ball')}</span>
+							<span class="mobile-bet-popup-value">{formatCompactAmount(props.betAmount)}</span>
+						</div>
+						<button
+							type="button"
+							class="mobile-bet-popup-step"
+							disabled={isBetAmountStepDisabled(1)}
+							aria-label="Increase bet per ball"
+							onclick={() => adjustBetAmountStep(1)}
+						>
+							<img
+								src={staticUrl('img/betting-component-input-increase.png')}
+								alt=""
+								aria-hidden="true"
+							/>
+						</button>
 					</div>
-					<button
-						type="button"
-						class="mobile-bet-popup-step"
-						disabled={isBetAmountStepDisabled(1)}
-						aria-label="Increase bet per ball"
-						onclick={() => adjustBetAmountStep(1)}
-					>
-						<img
-							src={staticUrl('img/betting-component-input-increase.png')}
-							alt=""
-							aria-hidden="true"
-						/>
-					</button>
 				</div>
-			</div>
-		{/if}
+			{/if}
+		{/snippet}
 
 		<div class="mobile-bottom-corners">
 			<div class="mobile-corner-info mobile-corner-info--left">
