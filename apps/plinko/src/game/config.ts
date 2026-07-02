@@ -52,10 +52,10 @@ export default {
 		// cost comes from the rule-set PDF; the math tunes the bonus entry balls so each mode's RTP ≈ 95.7%
 		// at that fixed cost. is_feature=false → one-shot. Per-tier max_win = the tier's advertised cap.
 		// Must mirror the published math config.json (plinko_data.BUY_BONUS_TIER_DEFS).
-		buystandard: { cost: 80.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 300.0 },
-		buyenhanced: { cost: 100.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 340.0 },
-		buypremium: { cost: 150.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 450.0 },
-		buysuperfury: { cost: 250.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 600.0 },
+		buystandard: { cost: 80.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 260.0 },
+		buyenhanced: { cost: 100.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 290.0 },
+		buypremium: { cost: 150.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 330.0 },
+		buysuperfury: { cost: 250.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 480.0 },
 	},
 	/** [rowTierIndex 0..12] → slot multipliers (matches stake-math-sdk plinko_data.COEFFICIENT_SETS). */
 	coefficientSets: tierTable(DEFAULT_SLOT_MULTIPLIERS) as number[][],

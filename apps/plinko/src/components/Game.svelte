@@ -416,7 +416,8 @@
 	}
 
 	// Buy bonus — can't open mid-round / mid-bonus / in replay, and NOT on the single-ball (rapid) tier,
-	// which has no meters / bonus feature (the trigger button is also hidden there).
+	// which has no meters / bonus feature (the trigger button stays visible there but greyed to half
+	// opacity and disabled).
 	const buyBonusDisabled = $derived.by(() => {
 		stateGame.isSubmitting;
 		stateGame.dropRoundActive;
@@ -537,11 +538,12 @@
 		<Background />
 	</div>
 
-	{#if !isReplay && stateGame.ballPerDrop !== 1}
+	{#if !isReplay}
 		<button
 			type="button"
 			class="buy-bonus-trigger"
 			class:buy-bonus-trigger--mobile={mobile}
+			class:buy-bonus-trigger--one-ball={stateGame.ballPerDrop === 1}
 			disabled={buyBonusDisabled}
 			onclick={openBuyBonus}
 			aria-label="Buy bonus"
@@ -973,9 +975,17 @@
 		transform: scale(1.06);
 	}
 
-	.buy-bonus-trigger:disabled {
+	.buy-bonus-trigger:disabled:not(.buy-bonus-trigger--one-ball) {
 		cursor: not-allowed;
 		filter: grayscale(0.7) brightness(0.55);
+	}
+
+	/* On the single-ball (rapid) tier the buy-bonus feature isn't offered, but the trigger stays
+	   visible (disabled) at half opacity instead of being hidden, so players know it exists. It keeps
+	   full colour — only faded — rather than the greyed-out look of the normal disabled state. */
+	.buy-bonus-trigger--one-ball {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.buy-bonus-trigger--mobile {
@@ -1406,7 +1416,9 @@
 		   proportionate to the card on mobile (the SDK scales the root font-size per device). */
 		background:
 			radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%) padding-box,
-			linear-gradient(150deg, #9dff5c 0%, #54f917 45%, #2ba80a 100%) border-box;
+			/* Diagonal (135deg = top-left → bottom-right): bright lime in the top-left corner falling off
+			   to a near-black deep green in the bottom-right, per the reference. */
+			linear-gradient(135deg, #9dff5c 0%, #54f917 30%, #2f7d10 62%, #14480a 100%) border-box;
 
 		border: 0.5rem solid transparent;
 
@@ -1421,7 +1433,8 @@
 		/* 1.58125rem base, +20%. */
 		font-size: 1.8975rem;
 
-		font-weight: 400;
+		/* Bold to match the heavy text in the reference. */
+		font-weight: 700;
 
 		margin: 0;
 
@@ -1456,7 +1469,8 @@
 
 		margin: 10px 0 0;
 
-		font-weight: 400;
+		/* Heaviest weight — the win amount is the thickest element in the reference. */
+		font-weight: 800;
 
 		color: #54f917;
 
@@ -1592,7 +1606,7 @@
 		/* Portrait plinko layout — tune independently from desktop / landscape */
 		--game-layout-scale-mobile: 1.15;
 		--game-layout-offset-x-ratio-mobile: -0.015;
-		--game-layout-offset-y-ratio-mobile: 0.1;
+		--game-layout-offset-y-ratio-mobile: 0.05;
 		transform: translate(
 				calc(var(--game-layout-offset-x-ratio-mobile) * 100vw),
 				calc(var(--game-layout-offset-y-ratio-mobile) * 100vw)

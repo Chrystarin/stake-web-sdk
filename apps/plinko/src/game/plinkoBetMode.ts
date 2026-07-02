@@ -28,10 +28,10 @@ export type BuyBonusTier = {
 };
 
 export const BUY_BONUS_TIERS: readonly BuyBonusTier[] = [
-	{ key: 'standard', name: 'Standard', freeBalls: 71, headStart: 0, tagline: 'Base enhanced turbulence and chain potential.' },
-	{ key: 'enhanced', name: 'Enhanced', freeBalls: 81, headStart: 0.2, tagline: 'Moderate head-start on the Fury meter.' },
-	{ key: 'premium', name: 'Premium', freeBalls: 113, headStart: 0.4, tagline: 'Larger batch with solid Fury progression.' },
-	{ key: 'superfury', name: 'Super Fury', freeBalls: 141, headStart: 0.7, tagline: 'Massive starting batch and strong chain reactions.' },
+	{ key: 'standard', name: 'Standard', freeBalls: 72, headStart: 0, tagline: 'A starter batch of free balls with chain potential.' },
+	{ key: 'enhanced', name: 'Enhanced', freeBalls: 95, headStart: 0, tagline: 'A bigger batch for stronger chain runs.' },
+	{ key: 'premium', name: 'Premium', freeBalls: 145, headStart: 0, tagline: 'A large batch with solid chain progression.' },
+	{ key: 'superfury', name: 'Super Fury', freeBalls: 239, headStart: 0, tagline: 'A massive starting batch and the strongest chains.' },
 ];
 
 /** RGS mode for a buy tier (mirror math `buy_bonus_mode_name`), e.g. buystandard. */

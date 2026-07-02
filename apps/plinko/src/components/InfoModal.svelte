@@ -251,11 +251,6 @@
 								<li>
 									<strong>{tier.name}</strong> — {tier.freeBalls} free balls, costs
 									{buyBonusCost(tier.key)}× your Bet per Ball.
-									{#if tier.headStart > 0}
-										Starts the Fury meter {Math.round(tier.headStart * 100)}% filled.
-									{:else}
-										No Fury meter head-start.
-									{/if}
 								</li>
 							{/each}
 						</ul>
@@ -264,9 +259,9 @@
 							$1.00 per ball the Standard tier costs $80.00) and does not depend on your Ball per Drop.
 						</p>
 						<p>
-							<strong>Fury Meter Head-Start</strong> — higher tiers begin the bonus with the level-up
-							meter already part-filled, so they reach the first level-up sooner and chain into extra
-							free balls more often.
+							<strong>Bigger tiers, bigger batch</strong> — each higher tier drops a larger batch of
+							free balls, so the bought balls are the reward. The round can still level up and chain
+							into extra balls as coin pegs are hit during the bonus.
 						</p>
 						<p>
 							A bought bonus plays exactly like a naturally triggered one: the free balls drop at your
@@ -344,8 +339,8 @@
 							</li>
 							<li>
 								<strong>Buy Bonus</strong> — Skip the wait and trigger the bonus instantly. Tap the Buy
-								Bonus button and pick a tier for a batch of free balls; higher tiers add more balls and a
-								Fury meter head-start for bigger chain reactions. See the Game Rules for tier details.
+								Bonus button and pick a tier for a batch of free balls; higher tiers drop a larger batch
+								for bigger chain potential. See the Game Rules for tier details.
 								(Not available on the single-ball drop.)
 							</li>
 						</ul>
