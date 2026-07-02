@@ -1,6 +1,7 @@
 import {
 	awardBonusBalls,
 	clearBonusMeterDrainTimer,
+	isSingleBallMode,
 	onBonusMeterFilledDuringRound,
 	scheduleBonusMeterDrainDuringRoll,
 	waitForDropBatchCompletion,
@@ -51,14 +52,25 @@ export function releaseStuckRouletteFlow() {
 	notifyRouletteClosed();
 }
 
-/** Force-clear all betting-panel lock flags (safe after a book round finishes). */
-export function forceUnlockBettingControls() {
+/**
+ * Force-clear all betting-panel lock flags (safe after a book round finishes).
+ *
+ * `preserveInFlightBalls` keeps the still-falling ball's outcome map + spawn counters intact — used by
+ * the rapid 1-ball flow, where the round settles WHILE its ball is still animating so the player can
+ * drop the next one. Wiping those here would strip the in-flight ball of its authoritative outcome
+ * (breaking its win/history credit on landing). Default false = the normal full reset.
+ */
+export function forceUnlockBettingControls(preserveInFlightBalls = false) {
 	rouletteOpenGeneration += 1;
 	stateGame.dropRoundActive = false;
 	stateGame.isSubmitting = false;
 	stateGame.isAnimating = false;
-	stateGame.pendingSpacedSpawnTimers = 0;
-	stateGame.expectedOutcomeByBallId = new Map();
+	if (!preserveInFlightBalls) {
+		stateGame.pendingSpacedSpawnTimers = 0;
+		stateGame.expectedOutcomeByBallId = new Map();
+		// No rapid balls to reveal → drop the held-back balance shadow (revert to authoritative).
+		stateGame.rapidBalanceShadow = null;
+	}
 	stateGame.freeSpinRouletteOpen = false;
 	stateGame.bonusRouletteOpen = false;
 	stateGame.showFreeSpinRoulette = false;
@@ -69,8 +81,8 @@ export function forceUnlockBettingControls() {
 }
 
 /** @deprecated alias — always performs a synchronous force-unlock. */
-export function releaseRoundInteractionLocks() {
-	forceUnlockBettingControls();
+export function releaseRoundInteractionLocks(preserveInFlightBalls = false) {
+	forceUnlockBettingControls(preserveInFlightBalls);
 }
 
 export function triggerRoulette(source: RouletteSource) {
@@ -101,6 +113,9 @@ export function triggerRoulette(source: RouletteSource) {
 }
 
 export function onCoinPegHit(ballId: number) {
+	// 1-ball is a feature-free mode: never let a coin-peg hit fill the bonus meter (its tiny/cosmetic
+	// max could otherwise fire a bonus). No meter is even shown on this tier.
+	if (isSingleBallMode()) return;
 	if (stateGame.authoritativeMeterFlow && !stateGame.dropRoundActive) return;
 	if (stateGame.bonusPegMeterCreditedBallIds.has(ballId)) return;
 	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'bonus') return;
@@ -142,6 +157,9 @@ export function onCoinPegHit(ballId: number) {
 }
 
 export function onSpinSlotLand(ballId?: number) {
+	// 1-ball is a feature-free mode: never let a spin-slot land fill the spin meter (max is 1 on this
+	// tier, so a single center land would otherwise fire a free spin). No meter is shown here.
+	if (isSingleBallMode()) return;
 	if (stateGame.authoritativeMeterFlow && !stateGame.dropRoundActive) return;
 	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin') return;
 	if (stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax) return;

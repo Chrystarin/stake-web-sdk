@@ -274,6 +274,7 @@
 							multiplier can still land. The balls you bought and any balls won during the bonus are
 							added together into your total.
 						</p>
+						<p>The Buy Bonus is not available on the single-ball drop.</p>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
 						<div class="howto-pill-bar">
@@ -340,6 +341,12 @@
 								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus
 								meter. When it fills, a wheel awards a batch of free balls that drop automatically at no
 								extra cost. Strong bonus rounds can level up and award even more balls.
+							</li>
+							<li>
+								<strong>Buy Bonus</strong> — Skip the wait and trigger the bonus instantly. Tap the Buy
+								Bonus button and pick a tier for a batch of free balls; higher tiers add more balls and a
+								Fury meter head-start for bigger chain reactions. See the Game Rules for tier details.
+								(Not available on the single-ball drop.)
 							</li>
 						</ul>
 

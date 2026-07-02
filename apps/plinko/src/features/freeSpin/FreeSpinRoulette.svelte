@@ -14,6 +14,9 @@
 		targetSegmentIndex?: number;
 		/** When true, wheel must land on `targetSegmentIndex` (RGS/math book). */
 		serverAuthoritative?: boolean;
+		/** Fires the moment the wheel STOPS on its segment (before the exit fade) — used to reveal the
+		 * win in the HUD in sync with seeing the multiplier. */
+		onLanded?: (result: FreeSpinRouletteResult) => void;
 		onFinished?: (result: FreeSpinRouletteResult) => void;
 	};
 
@@ -142,6 +145,9 @@
 	function afterSpin(winner: number) {
 		wheelSpinClass = false;
 		const label = FREE_SPIN_SEGMENTS[winner];
+		// Reveal the win NOW that the wheel has stopped on its segment (before the exit fade), so the Win
+		// field updates in sync with the visible multiplier rather than only on overlay close.
+		props.onLanded?.({ segmentIndex: winner, segmentLabel: label });
 		timers.push(
 			setTimeout(() => {
 				overlayVisible = false;

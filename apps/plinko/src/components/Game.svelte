@@ -28,6 +28,8 @@
 
 		isGameOngoing,
 
+		isRapidSingleBallMode,
+
 		onBallLanded,
 
 		onBonusEndAnnouncementClosed,
@@ -64,7 +66,14 @@
 	import { stateXstate, stateXstateDerived } from '../game/stateXstate';
 
 	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
-	import { FreeSpinMeter, FreeSpinRoulette, onFreeSpinRouletteFinished } from '../features/freeSpin';
+	import {
+		FreeSpinMeter,
+		FreeSpinRoulette,
+		applyFreeSpinWinOnLand,
+		onFreeSpinRouletteFinished,
+	} from '../features/freeSpin';
+
+	import { isPlinkoOffline } from '../game/plinkoConnection';
 
 	import { isPortraitGameLayout } from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
@@ -92,6 +101,8 @@
 	import BuyBonusModal from './BuyBonusModal.svelte';
 
 	import MsgBox from './MsgBox.svelte';
+
+	import NetworkStatus from './NetworkStatus.svelte';
 
 	import PlinkoBoard from './PlinkoBoard.svelte';
 
@@ -263,6 +274,17 @@
 		maybeAutoFireFeatureTrigger(placeBet);
 	});
 
+	// Rapid 1-ball mode: drain one queued click each time the round machine returns to idle, so a burst
+	// of continuous clicks fires bet-by-bet as fast as rounds settle (RGS is one-round-at-a-time).
+	$effect(() => {
+		stateGame.isSubmitting;
+		stateGame.dropRoundActive;
+		stateXstate.value;
+		stateGame.rapidBetQueue;
+		stateGame.ballPerDrop;
+		drainRapidBetQueue();
+	});
+
 	function handleBetAmountChange(value: number) {
 		const maxPerBall = maxAffordableStakePerBall() || value;
 		stateBet.betAmount = snapStakeToBetLevels(Math.max(0, Math.min(value, maxPerBall)));
@@ -270,13 +292,50 @@
 
 
 
+	// Rapid 1-ball mode: how many balls (in flight or already selected) we allow to be committed at once
+	// — a safety ceiling on the click queue so a spammed / held Bet button can't run the balance away.
+	const RAPID_BET_QUEUE_CAP = 25;
+
+	/** Queue a rapid 1-ball bet that arrived while a round was busy, capped by the ceiling + affordability. */
+	function enqueueRapidBet() {
+		const wager = plinkoWagerAmount();
+		const affordable = wager > 0 ? Math.floor(stateBet.balanceAmount / wager) : 0;
+		const cap = Math.max(0, Math.min(RAPID_BET_QUEUE_CAP, affordable));
+		if (stateGame.rapidBetQueue < cap) stateGame.rapidBetQueue += 1;
+	}
+
+	/** Fire one queued rapid bet the moment the round machine is idle; clear the queue if it can't run. */
+	function drainRapidBetQueue() {
+		if (!isRapidSingleBallMode()) {
+			stateGame.rapidBetQueue = 0;
+			return;
+		}
+		if (stateGame.rapidBetQueue <= 0) return;
+		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()) return;
+		if (!canAffordPlinkoWager()) {
+			stateGame.rapidBetQueue = 0;
+			return;
+		}
+		stateGame.rapidBetQueue -= 1;
+		void placeBet();
+	}
+
 	async function placeBet() {
 		// Replay is passive playback of a recorded round — never place a wager.
 		if (isReplay) return;
-		// Ignore a bet while the previous round is still settling (machine not yet idle) — the
-		// idle-only xstate machine would drop the BET and leave `isSubmitting` stuck.
-		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying())
+		// Offline: gameplay is suspended behind the "No Internet Connection" overlay. Don't fire a
+		// bet (nor queue an autobet round) that would immediately fail against the RGS.
+		if (isPlinkoOffline()) {
+			showToast('No Internet Connection', 'error');
 			return;
+		}
+		// Ignore a bet while the previous round is still settling (machine not yet idle) — the
+		// idle-only xstate machine would drop the BET and leave `isSubmitting` stuck. In rapid 1-ball
+		// mode don't lose the click: queue it to fire when the machine frees up.
+		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()) {
+			if (isRapidSingleBallMode()) enqueueRapidBet();
+			return;
+		}
 
 		if (hasActiveRoundToResume()) {
 			showToast('Finishing your previous round…', 'info');
@@ -307,7 +366,9 @@
 			try {
 				await playDevLocalBook();
 			} finally {
-				releaseRoundInteractionLocks();
+				// Preserve the still-falling ball in rapid 1-ball mode (parity with playBet's own finally),
+				// otherwise this outer reset would strip its outcome before it lands.
+				releaseRoundInteractionLocks(isRapidSingleBallMode());
 			}
 			return;
 		}
@@ -373,7 +434,8 @@
 
 	}
 
-	// Buy bonus — can't open mid-round / mid-bonus / in replay.
+	// Buy bonus — can't open mid-round / mid-bonus / in replay, and NOT on the single-ball (rapid) tier,
+	// which has no meters / bonus feature (the trigger button is also hidden there).
 	const buyBonusDisabled = $derived.by(() => {
 		stateGame.isSubmitting;
 		stateGame.dropRoundActive;
@@ -382,7 +444,13 @@
 		stateGame.freeSpinRouletteOpen;
 		stateGame.autoPlayStarted;
 		stateXstate.value;
-		return isReplay || isBetControlsLocked() || isGameOngoing() || stateGame.bonusRoundActive;
+		return (
+			isReplay ||
+			stateGame.ballPerDrop === 1 ||
+			isBetControlsLocked() ||
+			isGameOngoing() ||
+			stateGame.bonusRoundActive
+		);
 	});
 
 	function openBuyBonus() {
@@ -390,6 +458,14 @@
 		stateGame.menuOpen = false;
 		stateGame.buyBonusModalOpen = true;
 	}
+
+	// Close the buy-bonus modal if the player switches to the single-ball tier while it's open (the
+	// feature isn't offered there).
+	$effect(() => {
+		if (stateGame.ballPerDrop === 1 && stateGame.buyBonusModalOpen) {
+			stateGame.buyBonusModalOpen = false;
+		}
+	});
 
 	// Buy bonus is LIVE: the 4 bonus-only buy modes (buystandard/enhanced/premium/superfury) are published
 	// in the math. Cost is ×bet-per-ball and independent of balls-per-drop. Set false to disable the
@@ -401,7 +477,8 @@
 	 * bonus fires at once, the roulette lands on the bought entry balls, and chain hits add more on top.
 	 * The pending mode is cleared by the revert effect once the round fully settles. */
 	function handleBuyBonusActivate(tier: BuyBonusTier) {
-		if (!BUY_BONUS_ENABLED) return;
+		// No buy bonus on the single-ball tier (rapid mode).
+		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1) return;
 		stateGame.buyBonusModalOpen = false;
 		// Bonus-only buy → mode is per tier (bpd-independent).
 		stateGame.pendingBuyBonusMode = buyBonusModeName(tier.key);
@@ -459,6 +536,8 @@
 
 <MsgBox />
 
+<NetworkStatus />
+
 <Toast />
 
 <Result />
@@ -477,7 +556,7 @@
 		<Background />
 	</div>
 
-	{#if !isReplay}
+	{#if !isReplay && stateGame.ballPerDrop !== 1}
 		<button
 			type="button"
 			class="buy-bonus-trigger"
@@ -584,9 +663,21 @@
 					/>
 				{/if}
 
-				<div class="bonus-meter-wrap">
-					<BonusMeter progress={bonusMeterProgress} />
-				</div>
+				{#if stateGame.ballPerDrop !== 1 || stateGame.bonusRoundActive}
+					<div class="bonus-meter-wrap">
+						<BonusMeter progress={bonusMeterProgress} />
+					</div>
+				{/if}
+
+				{#if stateGame.showWinPopup && stateGame.ballPerDrop !== 1}
+					<div class="win-overlay" role="dialog">
+						<div class="win-card">
+							<p>{context.i18nDerived.t('Win')}</p>
+							<span class="win-divider"></span>
+							<strong>{winPopupAmountDisplay}</strong>
+						</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 
@@ -603,32 +694,13 @@
 		spinMeterProgress={spinMeterProgress}
 		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
 		bonusBallsRemaining={stateGame.bonusBallsRemaining}
-		playDisabled={isBetControlsLocked() || isGameOngoing()}
-		bonusPlayDisabled={stateGame.bonusRouletteOpen}
+		playDisabled={stateGame.isOffline ||
+			(isRapidSingleBallMode() ? false : isBetControlsLocked() || isGameOngoing())}
+		bonusPlayDisabled={stateGame.isOffline || stateGame.bonusRouletteOpen}
 		{mobile}
 		onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
 		/>
 	</div>
-
-	{#if stateGame.showWinPopup}
-
-		<div class="win-overlay" role="dialog">
-
-			<div class="win-card">
-
-				<p>{context.i18nDerived.t('Win')}</p>
-
-				<span class="win-divider"></span>
-
-				<strong>{winPopupAmountDisplay}</strong>
-
-			</div>
-
-		</div>
-
-	{/if}
-
-
 
 	{#if stateGame.freeSpinRouletteOpen}
 
@@ -637,6 +709,8 @@
 			targetSegmentIndex={stateGame.serverFreeSpinSegment}
 
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
+
+			onLanded={(result) => applyFreeSpinWinOnLand(result.segmentLabel)}
 
 			onFinished={(result) => void onFreeSpinRouletteFinished(result.segmentLabel)}
 
@@ -1270,13 +1344,24 @@
 
 	.win-overlay {
 
-		position: fixed;
+		/* Anchored inside .container (same box the pirate frame + bonus meter live in) so the card
+		   tracks the pirate art. `--win-anchor-top-ratio` is the vertical center as a fraction of the
+		   game-area box, tuned so the card sits midway between the pirate's hat and head. The frame
+		   PNG (object-fit: contain) fills a different share of the box on desktop vs mobile, so the
+		   ratio is layout-specific to land on the same spot on both (mobile override below). */
+		--win-anchor-top-ratio: 0.269;
 
-		inset: 0;
+		position: absolute;
+
+		left: 50%;
+
+		top: calc(var(--win-anchor-top-ratio) * 100%);
 
 		display: grid;
 
 		place-items: center;
+
+		transform: translate(-50%, -50%);
 
 		z-index: 20;
 
@@ -1284,19 +1369,31 @@
 
 	}
 
+	/* Portrait/mobile: the frame PNG fills more of the box, so a smaller ratio lands on the same
+	   point between the pirate's hat and head as the desktop value above. */
+	.game-root--mobile .win-overlay {
+		--win-anchor-top-ratio: 0.185;
+	}
+
+	/* Desktop only: shrink the whole card 20% (scales about its centre, so it stays anchored over
+	   the pirate). Mobile keeps full size. */
+	.game-root:not(.game-root--mobile) .win-card {
+		transform: scale(0.8);
+	}
+
 	.win-card {
 
 		box-sizing: border-box;
 
-		/* Landscape rectangle matching the win_bg.svg reference art (120×104 ≈ 1.4:1 wide), widening
-		   further as the win amount gets longer. `--win-w` is the width floor (so a short amount still
-		   reads as a wide landscape card) and `--win-h` the fixed height; `max-content` lets a longer
-		   amount push the width past the floor. The divider uses a relative width (below) so the
-		   *amount* — not the divider — drives how wide the card grows.
+		/* Near-square rounded card matching the reference art (≈1.13:1 w:h), widening further as the
+		   win amount gets longer. `--win-w` is the width floor (so a short amount keeps the reference
+		   aspect ratio) and `--win-h` the fixed height; `max-content` lets a longer amount push the
+		   width past the floor. The divider uses a relative width (below) so the *amount* — not the
+		   divider — drives how wide the card grows.
 		   NOTE: floor + height + padding are in `rem` (like the text) so the aspect ratio is identical
 		   on desktop and mobile — the SDK scales the root font-size per device, and px/vw units would
 		   leave the box fixed while the text grew, distorting the shape on mobile. */
-		--win-w: 16.5rem;
+		--win-w: 13rem;
 		--win-h: 11.5rem;
 
 		display: flex;
@@ -1315,16 +1412,20 @@
 
 		max-width: 96vw;
 
-		padding: 0 3.5rem;
+		padding: 0 2.75rem;
 
 		text-align: center;
 
-		/* Coded equivalent of win_bg.svg: dark radial fill + green rounded border. The border and
-		   radius are in `rem` too so they stay proportionate to the card on mobile (a fixed px border
-		   reads as chunky once the SDK scales the root font-size down). */
-		background: radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%);
+		/* Dark radial fill + green *gradient* rounded border. The two-layer background trick keeps the
+		   gradient constrained to the border ring while preserving border-radius: the radial fill is
+		   clipped to the padding-box, the green gradient to the border-box, and the border itself is
+		   transparent so the gradient shows through. Border + radius are in `rem` too so they stay
+		   proportionate to the card on mobile (the SDK scales the root font-size per device). */
+		background:
+			radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%) padding-box,
+			linear-gradient(150deg, #9dff5c 0%, #54f917 45%, #2ba80a 100%) border-box;
 
-		border: 0.5rem solid #54f917;
+		border: 0.5rem solid transparent;
 
 		border-radius: 1rem;
 
@@ -1348,8 +1449,8 @@
 		display: block;
 
 		/* Relative width so the divider tracks the card instead of forcing its min-width
-		   (lets the win amount drive how wide the card grows). */
-		width: 60%;
+		   (lets the win amount drive how wide the card grows). Short + centered like the reference. */
+		width: 42%;
 
 		height: 3px;
 

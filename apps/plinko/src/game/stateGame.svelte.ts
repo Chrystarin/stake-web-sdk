@@ -145,6 +145,10 @@ export const stateGame = $state({
 	pendingBonusFreeSpinPayload: undefined as
 		| { segment?: string; multiplier?: number; amount?: number }
 		| undefined,
+	/** Per-level in-bonus free spins queued from the book's `freeSpinTrigger` events. Each fires at the
+	 * end of its `level`'s balls, BEFORE that level's level-up (see `settleBonusRoundWhenFinished`).
+	 * A book emits one entry per level whose spin meter filled; multiple levels can each carry one. */
+	pendingBonusFreeSpins: [] as { level: number; segment?: string; multiplier?: number; amount?: number }[],
 	autoMode: false,
 	autoPlayStarted: false,
 	autoPlayStopping: false,
@@ -173,6 +177,13 @@ export const stateGame = $state({
 	/** Book events for the active round (read by feature payout/settlement helpers). */
 	activeBookEvents: [] as BookEvent[],
 	nextBallSpawnAtMs: 0,
+	/** Rapid 1-ball mode: display balance that holds each drop's win back until its ball lands, so the
+	 * Win field and Balance both update on ball-land (not at settle). `null` = show authoritative balance. */
+	rapidBalanceShadow: null as number | null,
+	/** Rapid 1-ball mode: clicks that arrived while a round was still submitting/settling, queued to fire
+	 * one-by-one as the round machine frees up (RGS settles one round at a time). Lets the player keep the
+	 * Bet button pressed / spammed without losing bets. */
+	rapidBetQueue: 0,
 	infoModalOpen: false,
 	infoModalTab: 'rules' as InfoModalTab,
 	menuOpen: false,
@@ -181,6 +192,11 @@ export const stateGame = $state({
 	/** Full RGS mode of a pending buy-bonus purchase (e.g. `buystandard10`); drives `plinkoActiveBetMode`
 	 * for that one bet, then clears when the round settles. `null` during normal play. */
 	pendingBuyBonusMode: null as string | null,
+	/** True while the browser reports no network connection. Drives the blocking "No Internet
+	 * Connection" overlay (NetworkStatus.svelte) and suspends Play / bonus-ball drops — otherwise a
+	 * dropped connection is invisible during a bonus round (its balls play from the pre-fetched book,
+	 * with no network round-trip) until end-round settlement fails with a generic error. */
+	isOffline: false,
 	toastMessage: '' as string,
 	toastType: 'info' as 'info' | 'error',
 	msgBox: null as MsgBoxConfig | null,

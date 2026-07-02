@@ -61,6 +61,9 @@ type BookEventFreeSpinTrigger = {
 	segment?: string;
 	/** Authoritative scaled drop win after the segment (round drop win × segment multiplier). */
 	amount?: number;
+	/** In-bonus free spin: the bonus level whose balls just finished. The client fires the wheel at
+	 * that level boundary, BEFORE the level-up. Absent/0 for a base (non-bonus) in-drop free spin. */
+	level?: number;
 };
 
 type BookEventBonusRound = {

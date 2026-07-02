@@ -2,10 +2,12 @@ import { stateBet } from 'state-shared';
 
 import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
 import { eventEmitter } from '../../game/eventEmitter';
+import { plinkoStakePerBall } from '../../game/plinkoBet';
 import { resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
 import {
+	addSettledWinAmount,
 	recordFreeSpinWinHistory,
 	settleBonusRoundWhenFinished,
 } from '../../game/gameOrchestrator';
@@ -20,73 +22,90 @@ export function isFreeSpinBonusSegment(segmentLabel: string): boolean {
 	return isFreeSpinBonusWheelSegment(segmentLabel);
 }
 
-export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
-	stateGame.freeSpinRouletteOpen = false;
-	stateGame.autoPlayPausedByFreeSpin = false;
-	const segmentLabel =
+/** Guard so the wheel's win is credited exactly once (at land), not again on overlay close. */
+let freeSpinWinAppliedForCurrentWheel = false;
+
+function resolveFreeSpinSegmentLabel(wheelSegmentLabel?: string): string {
+	return (
 		wheelSegmentLabel ??
 		stateGame.serverFreeSpinSegmentLabel ??
 		FREE_SPIN_SEGMENTS[stateGame.serverFreeSpinSegment ?? 0] ??
-		'';
+		''
+	);
+}
 
-	let landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
+/**
+ * Reveal the free-spin win in the Win field the moment the wheel LANDS on its segment (issue #2) — so
+ * the value updates in sync with seeing the multiplier, instead of only when the overlay fades out.
+ *
+ * IN-BONUS free spin: ADDITIVE — add `stake × M` on top of the running bonus total. More bonus balls /
+ * level-ups can still drop after this (the wheel fires per level, before the level-up), so it must NOT
+ * snap to the full book total. The book `finalWin` stays authoritative and reconciles at settlement.
+ *
+ * BASE (non-bonus) free spin: the whole round total is authoritative (`payoutMultiplier` × wager); apply
+ * it. Idempotent within one wheel via `freeSpinWinAppliedForCurrentWheel`.
+ */
+export function applyFreeSpinWinOnLand(wheelSegmentLabel?: string) {
+	if (freeSpinWinAppliedForCurrentWheel) return;
+	freeSpinWinAppliedForCurrentWheel = true;
+
+	const segmentLabel = resolveFreeSpinSegmentLabel(wheelSegmentLabel);
+	// On a BONUS segment the bonus round owns the win (no numeric add here); nothing to reveal.
+	if (isFreeSpinBonusSegment(segmentLabel)) return;
+	const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
+	if (multiplier <= 0) return;
+
+	const showFreeSpinPopup = () => {
+		stateGame.freeSpinWinMultiplier = multiplier;
+		stateGame.winPopupMultiplier = multiplier;
+		const wasVisible = stateGame.showWinPopup;
+		stateGame.showWinPopup = true;
+		stateGame.deferWinPopupForFreeSpin = false;
+		if (!wasVisible) eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+	};
+
+	if (stateGame.bonusRoundActive) {
+		const credit = plinkoStakePerBall() * multiplier;
+		if (credit > 0) {
+			stateGame.inBonusFreeSpinCreditTotal += credit;
+			// → bonusSessionWinAmount + HUD (getCombinedRoundWinAmount). Additive: sums with the bonus
+			// balls to the book `finalWin`, which reconciles the exact total at settlement.
+			addSettledWinAmount(credit);
+			recordFreeSpinWinHistory(multiplier);
+			showFreeSpinPopup();
+		}
+		return;
+	}
+
+	const baseWin = getFreeSpinBaseRoundWin();
+	const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
+	if (multiplier > 0 && totalWin > 0) recordFreeSpinWinHistory(multiplier);
+	if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
+		stateGame.pendingDropWinAmount = totalWin;
+		showFreeSpinPopup();
+	}
+	if (stateGame.deferWinPopupForFreeSpin && stateBet.winBookEventAmount > 0) {
+		stateGame.showWinPopup = true;
+		stateGame.deferWinPopupForFreeSpin = false;
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+	}
+}
+
+export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
+	stateGame.freeSpinRouletteOpen = false;
+	stateGame.autoPlayPausedByFreeSpin = false;
+	const segmentLabel = resolveFreeSpinSegmentLabel(wheelSegmentLabel);
+
+	const landedOnBonus = isFreeSpinBonusSegment(segmentLabel);
 	let queuedRoulette: ReturnType<typeof meterController.completeRoulette> = null;
 
 	try {
-		// On a BONUS segment the bonus round owns the win (base drop + bonus balls). Applying the
-		// round payout here would briefly overwrite the HUD win with the full-round value before
-		// the free balls drop, then get re-corrected on the first ball — a visible value jump.
-		if (!landedOnBonus) {
-			const baseWin = getFreeSpinBaseRoundWin();
-			const multiplier = freeSpinMultiplierFromSegment(segmentLabel);
-			const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
-			let appliedFeatureWin = false;
-
-			// A numeric free spin fired → always add its "Free Spin xN" chip to the round row, even
-			// when the base drop itself won nothing (a free spin can follow an all-spin-slot base
-			// drop). The round win is synced separately via `applyRgsRoundWinFromBet` / `finalWin`.
-			if (multiplier > 0 && totalWin > 0) {
-				recordFreeSpinWinHistory(multiplier);
-			}
-
-			if (stateGame.bonusRoundActive) {
-				// IN-BONUS free spin: `totalWin` is the whole round; the bonus portion is total − base
-				// drop. The bonus trigger book ships an EMPTY base drop, so `baseWin` is 0 here and must
-				// NOT gate this. Fold the credit into the bonus session (the round win sync picks it up;
-				// the "Free Spin xN" chip was already added above).
-				if (multiplier > 0 && totalWin > 0) {
-					const bonusPortion = Math.max(0, totalWin - stateGame.baseRoundDropWinAmount);
-					const credit = bonusPortion - stateGame.bonusSessionWinAmount;
-					if (credit > 0) {
-						stateGame.inBonusFreeSpinCreditTotal += credit;
-						stateGame.bonusSessionWinAmount = bonusPortion;
-					}
-					stateGame.pendingDropWinAmount = totalWin;
-					appliedFeatureWin = true;
-				}
-			} else if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
-				stateGame.pendingDropWinAmount = totalWin;
-				appliedFeatureWin = true;
-			}
-
-			if (appliedFeatureWin) {
-				stateGame.freeSpinWinMultiplier = multiplier;
-				stateGame.winPopupMultiplier = multiplier;
-				const wasWinPopupVisible = stateGame.showWinPopup;
-				stateGame.showWinPopup = true;
-				stateGame.deferWinPopupForFreeSpin = false;
-				if (!wasWinPopupVisible) {
-					eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
-				}
-			}
-
-			if (stateGame.deferWinPopupForFreeSpin && stateBet.winBookEventAmount > 0) {
-				stateGame.showWinPopup = true;
-				stateGame.deferWinPopupForFreeSpin = false;
-				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
-			}
-		}
+		// The win was already revealed when the wheel LANDED (`applyFreeSpinWinOnLand`, wired via the
+		// wheel's `onLanded`). Call it once more as a safety net (idempotent) in case that fired late.
+		if (!landedOnBonus) applyFreeSpinWinOnLand(segmentLabel);
 	} finally {
+		// Reset the per-wheel guard so the NEXT free spin (e.g. the next bonus level) credits again.
+		freeSpinWinAppliedForCurrentWheel = false;
 		stateGame.serverFreeSpinWinAmount = undefined;
 		queuedRoulette = meterController.completeRoulette();
 		if (landedOnBonus) queuedRoulette = 'bonus';

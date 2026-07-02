@@ -16,6 +16,7 @@
 		isGameOngoing,
 		isPlayActionBlockedByBonusRoulette,
 		isPlayActionBlockedByFreeSpinRoulette,
+		isRapidSingleBallMode,
 		isReplayMode,
 		startAutoBet,
 		stopAutoBet,
@@ -58,6 +59,9 @@
 	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
 	/** Settlement currency win from the last round — not recalculated from current stake. */
 	const displayWinAmount = $derived(stateGame.winAmount);
+	// Rapid 1-ball mode holds each drop's win in the balance until its ball lands; show that shadow when
+	// present, otherwise the authoritative balance.
+	const displayBalance = $derived(stateGame.rapidBalanceShadow ?? stateBet.balanceAmount);
 	const controlsLocked = $derived.by(() => {
 		stateGame.isSubmitting;
 		stateGame.isAnimating;
@@ -120,8 +124,13 @@
 	});
 	// The loading spinner replaces the Play button only for regular rounds. During a bonus round the
 	// button must keep showing the free-balls count badge, so the spinner is suppressed there.
+	// Rapid 1-ball mode keeps the button an actionable Play while balls are still falling (the round has
+	// already settled) — so the loading spinner is suppressed there; it only shows for gated rounds.
 	const showPlayLoading = $derived(
-		roundInSession && !props.hasPendingBonusBalls && !stateGame.bonusRoundActive,
+		roundInSession &&
+			!props.hasPendingBonusBalls &&
+			!stateGame.bonusRoundActive &&
+			!isRapidSingleBallMode(),
 	);
 
 	const mobileAutoCountDisplay = $derived(
@@ -373,10 +382,15 @@
 				<span class="mobile-top-card-label">{context.i18nDerived.t('Bet per ball')}</span>
 				<span class="mobile-top-card-value">{formatCompactAmount(props.betAmount)}</span>
 			</div>
+			<!-- Keep the free-spin card container even on the 1-ball tier (where the meter is hidden): it
+			     reserves its grid column + the row's height, so Bet / Ball per drop / Bet per ball don't
+			     shift when the meter is hidden. Only the meter INSIDE is conditionally rendered. -->
 			<div class="mobile-top-card mobile-top-card--free-spin">
-				<div class="mobile-free-spin-meter">
-					<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
-				</div>
+				{#if stateGame.ballPerDrop !== 1}
+					<div class="mobile-free-spin-meter">
+						<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+					</div>
+				{/if}
 			</div>
 		</div>
 
@@ -565,17 +579,19 @@
 			</div>
 			<div class="mobile-corner-info mobile-corner-info--right">
 				<img src={staticUrl('img/wallet-ico.png')} alt="" aria-hidden="true" />
-				<span class="mobile-corner-value">{formatMoney(stateBet.balanceAmount)}</span>
+				<span class="mobile-corner-value">{formatMoney(displayBalance)}</span>
 			</div>
 		</div>
 	</div>
 {:else}
 	<div class="game-bottom-panel">
-		<div class="bp-free-spin-meter-wrap">
-			<div class="bp-free-spin-meter">
-				<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+		{#if stateGame.ballPerDrop !== 1}
+			<div class="bp-free-spin-meter-wrap">
+				<div class="bp-free-spin-meter">
+					<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<div class="bottom-panel-form">
 			<div class="bottom-panel-chrome">
@@ -584,7 +600,7 @@
 						{@render bettingFieldFrame()}
 						<span class="bp-field-label">{context.i18nDerived.t('Balance')}</span>
 						<div class="bp-field-value">
-							<span>{formatMoney(stateBet.balanceAmount)}</span>
+							<span>{formatMoney(displayBalance)}</span>
 						</div>
 					</div>
 
@@ -744,13 +760,25 @@
 							{/if}
 						</button>
 					{:else if props.autoPlayStarted && !autoBetStopping}
+						<!-- During a running Autobet the main button mirrors the normal base-game loading
+						     state: a non-clickable Play with a spinner. The remaining-rounds count sits in
+						     the middle, like the bonus free-balls badge. Stopping is done from the Autobet
+						     toggle on the side. -->
 						<button
 							type="button"
-							class="bp-btn-play bp-btn-play--narrow"
-							aria-label="Stop autobet"
-							onclick={onAutoGameStopClick}
+							class="bp-btn-play bp-btn-play--loading"
+							disabled
+							aria-label="Autobet running"
+							aria-busy="true"
 						>
-							<img src={staticUrl('img/pause-btn.png')} alt="" aria-hidden="true" />
+							<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
+							<img
+								class="bp-btn-play-spinner"
+								src={staticUrl('img/loading_vector.png')}
+								alt=""
+								aria-hidden="true"
+							/>
+							<span class="bp-bonus-count-badge">{props.autoRoundsLeft}</span>
 						</button>
 					{:else}
 						<button
@@ -773,15 +801,20 @@
 								class:bp-btn-auto--running={props.autoPlayStarted}
 								disabled={(controlsLocked && !props.autoPlayStarted) || autoBetStopping}
 								aria-pressed={props.autoMode}
-								title={props.autoMode ? 'Manual' : 'Auto'}
+								title={props.autoPlayStarted ? 'Stop autobet' : props.autoMode ? 'Manual' : 'Auto'}
 								onclick={onAutoButtonClick}
 							>
+								<!-- While an Autobet run is active the toggle becomes the Stop control (full opacity
+								     via .bp-btn-auto--running) and swaps to the stop artwork. The remaining-rounds
+								     count no longer sits here — it moved to the middle of the Play button. -->
 								<span class="bp-btn-auto-ico" aria-hidden="true">
-									<img src={staticUrl('img/auto-bet-btn.png')} alt="" />
+									<img
+										src={staticUrl(
+											props.autoPlayStarted ? 'img/auto-bet-stop-btn.png' : 'img/auto-bet-btn.png',
+										)}
+										alt=""
+									/>
 								</span>
-								{#if props.autoMode && !autoBetStopping}
-									<span class="bp-auto-count-badge">{props.autoRoundsLeft}</span>
-								{/if}
 							</button>
 							{#if autoPanelOpen}
 								<div class="bp-autobet-panel">

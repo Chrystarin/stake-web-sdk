@@ -22,6 +22,7 @@ export {
 	resolveFreeSpinRoundTotalWin,
 } from './payout';
 export {
+	applyFreeSpinWinOnLand,
 	freeSpinSegmentIndexForMultiplier,
 	freeSpinSegmentIndexForSegment,
 	isFreeSpinBonusSegment,

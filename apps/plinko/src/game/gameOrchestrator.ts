@@ -1,12 +1,14 @@
-import { stateI18nDerived } from 'state-shared';
+import { stateBet, stateI18nDerived } from 'state-shared';
 
 import { isPlinkoReplay } from './plinkoReplay';
+import { isPlinkoOffline } from './plinkoConnection';
+import { clearBonusProgress, saveBonusProgress } from './plinkoBonusProgress';
 import { BONUS_LEVEL_LABELS, FREE_SPIN_SEGMENTS, bonusLevelBalls } from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatCoefficientLabel, formatHistoryDate, formatHistoryMultiplier } from '../lib/format';
 import { meterController } from './stateGame.svelte';
-import { stateGame, stateGameDerived, type HistoryChip } from './stateGame.svelte';
+import { stateGame, stateGameDerived, type HistoryChip, type HistoryEntry } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
 import { bonusMeterTierStart, hasActiveRgsSession } from './plinkoSessionMeters';
@@ -31,6 +33,10 @@ type DropRequest = { type: 'bonusBall'; stake: number };
 
 let dropRequestHandler: ((req: DropRequest) => void) | null = null;
 let betRequestHandler: (() => void) | null = null;
+
+/** Bonus (free) balls dropped so far in the active round — persisted so a reload/reconnect resumes
+ * from the remaining count (see plinkoBonusProgress). Reset per round; seeded from the resumed count. */
+let roundBonusBallsPlayed = 0;
 
 function setExpectedOutcome(ballId: number, outcome: PlinkoBallOutcome) {
 	const next = new Map(stateGame.expectedOutcomeByBallId);
@@ -153,6 +159,36 @@ export function isReplayMode(): boolean {
 	return isPlinkoReplay();
 }
 
+/**
+ * "Rapid" single-ball play: the 1-ball tier lets the player keep clicking Bet so balls keep dropping,
+ * with each drop's animation DECOUPLED from round settlement (the round settles as soon as the book is
+ * processed, the ball animates independently). Only the plain 1-ball base game qualifies — never a
+ * bonus round, a buy-bonus purchase, or replay playback (those keep the serialized, animation-gated
+ * flow). The 1-ball tier has no meters / bonus / free spin, so decoupling here is display-only; the
+ * balance stays RGS-authoritative and rounds remain sequential server-side.
+ */
+export function isRapidSingleBallMode(): boolean {
+	return (
+		plinkoBallsPerDrop() === 1 &&
+		!isReplayMode() &&
+		!stateGame.bonusRoundActive &&
+		!stateGame.pendingBuyBonusMode
+	);
+}
+
+/**
+ * True while the player is on the plain 1-ball tier — which is a FEATURE-FREE mode: it must never
+ * trigger a free spin or a bonus, from either the client meter fallback (`onSpinSlotLand` /
+ * `onCoinPegHit`, where the 1-ball meter max is tiny) or a served book's feature events. Excludes
+ * replay (must reproduce a recorded round faithfully) and buy-bonus (an explicit bonus purchase). No
+ * `bonusRoundActive` check on purpose — the whole point is to stop a bonus from ever starting here.
+ */
+export function isSingleBallMode(): boolean {
+	return (
+		plinkoBallsPerDrop() === 1 && !isReplayMode() && !stateGame.pendingBuyBonusMode
+	);
+}
+
 export function isBetControlsLocked(): boolean {
 	return (
 		// Replay is a passive playback of a recorded round — all wager/bet controls stay locked.
@@ -208,6 +244,9 @@ export function startAuthoritativeBonusRound(
 	ballsPlayed = 0,
 ) {
 	const played = Math.max(0, Math.floor(ballsPlayed || 0));
+	// Seed the persisted-progress counter so continued play keeps saving the cumulative count
+	// (a resume passes `played` > 0; a fresh entry passes 0).
+	roundBonusBallsPlayed = played;
 	stateGame.authoritativeBonusOutcomes = normalizeBonusOutcomes(outcomes);
 	stateGame.authoritativeBonusOutcomeIndex = played;
 	const remaining = Math.max(0, Math.floor(freeBalls || 0) - played);
@@ -240,8 +279,15 @@ export function enqueueAuthoritativeBonusLevel(
 
 /** True when the entry-level bonus balls (already awarded by the wheel) just need their outcomes. */
 export function loadAuthoritativeBonusOutcomes(outcomes: PlinkoBallOutcome[], ballsPlayed = 0) {
+	const played = Math.max(0, Math.floor(ballsPlayed || 0));
+	roundBonusBallsPlayed = played;
 	stateGame.authoritativeBonusOutcomes = normalizeBonusOutcomes(outcomes);
-	stateGame.authoritativeBonusOutcomeIndex = Math.max(0, Math.floor(ballsPlayed || 0));
+	stateGame.authoritativeBonusOutcomeIndex = played;
+	// RESUME: the wheel just re-awarded the FULL entry count; drop the already-played balls so the
+	// player continues from the remaining count (fresh play passes 0 → no reduction).
+	if (played > 0) {
+		stateGame.bonusBallsRemaining = Math.max(0, stateGame.bonusBallsRemaining - played);
+	}
 }
 
 /** Pull the next book-authored level off the queue, show the level-up, and award its balls. */
@@ -316,8 +362,14 @@ export function awardBonusBalls(count: number) {
 }
 
 export function playOneBonusBall() {
+	// Suspend bonus-ball drops while offline — the ball's outcome is already known (pre-fetched book),
+	// so it would otherwise animate normally and hide the lost connection until end-round settlement.
+	if (isPlinkoOffline()) return;
 	if (isBonusPlayButtonDisabled()) return;
 	stateGame.bonusBallsRemaining = Math.max(0, stateGame.bonusBallsRemaining - 1);
+	// Persist the running played count so a reload/reconnect resumes from the remaining drop count.
+	roundBonusBallsPlayed += 1;
+	saveBonusProgress(roundBonusBallsPlayed);
 	const stake = Math.max(0, Number(stateGame.pendingOutcomes[0]?.amount) || 0);
 	stateGame.nextBallSpawnAtMs = Date.now();
 	dropRequestHandler?.({ type: 'bonusBall', stake });
@@ -471,42 +523,88 @@ export function waitForDropBatchCompletion(maxMs = 30_000): Promise<void> {
 	});
 }
 
+/**
+ * Open the in-bonus free-spin wheel for `entry` (a queued `freeSpinTrigger` payload). The wheel lands
+ * on the math-authored segment; its `stake × M` is added to the bonus total when the wheel LANDS
+ * (`onFreeSpinRouletteFinished` → additive credit). After it closes, that handler re-invokes this
+ * settler so the round continues (next level-up) or ends.
+ */
+function beginInBonusFreeSpin(entry: {
+	level: number;
+	segment?: string;
+	multiplier?: number;
+	amount?: number;
+}) {
+	// Kept for the additive win credit (multiplier) applied when the wheel lands.
+	stateGame.pendingBonusFreeSpinPayload = entry;
+	if (entry.segment) {
+		stateGame.serverFreeSpinSegmentLabel = entry.segment;
+		const idx = FREE_SPIN_SEGMENTS.indexOf(entry.segment as (typeof FREE_SPIN_SEGMENTS)[number]);
+		stateGame.serverFreeSpinSegment = idx >= 0 ? idx : 0;
+	}
+	// Blocking flag stays true while any in-bonus free spin is still queued (the active wheel itself is
+	// covered by `freeSpinRouletteOpen`); it clears once the queue drains.
+	stateGame.pendingSpinRouletteAfterBonusLevelDepletion = stateGame.pendingBonusFreeSpins.length > 0;
+	triggerRoulette('spin');
+}
+
+/**
+ * Fire the in-bonus free spin queued for a level we have ALREADY reached (`fs.level <= progress`), if
+ * any — this runs at the end of that level's balls, BEFORE its level-up. Returns true if a wheel opened.
+ */
+function fireBonusFreeSpinForReachedLevel(): boolean {
+	const queue = stateGame.pendingBonusFreeSpins;
+	const index = queue.findIndex((fs) => fs.level <= stateGame.bonusLevelProgress);
+	if (index < 0) return false;
+	const entry = queue[index];
+	stateGame.pendingBonusFreeSpins = [...queue.slice(0, index), ...queue.slice(index + 1)];
+	beginInBonusFreeSpin(entry);
+	return true;
+}
+
+/**
+ * Safety net after all level-ups: fire any free spin still queued (e.g. tagged for a level beyond the
+ * one the round actually ended on) or the untagged session-meter fallback. Returns true if a wheel opened.
+ */
+function fireRemainingBonusFreeSpin(): boolean {
+	if (stateGame.pendingBonusFreeSpins.length > 0) {
+		const [entry, ...rest] = stateGame.pendingBonusFreeSpins;
+		stateGame.pendingBonusFreeSpins = rest;
+		beginInBonusFreeSpin(entry);
+		return true;
+	}
+	// Session-meter fallback (no per-level tag): fire once using the stashed payload if present.
+	if (stateGame.pendingSpinRouletteAfterBonusLevelDepletion) {
+		const entry = stateGame.pendingBonusFreeSpinPayload;
+		stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
+		if (entry) beginInBonusFreeSpin({ level: stateGame.bonusLevelProgress, ...entry });
+		else triggerRoulette('spin');
+		return true;
+	}
+	return false;
+}
+
 export async function settleBonusRoundWhenFinished() {
 	if (stateGame.bonusRoundSettlementInProgress) return;
 	stateGame.bonusRoundSettlementInProgress = true;
 	try {
 		await waitForDropBatchCompletion();
 		flushDeferredBonusLevelUp();
-		// Book-authored level-ups take priority over the client session-meter fallback — and over the
-		// trailing in-bonus free spin: ALL levels' balls must drop (and level up) before the free spin
-		// fires (the `freeSpinTrigger` event is appended AFTER every `bonusRound` level in the book).
+		// (1) IN-BONUS FREE SPIN fires at the END of each level whose spin meter filled, BEFORE that
+		// level's level-up. The book tags each `freeSpinTrigger` with its `level`; we fire the one for a
+		// level we've already reached first, so "level balls finish → free spin → level up" reads right.
+		if (stateGame.bonusBallsRemaining <= 0 && fireBonusFreeSpinForReachedLevel()) {
+			return;
+		}
+		// (2) Then the book-authored level-up (or the client session-meter fallback level-up).
 		if (stateGame.bonusBallsRemaining <= 0 && consumeAuthoritativeBonusLevel()) {
 			return;
 		}
 		if (stateGame.bonusBallsRemaining <= 0 && consumePendingBonusLevelUp()) {
 			return;
 		}
-		if (
-			stateGame.bonusBallsRemaining <= 0 &&
-			stateGame.pendingSpinRouletteAfterBonusLevelDepletion
-		) {
-			// The spin meter filled during the bonus round → fire the in-bonus FREE SPIN now that every
-			// level's balls have dropped. The book authors the landed segment (`pendingBonusFreeSpinPayload`);
-			// set it so the wheel lands on it (its `stake × M` is already in the RGS finalWin). Without this
-			// the wheel would land on a random fallback segment. After the wheel closes,
-			// `onFreeSpinRouletteFinished` re-invokes this settler so the round actually ends (or advances).
-			stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
-			const inBonusFreeSpin = stateGame.pendingBonusFreeSpinPayload;
-			stateGame.pendingBonusFreeSpinPayload = undefined;
-			if (inBonusFreeSpin?.segment) {
-				stateGame.serverFreeSpinSegmentLabel = inBonusFreeSpin.segment;
-				const idx = FREE_SPIN_SEGMENTS.indexOf(
-					inBonusFreeSpin.segment as (typeof FREE_SPIN_SEGMENTS)[number],
-				);
-				stateGame.serverFreeSpinSegment = idx >= 0 ? idx : 0;
-			}
-			stateGame.bonusRoundSettlementInProgress = false;
-			triggerRoulette('spin');
+		// (3) Any free spin still queued (higher-level leftover) or the untagged fallback fires last.
+		if (stateGame.bonusBallsRemaining <= 0 && fireRemainingBonusFreeSpin()) {
 			return;
 		}
 		if (stateGame.bonusBallsRemaining <= 0) {
@@ -523,6 +621,9 @@ export async function settleBonusRoundWhenFinished() {
 }
 
 export function resetBonusRoundVisualState() {
+	// Bonus fully played out — drop the persisted progress so a later reload doesn't try to resume it.
+	roundBonusBallsPlayed = 0;
+	clearBonusProgress();
 	stateGame.bonusRoundActive = false;
 	stateGame.bonusLevelProgress = 0;
 	// Bonus consumed: reset to the tier base start (0 on 1/10-ball, 1/8 on 20-ball, 1/4 on 50-ball).
@@ -531,6 +632,8 @@ export function resetBonusRoundVisualState() {
 	stateGame.pendingBonusLevelUpCount = 0;
 	stateGame.deferredBonusLevelUpCount = 0;
 	stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
+	stateGame.pendingBonusFreeSpins = [];
+	stateGame.pendingBonusFreeSpinPayload = undefined;
 	stateGame.bonusSessionWinAmount = 0;
 	stateGame.inBonusFreeSpinCreditTotal = 0;
 	stateGame.authoritativeBonusOutcomes = [];
@@ -594,6 +697,48 @@ export function registerBonusBallOutcome(ballId: number, outcome: PlinkoBallOutc
 	setExpectedOutcome(ballId, outcome);
 }
 
+/** Per-ball win/history/balance held back until the ball lands (rapid 1-ball mode). */
+type RapidLandCredit = { win: number; multiplier: number; entry: HistoryEntry | undefined };
+const outcomeLandCredit = new WeakMap<PlinkoBallOutcome, RapidLandCredit>();
+
+/**
+ * Rapid 1-ball mode settles a round WHILE its ball is still falling. The player wants the Win field and
+ * Balance to update WHEN the ball drops into a slot, not on click — so instead of applying the win at
+ * settle, we stash it against the in-flight ball (`onBallLanded` reveals it on land). The win stays
+ * RGS-authoritative (`finalWin` passes its settled amount); balance stays authoritative too but its
+ * VISIBLE value is held at the post-wager figure via `rapidBalanceShadow` until the ball lands.
+ */
+export function deferRapidSingleBallSettlement(
+	outcome: PlinkoBallOutcome | undefined,
+	currencyWin: number,
+) {
+	const win = Math.max(0, Number(currencyWin) || 0);
+	// Anchor the visible balance on the first pending bet of a burst to the current (post-wager,
+	// pre-win) authoritative balance; mirror each additional overlapping bet's wager into the shadow.
+	// The held-back win is then revealed one ball at a time as they land.
+	if (stateGame.rapidBalanceShadow === null) {
+		stateGame.rapidBalanceShadow = stateBet.balanceAmount;
+	} else {
+		stateGame.rapidBalanceShadow -= plinkoWagerAmount();
+	}
+	const coeffs = stateGame.coefficients.length > 0 ? stateGame.coefficients : [];
+	const multiplier = outcome ? resolveOutcomeMultiplier(outcome, coeffs) : 0;
+	if (!outcome) {
+		// No ball to reveal on (shouldn't happen for a paying round) — reveal immediately.
+		stateGame.winAmount = win;
+		if (stateGame.rapidBalanceShadow !== null) stateGame.rapidBalanceShadow += win;
+		return;
+	}
+	outcomeLandCredit.set(outcome, { win, multiplier, entry: stateGame.history[0] });
+}
+
+/** Revert the held-back balance to the authoritative value once no rapid ball is in flight. */
+function maybeReleaseRapidBalanceShadow() {
+	if (stateGame.rapidBalanceShadow === null) return;
+	if (isDropBatchPending() || stateGame.isSubmitting || stateGame.dropRoundActive) return;
+	stateGame.rapidBalanceShadow = null;
+}
+
 export function onBallLanded(
 	ballId: number,
 	multiplier: number,
@@ -622,19 +767,41 @@ export function onBallLanded(
 			? boardMultiplierAtIndex(slotIndex, coeffs)
 			: multiplier;
 
-	if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {
-		addSettledWinAmount(pending.amount * resolvedMultiplier);
+	// Rapid 1-ball mode deferred this drop's win to ball-land (the round settled while the ball fell).
+	// Now that it has landed, REVEAL its win in the Win field, its own history row, and release the
+	// held-back balance — this is what makes the Win value + Balance update when the ball drops into a
+	// slot, then again when the next ball lands.
+	const landCredit = pending ? outcomeLandCredit.get(pending) : undefined;
+	if (landCredit) {
+		outcomeLandCredit.delete(pending!);
+		stateGame.winAmount = landCredit.win;
+		if (landCredit.entry) {
+			landCredit.entry.win = landCredit.win;
+			const rounded = Math.round(landCredit.multiplier * 100) / 100;
+			landCredit.entry.chips = [
+				{ label: formatHistoryMultiplier(rounded), color: BASE_HISTORY_COLOR },
+			];
+		}
+		if (stateGame.rapidBalanceShadow !== null) {
+			stateGame.rapidBalanceShadow += landCredit.win;
+		}
+	} else {
+		if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {
+			addSettledWinAmount(pending.amount * resolvedMultiplier);
+		}
+		// History is ONE row per round, not per ball. Each base-drop ball's pocket multiplier accumulates
+		// into the round's base-game total chip; bonus-round balls are covered by the "N Bonus" chip
+		// instead (`awardBonusBalls`). Spin-slot lands pay nothing (they fill the meter), so they add 0×.
+		if (!stateGame.bonusRoundActive && !isSpinSlot) {
+			roundBaseMultiplierTotal += resolvedMultiplier;
+		}
+		refreshRoundHistoryEntry();
 	}
-	// History is ONE row per round, not per ball. Each base-drop ball's pocket multiplier accumulates
-	// into the round's base-game total chip; bonus-round balls are covered by the "N Bonus" chip
-	// instead (`awardBonusBalls`). Spin-slot lands pay nothing (they fill the meter), so they add 0×.
-	if (!stateGame.bonusRoundActive && !isSpinSlot) {
-		roundBaseMultiplierTotal += resolvedMultiplier;
-	}
-	refreshRoundHistoryEntry();
 	if (pending && isSpinSlot) {
 		onSpinSlotLand(ballId);
 	}
+	// Once the last rapid ball has landed, drop the shadow so the HUD tracks the authoritative balance.
+	maybeReleaseRapidBalanceShadow();
 	if (!stateGame.bonusBallsRemaining && stateGame.bonusRoundActive && !isGameOngoing()) {
 		void settleBonusRoundWhenFinished();
 	}
@@ -692,6 +859,9 @@ export function refreshRoundHistoryEntry() {
 export function beginRoundHistory() {
 	roundBaseMultiplierTotal = 0;
 	roundBonusBallCount = 0;
+	// Reset the per-round bonus played counter; a resume re-seeds it from the book's `ballsPlayed`
+	// (via startAuthoritativeBonusRound / loadAuthoritativeBonusOutcomes) once its bonusRound replays.
+	roundBonusBallsPlayed = 0;
 	roundFreeSpinMultipliers = [];
 	roundHistoryActive = true;
 	stateGame.history.unshift({
@@ -854,6 +1024,8 @@ function finishAutoBet() {
 export function onMainPlayClick(onRegularBet: () => void) {
 	// Replay drives itself (see `runReplayBonusBallDrops`); ignore any human Play input.
 	if (isReplayMode()) return;
+	// Offline: gameplay is suspended behind the "No Internet Connection" overlay.
+	if (isPlinkoOffline()) return;
 	if (stateGameDerived.hasPendingBonusBalls) {
 		playOneBonusBall();
 		return;

@@ -3,13 +3,34 @@ export const isMobile = (): boolean =>
 		typeof navigator !== 'undefined' ? navigator.userAgent : '',
 	);
 
+/**
+ * True when the device has touch hardware. Unlike the user agent and the layout viewport width,
+ * `maxTouchPoints` is NOT spoofed by Chrome's "Desktop site" toggle — a physical phone still reports
+ * touch points there — so it's the reliable signal for "this is really a handheld device".
+ */
+const isTouchDevice = (): boolean => {
+	if (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) return true;
+	if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+		return window.matchMedia('(any-pointer: coarse)').matches;
+	}
+	return false;
+};
+
 /** Mobile UA or tall narrow viewport (portrait reference layout 992×1761). */
 export const isPortraitGameLayout = (): boolean => {
 	if (isMobile()) return true;
 	if (typeof window === 'undefined') return false;
 	const w = window.innerWidth;
 	const h = window.innerHeight;
-	return h > w && w <= 820;
+	// Landscape → always use the desktop/landscape layout.
+	if (h <= w) return false;
+	// Portrait viewport. A physical phone with Chrome "Desktop site" enabled spoofs a desktop UA and
+	// inflates the layout viewport to ~980px, so both `isMobile()` and the `w <= 820` cap below miss
+	// and the game wrongly falls back to the desktop layout. Touch hardware isn't spoofed, so treat
+	// any touch device in portrait as the portrait/mobile layout.
+	if (isTouchDevice()) return true;
+	// Non-touch desktop in a narrow portrait window.
+	return w <= 820;
 };
 
 export const formatCoefficientLabel = (value: number): string => {

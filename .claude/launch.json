@@ -1,0 +1,33 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "plinko",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3009", "--strictPort"],
+      "port": 3009,
+      "autoPort": false
+    },
+    {
+      "name": "plinko-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3011", "--strictPort"],
+      "port": 3011,
+      "autoPort": false
+    },
+    {
+      "name": "plinko-bonus",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3013", "--strictPort"],
+      "port": 3013,
+      "autoPort": false
+    },
+    {
+      "name": "plinko-win",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3015", "--strictPort"],
+      "port": 3015,
+      "autoPort": false
+    }
+  ]
+}

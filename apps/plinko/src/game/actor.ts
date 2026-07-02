@@ -19,6 +19,7 @@ import {
 } from './plinkoWalletSync';
 import type { Bet } from './typesBookEvent';
 import { alignPlinkoUiToResumeBook, closeActiveRgsRound } from './plinkoActiveRound';
+import { applyResumeBonusProgressToBook } from './plinkoBonusProgress';
 import { alignPlinkoUiToReplayBook, isPlinkoReplay } from './plinkoReplay';
 import { releaseRoundInteractionLocks } from './meterFlow';
 import { playBet } from './bookEventHandlerMap';
@@ -45,6 +46,10 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		// book. Launch defaults the tier to 10, but a resumed bonus round can be 20/50 — without this
 		// `playBet`'s stratum check false-positives and pops an error toast across the top of the screen.
 		alignPlinkoUiToResumeBook(state, (betToResume as { mode?: string }).mode);
+		// Overlay the persisted bonus played count onto the resumed book's entry `bonusRound` event so
+		// the resume drops only the REMAINING free balls (RGS reports `ballsPlayed: 0`, which would
+		// otherwise re-award and re-drop the whole bonus wave). No-op for replay / non-bonus resumes.
+		if (!isPlinkoReplay()) applyResumeBonusProgressToBook(state);
 		const normalizedBet: Bet = { ...betToResume, state };
 		if (state.length > 0) {
 			applySpinMeterDisplay(deriveSpinMeterFromBookEvents(state));

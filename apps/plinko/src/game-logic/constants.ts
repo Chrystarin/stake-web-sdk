@@ -95,15 +95,19 @@ export const BONUS_LEVEL_LABELS = [1, 2, 4, 8, 16, 32, 64, 128, 256] as const;
  * add these when the bonus meter re-fills during the round. Mirror of stake-math-sdk
  * `plinko_data.BONUS_LEVEL_BALLS` — keep both tables in sync (or drive from FE config).
  */
+// Award = the on-screen level-bar value (`BONUS_LEVEL_LABELS`) for the reached level, ×1 — i.e. the
+// award EQUALS the bar value (matches inout's Plinko Aztec: bonus levels are 1,2,4,…,256 balls, the
+// top level dropping ~256). Mirror of stake-math-sdk `plinko_data.BONUS_LEVEL_BALLS`. NOTE: this is
+// only a session-meter FALLBACK — production level balls come from the book's `bonusRound.freeBalls`.
 export const BONUS_LEVEL_BALLS: Record<number, number> = {
-	2: 20,
-	3: 30,
-	4: 50,
-	5: 75,
-	6: 100,
-	7: 150,
-	8: 200,
-	9: 300,
+	2: 2,
+	3: 4,
+	4: 8,
+	5: 16,
+	6: 32,
+	7: 64,
+	8: 128,
+	9: 256,
 };
 
 /** Additional free balls when reaching `level` (0 outside the ladder). */

@@ -3,7 +3,11 @@
 
 	import { PlinkoEngine, type BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 	import { getContext } from '../game/context';
-	import { registerBonusBallOutcome, takeAuthoritativeBonusOutcome } from '../game/gameOrchestrator';
+	import {
+		isRapidSingleBallMode,
+		registerBonusBallOutcome,
+		takeAuthoritativeBonusOutcome,
+	} from '../game/gameOrchestrator';
 	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
 	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
@@ -210,7 +214,12 @@
 		const targetIndices = outcomes.map((o) => o.rateIndex);
 		const hitBonusPegs = outcomes.map((o) => o.hitBonusPeg === true);
 
-		stateGame.expectedOutcomeByBallId = new Map<number, PlinkoBallOutcome>();
+		// Rapid 1-ball mode overlaps drops (prior balls may still be falling), so MERGE this drop's
+		// outcomes onto the existing map instead of clearing it — otherwise an in-flight ball loses its
+		// authoritative outcome. Every other mode starts each drop from a clean map.
+		stateGame.expectedOutcomeByBallId = isRapidSingleBallMode()
+			? new Map(stateGame.expectedOutcomeByBallId)
+			: new Map<number, PlinkoBallOutcome>();
 		stateGame.pendingSpacedSpawnTimers = n;
 		engine.dropBallBurst(targetIndices, delays, ({ dropped, index }) => {
 			const outcome = outcomes[index];

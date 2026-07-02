@@ -1,4 +1,5 @@
 import { stateBet } from 'state-shared';
+import { bookEventAmountToNormalisedAmount } from 'utils-shared/amount';
 import { createPlayBookUtils, recordBookEvent, type BookEventHandlerMap } from 'utils-book';
 
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
@@ -8,7 +9,10 @@ import { plinkoBallsPerDrop, plinkoPlayAmount, plinkoStakePerBall } from './plin
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import {
 	beginRoundHistory,
+	deferRapidSingleBallSettlement,
 	enqueueAuthoritativeBonusLevel,
+	isRapidSingleBallMode,
+	isSingleBallMode,
 	loadAuthoritativeBonusOutcomes,
 	refreshRoundHistoryEntry,
 	startAuthoritativeBonusRound,
@@ -167,6 +171,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 			outcomes: stateGame.pendingOutcomes,
 			fastMode: stateGame.fastGameEnabled,
 		});
+		// Rapid 1-ball mode: the ball is spawned (above) and now animates on its own. DON'T await its
+		// landing — settle the round immediately so the player can drop the next ball while this one is
+		// still falling. This drop's win + balance are revealed when the ball lands (see `finalWin`'s
+		// `deferRapidSingleBallSettlement` + `onBallLanded`), not here.
+		if (isRapidSingleBallMode()) {
+			stateGame.isAnimating = false;
+			return;
+		}
 		await waitForDropBatchCompletion();
 		stateGame.isAnimating = false;
 	},
@@ -186,17 +198,32 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		);
 	},
 	freeSpinTrigger: async (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
+		// 1-ball is a feature-free mode: never run a free spin, even if a served book carries the event
+		// (in production the onedrop math should not emit one — warn so a mis-published book is visible).
+		if (isSingleBallMode()) {
+			if (import.meta.env.DEV) {
+				console.warn('[plinko] freeSpinTrigger ignored — 1-ball tier is feature-free');
+			}
+			return;
+		}
 		await waitForDropBatchCompletion();
 		const payload = {
 			segment: bookEvent.segment,
 			multiplier: bookEvent.multiplier,
 			amount: bookEvent.amount,
 		};
-		// In-bonus free spin: this event is appended AFTER the bonus-round events, so the bonus balls
-		// are still dropping (player/auto-driven). Stash the math-authored segment and let
-		// `settleBonusRoundWhenFinished` run the wheel once the bonus balls finish — its win adds to the
-		// bonus total. A base in-drop free spin (no bonus active) runs the wheel immediately.
+		// In-bonus free spin: this event is tagged with the bonus `level` whose balls it follows. The
+		// bonus balls are still dropping (player/auto-driven), so QUEUE it and let
+		// `settleBonusRoundWhenFinished` run the wheel at that level's boundary — AFTER the level's balls
+		// finish but BEFORE the level-up — adding `stake × M` to the bonus total. A book can carry one
+		// per level (the spin meter re-fills per level), so multiple queue up. A base in-drop free spin
+		// (no bonus active) runs the wheel immediately.
 		if (stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) {
+			const level = Math.max(1, Math.floor(bookEvent.level ?? stateGame.bonusLevelProgress ?? 1));
+			stateGame.pendingBonusFreeSpins = [
+				...stateGame.pendingBonusFreeSpins,
+				{ level, ...payload },
+			];
 			stateGame.pendingBonusFreeSpinPayload = payload;
 			stateGame.pendingSpinRouletteAfterBonusLevelDepletion = true;
 			return;
@@ -205,11 +232,25 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		await runFreeSpinTriggerFlow(payload);
 	},
 	bonusRoulette: async (bookEvent: BookEventOfType<'bonusRoulette'>) => {
+		// 1-ball is a feature-free mode: never open the bonus wheel / start a bonus here.
+		if (isSingleBallMode()) {
+			if (import.meta.env.DEV) {
+				console.warn('[plinko] bonusRoulette ignored — 1-ball tier is feature-free');
+			}
+			return;
+		}
 		// Bonus wheel: awards the level-1 entry free balls (`onBonusRouletteFinished`).
 		await waitForDropBatchCompletion();
 		await runBonusRouletteFlow(bookEvent.freeBalls);
 	},
 	bonusRound: async (bookEvent: BookEventOfType<'bonusRound'>) => {
+		// 1-ball is a feature-free mode: never play out a bonus round here.
+		if (isSingleBallMode()) {
+			if (import.meta.env.DEV) {
+				console.warn('[plinko] bonusRound ignored — 1-ball tier is feature-free');
+			}
+			return;
+		}
 		await waitForDropBatchCompletion();
 		const outcomes = Array.isArray(bookEvent.outcomes) ? bookEvent.outcomes : [];
 		const level = Math.max(1, Math.floor(bookEvent.level ?? 1));
@@ -229,6 +270,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		enqueueAuthoritativeBonusLevel(freeBalls, outcomes, level);
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
+		// Rapid 1-ball mode reveals the win on ball-land (see `finalWin`), so don't apply a partial win
+		// to the HUD here — it would show before the ball reaches a slot.
+		if (isRapidSingleBallMode()) return;
 		await waitForDropBatchCompletion();
 		logPlinkoWinMismatchIfNeeded(bookEvent.amount, 'setTotalWin');
 		applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
@@ -236,6 +280,17 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 	},
 	finalWin: async (bookEvent: BookEventOfType<'finalWin'>) => {
 		recordBookEvent({ bookEvent });
+		// Rapid 1-ball mode: settle now (don't wait for the ball) but DEFER the visible win + balance to
+		// when the ball lands. Keep `winBookEventAmount` so the authoritative balance still credits the
+		// win (dev-local reads it; RGS is authoritative in production); the shadow balance holds it back.
+		if (isRapidSingleBallMode()) {
+			stateBet.winBookEventAmount = bookEvent.amount;
+			deferRapidSingleBallSettlement(
+				stateGame.pendingOutcomes[0],
+				bookEventAmountToNormalisedAmount(bookEvent.amount),
+			);
+			return;
+		}
 		await waitForDropBatchCompletion();
 		logPlinkoWinMismatchIfNeeded(bookEvent.amount, 'finalWin');
 		// One book, one settlement: `finalWin` = drop + (free spin's stake×M, if it fired in-drop).
@@ -292,7 +347,9 @@ export const playBet = async (bet: Bet) => {
 	resetWinReconciliation();
 	stateGame.pendingDropWinAmount = 0;
 	stateGame.baseRoundDropWinAmount = 0;
-	stateGame.winAmount = 0;
+	// Rapid 1-ball mode keeps the last landed ball's win on screen until the NEXT ball reaches a slot,
+	// so don't blank the Win field at bet time (it's set on land in `onBallLanded`).
+	if (!isRapidSingleBallMode()) stateGame.winAmount = 0;
 	stateGame.deferWinPopupForFreeSpin = false;
 	// Per-round feature flags MUST reset each bet, otherwise `syncSpinMeterAfterBet` /
 	// `syncBonusMeterAfterBet` keep treating every later bet as "feature consumed" and wipe the
@@ -340,7 +397,9 @@ export const playBet = async (bet: Bet) => {
 		await syncBonusMeterAfterBet(authoritativeEvents);
 	} finally {
 		stateGame.authoritativeMeterFlow = false;
-		await releaseRoundInteractionLocks();
+		// Rapid 1-ball mode: keep the still-falling ball's outcome map intact so it credits on landing
+		// (the round settles here while its ball is mid-drop). Other modes get the full reset.
+		await releaseRoundInteractionLocks(isRapidSingleBallMode());
 		stateGame.activeRoundBet = undefined;
 	}
 };
