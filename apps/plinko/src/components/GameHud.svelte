@@ -82,6 +82,21 @@
 		stateGame.bonusMeterMax;
 		return isBetControlsLocked();
 	});
+	// Rapid 1-ball mode keeps the wager config interactive while balls fall (continuous betting), so
+	// `isBetControlsLocked()` reads false mid-drop. Per product, on the 1-ball tier the bet-per-ball and
+	// ball-per-drop steppers must instead stay LOCKED while any drop is still animating, re-enabling only
+	// once no balls remain in flight. This narrower lock applies to those wager controls only — the Play
+	// button stays actionable so the player can still queue more 1-ball drops.
+	const oneBallDropInFlight = $derived.by(() => {
+		stateGame.isAnimating;
+		stateGame.expectedOutcomeByBallId.size;
+		stateGame.pendingSpacedSpawnTimers;
+		stateGame.ballPerDrop;
+		stateGame.bonusRoundActive;
+		stateGame.pendingBuyBonusMode;
+		return isRapidSingleBallMode() && isGameOngoing();
+	});
+	const wagerControlsLocked = $derived(controlsLocked || oneBallDropInFlight);
 	// Replay drives bonus-ball drops itself — keep the visible bonus-play button locked for the viewer.
 	const bonusPlayDisabled = $derived(
 		isBonusPlayButtonDisabled() || props.bonusPlayDisabled || isReplayMode(),
@@ -167,7 +182,7 @@
 	}
 
 	function adjustBetAmountStep(delta: number) {
-		if (controlsLocked || delta === 0) return;
+		if (wagerControlsLocked || delta === 0) return;
 		const presets = availableBetPresets;
 		if (!presets.length) return;
 		const idx = getClosestPresetIndex(presets, props.betAmount);
@@ -178,7 +193,7 @@
 	}
 
 	function isBetAmountStepDisabled(delta: number) {
-		if (controlsLocked || delta === 0) return true;
+		if (wagerControlsLocked || delta === 0) return true;
 		const presets = availableBetPresets;
 		if (presets.length <= 1) return true;
 		const idx = getClosestPresetIndex(presets, props.betAmount);
@@ -187,7 +202,7 @@
 	}
 
 	function adjustBallPerDrop(delta: number) {
-		if (controlsLocked || delta === 0) return;
+		if (wagerControlsLocked || delta === 0) return;
 		const arr = BALL_PER_DROP_TIERS;
 		let idx = arr.indexOf(stateGame.ballPerDrop as (typeof BALL_PER_DROP_TIERS)[number]);
 		if (idx < 0) idx = 0;
@@ -199,7 +214,7 @@
 	}
 
 	function isBallPerDropStepDisabled(delta: number) {
-		if (controlsLocked || delta === 0) return true;
+		if (wagerControlsLocked || delta === 0) return true;
 		const arr = BALL_PER_DROP_TIERS;
 		let idx = arr.indexOf(stateGame.ballPerDrop as (typeof BALL_PER_DROP_TIERS)[number]);
 		if (idx < 0) idx = 0;
@@ -214,13 +229,13 @@
 
 	function onBetPerBallPanelTrigger(event: MouseEvent) {
 		event.stopPropagation();
-		if (controlsLocked) return;
+		if (wagerControlsLocked) return;
 		autoPanelOpen = false;
 		betPresetOpen = !betPresetOpen;
 	}
 
 	function selectBetPerBallOption(value: number) {
-		if (controlsLocked) return;
+		if (wagerControlsLocked) return;
 		props.onBetAmountChange(value);
 		betPresetOpen = false;
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
@@ -645,10 +660,10 @@
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
 								class="bp-bet-input-mid"
-								class:bp-bet-input-mid--disabled={controlsLocked}
+								class:bp-bet-input-mid--disabled={wagerControlsLocked}
 								role="button"
-								tabindex={controlsLocked ? -1 : 0}
-								aria-disabled={controlsLocked}
+								tabindex={wagerControlsLocked ? -1 : 0}
+								aria-disabled={wagerControlsLocked}
 								aria-label="Open bet per ball presets"
 								onmousedown={(e) => e.preventDefault()}
 								onclick={onBetPerBallPanelTrigger}
@@ -682,7 +697,7 @@
 										type="button"
 										class="bp-bet-presets-option"
 										class:bp-bet-presets-option--active={props.betAmount === preset}
-										disabled={controlsLocked}
+										disabled={wagerControlsLocked}
 										onclick={() => selectBetPerBallOption(preset)}
 									>
 										{formatCompactAmount(preset)}
