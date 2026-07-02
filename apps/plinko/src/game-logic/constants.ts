@@ -115,10 +115,11 @@ export function bonusLevelBalls(level: number): number {
 	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
 }
 
-/** Bonus roulette ABSOLUTE free-ball awards — ORIGINAL values baked into the labeled
- * `bonus-roulette-wheel.png` (8 segments, clockwise from the top marker; index 0 = top = 100). Mirror
- * of stake-math-sdk `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT. */
-export const BONUS_WHEEL_FREE_BALLS = [100, 20, 50, 50, 50, 80, 20, 20] as const;
+/** Bonus roulette ABSOLUTE free-ball awards — REVISED values baked into the labeled
+ * `bonus-roulette-wheel-revised-values.png` (9 segments, clockwise from the top marker; index 0 = top
+ * = 100, then 90, 80, 70, 60, 50, 40, 30, 20). Mirror of stake-math-sdk
+ * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT. */
+export const BONUS_WHEEL_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20] as const;
 
 /** Bonus-wheel free-ball values. ABSOLUTE, independent of the balls-per-drop tier. Mirror of
  * math `bonus_wheel_free_balls`. */

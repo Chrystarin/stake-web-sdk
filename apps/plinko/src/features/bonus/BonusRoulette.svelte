@@ -397,7 +397,7 @@
 						style:--wheel-scale={WHEEL_SCALE}
 						style:--wheel-offset-x={wheelOffsetXPx}
 						style:--wheel-offset-y={wheelOffsetYPx}
-						src={staticUrl('img/bonus-roulette-wheel.png')}
+						src={staticUrl('img/bonus-roulette-wheel-revised-values.png')}
 						alt="Bonus roulette wheel"
 					/>
 					<img

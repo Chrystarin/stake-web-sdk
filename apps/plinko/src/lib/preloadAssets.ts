@@ -39,7 +39,7 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/bonus-roulette-background.png',
 	'img/bonus-roulette-background-mobile.png',
 	'img/bonus-roulette-label.png',
-	'img/bonus-roulette-wheel.png',
+	'img/bonus-roulette-wheel-revised-values.png',
 	'img/bonus-roulette-center-base.png',
 	'img/announcement-message-background.png',
 	'img/announcement-message-background-mobile.png',
