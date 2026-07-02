@@ -510,7 +510,7 @@
 	align-items: center;
 	justify-content: center;
 	filter: drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
-	transition: transform 0.12s ease, filter 0.12s ease;
+	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
 
 	img {
 		width: 100%;

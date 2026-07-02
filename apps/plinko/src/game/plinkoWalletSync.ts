@@ -10,6 +10,7 @@ import { applyRgsBalanceFromResponse } from '../features/freeSpin/payout';
 import { bookEventsReachBonusMeterMax } from '../features/bonus';
 import { bookHasFeatureSettlement, bookWillReachSpinMeterMax } from './plinkoRoundSettlement';
 import { hasActiveRgsSession } from './plinkoSessionMeters';
+import { isRapidSingleBallMode } from './gameOrchestrator';
 import type { Bet } from './typesBookEvent';
 
 /** Route all paying / feature rounds through deferred end-round (after animations). */
@@ -53,5 +54,12 @@ export async function syncPlinkoWalletAfterRound(bet: Bet): Promise<void> {
 	if (PUBLIC_CHROMATIC || stateUrlDerived.replay() || !hasActiveRgsSession()) return;
 
 	void bet;
+	// Rapid 1-ball mode: `/wallet/end-round` already returned the authoritative post-credit balance
+	// (applied in the machine's `bonusWin.endGame` before this runs), so an extra `/wallet/balance`
+	// read here is redundant — and it sits on the inter-bet critical path, blocking the round machine
+	// from returning to idle (and thus the next bet) for a whole network round-trip. Skip it so a
+	// winning rapid round costs 2 RTTs (play + end-round) instead of 3. The rapid balance shadow keeps
+	// the on-screen balance correct until it reconciles to this authoritative value when idle.
+	if (isRapidSingleBallMode()) return;
 	await refreshWalletBalanceFromRgs();
 }

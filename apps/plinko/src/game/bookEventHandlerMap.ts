@@ -239,6 +239,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 			}
 			return;
 		}
+		// BUY BONUS resume: the entry wheel already played when the bonus was purchased. Re-showing it
+		// on resume is wrong — skip straight to the bonus round. The `bonusRound` event that follows sees
+		// `!bonusRoundActive` and runs its documented resume path (`startAuthoritativeBonusRound`), which
+		// drops only the remaining balls and then shows the congratulations announcement.
+		if (stateGame.resumingActiveRound && isPlinkoTriggerMode(stateBet.activeBetModeKey)) {
+			return;
+		}
 		// Bonus wheel: awards the level-1 entry free balls (`onBonusRouletteFinished`).
 		await waitForDropBatchCompletion();
 		await runBonusRouletteFlow(bookEvent.freeBalls);
@@ -322,10 +329,16 @@ export const playBet = async (bet: Bet) => {
 	const authoritativeDrop = getPlinkoDropFromBet(authoritativeBet);
 	// Replay aligned the UI tier to the book (`alignPlinkoUiToReplayBook`), so the served drop is
 	// authoritative — never treat it as a stratum mismatch (which would suppress the resize-to-UI and
-	// pop an error toast over the replay).
-	stateGame.plinkoDropStratumMismatch = isPlinkoReplay()
-		? false
-		: !plinkoDropMatchesUi(authoritativeDrop);
+	// pop an error toast over the replay). A BUY-BONUS (trigger mode) book carries an intentionally
+	// EMPTY drop (balls arrive via `bonusRound`), so its drop resolves to 1 ball and would ALWAYS
+	// mismatch the 10/20/50-ball UI tier the purchase was made on. That false mismatch then suppresses
+	// the per-ball `addSettledWinAmount` in `onBallLanded` (WIN counter frozen at $0 through the whole
+	// bonus) and lets the in-bonus free spin credit `stake×M` onto a $0 base. Skip the check for trigger
+	// modes — the real balls are the `bonusRound` outcomes, not this placeholder drop.
+	stateGame.plinkoDropStratumMismatch =
+		isPlinkoReplay() || isPlinkoTriggerMode(stateBet.activeBetModeKey)
+			? false
+			: !plinkoDropMatchesUi(authoritativeDrop);
 	if (stateGame.plinkoDropStratumMismatch) {
 		const message = plinkoDropStratumMismatchMessage(authoritativeDrop, undefined, authoritativeBet);
 		if (message) showToast(message, 'error');
@@ -397,6 +410,8 @@ export const playBet = async (bet: Bet) => {
 		await syncBonusMeterAfterBet(authoritativeEvents);
 	} finally {
 		stateGame.authoritativeMeterFlow = false;
+		// Resume playback is done — later fresh bets must not be treated as a resume.
+		stateGame.resumingActiveRound = false;
 		// Rapid 1-ball mode: keep the still-falling ball's outcome map intact so it credits on landing
 		// (the round settles here while its ball is mid-drop). Other modes get the full reset.
 		await releaseRoundInteractionLocks(isRapidSingleBallMode());

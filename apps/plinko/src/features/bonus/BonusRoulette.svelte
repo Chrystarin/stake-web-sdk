@@ -52,29 +52,36 @@
 	const MARKER_HEIGHT_TO_WHEEL = (416 / 1348) * 0.65;
 
 	// ─── Tuning knobs: independently scale & reposition the three roulette pieces ───────────────────
-	// *_SCALE:    1 = base size (what the layout computes); >1 = larger, <1 = smaller.
-	// *_OFFSET_X: horizontal shift as a fraction of the wheel diameter (positive = right).
-	// *_OFFSET_Y: vertical shift as a fraction of the wheel diameter (positive = down).
+	// EDIT THESE to move/resize the bonus roulette. Values are split by orientation: `landscape` is used
+	// on desktop/wide layouts, `portrait` on mobile/tall layouts (chosen by `portrait` below).
+	//   scale:    1 = base size (what the layout computes); >1 = larger, <1 = smaller.
+	//   offsetX:  horizontal shift as a fraction of the wheel diameter (positive = right).
+	//   offsetY:  vertical shift as a fraction of the wheel diameter (positive = down).
 	// The wheel's center medallion scales/moves with the wheel. The marker stays pinned to the (scaled)
 	// wheel rim by default, so its offsets only fine-tune from there.
 	// Note: pieces are clipped at the screen edges (the overlay hides overflow), so very large scales
 	// will crop — lower the scale or nudge with the offsets.
-	const LABEL_SCALE = 1.2;
-	const LABEL_OFFSET_X = 0;
-	const LABEL_OFFSET_Y = 0;
-
-	const WHEEL_SCALE = 1.2;
-	const WHEEL_OFFSET_X = 0;
-	const WHEEL_OFFSET_Y = -0.2;
-
-	const MARKER_SCALE = 1.85;
-	const MARKER_OFFSET_X = 0;
-	const MARKER_OFFSET_Y = -0.2;
+	const BONUS_ROULETTE_TUNING = {
+		landscape: {
+			label: { scale: 1.8, offsetX: 0, offsetY: -0.05 },
+			wheel: { scale: 1.8, offsetX: 0, offsetY: 0.3 },
+			marker: { scale: 3, offsetX: 0, offsetY: 0.3 },
+		},
+		portrait: {
+			label: { scale: 1.2, offsetX: 0, offsetY: 0 },
+			wheel: { scale: 1.2, offsetX: 0, offsetY: -0.2 },
+			marker: { scale: 1.85, offsetX: 0, offsetY: -0.2 },
+		},
+	};
 
 	// ⚠️ DEBUG ONLY — set back to `false` before shipping. When true, the roulette assembles and then
 	// stays on screen (no auto-spin, no auto-advance to the announcement) so the layout can be inspected.
 	// The bonus round will NOT resolve while this is on.
 	const DEBUG_KEEP_OPEN = false;
+
+	// ⚠️ DEBUG ONLY — extra delay (ms) before the wheel starts spinning, so the assembled layout can be
+	// inspected first. Set back to `0` before shipping. Added on top of the normal pre-spin delay.
+	const DEBUG_SPIN_DELAY_MS = 0;
 
 	let slidePhase = $state<'enter' | 'idle' | 'exit'>('enter');
 	let bgJoined = $state(false);
@@ -83,6 +90,9 @@
 	let markerVisible = $state(false);
 	let wheelSpinClass = $state(false);
 	let wheelRotationDeg = $state(0);
+	// Center base counter-rotates with the wheel (opposite direction, whole turns) so it lands back on its
+	// original orientation exactly when the wheel stops.
+	let baseRotationDeg = $state(0);
 	let announcementVisible = $state(false);
 	let announcementBgVisible = $state(false);
 	let announcementTextVisible = $state(false);
@@ -96,6 +106,18 @@
 	// Mobile UA *or* tall-narrow portrait layout — matches how the rest of the game (Background, Result,
 	// Game, BonusLevelUpOverlay) picks its mobile/portrait assets, so the mobile art shows in both.
 	const portrait = isPortraitGameLayout();
+
+	// Resolve the orientation-specific tuning knobs (see BONUS_ROULETTE_TUNING above).
+	const tuning = portrait ? BONUS_ROULETTE_TUNING.portrait : BONUS_ROULETTE_TUNING.landscape;
+	const LABEL_SCALE = tuning.label.scale;
+	const LABEL_OFFSET_X = tuning.label.offsetX;
+	const LABEL_OFFSET_Y = tuning.label.offsetY;
+	const WHEEL_SCALE = tuning.wheel.scale;
+	const WHEEL_OFFSET_X = tuning.wheel.offsetX;
+	const WHEEL_OFFSET_Y = tuning.wheel.offsetY;
+	const MARKER_SCALE = tuning.marker.scale;
+	const MARKER_OFFSET_X = tuning.marker.offsetX;
+	const MARKER_OFFSET_Y = tuning.marker.offsetY;
 
 	function updateRouletteLayout() {
 		const stage = stageEl;
@@ -199,7 +221,7 @@
 			// DEBUG_KEEP_OPEN: hold the assembled roulette on screen — skip the spin (and the announcement
 			// it leads into) so the layout stays visible for inspection.
 			if (DEBUG_KEEP_OPEN) return;
-			const spinTimer = setTimeout(() => startSpin(), 760);
+			const spinTimer = setTimeout(() => startSpin(), 760 + DEBUG_SPIN_DELAY_MS);
 			timers.push(spinTimer);
 		}, 620);
 		timers.push(assembleTimer);
@@ -243,6 +265,9 @@
 		const winner = resolveWinnerIndex();
 		const extraRounds = 5 + Math.floor(Math.random() * 3);
 		const targetDeg = wheelRotationDeg + extraRounds * 360 - winner * segAngle;
+		// Base counter-rotates: opposite direction, a whole number of turns (so it lands back on its original
+		// orientation) at the same speed/duration as the wheel — same `extraRounds` over the same transition.
+		const baseTargetDeg = baseRotationDeg - extraRounds * 360;
 		let settled = false;
 		const settle = () => {
 			if (settled) return;
@@ -252,6 +277,7 @@
 		requestAnimationFrame(() => {
 			wheelSpinClass = true;
 			wheelRotationDeg = targetDeg;
+			baseRotationDeg = baseTargetDeg;
 		});
 		const el = wheelEl;
 		if (el) {
@@ -376,8 +402,10 @@
 					/>
 					<img
 						class="bonus-spin-center-base"
+						class:bonus-spin-center-base--animating={wheelSpinClass}
 						class:bonus-spin-center-base--visible={wheelVisible}
 						style:width={baseWidthPx}
+						style:--base-rotation-deg="{baseRotationDeg}deg"
 						style:--wheel-scale={WHEEL_SCALE}
 						style:--wheel-offset-x={wheelOffsetXPx}
 						style:--wheel-offset-y={wheelOffsetYPx}
@@ -467,6 +495,10 @@
 		justify-items: center;
 	}
 	.bonus-spin-title {
+		position: relative;
+		/* Above the wheel-stack's marker (z 2) and center-base (z 3) so the banner always paints over the
+		   marker's tail when it pokes up past the rim. */
+		z-index: 4;
 		width: min(72vw, 100%);
 		max-width: 100%;
 		height: auto;
@@ -584,7 +616,10 @@
 		top: 50%;
 		height: auto;
 		object-fit: contain;
-		transform: translate(-50%, -50%) translateY(125vh) scale(var(--wheel-scale, 1));
+		transform-origin: 50% 50%;
+		--base-rotation-deg: 0deg;
+		transform: translate(-50%, -50%) translateY(125vh) rotate(var(--base-rotation-deg))
+			scale(var(--wheel-scale, 1));
 		opacity: 0;
 		z-index: 3;
 		transition:
@@ -594,8 +629,13 @@
 	.bonus-spin-center-base--visible {
 		transform: translate(-50%, -50%)
 			translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
+			rotate(var(--base-rotation-deg))
 			scale(var(--wheel-scale, 1));
 		opacity: 1;
+	}
+	/* Matches the wheel's spin timing so the counter-rotating base stops at the same moment. */
+	.bonus-spin-center-base--animating {
+		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
 	}
 	.bonus-announcement {
 		position: absolute;

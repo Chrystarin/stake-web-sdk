@@ -295,6 +295,11 @@ function consumeAuthoritativeBonusLevel(): boolean {
 	const next = stateGame.authoritativeBonusLevelQueue[0];
 	if (!next) return false;
 	stateGame.authoritativeBonusLevelQueue = stateGame.authoritativeBonusLevelQueue.slice(1);
+	// Top the completed level's progress meter out NOW so it animates up to full during the activation
+	// delay — the reward that follows then lands on a visibly completed bar. Without this the provisional
+	// per-ball fill can still be short of max here, and the level-up (below) would drain that partial
+	// value to 0, showing the +N free balls before the bar ever finished (see applyAuthoritativeBonusLevel).
+	if (stateGame.bonusMeterMax > 0) stateGame.bonusMeterValue = stateGame.bonusMeterMax;
 	setTimeout(
 		() => applyAuthoritativeBonusLevel(next),
 		BONUS_LEVEL_ACTIVATION_DELAY_MS,
@@ -310,14 +315,22 @@ async function applyAuthoritativeBonusLevel(level: {
 	await waitForDropBatchCompletion();
 	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
 	stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level.level);
+	// The +N free balls must only ever be awarded on a FULLY filled progress meter (parity with the
+	// session-meter path + the "ready to level up" blink, both gated on a full bar). The provisional
+	// per-ball fill can lag the book and leave the bar short when the level's balls deplete, so assert
+	// the meter is topped out at the exact award instant rather than assuming it "held at max" — this
+	// removes the inconsistency where the reward appeared before the bar had finished filling.
+	stateGame.bonusMeterValue = stateGame.bonusMeterMax;
 	showBonusLevelUpOverlay(level.level, level.freeBalls);
 	stateGame.authoritativeBonusOutcomes = level.outcomes;
 	stateGame.authoritativeBonusOutcomeIndex = 0;
-	// Level-up applied: DRAIN the (held-full) meter so the new level's bar visibly re-fills from
-	// empty as its balls drop. The meter held at max while the previous level's balls finished (the
-	// "ready to level up" blink); now that we've advanced, start the next fill fresh.
-	stateGame.bonusMeterValue = 0;
 	awardBonusBalls(level.freeBalls);
+	// DRAIN on the next frame so the full bar is rendered first, then the new level's bar visibly
+	// re-fills from empty as its balls drop. Draining synchronously here would snap the bar from full to
+	// empty within the same update and hide the completed state the level-up celebrates.
+	requestAnimationFrame(() => {
+		if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
+	});
 }
 
 export function takeAuthoritativeBonusOutcome(): PlinkoBallOutcome | undefined {

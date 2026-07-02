@@ -90,6 +90,10 @@ export const stateGame = $state({
 	inBonusFreeSpinCreditTotal: 0,
 	/** Set when `bonusRoulette` / `bonusRound` awards balls this wager round. */
 	bonusAwardedThisRound: false,
+	/** True while an active-round resume is being played back (set in `onResumeGameActive`, cleared
+	 * after `playBet`). Lets handlers tell a genuine resume apart from a fresh bet — e.g. a BUY BONUS
+	 * resume skips the entry roulette (already shown when the bonus was purchased). */
+	resumingActiveRound: false,
 	/** Set when the bonus meter is full and the next bet must auto-fire the RGS bonus trigger mode. */
 	pendingFeatureTrigger: null as 'spin' | 'bonus' | null,
 	/** When true, meter fills and roulettes follow RGS book events / outcome flags only. */
@@ -180,10 +184,6 @@ export const stateGame = $state({
 	/** Rapid 1-ball mode: display balance that holds each drop's win back until its ball lands, so the
 	 * Win field and Balance both update on ball-land (not at settle). `null` = show authoritative balance. */
 	rapidBalanceShadow: null as number | null,
-	/** Rapid 1-ball mode: clicks that arrived while a round was still submitting/settling, queued to fire
-	 * one-by-one as the round machine frees up (RGS settles one round at a time). Lets the player keep the
-	 * Bet button pressed / spammed without losing bets. */
-	rapidBetQueue: 0,
 	infoModalOpen: false,
 	infoModalTab: 'rules' as InfoModalTab,
 	menuOpen: false,

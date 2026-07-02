@@ -3,6 +3,7 @@
 
 	import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
 	import { assertAuthoritativeOutcome } from '../../game/plinkoFairnessGuard';
+	import { isPortraitGameLayout } from '../../lib/format';
 	import { staticUrl } from '../../lib/staticUrl';
 
 	export type FreeSpinRouletteResult = {
@@ -29,11 +30,54 @@
 	const MARKER_WIDTH_TO_WHEEL = (151 / 1348) * 0.65;
 	const MARKER_HEIGHT_TO_WHEEL = (435 / 1348) * 0.65;
 
+	// ─── Tuning knobs: independently scale & reposition the three roulette pieces ───────────────────
+	// EDIT THESE to move/resize the free-spin roulette. Values are split by orientation: `landscape` is
+	// used on desktop/wide layouts, `portrait` on mobile/tall layouts (chosen by `portrait` below).
+	//   scale:    1 = base size (what the layout computes); >1 = larger, <1 = smaller.
+	//   offsetX:  horizontal shift as a fraction of the wheel diameter (positive = right).
+	//   offsetY:  vertical shift as a fraction of the wheel diameter (positive = down).
+	// The wheel's center base scales/moves with the wheel. The marker stays pinned to the (scaled) wheel
+	// rim by default, so its offsets only fine-tune from there.
+	// Note: pieces are clipped at the screen edges (the overlay hides overflow), so very large scales
+	// will crop — lower the scale or nudge with the offsets.
+	const FREE_SPIN_ROULETTE_TUNING = {
+		landscape: {
+			label: { scale: 2, offsetX: 0, offsetY: -0.05 },
+			wheel: { scale: 1.65, offsetX: 0, offsetY: 0.4 },
+			marker: { scale: 2.3, offsetX: 0, offsetY: 0.4 },
+		},
+		portrait: {
+			label: { scale: 2, offsetX: 0, offsetY: 0.2 },
+			wheel: { scale: 1.35, offsetX: 0, offsetY: 0.2 },
+			marker: { scale: 2, offsetX: 0, offsetY: 0.2 },
+		},
+	};
+
+	// ⚠️ DEBUG ONLY — extra delay (ms) before the wheel starts spinning, so the assembled layout can be
+	// inspected first. Set back to `0` before shipping. Added on top of the normal pre-spin delay.
+	const DEBUG_SPIN_DELAY_MS = 0;
+
+	const portrait = isPortraitGameLayout();
+	// Resolve the orientation-specific tuning knobs (see FREE_SPIN_ROULETTE_TUNING above).
+	const tuning = portrait ? FREE_SPIN_ROULETTE_TUNING.portrait : FREE_SPIN_ROULETTE_TUNING.landscape;
+	const LABEL_SCALE = tuning.label.scale;
+	const LABEL_OFFSET_X = tuning.label.offsetX;
+	const LABEL_OFFSET_Y = tuning.label.offsetY;
+	const WHEEL_SCALE = tuning.wheel.scale;
+	const WHEEL_OFFSET_X = tuning.wheel.offsetX;
+	const WHEEL_OFFSET_Y = tuning.wheel.offsetY;
+	const MARKER_SCALE = tuning.marker.scale;
+	const MARKER_OFFSET_X = tuning.marker.offsetX;
+	const MARKER_OFFSET_Y = tuning.marker.offsetY;
+
 	let overlayVisible = $state(false);
 	let wheelVisible = $state(false);
 	let markerVisible = $state(false);
 	let wheelSpinClass = $state(false);
 	let wheelRotationDeg = $state(0);
+	// Center base counter-rotates with the wheel (opposite direction, whole turns) so it lands back on its
+	// original orientation exactly when the wheel stops.
+	let baseRotationDeg = $state(0);
 	let wheelEl = $state<HTMLImageElement | undefined>(undefined);
 	let stageEl = $state<HTMLDivElement | undefined>(undefined);
 	let rouletteSizePx = $state(0);
@@ -59,7 +103,7 @@
 				markerVisible = true;
 			}, 120),
 		);
-		timers.push(setTimeout(() => startSpin(), 520));
+		timers.push(setTimeout(() => startSpin(), 520 + DEBUG_SPIN_DELAY_MS));
 		return () => timers.forEach(clearTimeout);
 	});
 
@@ -88,9 +132,18 @@
 	const markerHeightPx = $derived(
 		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_HEIGHT_TO_WHEEL)}px` : undefined,
 	);
+	// Marker sits at the wheel rim; tracking WHEEL_SCALE keeps it on the (scaled) rim by default.
 	const markerYOffsetPx = $derived(
-		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5)}px` : undefined,
+		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5 * WHEEL_SCALE)}px` : undefined,
 	);
+
+	// Tuning offsets, resolved to px from the wheel diameter (positive X → right, positive Y → down).
+	const labelOffsetXPx = $derived(`${Math.round(rouletteSizePx * LABEL_OFFSET_X)}px`);
+	const labelOffsetYPx = $derived(`${Math.round(rouletteSizePx * LABEL_OFFSET_Y)}px`);
+	const wheelOffsetXPx = $derived(`${Math.round(rouletteSizePx * WHEEL_OFFSET_X)}px`);
+	const wheelOffsetYPx = $derived(`${Math.round(rouletteSizePx * WHEEL_OFFSET_Y)}px`);
+	const markerOffsetXPx = $derived(`${Math.round(rouletteSizePx * MARKER_OFFSET_X)}px`);
+	const markerOffsetYPx = $derived(`${Math.round(rouletteSizePx * MARKER_OFFSET_Y)}px`);
 	// Multiplier labels are drawn dynamically (the wheel art is label-less) so they ALWAYS match
 	// `FREE_SPIN_SEGMENTS` — segment `i` sits at `i*45°` from the top marker, the same angle the
 	// spin lands on (`-winner*45`), so the value under the marker is exactly the math result.
@@ -118,6 +171,9 @@
 					: Math.floor(Math.random() * FREE_SPIN_SEGMENTS.length);
 		const extraRounds = 5 + Math.floor(Math.random() * 3);
 		const targetDeg = wheelRotationDeg + extraRounds * 360 - winner * 45;
+		// Base counter-rotates: opposite direction, a whole number of turns (so it lands back on its original
+		// orientation) at the same speed/duration as the wheel — same `extraRounds` over the same transition.
+		const baseTargetDeg = baseRotationDeg - extraRounds * 360;
 		let settled = false;
 		const settle = () => {
 			if (settled) return;
@@ -127,6 +183,7 @@
 		requestAnimationFrame(() => {
 			wheelSpinClass = true;
 			wheelRotationDeg = targetDeg;
+			baseRotationDeg = baseTargetDeg;
 		});
 		const el = wheelEl;
 		if (el) {
@@ -174,6 +231,9 @@
 			<img
 				class="free-spin-label"
 				style:width={labelWidthPx}
+				style:--label-scale={LABEL_SCALE}
+				style:--label-offset-x={labelOffsetXPx}
+				style:--label-offset-y={labelOffsetYPx}
 				src={staticUrl('img/free-spin-label.png')}
 				alt="Free spin"
 			/>
@@ -184,6 +244,9 @@
 					style:width={markerWidthPx}
 					style:height={markerHeightPx}
 					style:--marker-y-offset={markerYOffsetPx}
+					style:--marker-scale={MARKER_SCALE}
+					style:--marker-offset-x={markerOffsetXPx}
+					style:--marker-offset-y={markerOffsetYPx}
 					src={staticUrl('img/free-spin-roulette-marker.png')}
 					alt=""
 				/>
@@ -193,12 +256,20 @@
 					class:free-spin-wheel--animating={wheelSpinClass}
 					class:free-spin-wheel--visible={wheelVisible}
 					style:--wheel-rotation-deg="{wheelRotationDeg}deg"
+					style:--wheel-scale={WHEEL_SCALE}
+					style:--wheel-offset-x={wheelOffsetXPx}
+					style:--wheel-offset-y={wheelOffsetYPx}
 					src={staticUrl('img/free-spin-roulette-wheel.png')}
 					alt=""
 				/>
 				<img
 					class="free-spin-center-base"
+					class:free-spin-center-base--animating={wheelSpinClass}
 					style:width={baseWidthPx}
+					style:--base-rotation-deg="{baseRotationDeg}deg"
+					style:--wheel-scale={WHEEL_SCALE}
+					style:--wheel-offset-x={wheelOffsetXPx}
+					style:--wheel-offset-y={wheelOffsetYPx}
 					src={staticUrl('img/free-spin-roulette-base.png')}
 					alt=""
 				/>
@@ -248,6 +319,10 @@
 		justify-items: center;
 	}
 	.free-spin-label {
+		position: relative;
+		/* Above the wheel-stack's marker (z 2) and center-base (z 3) so the label always paints over the
+		   marker's tail when it pokes up past the rim. */
+		z-index: 4;
 		width: min(72vw, 100%);
 		max-width: 100%;
 		height: auto;
@@ -255,6 +330,9 @@
 		object-fit: contain;
 		margin-bottom: clamp(0.25rem, 1.5vw, 1rem);
 		filter: drop-shadow(0 0 16px rgba(255, 215, 96, 0.25));
+		transform-origin: 50% 0%;
+		transform: translate(var(--label-offset-x, 0px), var(--label-offset-y, 0px))
+			scale(var(--label-scale, 1));
 	}
 	.free-spin-wheel-stack {
 		position: relative;
@@ -270,7 +348,7 @@
 		left: 50%;
 		top: 50%;
 		object-fit: contain;
-		transform: translate(-50%, -50%) translateY(-150vh);
+		transform: translate(-50%, -50%) translateY(-150vh) scale(var(--marker-scale, 1));
 		transform-origin: 50% 50%;
 		z-index: 2;
 		opacity: 0;
@@ -280,7 +358,12 @@
 			opacity 0.34s ease;
 	}
 	.free-spin-marker--visible {
-		transform: translate(-50%, -50%) translateY(var(--marker-y-offset, 0px));
+		transform: translate(-50%, -50%)
+			translate(
+				var(--marker-offset-x, 0px),
+				calc(var(--marker-y-offset, 0px) + var(--marker-offset-y, 0px))
+			)
+			scale(var(--marker-scale, 1));
 		opacity: 1;
 	}
 	.free-spin-wheel {
@@ -290,11 +373,12 @@
 		object-fit: contain;
 		transform-origin: 50% 50%;
 		--wheel-rotation-deg: 0deg;
-		transform: translateY(125vh) rotate(var(--wheel-rotation-deg));
+		transform: translateY(125vh) rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
 		opacity: 0;
 	}
 	.free-spin-wheel--visible {
-		transform: translateY(0) rotate(var(--wheel-rotation-deg));
+		transform: translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
+			rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
 		opacity: 1;
 		transition:
 			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
@@ -350,8 +434,17 @@
 		top: 50%;
 		height: auto;
 		object-fit: contain;
-		transform: translate(-50%, -50%);
+		transform-origin: 50% 50%;
+		--base-rotation-deg: 0deg;
+		transform: translate(-50%, -50%)
+			translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
+			rotate(var(--base-rotation-deg))
+			scale(var(--wheel-scale, 1));
 		z-index: 3;
 		pointer-events: none;
+	}
+	/* Matches the wheel's spin timing so the counter-rotating base stops at the same moment. */
+	.free-spin-center-base--animating {
+		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
 	}
 </style>

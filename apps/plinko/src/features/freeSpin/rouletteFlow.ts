@@ -72,7 +72,11 @@ export function applyFreeSpinWinOnLand(wheelSegmentLabel?: string) {
 			// balls to the book `finalWin`, which reconciles the exact total at settlement.
 			addSettledWinAmount(credit);
 			recordFreeSpinWinHistory(multiplier);
-			showFreeSpinPopup();
+			// IN-BONUS free spin: do NOT pop the win modal here. Its amount (`winPopupAmount`) is only
+			// set by RGS settlement, so showing it mid-bonus flashes a $0 modal. The single win modal —
+			// with the full base + bonus + free-spin total — is shown by the `finalWin` handler after the
+			// bonus end screen (`waitForBonusRoundCompletion`). The credit above keeps the running HUD
+			// Win field in sync in the meantime.
 		}
 		return;
 	}

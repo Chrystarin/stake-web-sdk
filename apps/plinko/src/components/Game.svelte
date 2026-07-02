@@ -145,6 +145,10 @@
 	 * BonusRoulette.svelte, which holds it on screen). Bonus will NOT resolve while this is on. */
 	const DEV_SHOW_BONUS_ROULETTE_ON_LOAD = false;
 
+	/** TODO: remove — open the free-spin roulette the moment the game loads (pairs with DEBUG_SPIN_DELAY_MS
+	 * in FreeSpinRoulette.svelte, which delays the spin so the layout can be inspected). */
+	const DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD = false;
+
 	/** DEBUG: force the bonus meter's visual fill to a fixed value in 0..1 (e.g. 0.5 = half full).
 	 * Purely cosmetic — it only feeds the <BonusMeter> progress prop and does NOT touch the real
 	 * meter value, bonus trigger logic, or anything else. Leave as null to use the live meter.
@@ -217,6 +221,10 @@
 			stateGame.bonusRouletteOpen = true;
 		}
 
+		if (DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD) {
+			stateGame.freeSpinRouletteOpen = true;
+		}
+
 		if (DEV_SHOW_WIN_MODAL_ON_LOAD) {
 			stateGame.winPopupAmount = 123456789.45;
 			stateGame.showWinPopup = true;
@@ -274,17 +282,6 @@
 		maybeAutoFireFeatureTrigger(placeBet);
 	});
 
-	// Rapid 1-ball mode: drain one queued click each time the round machine returns to idle, so a burst
-	// of continuous clicks fires bet-by-bet as fast as rounds settle (RGS is one-round-at-a-time).
-	$effect(() => {
-		stateGame.isSubmitting;
-		stateGame.dropRoundActive;
-		stateXstate.value;
-		stateGame.rapidBetQueue;
-		stateGame.ballPerDrop;
-		drainRapidBetQueue();
-	});
-
 	function handleBetAmountChange(value: number) {
 		const maxPerBall = maxAffordableStakePerBall() || value;
 		stateBet.betAmount = snapStakeToBetLevels(Math.max(0, Math.min(value, maxPerBall)));
@@ -292,33 +289,13 @@
 
 
 
-	// Rapid 1-ball mode: how many balls (in flight or already selected) we allow to be committed at once
-	// — a safety ceiling on the click queue so a spammed / held Bet button can't run the balance away.
-	const RAPID_BET_QUEUE_CAP = 25;
-
-	/** Queue a rapid 1-ball bet that arrived while a round was busy, capped by the ceiling + affordability. */
-	function enqueueRapidBet() {
-		const wager = plinkoWagerAmount();
-		const affordable = wager > 0 ? Math.floor(stateBet.balanceAmount / wager) : 0;
-		const cap = Math.max(0, Math.min(RAPID_BET_QUEUE_CAP, affordable));
-		if (stateGame.rapidBetQueue < cap) stateGame.rapidBetQueue += 1;
-	}
-
-	/** Fire one queued rapid bet the moment the round machine is idle; clear the queue if it can't run. */
-	function drainRapidBetQueue() {
-		if (!isRapidSingleBallMode()) {
-			stateGame.rapidBetQueue = 0;
-			return;
-		}
-		if (stateGame.rapidBetQueue <= 0) return;
-		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()) return;
-		if (!canAffordPlinkoWager()) {
-			stateGame.rapidBetQueue = 0;
-			return;
-		}
-		stateGame.rapidBetQueue -= 1;
-		void placeBet();
-	}
+	// Rapid 1-ball mode uses a lightweight INPUT THROTTLE instead of an input queue. Each click fires a
+	// bet immediately when the round machine is free; clicks that arrive while it's busy (or inside the
+	// throttle window) are dropped, never buffered. The ball drop + its SFX therefore fire in direct
+	// response to the click that triggered them, and betting stops the instant the player stops clicking —
+	// no trailing backlog of balls draining out after the burst ends.
+	const RAPID_BET_THROTTLE_MS = 30;
+	let lastRapidBetAt = 0;
 
 	async function placeBet() {
 		// Replay is passive playback of a recorded round — never place a wager.
@@ -329,11 +306,14 @@
 			showToast('No Internet Connection', 'error');
 			return;
 		}
+		// Rapid 1-ball mode: throttle a mashed / held Bet button so it can't fire faster than
+		// RAPID_BET_THROTTLE_MS. Throttled clicks are dropped, not buffered, so betting halts the moment
+		// the player stops clicking (no trailing balls). See RAPID_BET_THROTTLE_MS.
+		if (isRapidSingleBallMode() && performance.now() - lastRapidBetAt < RAPID_BET_THROTTLE_MS) return;
 		// Ignore a bet while the previous round is still settling (machine not yet idle) — the
 		// idle-only xstate machine would drop the BET and leave `isSubmitting` stuck. In rapid 1-ball
-		// mode don't lose the click: queue it to fire when the machine frees up.
+		// mode the click is simply dropped (the throttle above already prevents lost-click spam).
 		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()) {
-			if (isRapidSingleBallMode()) enqueueRapidBet();
 			return;
 		}
 
@@ -354,6 +334,7 @@
 			return;
 		}
 
+		if (isRapidSingleBallMode()) lastRapidBetAt = performance.now();
 		stateGame.showWinPopup = false;
 		stateGame.isSubmitting = true;
 
@@ -695,7 +676,9 @@
 		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
 		bonusBallsRemaining={stateGame.bonusBallsRemaining}
 		playDisabled={stateGame.isOffline ||
-			(isRapidSingleBallMode() ? false : isBetControlsLocked() || isGameOngoing())}
+			(isRapidSingleBallMode()
+				? stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()
+				: isBetControlsLocked() || isGameOngoing())}
 		bonusPlayDisabled={stateGame.isOffline || stateGame.bonusRouletteOpen}
 		{mobile}
 		onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}

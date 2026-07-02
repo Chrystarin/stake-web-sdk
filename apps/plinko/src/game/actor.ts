@@ -39,6 +39,10 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	// round/replay settles with no balls. Everything below is sync, so keep it sync.
 	onResumeGameActive: (betToResume) => {
 		const state = Array.isArray(betToResume.state) ? betToResume.state : [];
+		// Mark this playback as a genuine active-round resume so book-event handlers can tell it apart
+		// from a fresh bet (cleared in `playBet`'s finally). A BUY BONUS resume uses this to skip the
+		// entry roulette — it already played when the bonus was purchased.
+		stateGame.resumingActiveRound = true;
 		// Replay: align the UI tier/stake to the served book so playback reproduces it exactly (no-op
 		// for a genuine active-round resume, which carries no replay URL params).
 		alignPlinkoUiToReplayBook(state);
