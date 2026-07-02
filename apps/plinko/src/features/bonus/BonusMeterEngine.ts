@@ -155,6 +155,11 @@ export class BonusMeterEngine {
     // so the leading edge sits under the dot rather than peeking out around it.
     this.markerSizePx = Math.max(8, scaledBaseHeight * 0.72);
     this.updateMeterFill();
+    // Render synchronously right after the resize. `renderer.resize` clears the canvas buffer, and
+    // with antialias on the un-resolved MSAA buffer composites as an opaque white box for the one
+    // frame before the ticker's next rAF redraw — a visible white flash whenever the layout reflows
+    // (e.g. toggling Ball Per Drop). Drawing now closes that gap (same pattern as PlinkoEngine).
+    this.app.renderer.render(this.app.stage);
   }
 
   private updateMeterFill(): void {

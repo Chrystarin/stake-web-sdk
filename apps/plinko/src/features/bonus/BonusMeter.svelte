@@ -13,12 +13,18 @@
 	let markerLeft = $state(0);
 	let markerTop = $state(0);
 	let markerSize = $state(10);
+	// The engine only computes a real marker position after its async init (texture load + first
+	// resize). Until then markerLeft/Top are 0, which paints the marker at the wrap's top-left
+	// corner — visible as a marker that flashes "way off position" then snaps back whenever the
+	// meter mounts (e.g. switching back from 1 Ball Per Drop). Keep it hidden until ready.
+	let markerReady = $state(false);
 
 	onMount(() => {
 		engine = new BonusMeterEngine();
 		void engine.init(hostEl).then(() => {
 			engine?.setProgress(props.progress ?? 0);
 			syncMarker();
+			markerReady = true;
 		});
 
 		let rafId = 0;
@@ -57,6 +63,7 @@
 		style:top="{markerTop}px"
 		style:width="{markerSize}px"
 		style:height="{markerSize}px"
+		style:opacity={markerReady ? 1 : 0}
 	/>
 </div>
 
