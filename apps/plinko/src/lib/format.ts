@@ -60,6 +60,22 @@ export const formatCompactAmount = (value: number): string => {
 	return trim(value, 2);
 };
 
+/**
+ * Win-amount label for the result popup. Normally shows 2 decimals, but a tiny win that would
+ * round to `0.00` at 2 decimals (e.g. 0.0025) is instead shown with enough decimals to reveal its
+ * first two significant digits (→ `0.0025`), so the player can actually see what they won.
+ */
+export const formatResultAmount = (value: number): string => {
+	if (value == null || Number.isNaN(value)) return '0.00';
+	// Only expand when 2-decimal rounding hides a genuinely non-zero win.
+	if (value !== 0 && Number(value.toFixed(2)) === 0) {
+		// Position of the first significant digit (0.0025 → 3), + 1 to keep two significant figures.
+		const decimals = Math.min(20, -Math.floor(Math.log10(Math.abs(value))) + 1);
+		return value.toFixed(decimals);
+	}
+	return value.toFixed(2);
+};
+
 export const formatAmount = (value: number, currency = ''): string => {
 	const formatted = value.toLocaleString(undefined, {
 		minimumFractionDigits: 2,

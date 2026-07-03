@@ -84,6 +84,7 @@
 	import { GameVersion, Modals } from 'components-ui-html';
 
 	import EnableGameActor from './EnableGameActor.svelte';
+	import SuppressButtonFocusRing from './SuppressButtonFocusRing.svelte';
 	import ResumeBet from './ResumeBet.svelte';
 	import ReplayDriver from './ReplayDriver.svelte';
 
@@ -506,6 +507,8 @@
 
 
 <EnableGameActor />
+
+<SuppressButtonFocusRing />
 
 <ResumeBet />
 

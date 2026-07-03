@@ -3,7 +3,7 @@
 	import { stateBet } from 'state-shared';
 
 	import { stateGame } from '../game/stateGame.svelte';
-	import { isPortraitGameLayout } from '../lib/format';
+	import { formatResultAmount, isPortraitGameLayout } from '../lib/format';
 
 	/**
 	 * Match Game/Background: the win popup is a fixed overlay outside `.game-root`, so it
@@ -24,7 +24,7 @@
 			<div class="rate-lbl">{stateGame.resultRate}×</div>
 			<div class="sep"></div>
 			<div class="amount-lbl">
-				{stateGame.resultAmount.toFixed(2)}
+				{formatResultAmount(stateGame.resultAmount)}
 				<span class="suffix">{stateBet.currency}</span>
 			</div>
 		</div>
