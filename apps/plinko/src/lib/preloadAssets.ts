@@ -41,6 +41,7 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/bonus-roulette-label.png',
 	'img/bonus-roulette-wheel-revised-values.png',
 	'img/bonus-roulette-center-base.png',
+	'img/bonus-spin-marker.png',
 	'img/announcement-message-background.png',
 	'img/announcement-message-background-mobile.png',
 
@@ -52,6 +53,7 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/pause-btn.png',
 	'img/auto-bet-btn.png',
 	'img/fast-game-btn.png',
+	'img/mobile_popup_bet_modal_base.png',
 	'img/empty-btn.png',
 	'img/empty-btn-brown.png',
 	'img/loading_vector.png',
@@ -70,8 +72,9 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/hamburg_menu_ico_how_to_play.png',
 	'img/close_btn.png',
 
-	// Buy Bonus modal — card frame + per-tier feature art (keys mirror BUY_BONUS_TIERS).
-	// Without these the modal's logos/graphics pop in on first open (fresh-launch → click Buy Bonus).
+	// Buy Bonus — board button + modal card frame + per-tier feature art (keys mirror BUY_BONUS_TIERS).
+	// Without these the button/logos/graphics pop in on first open (fresh-launch → click Buy Bonus).
+	'img/buy-bonus-btn.png',
 	'img/buy_bonus_panel.png',
 	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.png`),
 ];
