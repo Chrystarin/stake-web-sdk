@@ -3,7 +3,12 @@ import { stateBet, stateI18nDerived } from 'state-shared';
 import { isPlinkoReplay } from './plinkoReplay';
 import { isPlinkoOffline } from './plinkoConnection';
 import { clearBonusProgress, saveBonusProgress } from './plinkoBonusProgress';
-import { BONUS_LEVEL_LABELS, FREE_SPIN_SEGMENTS, bonusLevelBalls } from '../game-logic/constants';
+import {
+	BONUS_LEVEL_LABELS,
+	BONUS_METER_FILL_SPEED_PER_SECOND,
+	FREE_SPIN_SEGMENTS,
+	bonusLevelBalls,
+} from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatCoefficientLabel, formatHistoryDate, formatHistoryMultiplier } from '../lib/format';
@@ -17,6 +22,9 @@ import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
 const BONUS_LEVEL_ACTIVATION_DELAY_MS = 250;
+/** Tail added to the computed bar-fill time so the engine's animated settle finishes (its last sliver
+ * takes a frame or two past the linear estimate) before the reward reveals. */
+const BONUS_METER_FILL_SETTLE_MARGIN_MS = 120;
 const BONUS_LEVEL_UP_OVERLAY_DURATION_MS = 1700;
 const BONUS_LEVEL_UP_FADE_DURATION_MS = 280;
 const BONUS_METER_DRAIN_DELAY_MS = 1700;
@@ -290,6 +298,23 @@ export function loadAuthoritativeBonusOutcomes(outcomes: PlinkoBallOutcome[], ba
 	}
 }
 
+/**
+ * How long to wait before revealing a bonus level-up reward: at least the base activation beat, but
+ * EXTENDED to cover however long the progress bar still needs to animate up to full at the engine's
+ * fill speed. This is the fix for "+N free balls shown before the meter finished filling": the bar
+ * fill is decoupled from the (server-authoritative, ball-depletion-driven) level-up, so when a level's
+ * balls ran out with the bar only part-way up, the fixed 250ms reveal beat the ~556ms full-sweep fill
+ * and the reward landed on an unfinished bar. Sizing the delay to the ACTUAL remaining fill makes the
+ * bar always complete on-screen first. MUST be read BEFORE topping the meter value to max.
+ */
+function bonusLevelActivationDelayMs(): number {
+	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 0;
+	const progress = max > 0 ? Math.max(0, Math.min(1, stateGame.bonusMeterValue / max)) : 1;
+	const remainingFraction = Math.max(0, 1 - progress);
+	const fillMs = Math.ceil((remainingFraction / BONUS_METER_FILL_SPEED_PER_SECOND) * 1000);
+	return Math.max(BONUS_LEVEL_ACTIVATION_DELAY_MS, fillMs + BONUS_METER_FILL_SETTLE_MARGIN_MS);
+}
+
 /** Pull the next book-authored level off the queue, show the level-up, and award its balls. */
 function consumeAuthoritativeBonusLevel(): boolean {
 	const next = stateGame.authoritativeBonusLevelQueue[0];
@@ -299,11 +324,11 @@ function consumeAuthoritativeBonusLevel(): boolean {
 	// delay — the reward that follows then lands on a visibly completed bar. Without this the provisional
 	// per-ball fill can still be short of max here, and the level-up (below) would drain that partial
 	// value to 0, showing the +N free balls before the bar ever finished (see applyAuthoritativeBonusLevel).
+	// Size the reveal delay to the bar's remaining travel (read BEFORE the top-to-max below) so a low bar
+	// gets enough time to finish its fill animation rather than the reward beating it to the screen.
+	const delay = bonusLevelActivationDelayMs();
 	if (stateGame.bonusMeterMax > 0) stateGame.bonusMeterValue = stateGame.bonusMeterMax;
-	setTimeout(
-		() => applyAuthoritativeBonusLevel(next),
-		BONUS_LEVEL_ACTIVATION_DELAY_MS,
-	);
+	setTimeout(() => applyAuthoritativeBonusLevel(next), delay);
 	return true;
 }
 
@@ -472,10 +497,11 @@ function consumePendingBonusLevelUp(): boolean {
 	const nextLevel = Math.max(1, stateGame.bonusLevelProgress + 1);
 	// Session-meter fallback only (production levels come from book `bonusRound` events).
 	const addedBalls = Math.max(1, bonusLevelBalls(nextLevel));
-	setTimeout(
-		() => applyBonusLevelUpWhenPipelineIdle(nextLevel, addedBalls),
-		BONUS_LEVEL_ACTIVATION_DELAY_MS,
-	);
+	// Match the authoritative path: complete the bar first, sizing the reveal delay to the remaining
+	// fill (read BEFORE the top-to-max) so the +N reward never appears before the meter is visibly full.
+	const delay = bonusLevelActivationDelayMs();
+	if (stateGame.bonusMeterMax > 0) stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+	setTimeout(() => applyBonusLevelUpWhenPipelineIdle(nextLevel, addedBalls), delay);
 	return true;
 }
 

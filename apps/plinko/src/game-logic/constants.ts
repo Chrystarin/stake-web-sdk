@@ -89,6 +89,12 @@ export const SIM_SPEED = { normal: 0.7, fast: 1.4 } as const;
 /** Bonus level ladder labels. */
 export const BONUS_LEVEL_LABELS = [1, 2, 4, 8, 16, 32, 64, 128, 256] as const;
 
+/** Bonus-meter fill animation speed (fraction of the whole bar per second). Single source of truth,
+ * mirrored by `BonusMeterEngine.fillAnimationSpeedPerSecond`. The bonus-round level-up reveal delay is
+ * sized against this so the reward only lands once the bar has visibly finished filling
+ * (`bonusLevelActivationDelayMs` in `gameOrchestrator`). */
+export const BONUS_METER_FILL_SPEED_PER_SECOND = 1.8;
+
 /**
  * Additional free balls granted on each bonus level-up (level reached → extra balls).
  * Level 1 entry balls come from the bonus wheel (`BONUS_ROULETTE_SEGMENTS`); levels 2..9

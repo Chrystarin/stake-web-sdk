@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { BONUS_METER_FILL_SPEED_PER_SECOND } from '../../game-logic/constants';
 import { staticUrl } from '../../lib/staticUrl';
 
 export class BonusMeterEngine {
@@ -41,7 +42,7 @@ export class BonusMeterEngine {
   private meterNativeHeight = 1;
   private displayedProgress = 0;
   private targetProgress = 0;
-  private readonly fillAnimationSpeedPerSecond = 1.8;
+  private readonly fillAnimationSpeedPerSecond = BONUS_METER_FILL_SPEED_PER_SECOND;
   // Fallback marker alignment if texture sampling is unavailable.
   private readonly markerRadiusOffsetByHeight = -0.2;
   private readonly markerAngleOffsetRad = 0.0;
