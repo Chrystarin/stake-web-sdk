@@ -178,11 +178,15 @@
 
 	.bb-card-desc {
 		margin: 0;
-		font-family: 'PotatoSans', sans-serif;
+		/* Poppins (the game's UI body font — see GameHud/Result) instead of the heavy PotatoSans-Black
+		 * display face, whose thick strokes fill in the letterforms and read muddy at this small size.
+		 * Weight 600 keeps it crisp over the textured panel; PiecesOfEight on the title still carries the theme. */
+		font-family: 'Poppins', 'Instrument Sans', sans-serif;
+		font-weight: 600;
 		/* px/vw based — the game halves the root font-size on narrow screens (see title note). */
 		font-size: clamp(10px, 1.35vw, 12.5px);
-		line-height: 1.3;
-		letter-spacing: 0.005em;
+		line-height: 1.32;
+		letter-spacing: 0.01em;
 		/* Near-white (was muted tan #d8d2c4): the tan hue blended into the warm-brown panel. A brighter
 		 * value + double shadow lifts the tagline clear of the textured background. */
 		color: #f4efe4;
