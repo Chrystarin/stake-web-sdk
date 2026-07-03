@@ -128,7 +128,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 			);
 			// Show the carried-over value at the start of the round (animates upward from here).
 			applySpinMeterDisplay(stateGame.betSpinMeterStart);
-			applyBonusMeterDisplay(stateGame.betBonusMeterStart, stateGame.betBonusLevelStart);
+			// A bought bonus (trigger mode) is bonus-only and jumps straight to the bonus round; its book
+			// opens with a FULL bonus_meter_start. Displaying that would flash the "Free Bonus" bar full and
+			// then snap it to empty when the level-1 in-bonus meter starts, so keep it at the empty baseline.
+			if (isPlinkoTriggerMode(stateBet.activeBetModeKey)) {
+				applyBonusMeterDisplay(0, stateGame.betBonusLevelStart);
+			} else {
+				applyBonusMeterDisplay(stateGame.betBonusMeterStart, stateGame.betBonusLevelStart);
+			}
 		}
 		const stakePerBall = plinkoStakePerBall();
 		const bookStake = bookEvent.stakePerBall > 0 ? bookEvent.stakePerBall : 1;

@@ -171,17 +171,24 @@
 		font-size: clamp(20px, 4.2vw, 34px);
 		line-height: 1.05;
 		color: #ffffff;
-		text-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
+		/* Shared depth recipe with .bb-card-desc / .bb-card-total so every line reads with the same
+		 * contrast against the textured panel (no per-line brightness/glow mismatch). */
+		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85);
 	}
 
 	.bb-card-desc {
 		margin: 0;
 		font-family: 'PotatoSans', sans-serif;
 		/* px/vw based — the game halves the root font-size on narrow screens (see title note). */
-		font-size: clamp(8px, 1vw, 10px);
-		line-height: 1.22;
-		color: #d8d2c4;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+		font-size: clamp(10px, 1.35vw, 12.5px);
+		line-height: 1.3;
+		letter-spacing: 0.005em;
+		/* Near-white (was muted tan #d8d2c4): the tan hue blended into the warm-brown panel. A brighter
+		 * value + double shadow lifts the tagline clear of the textured background. */
+		color: #f4efe4;
+		text-shadow:
+			0 1px 3px rgba(0, 0, 0, 0.95),
+			0 0 3px rgba(0, 0, 0, 0.85);
 	}
 
 	.bb-card-art {
@@ -201,7 +208,7 @@
 		/* px/vw based (NOT rem) so it stays prominent on narrow screens (see title note). */
 		font-size: clamp(17px, 3vw, 26px);
 		color: #ffffff;
-		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 	}
 
 	.bb-free {

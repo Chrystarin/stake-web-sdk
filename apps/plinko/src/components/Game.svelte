@@ -4,8 +4,7 @@
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { page } from '$app/state';
 
-	import { stateBet, stateUrlDerived } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { stateBet, stateI18n, stateUrlDerived } from 'state-shared';
 
 
 
@@ -182,7 +181,14 @@
 			: 0,
 	);
 
-	const winPopupAmountDisplay = $derived(numberToCurrencyString(stateGame.winPopupAmount));
+	// Win popup shows the amount without the currency symbol — plain locale-formatted
+	// number (thousands separators + 2 decimals), no currency icon.
+	const winPopupAmountDisplay = $derived(
+		stateI18n.i18n.number(stateGame.winPopupAmount, {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		}),
+	);
 
 	$effect(() => {
 		if (!stateGame.showWinPopup) return;
@@ -454,20 +460,21 @@
 	// Activate buttons (the modal UI still opens) if the math is ever unpublished.
 	const BUY_BONUS_ENABLED = true as boolean;
 
-	/** A tier's Activate: route the next bet through that buy mode, then place it. A buy is bonus-only, so
-	 * we pre-fill the bonus meter to FULL for immediate feedback (the book also opens with it full); the
-	 * bonus fires at once, the roulette lands on the bought entry balls, and chain hits add more on top.
-	 * The pending mode is cleared by the revert effect once the round fully settles. */
+	/** A tier's Activate: route the next bet through that buy mode, then place it. A buy is bonus-only:
+	 * the bonus fires at once, the roulette lands on the bought entry balls, and chain hits add more on
+	 * top. The pending mode is cleared by the revert effect once the round fully settles. */
 	function handleBuyBonusActivate(tier: BuyBonusTier) {
 		// No buy bonus on the single-ball tier (rapid mode).
 		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1) return;
 		stateGame.buyBonusModalOpen = false;
 		// Bonus-only buy → mode is per tier (bpd-independent).
 		stateGame.pendingBuyBonusMode = buyBonusModeName(tier.key);
-		// Show the bonus meter FULL the instant the buy round starts. The book carries a full
-		// bonus_meter_start too, but the client ignores the book's start for the session meter (anti
-		// stratum-jump), so we set the HUD value directly here.
-		applyBonusMeterDisplay(stateGame.bonusMeterMax);
+		// A bought bonus jumps straight into the bonus round with NO trigger fill-up, so seed the "Free
+		// Bonus" meter to its EMPTY in-bonus baseline instead of flashing it full. Showing it full here
+		// (and again from the book's full bonus_meter_start / the bonus-start snap) made the bar animate
+		// up to max and then drop back to empty when the level-1 in-bonus meter took over — a jarring
+		// bounce on entry.
+		applyBonusMeterDisplay(0);
 		syncPlinkoBetModeFromUi();
 		placeBet();
 	}

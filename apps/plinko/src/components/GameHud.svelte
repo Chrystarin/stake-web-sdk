@@ -119,11 +119,15 @@
 
 	/** Same disabled state as the visible play / stop / bonus-play button (and Space). */
 	const isPlayButtonDisabled = $derived(
-		props.hasPendingBonusBalls
-			? bonusPlayDisabled
-			: props.autoMode && !props.autoPlayStarted
-				? playDisabledMain || props.betAmount <= 0
-				: playDisabledMain,
+		// The Level-Up reward popup (e.g. "LEVEL 2 / +20 FREE BALLS") is a transient full-screen overlay
+		// with pointer-events:none, so clicks fall through and Space still fires. Block the play action
+		// for its whole on-screen life (open → fade-out) so a bet can't be queued behind the transition.
+		stateGame.bonusLevelUpOverlayOpen ||
+			(props.hasPendingBonusBalls
+				? bonusPlayDisabled
+				: props.autoMode && !props.autoPlayStarted
+					? playDisabledMain || props.betAmount <= 0
+					: playDisabledMain),
 	);
 
 	// True while a bet is being submitted or its balls are in flight, back to false the moment the
@@ -439,6 +443,7 @@
 				disabled={isPlayButtonDisabled}
 				aria-label="Bet"
 				aria-busy={showPlayLoading}
+				onmousedown={(e) => e.preventDefault()}
 				onclick={onMainActionClick}
 			>
 				{#if showPlayLoading}
@@ -751,6 +756,7 @@
 							disabled={isPlayButtonDisabled}
 							aria-label="Bet"
 							aria-busy={showPlayLoading}
+							onmousedown={(e) => e.preventDefault()}
 							onclick={props.onPlay}
 						>
 							{#if showPlayLoading}
@@ -801,6 +807,7 @@
 							class="bp-btn-play bp-btn-play--narrow"
 							disabled={isPlayButtonDisabled}
 							aria-label="Start autobet"
+							onmousedown={(e) => e.preventDefault()}
 							onclick={onAutoGameStartClick}
 						>
 							<img src={staticUrl('img/play-btn.png')} alt="" aria-hidden="true" />

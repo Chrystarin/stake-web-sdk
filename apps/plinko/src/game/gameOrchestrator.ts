@@ -17,6 +17,7 @@ import { stateGame, stateGameDerived, type HistoryChip, type HistoryEntry } from
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
 import { bonusMeterTierStart, hasActiveRgsSession } from './plinkoSessionMeters';
+import { isPlinkoTriggerMode } from './plinkoBetMode';
 import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
@@ -379,7 +380,12 @@ export function awardBonusBalls(count: number) {
 		// reads coherently regardless of the served book / where the session meter actually was. The
 		// bonus-round level meter then sits at max (level-ups re-assert max); it resets to the tier
 		// start when the round ends (`resetBonusRoundVisualState` / `syncBonusMeterAfterBet`).
-		stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+		// EXCEPTION — a bought bonus (trigger mode) has no trigger fill-up: it opens straight on the
+		// empty level-1 in-bonus meter, so snapping to full here would flash the bar full → empty on
+		// entry. Start it EMPTY instead and let the in-bonus fill take over.
+		stateGame.bonusMeterValue = isPlinkoTriggerMode(stateBet.activeBetModeKey)
+			? 0
+			: stateGame.bonusMeterMax;
 		stateGame.bonusMeterOverflowValue = 0;
 		stateGame.bonusSessionWinAmount = 0;
 		stateGame.inBonusFreeSpinCreditTotal = 0;
