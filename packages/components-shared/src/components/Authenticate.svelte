@@ -91,26 +91,6 @@
 				stateConfig.stepBet =
 					toDisplay(rawConfig.stepBet) ?? smallestGap ?? levels[0] ?? 0;
 				stateConfig.defaultBetLevel = toDisplay(rawConfig.defaultBetLevel) ?? 0;
-
-				// Diagnostic: the resolved RGS bet-sizing params (display units, i.e. in the player's
-				// currency). `provided` flags which of min/max/step/default the RGS actually sent vs. were
-				// derived from `betLevels`. Logged in every environment so live values can be read from the
-				// game frame's console per currency.
-				console.info('[auth] RGS bet config', {
-					currency: stateBet.currency,
-					minBet: stateConfig.minBet,
-					maxBet: stateConfig.maxBet,
-					stepBet: stateConfig.stepBet,
-					defaultBetLevel: stateConfig.defaultBetLevel,
-					betLevelsCount: levels.length,
-					betLevels: levels,
-					provided: {
-						minBet: rawConfig.minBet !== undefined,
-						maxBet: rawConfig.maxBet !== undefined,
-						stepBet: rawConfig.stepBet !== undefined,
-						defaultBetLevel: rawConfig.defaultBetLevel !== undefined,
-					},
-				});
 			}
 
 			// round

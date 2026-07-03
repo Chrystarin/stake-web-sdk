@@ -47,12 +47,6 @@ export function normalizePlinkoBetToResume(): void {
 	const hasState = Array.isArray(bet.state) && bet.state.length > 0;
 	if (hasState) return;
 	const events = plinkoResumeBookEvents(bet);
-	if (isPlinkoReplay()) {
-		console.info('[plinko][replay] betToResume keys', {
-			keys: Object.keys(bet as object),
-			resolvedEventCount: events.length,
-		});
-	}
 	if (events.length > 0) bet.state = events;
 }
 

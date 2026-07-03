@@ -58,23 +58,12 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		if (state.length > 0) {
 			applySpinMeterDisplay(deriveSpinMeterFromBookEvents(state));
 		}
-		if (isPlinkoReplay()) {
-			console.info('[plinko][replay] starting playback', {
-				events: state.length,
-				ballsPerDrop: stateGame.ballPerDrop,
-				stakePerBall: stateBet.betAmount,
-			});
-		}
 		return normalizedBet;
 	},
 	onResumeGameInactive: () => {},
 	onNewGameStart: async () => {
 		syncPlinkoBetModeFromUi();
-		const playAmount = syncPlinkoPlayAmountFromBetLevels();
-		console.info('[plinko] /wallet/play request', {
-			...buildPlinkoPlayPayloadPreview(),
-			amountApi: Math.round(playAmount * API_AMOUNT_MULTIPLIER),
-		});
+		syncPlinkoPlayAmountFromBetLevels();
 		stateBet.winBookEventAmount = 0;
 	},
 	onNewGameError: async (error) => {
