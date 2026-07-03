@@ -334,6 +334,27 @@ export class PlinkoEngine {
     return (window.innerWidth * vwValue) / 100;
   }
 
+  /**
+   * Host-height (@1920×1080) equal to 1vw of viewport width. The board's vertical metrics were
+   * authored in `vw()`, which is fine only while the host tracks viewport width. It doesn't: the host
+   * is a 96:55 fit of the game area, so on a wide viewport it's height-constrained and its size stops
+   * following the width. `vwHost()` re-bases a design-`vw` amount onto the host's OWN height so the
+   * board keeps a constant proportion — same scale/position inside the game-area frame at every size.
+   * Derivation: at the 1920×1080 reference the measured host is ~633px tall (fit-height × 0.54 ×
+   * height-scale 1.2 × the container's 1.1 scale) while `vw(1)` = 19.2px; dividing out the height-scale
+   * (callers re-apply it, as they did with `vw()`) gives 19.2 / (633 / 1.2) ≈ 0.0364 host-heights/vw.
+   */
+  private static readonly BOARD_VW_TO_HOST_H = 0.0364;
+
+  /** Host-relative stand-in for `this.vw(vwValue)` used by the board's vertical geometry. */
+  private vwHost(vwValue: number): number {
+    const heightScale = this.heightScale > 0 ? this.heightScale : 1;
+    const baseHostHeight = this.containerHeight / heightScale;
+    // Before the host has reported a real size, fall back to the viewport-based value.
+    if (!Number.isFinite(baseHostHeight) || baseHostHeight <= 0) return this.vw(vwValue);
+    return baseHostHeight * vwValue * PlinkoEngine.BOARD_VW_TO_HOST_H;
+  }
+
   get elementScale(): number {
     return this.BASE_ROWS / this.rows;
   }
@@ -481,30 +502,30 @@ export class PlinkoEngine {
   // layout (real phone + narrow desktop window) lands the board at the same height; a phone-only
   // 0 margin previously made the board sit higher than the tuned desktop-portrait.
   get topMargin(): number {
-    return Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
+    return Math.max(this.vwHost(1.56) * this.heightScale, this.layoutHeight * 0.01);
   }
 
   get bottomMargin(): number {
-    return Math.max(this.vw(1.56) * this.heightScale, this.layoutHeight * 0.01);
+    return Math.max(this.vwHost(1.56) * this.heightScale, this.layoutHeight * 0.01);
   }
 
   get slotHeight(): number {
-    return Math.max(this.vw(1.55) * this.heightScale, this.layoutHeight * 0.075);
+    return Math.max(this.vwHost(1.55) * this.heightScale, this.layoutHeight * 0.075);
   }
 
   private get basePegSpacingY(): number {
-    if (this.rows <= 1) return this.vw(2.1) * this.heightScale;
+    if (this.rows <= 1) return this.vwHost(2.1) * this.heightScale;
     const availableHeight =
       this.layoutHeight -
       this.topMargin -
       this.bottomMargin -
       this.slotHeight -
-      this.vw(1.05) * this.heightScale;
+      this.vwHost(1.05) * this.heightScale;
     /** Flex can transiently shrink height → negative spacing and invalid peg rows. */
     const raw = availableHeight / (this.rows + 0.5);
-    if (!Number.isFinite(raw)) return this.vw(2.1) * this.heightScale;
-    const safe = raw > 0 ? raw : this.vw(2.5) * this.heightScale;
-    return Math.max(this.vw(1.05) * this.heightScale, safe);
+    if (!Number.isFinite(raw)) return this.vwHost(2.1) * this.heightScale;
+    const safe = raw > 0 ? raw : this.vwHost(2.5) * this.heightScale;
+    return Math.max(this.vwHost(1.05) * this.heightScale, safe);
   }
 
   /** Shrinks row spacing when the pyramid is taller than the host. */
@@ -889,7 +910,14 @@ export class PlinkoEngine {
       }
     }
     const span = right - left;
-    const margin = Math.max(this.pegRadius * 2, 8);
+    // Side breathing room = one peg diameter, derived from the UNFLOORED peg size so it stays a
+    // constant fraction of the board at every host size. The old `Math.max(this.pegRadius * 2, 8)`
+    // leaned on the pegRadius floor (min 2px) plus a fixed 8px floor; on a small popout host (e.g.
+    // 400×225) both balloon relative to the ~144px-wide board, over-margining the world into an extra
+    // uniform shrink. Because that shrink is anchored at the top, the slack fell to the bottom and
+    // dropped the board away from the game area. This matches the old value at desktop sizes (where
+    // pegRadius wasn't floored and `pegRadius * 2` already won) and scales down proportionally below.
+    const margin = this.containerHeight * 0.0135 * this.elementScale * 2;
     const targetSpan = Math.max(1, this.containerWidth - margin * 2);
 
     if (span > targetSpan) {
@@ -1451,7 +1479,7 @@ export class PlinkoEngine {
     if (!this.app || !this.coefficients.length) return;
 
     const centerX = this.containerWidth / 2;
-    const bottomY = this.topMargin + (this.rows + 0.5) * this.pegSpacing - this.vw(0.52);
+    const bottomY = this.topMargin + (this.rows + 0.5) * this.pegSpacing - this.vwHost(0.52);
     const slotsCount = this.coefficients.length;
     const lastRowPegs = this.rows - 1 + PlinkoEngine.TOP_ROW_PEGS;
     const bottomSpacingX = this.pegSpacingXForRow(this.rows - 1);

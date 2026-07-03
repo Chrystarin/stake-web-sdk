@@ -1614,7 +1614,34 @@
 		--game-layout-scale-mobile: 1.15;
 		--game-layout-offset-x-ratio-mobile: -0.015;
 		--game-layout-offset-y-ratio-mobile: 0.05;
-		transform: translate(
+
+		/* === Portrait vertical-fit scaling ==============================================
+		   The portrait game area is sized off --portrait-px (viewport WIDTH / 992, see .game-content),
+		   so its height is driven purely by viewport WIDTH. That's right while the viewport is tall
+		   enough, but on a SHORT viewport the width-driven height pushes the board + bonus meter down
+		   into the betting panel.
+		   Rather than re-derive every token (the internals mix --portrait-px, vw, %, and container-
+		   query units, which resolve against different boxes), apply ONE uniform down-scale to the
+		   whole container. --portrait-fit-scale is 1 while there's enough height and drops below 1 once
+		   the container's natural visual height would exceed the room left above the HUD — that room is
+		   100cqh of the .game-area box (the flex item that soaks up the leftover space; its height is
+		   independent of the container, so there's no feedback loop). Because it's a transform on the
+		   whole subtree, the board, bonus meter and bonus-level bars shrink together and stay perfectly
+		   aligned whatever units each uses. Scaling toward `center top` (see transform-origin below)
+		   keeps the block anchored at the top and lifts its bottom clear of the panel. When height is
+		   not the limiting factor --portrait-fit-scale is 1, so tall phones render exactly as before.
+		   --portrait-visual-h-ratio is the container's natural visual height as a fraction of its
+		   width: laid-out height (222 top pad + 248 board margin + 546 board = 1016) × the layout
+		   scale, ÷ the 992 design width, + the downward y-offset. tan(atan2(100cqh, 100cqw)) yields the
+		   live height/width ratio of the .game-area box as a plain number so the two compare. Keep the
+		   ratio in sync if the scale / y-offset knobs change. */
+		--portrait-visual-h-ratio: calc(
+			1016 * var(--game-layout-scale-mobile) / var(--portrait-dw) +
+				var(--game-layout-offset-y-ratio-mobile)
+		);
+		--portrait-fit-scale: min(1, tan(atan2(100cqh, 100cqw)) / var(--portrait-visual-h-ratio));
+		transform: scale(var(--portrait-fit-scale))
+			translate(
 				calc(var(--game-layout-offset-x-ratio-mobile) * 100vw),
 				calc(var(--game-layout-offset-y-ratio-mobile) * 100vw)
 			)
@@ -1623,10 +1650,10 @@
 		--plinko-area-scale-mobile: 0.75;
 		--plinko-area-top-width-scale-mobile: 1;
 		--plinko-area-bottom-width-scale-mobile: 1;
-		--plinko-area-height-scale-mobile: 1.45;
+		--plinko-area-height-scale-mobile: 1.57;
 		--plinko-area-offset-x-ratio-mobile: 0.015;
 		--plinko-area-offset-ratio-mobile: 0;
-		--plinko-area-offset-y-ratio-mobile: -0.03;
+		--plinko-area-offset-y-ratio-mobile: -0.045;
 
 		--plinko-area-offset-x-mobile: calc(var(--plinko-area-offset-x-ratio-mobile) * 100vw);
 		--plinko-host-width-mobile: calc(

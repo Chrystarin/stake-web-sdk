@@ -18,16 +18,21 @@ const isTouchDevice = (): boolean => {
 
 /** Mobile UA or tall narrow viewport (portrait reference layout 992×1761). */
 export const isPortraitGameLayout = (): boolean => {
-	if (isMobile()) return true;
-	if (typeof window === 'undefined') return false;
+	// No window (SSR): fall back to the UA sniff.
+	if (typeof window === 'undefined') return isMobile();
 	const w = window.innerWidth;
 	const h = window.innerHeight;
-	// Landscape → always use the desktop/landscape layout.
-	if (h <= w) return false;
-	// Portrait viewport. A physical phone with Chrome "Desktop site" enabled spoofs a desktop UA and
-	// inflates the layout viewport to ~980px, so both `isMobile()` and the `w <= 820` cap below miss
-	// and the game wrongly falls back to the desktop layout. Touch hardware isn't spoofed, so treat
-	// any touch device in portrait as the portrait/mobile layout.
+	// Orientation first: a square or landscape viewport (width ≥ height) always uses the
+	// desktop/landscape layout — even a phone held sideways. Only a taller-than-wide viewport is
+	// eligible for the portrait layout. This is checked before the UA sniff so rotating a phone into
+	// landscape actually switches layouts instead of being pinned to portrait by `isMobile()`.
+	if (w >= h) return false;
+	// Portrait viewport (h > w) below.
+	if (isMobile()) return true;
+	// A physical phone with Chrome "Desktop site" enabled spoofs a desktop UA and inflates the layout
+	// viewport to ~980px, so both `isMobile()` and the `w <= 820` cap below miss and the game wrongly
+	// falls back to the desktop layout. Touch hardware isn't spoofed, so treat any touch device in
+	// portrait as the portrait/mobile layout.
 	if (isTouchDevice()) return true;
 	// Non-touch desktop in a narrow portrait window.
 	return w <= 820;
