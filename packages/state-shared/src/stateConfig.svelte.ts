@@ -15,4 +15,12 @@ export const stateConfig = $state({
 	},
 	betAmountOptions: [1, 5, 25, 50, 75, 100, 200, 500, 800, 1000],
 	betMenuOptions: [1, 5, 25, 50, 75, 100, 200, 500, 800, 1000],
+	// Bet-sizing params from the /wallet/authenticate `config` (display units — already divided by
+	// API_AMOUNT_MULTIPLIER). Populated by Authenticate.svelte. `betLevels` (→ betAmountOptions) is the
+	// authoritative grid; minBet/maxBet/stepBet fall back to values derived from it when the RGS omits
+	// them, and `defaultBetLevel` is the RGS-suggested starting stake. 0 means "not provided" (local dev).
+	minBet: 0,
+	maxBet: 0,
+	stepBet: 0,
+	defaultBetLevel: 0,
 });

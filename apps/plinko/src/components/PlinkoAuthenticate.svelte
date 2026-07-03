@@ -50,6 +50,12 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 
 	function pickAffordableStakePerBall(): number {
 		const affordable = maxAffordableStakePerBall();
+		// Honor the RGS-suggested `defaultBetLevel` (from /wallet/authenticate) as the starting stake
+		// when it's provided and affordable — snapped onto the betLevels grid so it stays RGS-valid.
+		if (stateConfig.defaultBetLevel > 0) {
+			const snapped = snapStakeToBetLevels(stateConfig.defaultBetLevel);
+			if (snapped > 0 && (affordable <= 0 || snapped <= affordable)) return snapped;
+		}
 		if (affordable > 0) return affordable;
 		const opts = plinkoStakePerBallOptions();
 		return opts[0] ?? config.minBet;

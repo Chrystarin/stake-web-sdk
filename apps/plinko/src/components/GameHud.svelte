@@ -4,7 +4,6 @@
 	import { OnHotkey } from 'components-shared';
 	import { stateBet } from 'state-shared';
 
-	import config from '../game/config';
 	import {
 		AUTO_BET_OPTIONS,
 		BALL_PER_DROP_TIERS,
@@ -21,7 +20,13 @@
 		startAutoBet,
 		stopAutoBet,
 	} from '../game/gameOrchestrator';
-	import { canAffordPlinkoWager, plinkoStakePerBallOptions } from '../game/plinkoBet';
+	import {
+		canAffordPlinkoWager,
+		plinkoMaxStakePerBall,
+		plinkoMinStakePerBall,
+		plinkoStakePerBallOptions,
+		plinkoStakePerBallSteps,
+	} from '../game/plinkoBet';
 	import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { stateXstate } from '../game/stateXstate';
@@ -107,7 +112,9 @@
 	const availableBetPresets = $derived(
 		plinkoStakePerBallOptions().length
 			? plinkoStakePerBallOptions()
-			: BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet),
+			: BET_PER_BALL_PRESETS.filter(
+					(v) => v >= plinkoMinStakePerBall() && v <= plinkoMaxStakePerBall(),
+				),
 	);
 
 	const playDisabledMain = $derived(
@@ -187,21 +194,23 @@
 
 	function adjustBetAmountStep(delta: number) {
 		if (wagerControlsLocked || delta === 0) return;
-		const presets = availableBetPresets;
-		if (!presets.length) return;
-		const idx = getClosestPresetIndex(presets, props.betAmount);
+		// The +/- stepper walks the FULL betLevels grid one level at a time (fine-grained), unlike the
+		// preset dropdown which only offers the 8 sampled quick-jumps.
+		const steps = plinkoStakePerBallSteps();
+		if (!steps.length) return;
+		const idx = getClosestPresetIndex(steps, props.betAmount);
 		const next = idx + (delta > 0 ? 1 : -1);
-		if (next < 0 || next >= presets.length) return;
-		props.onBetAmountChange(presets[next]);
+		if (next < 0 || next >= steps.length) return;
+		props.onBetAmountChange(steps[next]);
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
 
 	function isBetAmountStepDisabled(delta: number) {
 		if (wagerControlsLocked || delta === 0) return true;
-		const presets = availableBetPresets;
-		if (presets.length <= 1) return true;
-		const idx = getClosestPresetIndex(presets, props.betAmount);
-		if (delta > 0) return idx >= presets.length - 1;
+		const steps = plinkoStakePerBallSteps();
+		if (steps.length <= 1) return true;
+		const idx = getClosestPresetIndex(steps, props.betAmount);
+		if (delta > 0) return idx >= steps.length - 1;
 		return idx <= 0;
 	}
 

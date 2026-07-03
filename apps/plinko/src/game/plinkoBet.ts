@@ -1,13 +1,13 @@
-import { API_AMOUNT_MULTIPLIER, SMALLEST_FIAT_UNIT } from 'constants-shared/bet';
+import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet, stateConfig } from 'state-shared';
 
-import { BALL_PER_DROP_TIERS, BET_PER_BALL_PRESETS } from '../game-logic/constants';
+import { BET_PER_BALL_PRESETS } from '../game-logic/constants';
 import config from './config';
 import { buyBonusModeName, plinkoActiveBetMode } from './plinkoBetMode';
 import { stateGame } from './stateGame.svelte';
 
-/** Largest balls-per-drop tier (used for the max-bet / max-win limit display). */
-const MAX_BALLS_PER_DROP = Math.max(...BALL_PER_DROP_TIERS);
+/** Max bet-per-ball options shown in the selector (mirrors the local `BET_PER_BALL_PRESETS` count). */
+const MAX_STAKE_PER_BALL_OPTIONS = BET_PER_BALL_PRESETS.length;
 
 /**
  * Headline payout-multiplier cap (relative to the per-ball play amount) — mirror of math `wincap`.
@@ -25,6 +25,33 @@ function sortedRgsGrid(): number[] {
 		.filter((level) => Number.isFinite(level) && level > 0)
 		.slice()
 		.sort((a, b) => a - b);
+}
+
+/**
+ * Lower per-ball stake bound. Prefers the RGS `minBet` from `/wallet/authenticate` (or, absent an
+ * explicit value, the smallest `betLevels` entry); falls back to the local dev floor with no session.
+ */
+export function plinkoMinStakePerBall(): number {
+	return stateConfig.minBet || sortedRgsGrid()[0] || config.minBet;
+}
+
+/**
+ * Upper per-ball stake bound. Prefers the RGS `maxBet` from `/wallet/authenticate` (or, absent an
+ * explicit value, the largest `betLevels` entry); falls back to the local dev ceiling with no session.
+ */
+export function plinkoMaxStakePerBall(): number {
+	return stateConfig.maxBet || sortedRgsGrid().at(-1) || config.maxBet;
+}
+
+/**
+ * Round a stake to the RGS `stepBet` granularity (the finest valid increment). A guard against
+ * off-grid custom values before the final `betLevels` snap; a no-op when the RGS omits `stepBet`.
+ */
+export function snapStakeToStep(stake: number): number {
+	const step = stateConfig.stepBet;
+	const value = Math.max(0, stake);
+	if (!step || step <= 0) return value;
+	return Math.round(value / step) * step;
 }
 
 /** Nearest value in `grid` to `value` (grid must be non-empty). RGS rejects off-grid amounts. */
@@ -59,36 +86,69 @@ export function plinkoBetModeCost(): number {
 }
 
 /**
- * Selectable per-ball stakes. The canonical grid is `BET_PER_BALL_PRESETS` in USD
- * (0.01, 0.10, 0.20, 1.00, 5.00, 10.00, 20.00, 50.00).
+ * Evenly sample up to `count` values from a sorted list, always keeping the first and last so the
+ * offered min/max match the source min/max. Returns the list unchanged when it already has `count`
+ * or fewer entries. De-dupes in case index rounding lands on the same value twice.
+ */
+function sampleEvenlySpaced(sorted: number[], count: number): number[] {
+	if (count <= 0) return [];
+	if (sorted.length <= count) return sorted.slice();
+	const picked: number[] = [];
+	for (let i = 0; i < count; i++) {
+		picked.push(sorted[Math.round((i * (sorted.length - 1)) / (count - 1))]);
+	}
+	return Array.from(new Set(picked));
+}
+
+/**
+ * Selectable per-ball stakes.
  *
- * For a live RGS session, presets are scaled into the player's currency and snapped onto the
- * authoritative `betLevels` grid, so every offered amount is one the RGS accepts (off-grid amounts
- * are rejected with `ERR_VAL – invalid amount`). The scale factor is the currency's smallest bet
- * level relative to the smallest USD preset (`SMALLEST_FIAT_UNIT`), so USD (factor 1) reproduces
- * `[0.01 … 50]` exactly while e.g. IDR/VND map onto their large-denomination grid. With no RGS
- * session (local dev) the raw presets are used.
+ * With a live RGS session these come straight from the `betLevels` grid (clamped to the RGS
+ * `minBet`/`maxBet`), down-sampled to at most `MAX_STAKE_PER_BALL_OPTIONS` evenly spaced values that
+ * still span the RGS min→max. So the offered stakes match exactly what the RGS accepts — up to its
+ * real `maxBet` — without flooding the selector with dozens of levels, and every value is an actual
+ * `betLevels` entry (off-grid amounts are rejected with `ERR_VAL – invalid amount`). betLevels are
+ * already per-currency, so no scaling is needed. With no RGS session (local dev) the USD
+ * `BET_PER_BALL_PRESETS` ladder is used.
  */
 export function plinkoStakePerBallOptions(): number[] {
 	const grid = sortedRgsGrid();
 	if (!grid.length) {
-		return BET_PER_BALL_PRESETS.filter((v) => v >= config.minBet && v <= config.maxBet);
+		return BET_PER_BALL_PRESETS.filter(
+			(v) => v >= plinkoMinStakePerBall() && v <= plinkoMaxStakePerBall(),
+		);
 	}
 
-	// Currency scale: how large the smallest valid bet is vs the smallest USD preset (0.01).
-	// USD grids start at 0.01 → factor 1 → presets pass through unchanged after snapping.
-	const factor = grid[0] / SMALLEST_FIAT_UNIT;
-
-	const snapped = BET_PER_BALL_PRESETS.map((preset) => snapValueToGrid(preset * factor, grid));
-	// Distinct ascending levels — presets can collapse onto the same level on a coarse grid.
-	return Array.from(new Set(snapped)).sort((a, b) => a - b);
+	// Clamp the RGS grid to the min/max bet bounds, then down-sample to ≤ MAX_STAKE_PER_BALL_OPTIONS
+	// spanning min→max. Never return empty — keep the raw grid if the clamp would remove everything.
+	const min = plinkoMinStakePerBall();
+	const max = plinkoMaxStakePerBall();
+	const bounded = grid.filter((v) => v >= min && v <= max);
+	const usable = bounded.length ? bounded : grid;
+	return sampleEvenlySpaced(usable, MAX_STAKE_PER_BALL_OPTIONS);
 }
 
-/** Snap a per-ball stake to the nearest selectable level (RGS rejects off-grid amounts). */
+/**
+ * The full ordered set of valid per-ball stakes — EVERY `betLevels` entry within [minBet, maxBet].
+ * This is the authoritative valid-amount set (what the RGS accepts): the +/- stepper walks it one
+ * level at a time, and `snapStakeToBetLevels` snaps to it. `plinkoStakePerBallOptions()` is just an
+ * 8-value shortcut sampled from this for the preset dropdown. With no RGS grid (local dev) the grid
+ * IS the preset ladder, so this and the options coincide.
+ */
+export function plinkoStakePerBallSteps(): number[] {
+	const grid = sortedRgsGrid();
+	if (!grid.length) return plinkoStakePerBallOptions();
+	const min = plinkoMinStakePerBall();
+	const max = plinkoMaxStakePerBall();
+	const bounded = grid.filter((v) => v >= min && v <= max);
+	return bounded.length ? bounded : grid;
+}
+
+/** Snap a per-ball stake to the nearest valid `betLevels` entry (RGS rejects off-grid amounts). */
 export function snapStakeToBetLevels(stake: number): number {
-	const opts = plinkoStakePerBallOptions();
-	if (!opts.length) return Math.max(0, stake);
-	return snapValueToGrid(Math.max(0, stake), opts);
+	const steps = plinkoStakePerBallSteps();
+	if (!steps.length) return Math.max(0, stake);
+	return snapValueToGrid(Math.max(0, stake), steps);
 }
 
 /**
@@ -99,7 +159,9 @@ export function snapStakeToBetLevels(stake: number): number {
  * a feature round on a non-USD currency) can never be sent and rejected as `ERR_VAL`.
  */
 export function plinkoPlayAmount(): number {
-	const snapped = snapStakeToBetLevels(plinkoStakePerBall());
+	// Step-snap first (RGS `stepBet` granularity), then snap onto the authoritative `betLevels` grid.
+	const stepped = snapStakeToStep(plinkoStakePerBall());
+	const snapped = snapStakeToBetLevels(stepped);
 	const grid = sortedRgsGrid();
 	return grid.length ? snapValueToGrid(snapped, grid) : snapped;
 }
@@ -152,22 +214,25 @@ export function maxAffordableStakePerBall(): number {
 	const cost = plinkoBetModeCost();
 	if (cost <= 0) return 0;
 	const balance = Math.max(0, stateBet.balanceAmount);
-	const opts = plinkoStakePerBallOptions().filter((stake) => stake * cost <= balance);
+	// Consider the full valid grid (not just the 8 presets) so the clamp can reach the true largest
+	// affordable betLevel — otherwise the +/- stepper couldn't step past the highest affordable preset.
+	const opts = plinkoStakePerBallSteps().filter((stake) => stake * cost <= balance);
 	return opts.at(-1) ?? 0;
 }
 
 /**
- * Displayed bet/win limits in the player's currency, derived from the live per-ball grid so they
- * stay accurate across currencies (USD or RGS-scaled). `min`/`max` are TOTAL wagers (per-ball ×
- * balls-per-drop range); `maxWin` is the RGS cap = `wincap` × the largest per-ball stake.
+ * Displayed bet/win limits in the player's currency — the RGS per-play values, NOT multiplied by
+ * balls-per-drop. `min`/`max` are the RGS `minBet`/`maxBet` (a single ball's stake range, which is
+ * what the RGS actually validates per play); `maxWin` = `wincap` × RGS `maxBet` (the max payout on a
+ * single max-stake ball). Sourced from the RGS config with the offered grid / local presets as a
+ * fallback when no session is present.
  */
 export function plinkoBetLimits(): { min: number; max: number; maxWin: number } {
-	const opts = plinkoStakePerBallOptions();
-	const minPerBall = opts[0] ?? config.minBet;
-	const maxPerBall = opts.at(-1) ?? config.maxBet;
+	const minPerBall = plinkoMinStakePerBall(); // RGS minBet (→ grid[0] → local floor)
+	const maxPerBall = plinkoMaxStakePerBall(); // RGS maxBet (→ grid[-1] → local ceiling)
 	return {
-		min: minPerBall, // smallest total wager = smallest per-ball × 1 ball
-		max: maxPerBall * MAX_BALLS_PER_DROP,
+		min: minPerBall,
+		max: maxPerBall,
 		maxWin: maxPerBall * PLINKO_WINCAP,
 	};
 }

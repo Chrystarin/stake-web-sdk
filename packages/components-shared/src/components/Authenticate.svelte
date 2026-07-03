@@ -66,6 +66,51 @@
 				stateConfig.betMenuOptions = stateConfig.betAmountOptions.filter((_, index) =>
 					MOST_USED_BET_INDEXES.includes(index),
 				);
+
+				// Bet-sizing params (display units). `betLevels` is the authoritative grid. minBet/maxBet/
+				// stepBet aren't in the typed schema, but the RGS may still send them, so read defensively
+				// and fall back to values derived from the grid. `stepBet` falls back to the smallest gap
+				// between consecutive levels (the finest valid increment); `defaultBetLevel` is the
+				// RGS-suggested starting stake.
+				const levels = stateConfig.betAmountOptions;
+				const rawConfig = authenticateData.config as typeof authenticateData.config & {
+					minBet?: number;
+					maxBet?: number;
+					stepBet?: number;
+				};
+				const toDisplay = (value?: number) =>
+					typeof value === 'number' && value > 0 ? value / API_AMOUNT_MULTIPLIER : undefined;
+				const levelGaps = levels
+					.slice(1)
+					.map((level, index) => level - levels[index])
+					.filter((gap) => gap > 0);
+				const smallestGap = levelGaps.length ? Math.min(...levelGaps) : undefined;
+
+				stateConfig.minBet = toDisplay(rawConfig.minBet) ?? levels[0] ?? 0;
+				stateConfig.maxBet = toDisplay(rawConfig.maxBet) ?? levels.at(-1) ?? 0;
+				stateConfig.stepBet =
+					toDisplay(rawConfig.stepBet) ?? smallestGap ?? levels[0] ?? 0;
+				stateConfig.defaultBetLevel = toDisplay(rawConfig.defaultBetLevel) ?? 0;
+
+				// Diagnostic: the resolved RGS bet-sizing params (display units, i.e. in the player's
+				// currency). `provided` flags which of min/max/step/default the RGS actually sent vs. were
+				// derived from `betLevels`. Logged in every environment so live values can be read from the
+				// game frame's console per currency.
+				console.info('[auth] RGS bet config', {
+					currency: stateBet.currency,
+					minBet: stateConfig.minBet,
+					maxBet: stateConfig.maxBet,
+					stepBet: stateConfig.stepBet,
+					defaultBetLevel: stateConfig.defaultBetLevel,
+					betLevelsCount: levels.length,
+					betLevels: levels,
+					provided: {
+						minBet: rawConfig.minBet !== undefined,
+						maxBet: rawConfig.maxBet !== undefined,
+						stepBet: rawConfig.stepBet !== undefined,
+						defaultBetLevel: rawConfig.defaultBetLevel !== undefined,
+					},
+				});
 			}
 
 			// round
