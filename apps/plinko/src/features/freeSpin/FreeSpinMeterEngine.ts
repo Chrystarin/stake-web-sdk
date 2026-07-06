@@ -28,6 +28,9 @@ export class FreeSpinMeterEngine {
   private meterNativeHeight = 1;
   private meterOffsetXPx = 0;
   private meterOffsetYPx = 0;
+  // Last size the renderer was resized to, so we can skip no-op resizes (see resizeToHost).
+  private lastRenderWidth = 0;
+  private lastRenderHeight = 0;
   private displayedProgress = 0;
   private targetProgress = 0;
   private readonly fillAnimationSpeedPerSecond = 2.2;
@@ -65,7 +68,13 @@ export class FreeSpinMeterEngine {
     await app.init({
       width: 1,
       height: 1,
-      antialias: true,
+      // Antialias OFF is deliberate: with it on, a freshly-resized WebGL canvas can composite its
+      // un-resolved multisample buffer as an OPAQUE WHITE box for a frame (a GPU/driver-timing quirk
+      // — it reproduces on some machines but not others, which is exactly the "QA sees it, I don't"
+      // report). With antialias off a cleared buffer is transparent, so the worst case is an
+      // imperceptible transparent blip instead of a white flash. The meter art + spinning wheel are
+      // alpha-defined PNGs, so MSAA does nothing for their visible edges — no visual cost.
+      antialias: false,
       autoDensity: true,
       backgroundAlpha: 0,
       resolution: typeof window !== 'undefined' ? Math.min(2, window.devicePixelRatio || 1) : 1
@@ -126,6 +135,13 @@ export class FreeSpinMeterEngine {
     const hostRect = this.hostElement.getBoundingClientRect();
     const width = Math.max(1, Math.round(hostRect.width));
     const height = Math.max(1, Math.round(hostRect.height));
+    // Skip when the host box hasn't actually changed size. ResizeObserver fires on unrelated layout
+    // reflows around the meter (e.g. toggling Ball Per Drop restructures the panel), and every
+    // renderer.resize() reallocates + clears the canvas backing store — the visible flash. Only
+    // resize when the size truly changed. (Same no-op guard PlinkoEngine uses.)
+    if (width === this.lastRenderWidth && height === this.lastRenderHeight) return;
+    this.lastRenderWidth = width;
+    this.lastRenderHeight = height;
     this.app.renderer.resize(width, height);
 
     const baseTexture = this.baseSprite.texture;

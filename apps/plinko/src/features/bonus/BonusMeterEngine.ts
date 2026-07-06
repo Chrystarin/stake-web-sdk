@@ -40,6 +40,9 @@ export class BonusMeterEngine {
   private meterOffsetYPx = 0;
   private meterNativeWidth = 1;
   private meterNativeHeight = 1;
+  // Last size the renderer was resized to, so we can skip no-op resizes (see resizeToHost).
+  private lastRenderWidth = 0;
+  private lastRenderHeight = 0;
   private displayedProgress = 0;
   private targetProgress = 0;
   private readonly fillAnimationSpeedPerSecond = BONUS_METER_FILL_SPEED_PER_SECOND;
@@ -73,7 +76,13 @@ export class BonusMeterEngine {
     await app.init({
       width: 1,
       height: 1,
-      antialias: true,
+      // Antialias OFF is deliberate: with it on, a freshly-resized WebGL canvas can composite its
+      // un-resolved multisample buffer as an OPAQUE WHITE box for a frame (a GPU/driver-timing quirk
+      // — it reproduces on some machines but not others, which is exactly the "QA sees it, I don't"
+      // report). With antialias off a cleared buffer is transparent, so the worst case is an
+      // imperceptible transparent blip instead of a white flash. The meter art is alpha-defined PNGs,
+      // so MSAA does nothing for their visible edges — no visual cost.
+      antialias: false,
       autoDensity: true,
       backgroundAlpha: 0,
       resolution: typeof window !== 'undefined' ? Math.min(2, window.devicePixelRatio || 1) : 1
@@ -132,6 +141,13 @@ export class BonusMeterEngine {
     // element's own layout box, causing the marker's CSS left/top to diverge from the fill tip.
     const width = Math.max(1, Math.round(this.hostElement.offsetWidth));
     const height = Math.max(1, Math.round(this.hostElement.offsetHeight));
+    // Skip when the host box hasn't actually changed size. ResizeObserver fires on unrelated layout
+    // reflows around the meter (e.g. toggling Ball Per Drop restructures the panel), and every
+    // renderer.resize() reallocates + clears the canvas backing store — the visible flash. Only
+    // resize when the size truly changed. (Same no-op guard PlinkoEngine uses.)
+    if (width === this.lastRenderWidth && height === this.lastRenderHeight) return;
+    this.lastRenderWidth = width;
+    this.lastRenderHeight = height;
     this.app.renderer.resize(width, height);
 
     const baseWidth = this.baseSprite.texture.width || 1;
