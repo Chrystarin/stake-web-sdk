@@ -61,20 +61,21 @@
 	// ─── Reassembled free-spin wheel ────────────────────────────────────────────────────────────────
 	// Composited at runtime from the blank copper disc `free_spin_roulette_empty.png` plus one value-wedge
 	// PNG per segment. {w,h} = displayed size, {l,t} = top-left, all as fractions of the wheel. The wedges
-	// are near-congruent at their native (design) scale, so they're placed at a SINGLE common scale
-	// (w=Wₙₐₜ/1309, the disc's native size) — uniform wedge size — then positioned per wedge so BOTH the
-	// opaque-pixel centroid sits on the slot bisector (angle −90°+i·45° → each wedge centred, gaps even)
-	// AND the outer-arc apex lands on a common circle (r≈0.463 of the wheel → aligned outer rim). Index-
-	// aligned with `FREE_SPIN_SEGMENTS` (clockwise from top: 2X,0.5X,1X,5X,10X,BONUS,20X,15X).
+	// are near-congruent at their native (design) scale, but their outer arcs are NOT centred on the slot
+	// bisector (the value text biases the shape) — so each wedge's arc was CONCENTRIC-ALIGNED to the wheel
+	// centre: shift it tangentially to flatten its outer arc (minimise the radius spread sampled across
+	// ±14° of the arc) and scale it so that flattened radius = a common r≈0.468 of the wheel. Result: every
+	// segment's rounded outer edge lies on ONE circle (verified: arc-radius spread ≤5px per wedge, gaps
+	// even at 3–4°). Index-aligned with `FREE_SPIN_SEGMENTS` (clockwise from top: 2X,0.5X,1X,5X,10X,BONUS,20X,15X).
 	const FREE_SPIN_SEGMENT_PLACEMENTS: { w: number; h: number; l: number; t: number }[] = [
-		{ w: 0.39878, h: 0.33461, l: 0.28193, t: -0.00196 }, // 2X
-		{ w: 0.44232, h: 0.46753, l: 0.49776, t: 0.01716 }, // 0.5X
-		{ w: 0.32697, h: 0.34148, l: 0.66583, t: 0.32041 }, // 1X
-		{ w: 0.42093, h: 0.41788, l: 0.53033, t: 0.51788 }, // 5X
-		{ w: 0.34301, h: 0.27807, l: 0.34368, t: 0.68951 }, // 10X
-		{ w: 0.49809, h: 0.52483, l: 0.03248, t: 0.47794 }, // BONUS
-		{ w: 0.32468, h: 0.34225, l: 0.00721, t: 0.3425 }, // 20X
-		{ w: 0.45225, h: 0.44309, l: 0.03215, t: 0.0602 }, // 15X
+		{ w: 0.40316, h: 0.33828, l: 0.2635, t: -0.00747 }, // 2X
+		{ w: 0.44899, h: 0.47458, l: 0.48785, t: 0.00001 }, // 0.5X
+		{ w: 0.3304, h: 0.34507, l: 0.66757, t: 0.30239 }, // 1X
+		{ w: 0.42581, h: 0.42273, l: 0.56243, t: 0.48635 }, // 5X
+		{ w: 0.34705, h: 0.28134, l: 0.38664, t: 0.69174 }, // 10X
+		{ w: 0.50628, h: 0.53346, l: 0.04908, t: 0.50186 }, // BONUS
+		{ w: 0.32729, h: 0.345, l: 0.00327, t: 0.35523 }, // 20X
+		{ w: 0.45675, h: 0.4475, l: 0.00897, t: 0.07436 }, // 15X
 	];
 	// FREE_SPIN_SEGMENTS label → SVG filename stem in free_spin_roulette_segments/.
 	const FREE_SPIN_SEGMENT_FILE: Record<string, string> = {
