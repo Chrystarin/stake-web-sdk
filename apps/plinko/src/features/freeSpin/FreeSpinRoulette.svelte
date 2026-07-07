@@ -26,7 +26,10 @@
 	/** Shared wheel diameter from viewport; label/base/marker derive from this. */
 	const ROULETTE_SIZE_VW = 0.72;
 	const LABEL_HEIGHT_TO_WIDTH = 462 / 1925;
-	const BASE_TO_WHEEL = 624 / 1348;
+	// Centre gem medallion size as a fraction of the wheel. Enlarged from the art's native 624/1348≈0.463
+	// to 0.53 so it covers the segments' slightly-ragged INNER edges (their outer edges are clipped to a
+	// circle; the inner edges are left irregular and hidden under this medallion). Stays clear of the values.
+	const BASE_TO_WHEEL = 0.53;
 	const MARKER_WIDTH_TO_WHEEL = (151 / 1348) * 0.65;
 	const MARKER_HEIGHT_TO_WHEEL = (435 / 1348) * 0.65;
 
@@ -61,21 +64,23 @@
 	// ─── Reassembled free-spin wheel ────────────────────────────────────────────────────────────────
 	// Composited at runtime from the blank copper disc `free_spin_roulette_empty.png` plus one value-wedge
 	// PNG per segment. {w,h} = displayed size, {l,t} = top-left, all as fractions of the wheel. The wedges
-	// are near-congruent at their native (design) scale, but their outer arcs are NOT centred on the slot
-	// bisector (the value text biases the shape) — so each wedge's arc was CONCENTRIC-ALIGNED to the wheel
-	// centre: shift it tangentially to flatten its outer arc (minimise the radius spread sampled across
-	// ±14° of the arc) and scale it so that flattened radius = a common r≈0.468 of the wheel. Result: every
-	// segment's rounded outer edge lies on ONE circle (verified: arc-radius spread ≤5px per wedge, gaps
-	// even at 3–4°). Index-aligned with `FREE_SPIN_SEGMENTS` (clockwise from top: 2X,0.5X,1X,5X,10X,BONUS,20X,15X).
+	// are near-congruent at their native scale but their outer arcs are slightly irregular/tilted (esp. the
+	// wide BONUS wedge). Rather than chase a per-wedge concentric fit, the wedges are sized to OVERSHOOT +
+	// OVERLAP and the whole segment layer is CLIPPED to a circle (`.free-spin-segs`, r=46.2% of the wheel):
+	// the clip gives an exact circular outer edge, the overlap means no gaps, and the copper base ring
+	// shows outside the clip. Placement, per wedge: scale about its own CENTROID by 1.15 (widen → overlap,
+	// close gaps), tangential-shift + scale so its (flattened) outer arc ≈ the clip radius, then a final
+	// uniform 1.025× about the wheel centre so full coverage reaches the clip radius (verified 100% coverage
+	// at the clip). Index-aligned with `FREE_SPIN_SEGMENTS` (clockwise from top: 2X,0.5X,1X,5X,10X,BONUS,20X,15X).
 	const FREE_SPIN_SEGMENT_PLACEMENTS: { w: number; h: number; l: number; t: number }[] = [
-		{ w: 0.40316, h: 0.33828, l: 0.2635, t: -0.00747 }, // 2X
-		{ w: 0.44899, h: 0.47458, l: 0.48785, t: 0.00001 }, // 0.5X
-		{ w: 0.3304, h: 0.34507, l: 0.66757, t: 0.30239 }, // 1X
-		{ w: 0.42581, h: 0.42273, l: 0.56243, t: 0.48635 }, // 5X
-		{ w: 0.34705, h: 0.28134, l: 0.38664, t: 0.69174 }, // 10X
-		{ w: 0.50628, h: 0.53346, l: 0.04908, t: 0.50186 }, // BONUS
-		{ w: 0.32729, h: 0.345, l: 0.00327, t: 0.35523 }, // 20X
-		{ w: 0.45675, h: 0.4475, l: 0.00897, t: 0.07436 }, // 15X
+		{ w: 0.45774, h: 0.38408, l: 0.23386, t: -0.02415 }, // 2X
+		{ w: 0.50912, h: 0.53814, l: 0.45121, t: -0.02902 }, // 0.5X
+		{ w: 0.37542, h: 0.39209, l: 0.63816, t: 0.27983 }, // 1X
+		{ w: 0.48259, h: 0.4791, l: 0.54207, t: 0.44014 }, // 5X
+		{ w: 0.39373, h: 0.31918, l: 0.38252, t: 0.66594 }, // 10X
+		{ w: 0.57262, h: 0.60336, l: 0.02783, t: 0.46824 }, // BONUS
+		{ w: 0.3715, h: 0.39161, l: -0.01183, t: 0.33557 }, // 20X
+		{ w: 0.51686, h: 0.50639, l: -0.01694, t: 0.05158 }, // 15X
 	];
 	// FREE_SPIN_SEGMENTS label → SVG filename stem in free_spin_roulette_segments/.
 	const FREE_SPIN_SEGMENT_FILE: Record<string, string> = {
@@ -381,20 +386,25 @@
 					aria-label="Free spin wheel"
 				>
 					<img class="free-spin-wheel-base" src={emptyWheelSrc} alt="" />
-					{#each segments as seg (seg.index)}
-						{#if seg.placement}
-							<img
-								class="free-spin-seg"
-								class:free-spin-seg--lit={highlightedIndex === seg.index}
-								style:left="{seg.placement.l * 100}%"
-								style:top="{seg.placement.t * 100}%"
-								style:width="{seg.placement.w * 100}%"
-								style:height="{seg.placement.h * 100}%"
-								src={seg.src}
-								alt=""
-							/>
-						{/if}
-					{/each}
+					<!-- Segments are clipped to a circle so their outer edges form an EXACT circle (the wedge
+					     arcs are slightly irregular/tilted; the wedges are sized to overshoot + overlap, so the
+					     clip is fully filled with no gaps). The copper base ring shows outside the clip. -->
+					<div class="free-spin-segs">
+						{#each segments as seg (seg.index)}
+							{#if seg.placement}
+								<img
+									class="free-spin-seg"
+									class:free-spin-seg--lit={highlightedIndex === seg.index}
+									style:left="{seg.placement.l * 100}%"
+									style:top="{seg.placement.t * 100}%"
+									style:width="{seg.placement.w * 100}%"
+									style:height="{seg.placement.h * 100}%"
+									src={seg.src}
+									alt=""
+								/>
+							{/if}
+						{/each}
+					</div>
 				</div>
 				<img
 					class="free-spin-center-base"
@@ -518,6 +528,14 @@
 		height: 100%;
 		object-fit: contain;
 		pointer-events: none;
+	}
+	/* Clips the value wedges to a circle so their combined outer edge is an exact circle (r = 46.2% of the
+	   wheel). The wedges overshoot + overlap this radius, so the clip is fully filled with no gaps; the
+	   copper base ring shows outside it. */
+	.free-spin-segs {
+		position: absolute;
+		inset: 0;
+		clip-path: circle(46.2% at 50% 50%);
 	}
 	/* One value wedge per segment, positioned/sized as fractions of the wheel (see FREE_SPIN_SEGMENT_PLACEMENTS). */
 	.free-spin-seg {
