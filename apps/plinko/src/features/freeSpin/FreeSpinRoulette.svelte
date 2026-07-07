@@ -54,12 +54,55 @@
 	};
 
 	// ⚠️ DEBUG ONLY — extra delay (ms) before the wheel starts spinning, so the assembled layout can be
-	// inspected first. Set back to `0` before shipping. Added on top of the normal pre-spin delay.
-	const DEBUG_SPIN_DELAY_MS = 0;
+	// inspected first. Set back to `0` before shipping. Added on top of the normal pre-spin delay (~0.52s),
+	// so 6480 ≈ the wheel spins 7s after it appears (pairs with DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD in Game.svelte).
+	const DEBUG_SPIN_DELAY_MS = 6480;
+
+	// ─── Reassembled free-spin wheel ────────────────────────────────────────────────────────────────
+	// Composited at runtime from the blank copper disc `free_spin_roulette_empty.png` plus one value-wedge
+	// PNG per segment. {w,h} = displayed size, {l,t} = top-left, all as fractions of the wheel. The wedges
+	// are near-congruent at their native (design) scale, so they're placed at a SINGLE common scale
+	// (w=Wₙₐₜ/1309, the disc's native size) — uniform wedge size — then positioned per wedge so BOTH the
+	// opaque-pixel centroid sits on the slot bisector (angle −90°+i·45° → each wedge centred, gaps even)
+	// AND the outer-arc apex lands on a common circle (r≈0.463 of the wheel → aligned outer rim). Index-
+	// aligned with `FREE_SPIN_SEGMENTS` (clockwise from top: 2X,0.5X,1X,5X,10X,BONUS,20X,15X).
+	const FREE_SPIN_SEGMENT_PLACEMENTS: { w: number; h: number; l: number; t: number }[] = [
+		{ w: 0.39878, h: 0.33461, l: 0.28193, t: -0.00196 }, // 2X
+		{ w: 0.44232, h: 0.46753, l: 0.49776, t: 0.01716 }, // 0.5X
+		{ w: 0.32697, h: 0.34148, l: 0.66583, t: 0.32041 }, // 1X
+		{ w: 0.42093, h: 0.41788, l: 0.53033, t: 0.51788 }, // 5X
+		{ w: 0.34301, h: 0.27807, l: 0.34368, t: 0.68951 }, // 10X
+		{ w: 0.49809, h: 0.52483, l: 0.03248, t: 0.47794 }, // BONUS
+		{ w: 0.32468, h: 0.34225, l: 0.00721, t: 0.3425 }, // 20X
+		{ w: 0.45225, h: 0.44309, l: 0.03215, t: 0.0602 }, // 15X
+	];
+	// FREE_SPIN_SEGMENTS label → SVG filename stem in free_spin_roulette_segments/.
+	const FREE_SPIN_SEGMENT_FILE: Record<string, string> = {
+		'2X': 'segment_x2',
+		'0.5X': 'segment_x0.5',
+		'1X': 'segment_x1',
+		'5X': 'segment_x5',
+		'10X': 'segment_x10',
+		BONUS: 'segment_bonus',
+		'20X': 'segment_x20',
+		'15X': 'segment_x15',
+	};
+	const SEG_ANGLE = 360 / FREE_SPIN_SEGMENTS.length;
+	const emptyWheelSrc = staticUrl('img/free_spin_roulette_segments/free_spin_roulette_empty.png');
+	const segments = FREE_SPIN_SEGMENTS.map((label, i) => ({
+		label,
+		index: i,
+		placement: FREE_SPIN_SEGMENT_PLACEMENTS[i] as
+			| { w: number; h: number; l: number; t: number }
+			| undefined,
+		src: staticUrl(`img/free_spin_roulette_segments/${FREE_SPIN_SEGMENT_FILE[label] ?? ''}.png`),
+	}));
 
 	const portrait = isPortraitGameLayout();
 	// Resolve the orientation-specific tuning knobs (see FREE_SPIN_ROULETTE_TUNING above).
-	const tuning = portrait ? FREE_SPIN_ROULETTE_TUNING.portrait : FREE_SPIN_ROULETTE_TUNING.landscape;
+	const tuning = portrait
+		? FREE_SPIN_ROULETTE_TUNING.portrait
+		: FREE_SPIN_ROULETTE_TUNING.landscape;
 	const LABEL_SCALE = tuning.label.scale;
 	const LABEL_OFFSET_X = tuning.label.offsetX;
 	const LABEL_OFFSET_Y = tuning.label.offsetY;
@@ -78,9 +121,14 @@
 	// Center base counter-rotates with the wheel (opposite direction, whole turns) so it lands back on its
 	// original orientation exactly when the wheel stops.
 	let baseRotationDeg = $state(0);
-	let wheelEl = $state<HTMLImageElement | undefined>(undefined);
+	// Bound to the rotating wheel container (was the single wheel <img>); drives settle transitionend and
+	// is read each frame to find the wedge under the top marker.
+	let wheelEl = $state<HTMLDivElement | undefined>(undefined);
 	let stageEl = $state<HTMLDivElement | undefined>(undefined);
 	let rouletteSizePx = $state(0);
+	// Index of the segment currently under the top marker (glows gold); null = no highlight.
+	let highlightedIndex = $state<number | null>(null);
+	let highlightRaf = 0;
 	const timers: ReturnType<typeof setTimeout>[] = [];
 
 	function updateRouletteLayout() {
@@ -104,7 +152,10 @@
 			}, 120),
 		);
 		timers.push(setTimeout(() => startSpin(), 520 + DEBUG_SPIN_DELAY_MS));
-		return () => timers.forEach(clearTimeout);
+		return () => {
+			timers.forEach(clearTimeout);
+			stopHighlightTracking();
+		};
 	});
 
 	$effect(() => {
@@ -154,6 +205,30 @@
 		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * 0.072)}px` : '0px',
 	);
 
+	/** Which wedge is under the top marker right now, read from the wheel's LIVE (mid-transition) rotation.
+	 * Segment `i` sits `i*SEG_ANGLE` clockwise from the top at rest, so the top wedge is
+	 * `round(-angle/SEG_ANGLE)` mod segment count. */
+	function currentTopIndex(): number | null {
+		const el = wheelEl;
+		if (!el) return null;
+		const t = getComputedStyle(el).transform;
+		if (!t || t === 'none') return 0;
+		const m = new DOMMatrixReadOnly(t);
+		const angle = (Math.atan2(m.b, m.a) * 180) / Math.PI;
+		const n = FREE_SPIN_SEGMENTS.length;
+		return ((Math.round(-angle / SEG_ANGLE) % n) + n) % n;
+	}
+
+	function trackHighlight() {
+		highlightedIndex = currentTopIndex();
+		highlightRaf = requestAnimationFrame(trackHighlight);
+	}
+
+	function stopHighlightTracking() {
+		if (highlightRaf) cancelAnimationFrame(highlightRaf);
+		highlightRaf = 0;
+	}
+
 	function startSpin() {
 		// Provably-fair guard: a live spin must land on the book's `targetSegmentIndex`. Falling back to
 		// segment 0 / a client-random segment live would break fairness, so surface it (throws in DEV).
@@ -178,12 +253,18 @@
 		const settle = () => {
 			if (settled) return;
 			settled = true;
+			// Stop the per-frame tracking and pin the glow on the landed wedge (it's under the marker now).
+			stopHighlightTracking();
+			highlightedIndex = winner;
 			afterSpin(winner);
 		};
 		requestAnimationFrame(() => {
 			wheelSpinClass = true;
 			wheelRotationDeg = targetDeg;
 			baseRotationDeg = baseTargetDeg;
+			// Light up each wedge as the marker sweeps over it during the spin.
+			stopHighlightTracking();
+			trackHighlight();
 		});
 		const el = wheelEl;
 		if (el) {
@@ -208,6 +289,7 @@
 		timers.push(
 			setTimeout(() => {
 				overlayVisible = false;
+				highlightedIndex = null;
 				timers.push(
 					setTimeout(() => {
 						props.onFinished?.({ segmentIndex: winner, segmentLabel: label });
@@ -226,6 +308,41 @@
 	aria-modal="true"
 	aria-label="Free spin wheel"
 >
+	<!-- Inner-glow filter for the lit wedge. A CSS box-shadow can't follow an <img>'s alpha (it uses the
+	     rectangular box), so this recreates the design's gold inset glow + inner vignette along the actual
+	     wedge outline: flood a colour OUTSIDE the shape, blur it inward, then clip back INTO the shape. -->
+	<svg class="free-spin-filter-defs" width="0" height="0" aria-hidden="true" focusable="false">
+		<filter
+			id="free-spin-seg-lit-glow"
+			x="-25%"
+			y="-25%"
+			width="150%"
+			height="150%"
+			color-interpolation-filters="sRGB"
+		>
+			<!-- inner black vignette (broad) — the `inset 0 0 50px #000` layer -->
+			<feFlood flood-color="rgb(0,0,0)" flood-opacity="0.5" result="dark" />
+			<feComposite in="dark" in2="SourceAlpha" operator="out" result="darkRing" />
+			<feGaussianBlur in="darkRing" stdDeviation="22" result="darkBlur" />
+			<feComposite in="darkBlur" in2="SourceAlpha" operator="in" result="darkGlow" />
+			<!-- broad gold inset glow — the `inset ±30px rgba(255,184,x,0.8)` layers -->
+			<feFlood flood-color="rgb(255,184,1)" flood-opacity="0.95" result="gold" />
+			<feComposite in="gold" in2="SourceAlpha" operator="out" result="goldRing" />
+			<feGaussianBlur in="goldRing" stdDeviation="15" result="goldBlur" />
+			<feComposite in="goldBlur" in2="SourceAlpha" operator="in" result="goldGlow" />
+			<!-- crisp bright rim right at the outline -->
+			<feFlood flood-color="rgb(255,201,46)" flood-opacity="1" result="rim" />
+			<feComposite in="rim" in2="SourceAlpha" operator="out" result="rimRing" />
+			<feGaussianBlur in="rimRing" stdDeviation="4" result="rimBlur" />
+			<feComposite in="rimBlur" in2="SourceAlpha" operator="in" result="rimGlow" />
+			<feMerge>
+				<feMergeNode in="SourceGraphic" />
+				<feMergeNode in="darkGlow" />
+				<feMergeNode in="goldGlow" />
+				<feMergeNode in="rimGlow" />
+			</feMerge>
+		</filter>
+	</svg>
 	<div class="free-spin-content">
 		<div class="free-spin-stage" bind:this={stageEl}>
 			<img
@@ -250,7 +367,7 @@
 					src={staticUrl('img/free-spin-roulette-marker.png')}
 					alt=""
 				/>
-				<img
+				<div
 					bind:this={wheelEl}
 					class="free-spin-wheel"
 					class:free-spin-wheel--animating={wheelSpinClass}
@@ -259,9 +376,25 @@
 					style:--wheel-scale={WHEEL_SCALE}
 					style:--wheel-offset-x={wheelOffsetXPx}
 					style:--wheel-offset-y={wheelOffsetYPx}
-					src={staticUrl('img/free-spin-roulette-wheel.png')}
-					alt=""
-				/>
+					role="img"
+					aria-label="Free spin wheel"
+				>
+					<img class="free-spin-wheel-base" src={emptyWheelSrc} alt="" />
+					{#each segments as seg (seg.index)}
+						{#if seg.placement}
+							<img
+								class="free-spin-seg"
+								class:free-spin-seg--lit={highlightedIndex === seg.index}
+								style:left="{seg.placement.l * 100}%"
+								style:top="{seg.placement.t * 100}%"
+								style:width="{seg.placement.w * 100}%"
+								style:height="{seg.placement.h * 100}%"
+								src={seg.src}
+								alt=""
+							/>
+						{/if}
+					{/each}
+				</div>
 				<img
 					class="free-spin-center-base"
 					class:free-spin-center-base--animating={wheelSpinClass}
@@ -367,14 +500,41 @@
 		opacity: 1;
 	}
 	.free-spin-wheel {
+		position: relative;
 		display: block;
 		width: 100%;
 		height: 100%;
-		object-fit: contain;
 		transform-origin: 50% 50%;
 		--wheel-rotation-deg: 0deg;
 		transform: translateY(125vh) rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
 		opacity: 0;
+	}
+	/* Base ring + gem + coloured wedges (no values); the value wedges layer on top. */
+	.free-spin-wheel-base {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		pointer-events: none;
+	}
+	/* One value wedge per segment, positioned/sized as fractions of the wheel (see FREE_SPIN_SEGMENT_PLACEMENTS). */
+	.free-spin-seg {
+		position: absolute;
+		object-fit: contain;
+		pointer-events: none;
+	}
+	.free-spin-filter-defs {
+		position: absolute;
+		width: 0;
+		height: 0;
+		pointer-events: none;
+	}
+	/* Highlight on the wedge under the marker: gold inset glow + inner vignette along the wedge outline
+	   (SVG inner-glow filter, see #free-spin-seg-lit-glow) plus the design's soft outer shadow. */
+	.free-spin-seg--lit {
+		z-index: 1;
+		filter: url(#free-spin-seg-lit-glow) drop-shadow(0 0 10px rgba(0, 0, 0, 0.25));
 	}
 	.free-spin-wheel--visible {
 		transform: translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
@@ -438,8 +598,7 @@
 		--base-rotation-deg: 0deg;
 		transform: translate(-50%, -50%)
 			translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
-			rotate(var(--base-rotation-deg))
-			scale(var(--wheel-scale, 1));
+			rotate(var(--base-rotation-deg)) scale(var(--wheel-scale, 1));
 		z-index: 3;
 		pointer-events: none;
 	}

@@ -83,6 +83,26 @@
 	// inspected first. Set back to `0` before shipping. Added on top of the normal pre-spin delay.
 	const DEBUG_SPIN_DELAY_MS = 0;
 
+	// ─── Reassembled bonus wheel ────────────────────────────────────────────────────────────────────
+	// The wheel is composited at runtime from the label-less `bonus_roulette_empty.png` (984×984 ring +
+	// gems + empty interior) plus one individually-cropped value-wedge SVG per segment. {w,h} = the SVG's
+	// displayed size and {l,t} = its top-left, all as fractions of the 984px wheel so they scale with the
+	// rendered size. Positions come from each SVG's wheel-centre (recovered via its two radial edges,
+	// which intersect at the centre); the SVGs were exported at slightly different scales, so each is then
+	// scaled about that centre so its OUTER arc lands on the ring's inner edge (r≈356/984) — giving a clean
+	// outer circle and gap-free tiling. Keyed by free-ball value (matches `segment_<value>.svg`).
+	const BONUS_SEGMENT_PLACEMENTS: Record<number, { w: number; h: number; l: number; t: number }> = {
+		100: { w: 0.24484, h: 0.16092, l: 0.38643, t: 0.13485 },
+		90: { w: 0.3056, h: 0.2935, l: 0.53327, t: 0.13924 },
+		80: { w: 0.21761, h: 0.29084, l: 0.66889, t: 0.32039 },
+		70: { w: 0.27638, h: 0.31443, l: 0.59199, t: 0.50299 },
+		60: { w: 0.2854, h: 0.22735, l: 0.43265, t: 0.66207 },
+		50: { w: 0.27535, h: 0.23248, l: 0.24429, t: 0.64881 },
+		40: { w: 0.27625, h: 0.32373, l: 0.10976, t: 0.45826 },
+		30: { w: 0.22563, h: 0.30362, l: 0.11482, t: 0.28123 },
+		20: { w: 0.31639, h: 0.30078, l: 0.1672, t: 0.1302 },
+	};
+
 	let slidePhase = $state<'enter' | 'idle' | 'exit'>('enter');
 	let bgJoined = $state(false);
 	let labelVisible = $state(false);
@@ -97,8 +117,13 @@
 	let announcementBgVisible = $state(false);
 	let announcementTextVisible = $state(false);
 	let wonFreeBalls = $state(0);
-	let wheelEl = $state<HTMLImageElement | undefined>(undefined);
+	// Bound to the rotating wheel container (was the single wheel <img>). Drives the settle transitionend
+	// and is read each frame to know which wedge is under the top marker.
+	let wheelEl = $state<HTMLDivElement | undefined>(undefined);
 	let stageEl = $state<HTMLDivElement | undefined>(undefined);
+	// Index of the segment currently under the top marker (glows gold); null = no highlight.
+	let highlightedIndex = $state<number | null>(null);
+	let highlightRaf = 0;
 	let rouletteSizePx = $state(0);
 	let pendingResult: BonusRouletteResult | null = null;
 	let resultReadyEmitted = false;
@@ -188,8 +213,13 @@
 			label: String(freeBalls),
 			freeBalls,
 			index: i,
+			placement: BONUS_SEGMENT_PLACEMENTS[freeBalls] as
+				| { w: number; h: number; l: number; t: number }
+				| undefined,
+			src: staticUrl(`img/bonus_roulette_segments/segment_${freeBalls}.svg`),
 		})),
 	);
+	const emptyWheelSrc = staticUrl('img/bonus_roulette_segments/bonus_roulette_empty.png');
 	// N equal slices (the labeled bonus wheel has 8 → 45° each); the per-segment angle and landing target
 	// derive from the segment count so they always match the wheel image.
 	const segAngle = $derived(segments.length > 0 ? 360 / segments.length : 45);
@@ -230,6 +260,7 @@
 
 	function cleanup() {
 		timers.forEach(clearTimeout);
+		stopHighlightTracking();
 	}
 
 	$effect(() => {
@@ -261,6 +292,31 @@
 		return Math.floor(Math.random() * segments.length);
 	}
 
+	/** Which wedge is under the top marker right now, read from the wheel's LIVE (mid-transition) rotation.
+	 * Segment `i` sits `i*segAngle` clockwise from the top at rest, so the top wedge is `round(-angle/segAngle)`
+	 * (mod segment count). Returns null before the wheel exists. */
+	function currentTopIndex(): number | null {
+		const el = wheelEl;
+		if (!el) return null;
+		const t = getComputedStyle(el).transform;
+		if (!t || t === 'none') return 0;
+		const m = new DOMMatrixReadOnly(t);
+		const angle = (Math.atan2(m.b, m.a) * 180) / Math.PI;
+		const n = segments.length;
+		if (n === 0) return null;
+		return ((Math.round(-angle / segAngle) % n) + n) % n;
+	}
+
+	function trackHighlight() {
+		highlightedIndex = currentTopIndex();
+		highlightRaf = requestAnimationFrame(trackHighlight);
+	}
+
+	function stopHighlightTracking() {
+		if (highlightRaf) cancelAnimationFrame(highlightRaf);
+		highlightRaf = 0;
+	}
+
 	function startSpin() {
 		const winner = resolveWinnerIndex();
 		const extraRounds = 5 + Math.floor(Math.random() * 3);
@@ -272,12 +328,18 @@
 		const settle = () => {
 			if (settled) return;
 			settled = true;
+			// Stop the per-frame tracking and pin the glow on the landed wedge (it's under the marker now).
+			stopHighlightTracking();
+			highlightedIndex = winner;
 			afterSpin(winner);
 		};
 		requestAnimationFrame(() => {
 			wheelSpinClass = true;
 			wheelRotationDeg = targetDeg;
 			baseRotationDeg = baseTargetDeg;
+			// Light up each wedge as the marker sweeps over it during the spin.
+			stopHighlightTracking();
+			trackHighlight();
 		});
 		const el = wheelEl;
 		if (el) {
@@ -305,6 +367,7 @@
 				labelVisible = false;
 				wheelVisible = false;
 				markerVisible = false;
+				highlightedIndex = null;
 				pendingResult = {
 					segmentIndex: winner,
 					segmentLabel: String(freeBallCount),
@@ -356,11 +419,48 @@
 	aria-modal="true"
 	aria-label="Bonus roulette wheel"
 >
+	<!-- Inner-glow filter for the lit wedge. A CSS box-shadow can't follow an <img>'s alpha (it uses the
+	     rectangular box), so this recreates the design's gold inset glow + inner vignette along the actual
+	     wedge outline: flood a colour OUTSIDE the shape, blur it inward, then clip back INTO the shape. -->
+	<svg class="bonus-spin-filter-defs" width="0" height="0" aria-hidden="true" focusable="false">
+		<filter
+			id="bonus-seg-lit-glow"
+			x="-25%"
+			y="-25%"
+			width="150%"
+			height="150%"
+			color-interpolation-filters="sRGB"
+		>
+			<!-- inner black vignette (broad) — the `inset 0 0 50px #000` layer -->
+			<feFlood flood-color="rgb(0,0,0)" flood-opacity="0.5" result="dark" />
+			<feComposite in="dark" in2="SourceAlpha" operator="out" result="darkRing" />
+			<feGaussianBlur in="darkRing" stdDeviation="22" result="darkBlur" />
+			<feComposite in="darkBlur" in2="SourceAlpha" operator="in" result="darkGlow" />
+			<!-- broad gold inset glow — the `inset ±30px rgba(255,184,x,0.8)` layers -->
+			<feFlood flood-color="rgb(255,184,1)" flood-opacity="0.95" result="gold" />
+			<feComposite in="gold" in2="SourceAlpha" operator="out" result="goldRing" />
+			<feGaussianBlur in="goldRing" stdDeviation="15" result="goldBlur" />
+			<feComposite in="goldBlur" in2="SourceAlpha" operator="in" result="goldGlow" />
+			<!-- crisp bright rim right at the outline -->
+			<feFlood flood-color="rgb(255,201,46)" flood-opacity="1" result="rim" />
+			<feComposite in="rim" in2="SourceAlpha" operator="out" result="rimRing" />
+			<feGaussianBlur in="rimRing" stdDeviation="4" result="rimBlur" />
+			<feComposite in="rimBlur" in2="SourceAlpha" operator="in" result="rimGlow" />
+			<feMerge>
+				<feMergeNode in="SourceGraphic" />
+				<feMergeNode in="darkGlow" />
+				<feMergeNode in="goldGlow" />
+				<feMergeNode in="rimGlow" />
+			</feMerge>
+		</filter>
+	</svg>
 	{#if props.mode !== 'message'}
 		<div
 			class="bonus-spin-bg-drop"
 			class:bonus-spin-bg-drop--visible={bgJoined}
-			style:background-image="url({portrait ? staticUrl('img/bonus-roulette-background-mobile.png') : staticUrl('img/bonus-roulette-background.png')})"
+			style:background-image="url({portrait
+				? staticUrl('img/bonus-roulette-background-mobile.png')
+				: staticUrl('img/bonus-roulette-background.png')})"
 		></div>
 		<div class="bonus-spin-content">
 			<div class="bonus-spin-stage" bind:this={stageEl}>
@@ -388,7 +488,7 @@
 						src={staticUrl('img/bonus-spin-marker.png')}
 						alt=""
 					/>
-					<img
+					<div
 						bind:this={wheelEl}
 						class="bonus-spin-wheel"
 						class:bonus-spin-wheel--animating={wheelSpinClass}
@@ -397,9 +497,25 @@
 						style:--wheel-scale={WHEEL_SCALE}
 						style:--wheel-offset-x={wheelOffsetXPx}
 						style:--wheel-offset-y={wheelOffsetYPx}
-						src={staticUrl('img/bonus-roulette-wheel-revised-values.png')}
-						alt="Bonus roulette wheel"
-					/>
+						role="img"
+						aria-label="Bonus roulette wheel"
+					>
+						<img class="bonus-spin-wheel-base" src={emptyWheelSrc} alt="" />
+						{#each segments as seg (seg.index)}
+							{#if seg.placement}
+								<img
+									class="bonus-spin-seg"
+									class:bonus-spin-seg--lit={highlightedIndex === seg.index}
+									style:left="{seg.placement.l * 100}%"
+									style:top="{seg.placement.t * 100}%"
+									style:width="{seg.placement.w * 100}%"
+									style:height="{seg.placement.h * 100}%"
+									src={seg.src}
+									alt=""
+								/>
+							{/if}
+						{/each}
+					</div>
 					<img
 						class="bonus-spin-center-base"
 						class:bonus-spin-center-base--animating={wheelSpinClass}
@@ -425,17 +541,23 @@
 			class:bonus-announcement--mobile={portrait}
 			class:bonus-announcement--bg-visible={announcementBgVisible}
 			class:bonus-announcement--text-visible={announcementTextVisible}
-			style:background-image="url({portrait ? staticUrl('img/announcement-message-background-mobile.png') : staticUrl('img/announcement-message-background.png')})"
+			style:background-image="url({portrait
+				? staticUrl('img/announcement-message-background-mobile.png')
+				: staticUrl('img/announcement-message-background.png')})"
 			onclick={onAnnouncementClick}
 		>
 			<div class="bonus-announcement-main">
 				<div class="bonus-announcement-headline">
 					<span class="bonus-announcement-text-stroke" aria-hidden="true">{headlineText}</span>
-					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--headline">{headlineText}</span>
+					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--headline"
+						>{headlineText}</span
+					>
 				</div>
 				<div class="bonus-announcement-reward">
 					<span class="bonus-announcement-text-stroke" aria-hidden="true">{rewardText}</span>
-					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--reward">{rewardText}</span>
+					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--reward"
+						>{rewardText}</span
+					>
 				</div>
 			</div>
 			<div class="bonus-announcement-hint">
@@ -550,14 +672,41 @@
 		opacity: 1;
 	}
 	.bonus-spin-wheel {
+		position: relative;
 		display: block;
 		width: 100%;
 		height: 100%;
-		object-fit: contain;
 		transform-origin: 50% 50%;
 		--wheel-rotation-deg: 0deg;
 		transform: translateY(125vh) rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
 		opacity: 0;
+	}
+	/* Label-less base ring (gold rim + gems + empty interior); the value wedges layer on top. */
+	.bonus-spin-wheel-base {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		pointer-events: none;
+	}
+	/* One value wedge per segment, positioned/sized as fractions of the wheel (see BONUS_SEGMENT_PLACEMENTS). */
+	.bonus-spin-seg {
+		position: absolute;
+		object-fit: contain;
+		pointer-events: none;
+	}
+	.bonus-spin-filter-defs {
+		position: absolute;
+		width: 0;
+		height: 0;
+		pointer-events: none;
+	}
+	/* Highlight on the wedge under the marker: gold inset glow + inner vignette along the wedge outline
+	   (SVG inner-glow filter, see #bonus-seg-lit-glow) plus the design's soft outer shadow. */
+	.bonus-spin-seg--lit {
+		z-index: 1;
+		filter: url(#bonus-seg-lit-glow) drop-shadow(0 0 10px rgba(0, 0, 0, 0.25));
 	}
 	.bonus-spin-wheel--visible {
 		transform: translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
@@ -629,8 +778,7 @@
 	.bonus-spin-center-base--visible {
 		transform: translate(-50%, -50%)
 			translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
-			rotate(var(--base-rotation-deg))
-			scale(var(--wheel-scale, 1));
+			rotate(var(--base-rotation-deg)) scale(var(--wheel-scale, 1));
 		opacity: 1;
 	}
 	/* Matches the wheel's spin timing so the counter-rotating base stops at the same moment. */

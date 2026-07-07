@@ -1,64 +1,55 @@
 <script lang="ts">
-
 	import { onMount } from 'svelte';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { page } from '$app/state';
 
 	import { stateBet, stateI18n, stateUrlDerived } from 'state-shared';
 
-
-
 	import { coefficientsForRowCount, SIM_SPEED } from '../game-logic/constants';
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
-	import { canAffordPlinkoWager, maxAffordableStakePerBall, plinkoWagerAmount, snapStakeToBetLevels } from '../game/plinkoBet';
-	import { buyBonusModeName, syncPlinkoBetModeFromUi, type BuyBonusTier } from '../game/plinkoBetMode';
+	import {
+		canAffordPlinkoWager,
+		maxAffordableStakePerBall,
+		plinkoWagerAmount,
+		snapStakeToBetLevels,
+	} from '../game/plinkoBet';
+	import {
+		buyBonusModeName,
+		syncPlinkoBetModeFromUi,
+		type BuyBonusTier,
+	} from '../game/plinkoBetMode';
 	import { playDevLocalBook } from '../game/devLocalBet';
 	import { installPlinkoDevDebug } from '../game/devDebug';
 	import { applyClientMeterDefaults } from '../game/plinkoMeterConfig';
-	import { applyBonusMeterDisplay, applyRgsSessionMetersToDisplay } from '../game/plinkoSessionMeters';
+	import {
+		applyBonusMeterDisplay,
+		applyRgsSessionMetersToDisplay,
+	} from '../game/plinkoSessionMeters';
 
 	import { getContext } from '../game/context';
 
 	import {
-
 		isBetControlsLocked,
-
 		isGameOngoing,
-
 		isRapidSingleBallMode,
-
 		onBallLanded,
-
 		onBonusEndAnnouncementClosed,
-
 		onMainPlayClick,
-
 		maybeAutoFireFeatureTrigger,
-
 		setDropRequestHandler,
-
 		showToast,
-
 		startAutoBet,
-
 		stopAutoBet,
-
 	} from '../game/gameOrchestrator';
 
 	import {
-
 		onBonusRouletteFinished,
-
 		onBonusRouletteResultReady,
-
 		onCoinPegHit,
-
 		releaseRoundInteractionLocks,
-
 		syncBallPerDropTier,
-
 	} from '../game/meterFlow';
 
 	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
@@ -112,8 +103,6 @@
 
 	import type { BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 
-
-
 	const context = getContext();
 
 	/** Stake deterministic replay (`?replay=true`) — drives playback headlessly + locks the UI. */
@@ -141,13 +130,18 @@
 	/** TODO: remove — temporary preview of bonus level-up overlay on load. */
 	const DEV_SHOW_BONUS_LEVEL_UP_ON_LOAD = false;
 
-	/** TODO: remove — open the bonus roulette the moment the game loads (pairs with DEBUG_KEEP_OPEN in
-	 * BonusRoulette.svelte, which holds it on screen). Bonus will NOT resolve while this is on. */
+	/** TODO: remove — open the bonus roulette the moment the game loads so the reassembled wheel + the
+	 * per-segment gold highlight can be watched. It spins after DEBUG_SPIN_DELAY_MS in BonusRoulette.svelte
+	 * and lands on the debug target set in onMount below. Clicking the "press anywhere" announcement
+	 * afterwards runs the real bonus flow, so just reload to watch the spin again. */
 	const DEV_SHOW_BONUS_ROULETTE_ON_LOAD = false;
 
-	/** TODO: remove — open the free-spin roulette the moment the game loads (pairs with DEBUG_SPIN_DELAY_MS
-	 * in FreeSpinRoulette.svelte, which delays the spin so the layout can be inspected). */
+	/** TODO: remove — open the free-spin roulette on load so the reassembled wheel + per-segment gold
+	 * highlight can be watched. It spins after DEBUG_SPIN_DELAY_MS in FreeSpinRoulette.svelte (set to ~5s)
+	 * and lands on the debug target (10X). Rendered via its own preview flag below (independent of the
+	 * game's round flow, which would otherwise reset the open state during init). Reload to watch again. */
 	const DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD = false;
+	let devFreeSpinRoulettePreviewOpen = $state(DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD);
 
 	/** DEBUG: force the bonus meter's visual fill to a fixed value in 0..1 (e.g. 0.5 = half full).
 	 * Purely cosmetic — it only feeds the <BonusMeter> progress prop and does NOT touch the real
@@ -157,8 +151,6 @@
 	let devBonusMeterProgress = $state<number | null>(DEV_BONUS_METER_PROGRESS);
 
 	let gameRootEl = $state<HTMLElement | undefined>(undefined);
-
-
 
 	const coefficients = $derived.by(() =>
 		coefficientsForRowCount(config.coefficientSets as number[][], stateGame.rowCount),
@@ -202,16 +194,16 @@
 	});
 
 	onMount(() => {
-
 		installPlinkoDevDebug();
 
 		if (import.meta.env.DEV) {
 			// Live cosmetic override for the bonus meter fill — see DEV_BONUS_METER_PROGRESS above.
 			// plinkoSetBonusMeter(0.5) fills to half; plinkoSetBonusMeter(null) restores the live value.
-			(window as Window & { plinkoSetBonusMeter?: (value: number | null) => void }).plinkoSetBonusMeter =
-				(value) => {
-					devBonusMeterProgress = value === null ? null : Math.min(1, Math.max(0, value));
-				};
+			(
+				window as Window & { plinkoSetBonusMeter?: (value: number | null) => void }
+			).plinkoSetBonusMeter = (value) => {
+				devBonusMeterProgress = value === null ? null : Math.min(1, Math.max(0, value));
+			};
 		}
 
 		applyClientMeterDefaults(config.spinMeterMax, config.bonusMeterMax);
@@ -225,11 +217,10 @@
 		}
 
 		if (DEV_SHOW_BONUS_ROULETTE_ON_LOAD) {
+			// Give the wheel a valid authoritative target (lands on the 50 wedge) so it resolves cleanly
+			// instead of tripping the provably-fair guard with an undefined server value.
+			stateGame.serverBonusFreeBalls = 50;
 			stateGame.bonusRouletteOpen = true;
-		}
-
-		if (DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD) {
-			stateGame.freeSpinRouletteOpen = true;
 		}
 
 		if (DEV_SHOW_WIN_MODAL_ON_LOAD) {
@@ -244,36 +235,25 @@
 		syncBallPerDropTier();
 
 		setDropRequestHandler(({ stake }) => {
-
 			context.eventEmitter.broadcast({ type: 'bonusBallDrop', stake });
-
 		});
 
 		// Autobet intentionally keeps running while the tab is backgrounded (parity with the
 		// reference game). The Pixi ticker (rAF) pauses on hide, so the board drives its ball
 		// physics off a timer instead (see PlinkoEngine.advanceWhileHidden) and rounds keep
 		// settling. We therefore do NOT terminate Autobet on `visibilitychange`.
-
 	});
 
-
-
 	$effect(() => {
-
 		if (!stateGame.authoritativeMeterFlow || stateGame.coefficients.length === 0) {
 			stateGame.coefficients = coefficients;
 		}
-
 	});
 
-
-
 	$effect(() => {
-
 		stateGame.ballPerDrop;
 
 		syncBallPerDropTier();
-
 	});
 
 	// Auto-fire the bonus trigger bet the moment the bonus meter is full and the round machine is idle.
@@ -293,8 +273,6 @@
 		const maxPerBall = maxAffordableStakePerBall() || value;
 		stateBet.betAmount = snapStakeToBetLevels(Math.max(0, Math.min(value, maxPerBall)));
 	}
-
-
 
 	// Rapid 1-ball mode uses a lightweight INPUT THROTTLE instead of an input queue. Each click fires a
 	// bet immediately when the round machine is free; clicks that arrive while it's busy (or inside the
@@ -316,7 +294,8 @@
 		// Rapid 1-ball mode: throttle a mashed / held Bet button so it can't fire faster than
 		// RAPID_BET_THROTTLE_MS. Throttled clicks are dropped, not buffered, so betting halts the moment
 		// the player stops clicking (no trailing balls). See RAPID_BET_THROTTLE_MS.
-		if (isRapidSingleBallMode() && performance.now() - lastRapidBetAt < RAPID_BET_THROTTLE_MS) return;
+		if (isRapidSingleBallMode() && performance.now() - lastRapidBetAt < RAPID_BET_THROTTLE_MS)
+			return;
 		// Ignore a bet while the previous round is still settling (machine not yet idle) — the
 		// idle-only xstate machine would drop the BET and leave `isSubmitting` stuck. In rapid 1-ball
 		// mode the click is simply dropped (the throttle above already prevents lost-click spam).
@@ -333,9 +312,7 @@
 		if (!canAffordPlinkoWager()) {
 			const wager = plinkoWagerAmount();
 			showToast(
-				wager <= 0
-					? 'Set a valid bet amount'
-					: `Insufficient balance (need ${wager.toFixed(2)})`,
+				wager <= 0 ? 'Set a valid bet amount' : `Insufficient balance (need ${wager.toFixed(2)})`,
 				'error',
 			);
 			return;
@@ -364,12 +341,8 @@
 		context.eventEmitter.broadcast({ type: 'bet' });
 	}
 
-
-
 	function handlePlay() {
-
 		onMainPlayClick(placeBet);
-
 	}
 
 	/**
@@ -380,27 +353,17 @@
 		window.location.reload();
 	}
 
-
-
 	function toggleAuto() {
-
 		stateGame.autoMode = !stateGame.autoMode;
 
 		if (stateGame.autoMode) {
-
 			startAutoBet(placeBet);
 
 			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
-
 		} else {
-
 			stopAutoBet();
-
 		}
-
 	}
-
-
 
 	function onBallDropped(event: BallDroppedEvent) {
 		onBallLanded(event.ballId, event.multiplier, event.isSpinSlot, event.slotIndex);
@@ -410,16 +373,12 @@
 		onCoinPegHit(event.ballId);
 	}
 
-
-
 	function openInfo(tab: InfoModalTab) {
-
 		stateGame.infoModalTab = tab;
 
 		stateGame.infoModalOpen = true;
 
 		stateGame.menuOpen = false;
-
 	}
 
 	// Buy bonus — can't open mid-round / mid-bonus / in replay, and NOT on the single-ball (rapid) tier,
@@ -501,10 +460,7 @@
 			syncPlinkoBetModeFromUi();
 		}
 	});
-
 </script>
-
-
 
 <EnableGameActor />
 
@@ -540,10 +496,7 @@
 
 <BonusLevelUpOverlay />
 
-
-
 <main class="game-root" class:game-root--mobile={mobile} bind:this={gameRootEl}>
-
 	<div class="bg-layer">
 		<Background />
 	</div>
@@ -607,10 +560,7 @@
 
 	<div class="game-content">
 		<div class="game-area" class:game-area--pixi-fill={!mobile}>
-			<div
-				class="container"
-				class:container--bonus={stateGameDerived.isBonusBackgroundActive}
-			>
+			<div class="container" class:container--bonus={stateGameDerived.isBonusBackgroundActive}>
 				{#if stateGame.bonusRoundActive}
 					<div class="bonus-level-behind-game-area">
 						<BonusLevel
@@ -641,7 +591,7 @@
 							rows={stateGame.rowCount}
 							animationEnabled={stateGame.animationEnabled}
 							animationSpeed={stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal}
-							onBallDropped={onBallDropped}
+							{onBallDropped}
 							onCoinPegHit={handleCoinPegHit}
 						/>
 					</div>
@@ -651,7 +601,7 @@
 						rows={stateGame.rowCount}
 						animationEnabled={stateGame.animationEnabled}
 						animationSpeed={stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal}
-						onBallDropped={onBallDropped}
+						{onBallDropped}
 						onCoinPegHit={handleCoinPegHit}
 					/>
 				{/if}
@@ -674,87 +624,56 @@
 			</div>
 		</div>
 
-
-
-	<GameHud
-		betAmount={stateBet.betAmount}
-		totalBetAmount={stateBet.betAmount * stateGame.ballPerDrop}
-		onBetAmountChange={handleBetAmountChange}
-		onPlay={handlePlay}
-		autoMode={stateGame.autoMode}
-		autoPlayStarted={stateGame.autoPlayStarted}
-		autoRoundsLeft={stateGame.autoRoundsDisplay}
-		spinMeterProgress={spinMeterProgress}
-		hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
-		bonusBallsRemaining={stateGame.bonusBallsRemaining}
-		playDisabled={stateGame.isOffline ||
-			(isRapidSingleBallMode()
-				? stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()
-				: isBetControlsLocked() || isGameOngoing())}
-		bonusPlayDisabled={stateGame.isOffline || stateGame.bonusRouletteOpen}
-		{mobile}
-		onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
+		<GameHud
+			betAmount={stateBet.betAmount}
+			totalBetAmount={stateBet.betAmount * stateGame.ballPerDrop}
+			onBetAmountChange={handleBetAmountChange}
+			onPlay={handlePlay}
+			autoMode={stateGame.autoMode}
+			autoPlayStarted={stateGame.autoPlayStarted}
+			autoRoundsLeft={stateGame.autoRoundsDisplay}
+			{spinMeterProgress}
+			hasPendingBonusBalls={stateGameDerived.hasPendingBonusBalls}
+			bonusBallsRemaining={stateGame.bonusBallsRemaining}
+			playDisabled={stateGame.isOffline ||
+				(isRapidSingleBallMode()
+					? stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()
+					: isBetControlsLocked() || isGameOngoing())}
+			bonusPlayDisabled={stateGame.isOffline || stateGame.bonusRouletteOpen}
+			{mobile}
+			onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
 		/>
 	</div>
 
 	{#if stateGame.freeSpinRouletteOpen}
-
 		<FreeSpinRoulette
-
 			targetSegmentIndex={stateGame.serverFreeSpinSegment}
-
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
-
 			onLanded={(result) => applyFreeSpinWinOnLand(result.segmentLabel)}
-
 			onFinished={(result) => void onFreeSpinRouletteFinished(result.segmentLabel)}
-
 		/>
-
 	{/if}
-
-
 
 	{#if stateGame.bonusRouletteOpen}
-
 		<BonusRoulette
-
 			targetFreeBalls={stateGame.serverBonusFreeBalls}
-
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
-
 			skipSpin={!!stateGame.pendingBuyBonusMode}
-
 			autoDismiss={isReplay}
-
 			onResultReady={(result) => onBonusRouletteResultReady(result.freeBallCount)}
-
 			onFinished={(result) => onBonusRouletteFinished(result.freeBallCount)}
-
 		/>
-
 	{/if}
 
-
-
 	{#if stateGame.bonusEndAnnouncementOpen}
-
 		<BonusRoulette
-
 			mode="message"
-
 			messageTitle="WIN"
-
 			messageValue="{stateGame.bonusEndWinAmount.toFixed(2)} {stateBet.currency}"
-
 			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
-
 			autoDismiss={isReplay}
-
 			onClosed={onBonusEndAnnouncementClosed}
-
 		/>
-
 	{/if}
 
 	{#if devBonusCongratulationsPreviewOpen}
@@ -769,6 +688,12 @@
 		/>
 	{/if}
 
+	{#if devFreeSpinRoulettePreviewOpen}
+		<!-- TODO: remove — dev preview of the reassembled free-spin wheel (see DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD).
+		     Isolated from the real free-spin flow; lands on 10X (index 4). Reload to watch again. -->
+		<FreeSpinRoulette targetSegmentIndex={4} />
+	{/if}
+
 	{#if isReplay}
 		<div class="replay-ui" class:replay-ui--mobile={mobile}>
 			<div class="replay-badge">
@@ -780,15 +705,10 @@
 			</button>
 		</div>
 	{/if}
-
 </main>
 
-
-
 <style>
-
 	.game-root {
-
 		width: 100vw;
 
 		height: 100vh;
@@ -808,17 +728,13 @@
 		font-family: 'Instrument Sans', system-ui, sans-serif;
 
 		background: transparent;
-
 	}
 
 	.game-root:not(.game-root--mobile) .bg-layer {
-
 		pointer-events: none;
-
 	}
 
 	.game-content {
-
 		flex: 1;
 
 		min-height: 0;
@@ -836,18 +752,14 @@
 		z-index: 1;
 
 		overflow: visible;
-
 	}
 
 	.game-root:not(.game-root--mobile) .game-content {
-
 		--game-area-width-cap: 100vw;
 		padding: 0;
-
 	}
 
 	.game-root--mobile .game-content {
-
 		--game-area-width-cap: 100vw;
 		/* 992×1761 reference — scale layout tokens from design width */
 		--portrait-dw: 992;
@@ -856,11 +768,9 @@
 		flex: 1 1 0;
 		min-height: 0;
 		overflow: hidden;
-
 	}
 
 	.bg-layer {
-
 		position: absolute;
 
 		inset: 0;
@@ -870,11 +780,13 @@
 		overflow: hidden;
 
 		pointer-events: none;
-
 	}
 
-	.game-root--mobile .game-area > .container .bonus-level-behind-game-area :global(.bonus-level-track) {
-
+	.game-root--mobile
+		.game-area
+		> .container
+		.bonus-level-behind-game-area
+		:global(.bonus-level-track) {
 		/* Higher specificity than the desktop `.container ...` track rule (100%/100%) so the mobile
 		   track adopts the tile coordinate space (65vw × 33.6vw). This locks the gold-arch base image
 		   to the number tiles — both share one box — instead of the base sizing to the fit-width box
@@ -882,7 +794,6 @@
 		width: var(--mobile-bonus-track-width);
 
 		height: var(--mobile-bonus-track-height);
-
 	}
 
 	/* Mobile deliberately does NOT override the per-tile node positions: it reuses the desktop
@@ -891,7 +802,6 @@
 	   --mobile-bonus-track-height below), the numbers sit in the arch segments exactly like desktop. */
 
 	.top-hud {
-
 		position: absolute;
 
 		top: 2.5vw;
@@ -913,17 +823,13 @@
 		padding: 0;
 
 		pointer-events: none;
-
 	}
 
 	.top-hud > * {
-
 		pointer-events: auto;
-
 	}
 
 	.top-hud-actions {
-
 		position: relative;
 
 		display: flex;
@@ -933,11 +839,9 @@
 		gap: 0.45vw;
 
 		height: 100%;
-
 	}
 
 	.top-hud-btn {
-
 		width: auto;
 
 		height: 100%;
@@ -951,7 +855,6 @@
 		cursor: pointer;
 
 		transition: transform 0.12s ease;
-
 	}
 
 	/* Buy bonus trigger — desktop top-left, mobile top-right. */
@@ -1008,7 +911,6 @@
 
 	/* Desktop — absolute inset uses almost full viewport (HUD/panel overlay) */
 	.game-root:not(.game-root--mobile) .game-area {
-
 		--game-area-offset-y-ratio: 0;
 
 		position: absolute;
@@ -1030,11 +932,9 @@
 		height: auto;
 
 		margin: 0;
-
 	}
 
 	.game-area {
-
 		position: relative;
 
 		display: flex;
@@ -1064,11 +964,9 @@
 		container-type: size;
 
 		container-name: game-area;
-
 	}
 
 	.game-area--pixi-fill .container {
-
 		position: relative;
 
 		display: block;
@@ -1078,11 +976,9 @@
 		margin: 0 auto;
 
 		min-height: 0;
-
 	}
 
 	.game-area--pixi-fill .container :global(.plinko-root) {
-
 		position: absolute;
 
 		inset: 0;
@@ -1090,12 +986,9 @@
 		overflow: visible;
 
 		z-index: 2;
-
 	}
 
-
 	.container {
-
 		/* Bonus meter — desktop proportions vs 96×55 frame (12×7.8 @ top 6) */
 		--bonus-meter-width-ratio: 0.135;
 		--bonus-meter-height-ratio: 0.141818;
@@ -1175,7 +1068,6 @@
 		container-name: plinko-frame;
 
 		transform-origin: center center;
-
 	}
 
 	/* Desktop / landscape — game layout + plinko board (frame fit-width/height) */
@@ -1216,7 +1108,6 @@
 
 	.game-area-frame,
 	.game-area-bonus-overlay {
-
 		position: absolute;
 
 		inset: 0;
@@ -1238,11 +1129,9 @@
 		z-index: 0;
 
 		user-select: none;
-
 	}
 
 	.container .bonus-meter-wrap {
-
 		position: absolute;
 
 		left: calc(50% + var(--bonus-meter-offset-x-ratio, 0) * 100%);
@@ -1258,11 +1147,9 @@
 		pointer-events: none;
 
 		z-index: 6;
-
 	}
 
 	.container .bonus-level-behind-game-area {
-
 		position: absolute;
 
 		left: calc(var(--game-area-fit-width) * var(--bonus-level-left-ratio));
@@ -1278,25 +1165,19 @@
 		pointer-events: none;
 
 		z-index: -1;
-
 	}
 
 	.container .bonus-level-behind-game-area :global(.bonus-level-track) {
-
 		width: 100%;
 
 		height: 100%;
-
 	}
 
 	.game-area-frame {
-
 		transition: opacity 0.28s ease-in-out;
-
 	}
 
 	.game-area-bonus-overlay {
-
 		opacity: 0;
 		z-index: 3;
 		transform: translate(var(--bonus-overlay-offset-x), var(--bonus-overlay-offset-y))
@@ -1304,12 +1185,10 @@
 		transform-origin: center;
 
 		transition: opacity 0.28s ease-in-out;
-
 	}
 
 	.container :global(.plinko-root),
 	.container .pixi-stage-wrap {
-
 		position: absolute;
 
 		inset: 0;
@@ -1321,32 +1200,24 @@
 		height: 100%;
 
 		pointer-events: none;
-
 	}
 
 	.container :global(.plinko-root) :global(.plinko-host),
 	.container .pixi-stage-wrap :global(.plinko-host) {
-
 		pointer-events: auto;
-
 	}
 
 	.container.container--bonus .game-area-bonus-overlay {
-
 		opacity: 1;
-
 	}
 
 	.container.container--bonus .game-area-frame {
-
 		opacity: 1;
 
 		transition: opacity 0.28s ease-in-out;
-
 	}
 
 	.win-overlay {
-
 		/* Anchored inside .container (same box the pirate frame + bonus meter live in) so the card
 		   tracks the pirate art. `--win-anchor-top-ratio` is the vertical center as a fraction of the
 		   game-area box, tuned so the card sits midway between the pirate's hat and head. The frame
@@ -1369,7 +1240,6 @@
 		z-index: 20;
 
 		pointer-events: none;
-
 	}
 
 	/* Portrait/mobile: the frame PNG fills more of the box, so a smaller ratio lands on the same
@@ -1385,7 +1255,6 @@
 	}
 
 	.win-card {
-
 		box-sizing: border-box;
 
 		/* Near-square rounded card matching the reference art (≈1.13:1 w:h), widening further as the
@@ -1428,16 +1297,14 @@
 			radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%) padding-box,
 			/* Diagonal (135deg = top-left → bottom-right): bright lime in the top-left corner falling off
 			   to a near-black deep green in the bottom-right, per the reference. */
-			linear-gradient(135deg, #9dff5c 0%, #54f917 30%, #2f7d10 62%, #14480a 100%) border-box;
+				linear-gradient(135deg, #9dff5c 0%, #54f917 30%, #2f7d10 62%, #14480a 100%) border-box;
 
 		border: 0.5rem solid transparent;
 
 		border-radius: 1rem;
-
 	}
 
 	.win-card p {
-
 		color: #54f917;
 
 		/* 1.58125rem base, +20%. */
@@ -1447,11 +1314,9 @@
 		font-weight: 700;
 
 		margin: 0;
-
 	}
 
 	.win-divider {
-
 		display: block;
 
 		/* Relative width so the divider tracks the card instead of forcing its min-width
@@ -1465,11 +1330,9 @@
 		border-radius: 999px;
 
 		background: rgba(255, 255, 255, 0.45);
-
 	}
 
 	.win-card strong {
-
 		display: block;
 
 		white-space: nowrap;
@@ -1483,7 +1346,6 @@
 		font-weight: 800;
 
 		color: #54f917;
-
 	}
 
 	/* Replay mode — floating badge + Play Again (top center). */
@@ -1572,7 +1434,6 @@
 
 	/* Mobile — layout from 992×1761 reference (Portrait_animationGuide / legacy mobile) */
 	.game-root--mobile .game-area {
-
 		--game-area-offset-y-ratio-mobile: 0;
 
 		flex: 1 1 0;
@@ -1608,11 +1469,9 @@
 		container-name: game-area;
 
 		transform: translateY(calc(var(--game-area-offset-y-ratio-mobile) * 100vw));
-
 	}
 
 	.game-root--mobile .game-area > .container {
-
 		/* Portrait plinko layout — tune independently from desktop / landscape */
 		--game-layout-scale-mobile: 1.15;
 		--game-layout-offset-x-ratio-mobile: -0.015;
@@ -1661,17 +1520,13 @@
 		--plinko-area-offset-x-mobile: calc(var(--plinko-area-offset-x-ratio-mobile) * 100vw);
 		--plinko-host-width-mobile: calc(
 			100% * var(--plinko-area-scale-mobile) *
-				max(
-					var(--plinko-area-top-width-scale-mobile),
-					var(--plinko-area-bottom-width-scale-mobile)
-				)
+				max(var(--plinko-area-top-width-scale-mobile), var(--plinko-area-bottom-width-scale-mobile))
 		);
 		--plinko-host-height-mobile: calc(
 			100% * var(--plinko-area-scale-mobile) * var(--plinko-area-height-scale-mobile)
 		);
 		--plinko-area-offset-y-mobile: calc(
-			(var(--plinko-area-offset-ratio-mobile) + var(--plinko-area-offset-y-ratio-mobile)) *
-				100vw
+			(var(--plinko-area-offset-ratio-mobile) + var(--plinko-area-offset-y-ratio-mobile)) * 100vw
 		);
 
 		--bonus-level-left-ratio: 0.495;
@@ -1685,9 +1540,9 @@
 		--bonus-overlay-offset-x-mobile: var(--bonus-overlay-offset-x);
 		--bonus-overlay-offset-y-mobile: var(--bonus-overlay-offset-y);
 		/* === Mobile bonus meter tweaks — safe to adjust without affecting desktop === */
-		--mobile-bonus-meter-scale: .95;           /* overall size multiplier (>1 = bigger) */
-		--mobile-bonus-meter-top-px: 132;        /* vertical position in portrait-px units */
-		--mobile-bonus-meter-left: 51.5%;          /* horizontal center anchor */
+		--mobile-bonus-meter-scale: 0.95; /* overall size multiplier (>1 = bigger) */
+		--mobile-bonus-meter-top-px: 132; /* vertical position in portrait-px units */
+		--mobile-bonus-meter-left: 51.5%; /* horizontal center anchor */
 		--mobile-bonus-meter-offset-x-ratio: 0; /* fine-tune X as a fraction of container width */
 		--mobile-bonus-meter-offset-y-ratio: -0.05; /* fine-tune Y as a fraction of game-area height */
 
@@ -1728,22 +1583,18 @@
 		align-self: center;
 
 		transform-origin: center top;
-
 	}
 
 	.game-root--mobile .game-area > .container .bonus-level-behind-game-area {
-
 		left: calc(var(--game-area-fit-width) * var(--bonus-level-left-ratio));
 
 		/* Shrink the whole bar (arch + tiles) a touch so its edges tuck into the pirate-hat brim.
 		   Scales about the box centre, so it stays centred on the hat. */
 		transform: translateX(-50%) scale(var(--mobile-bonus-level-scale, 1));
-
 	}
 
 	.game-root--mobile .game-area > .container .game-area-frame,
 	.game-root--mobile .game-area > .container .game-area-bonus-overlay {
-
 		top: 0;
 
 		left: 50%;
@@ -1763,31 +1614,25 @@
 		object-fit: cover;
 
 		object-position: top center;
-
 	}
 
 	.game-root--mobile .game-area > .container .game-area-frame {
-
 		transform: translateX(-50%);
-
 	}
 
 	.game-root--mobile .game-area > .container .game-area-bonus-overlay {
-
 		transform: translate(
 				calc(-50% + var(--bonus-overlay-offset-x-mobile)),
 				var(--bonus-overlay-offset-y-mobile)
 			)
 			scale(var(--bonus-overlay-scale-mobile));
 		transform-origin: center top;
-
 	}
 
 	.game-root--mobile .game-area > .container .bonus-meter-wrap {
-
 		top: calc(
-			var(--portrait-px) * var(--mobile-bonus-meter-top-px) +
-				var(--game-area-fit-height) * var(--mobile-bonus-meter-offset-y-ratio)
+			var(--portrait-px) * var(--mobile-bonus-meter-top-px) + var(--game-area-fit-height) *
+				var(--mobile-bonus-meter-offset-y-ratio)
 		);
 
 		left: calc(var(--mobile-bonus-meter-left) + var(--mobile-bonus-meter-offset-x-ratio) * 100%);
@@ -1797,11 +1642,9 @@
 		height: calc(var(--portrait-px) * 198 * var(--mobile-bonus-meter-scale));
 
 		transform: translateX(-50%);
-
 	}
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap {
-
 		position: relative;
 
 		inset: auto;
@@ -1821,11 +1664,9 @@
 		pointer-events: none;
 
 		margin-top: calc(var(--portrait-px) * 248);
-
 	}
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-root) {
-
 		position: absolute;
 
 		inset: 0;
@@ -1833,14 +1674,9 @@
 		width: 100%;
 
 		height: 100%;
-
 	}
 
 	.game-root--mobile .game-area > .container .pixi-stage-wrap :global(.plinko-host) {
-
 		pointer-events: auto;
-
 	}
-
 </style>
-
