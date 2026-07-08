@@ -1,0 +1,26 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#filter0_ii_187_19297)">
+<path d="M20.4251 36.5998H20.4C20.1109 36.5995 19.8248 36.5405 19.559 36.4265C19.2931 36.3125 19.053 36.1457 18.8531 35.9362C18.5366 35.6044 15.6656 32.5678 12.8097 28.7206C8.95471 23.5294 7 19.3882 7 16.4171C7 9.01836 13.0116 2.99976 20.4 2.99976C27.7884 2.99976 33.8 9.01836 33.8 16.4162C33.8 18.2138 33.1091 20.4163 31.7473 22.9607C30.4332 25.4143 28.4576 28.2644 25.8739 31.4329L25.853 31.4581L22.008 35.8681C21.8112 36.096 21.5682 36.2791 21.2953 36.4052C21.0223 36.5314 20.7257 36.5977 20.4251 36.5998ZM20.4 22.6969C23.8589 22.6969 26.6729 19.8796 26.6729 16.4163C26.6729 12.953 23.8589 10.1355 20.4 10.1355C16.9411 10.1355 14.1271 12.9529 14.1271 16.4162C14.1271 19.8795 16.9411 22.6969 20.4 22.6969Z" fill="url(#paint0_linear_187_19297)"/>
+</g>
+<defs>
+<filter id="filter0_ii_187_19297" x="7" y="2.99976" width="26.7998" height="33.6" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="2.51574" operator="dilate" in="SourceAlpha" result="effect1_innerShadow_187_19297"/>
+<feOffset dy="-0.5"/>
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.0511193 0 0 0 0 0.0161878 0 0 0 0 0 0 0 0 0.4 0"/>
+<feBlend mode="normal" in2="shape" result="effect1_innerShadow_187_19297"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="0.5"/>
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 0.745681 0 0 0 0 0.745681 0 0 0 1 0"/>
+<feBlend mode="normal" in2="effect1_innerShadow_187_19297" result="effect2_innerShadow_187_19297"/>
+</filter>
+<linearGradient id="paint0_linear_187_19297" x1="30.1332" y1="2.99976" x2="30.1332" y2="36.5998" gradientUnits="userSpaceOnUse">
+<stop offset="0.439629" stop-color="#FF7465"/>
+<stop offset="1" stop-color="#FF0400"/>
+</linearGradient>
+</defs>
+</svg>
