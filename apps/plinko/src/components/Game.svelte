@@ -606,11 +606,21 @@
 					/>
 				{/if}
 
-				{#if stateGame.ballPerDrop !== 1 || stateGame.bonusRoundActive}
-					<div class="bonus-meter-wrap">
-						<BonusMeter progress={bonusMeterProgress} />
-					</div>
-				{/if}
+				<!-- Bonus meter is PERMANENTLY MOUNTED and only shown/hidden via `visibility` (see
+				     `--hidden` below). It must never be `{#if}`-unmounted on a Ball-Per-Drop change: the
+				     meter is a Pixi/WebGL surface, and destroying + recreating its canvas on toggle makes a
+				     freshly-created (or torn-down) canvas composite as an opaque WHITE box for a frame on
+				     slower GPUs — the recurring QA-only white flash. Kept mounted, it's created once at load
+				     (behind the intro loader; default tier is 10) and thereafter only flips visibility, so
+				     there is no canvas churn and no flash. The wrap is `position: absolute`, so keeping it in
+				     the DOM has no layout effect. -->
+				<div
+					class="bonus-meter-wrap"
+					class:bonus-meter-wrap--hidden={!(stateGame.ballPerDrop !== 1 ||
+						stateGame.bonusRoundActive)}
+				>
+					<BonusMeter progress={bonusMeterProgress} />
+				</div>
 
 				{#if stateGame.showWinPopup && stateGame.ballPerDrop !== 1}
 					<div class="win-overlay" role="dialog">
@@ -1147,6 +1157,14 @@
 		pointer-events: none;
 
 		z-index: 6;
+	}
+
+	/* Hidden state for the always-mounted bonus meter (1-ball tier, outside a bonus round). `visibility`
+	   — not `{#if}` — so the Pixi canvas is never destroyed/recreated on a Ball-Per-Drop toggle (that
+	   canvas churn is what flashes white on slower GPUs). The wrap is absolutely positioned, so this has
+	   no layout effect. */
+	.container .bonus-meter-wrap--hidden {
+		visibility: hidden;
 	}
 
 	.container .bonus-level-behind-game-area {

@@ -68,6 +68,13 @@ export class BonusMeterEngine {
       this.progressAnimRafId = null;
     }
     this.resizeObserver?.disconnect();
+    // Hide the canvas synchronously BEFORE tearing down the WebGL context. `app.destroy()` drops the
+    // GL context but the <canvas> can linger in the DOM for a frame or two and composite as an opaque
+    // WHITE box before it's removed — a teardown flash on slower GPUs. Hiding it first closes that gap.
+    // Defense-in-depth: with the meter kept mounted this path no longer runs on a Ball-Per-Drop toggle,
+    // only on a full teardown (page unload / orientation swap).
+    const canvas = this.app?.canvas as HTMLCanvasElement | undefined;
+    if (canvas) canvas.style.visibility = 'hidden';
     this.app?.destroy(true, { children: true, texture: false });
   }
 

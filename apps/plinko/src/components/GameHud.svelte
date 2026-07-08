@@ -414,11 +414,13 @@
 			     reserves its grid column + the row's height, so Bet / Ball per drop / Bet per ball don't
 			     shift when the meter is hidden. Only the meter INSIDE is conditionally rendered. -->
 			<div class="mobile-top-card mobile-top-card--free-spin">
-				{#if stateGame.ballPerDrop !== 1}
-					<div class="mobile-free-spin-meter">
-						<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
-					</div>
-				{/if}
+				<!-- Permanently mounted; shown/hidden via `visibility` only (see `--hidden`). Never
+				     `{#if}`-unmount the Pixi/WebGL meter on a Ball-Per-Drop change — recreating its canvas
+				     flashes white for a frame on slower GPUs. The card already reserves this grid cell, so
+				     keeping the meter mounted inside it has no layout effect. -->
+				<div class="mobile-free-spin-meter" class:mobile-free-spin-meter--hidden={stateGame.ballPerDrop === 1}>
+					<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+				</div>
 			</div>
 		</div>
 
@@ -613,13 +615,16 @@
 	</div>
 {:else}
 	<div class="game-bottom-panel">
-		{#if stateGame.ballPerDrop !== 1}
-			<div class="bp-free-spin-meter-wrap">
-				<div class="bp-free-spin-meter">
-					<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
-				</div>
+		<!-- Free-spin meter is PERMANENTLY MOUNTED and only shown/hidden via `visibility` (see
+		     `--hidden`). Never `{#if}`-unmount it on a Ball-Per-Drop change: it's a Pixi/WebGL surface,
+		     and destroying + recreating its canvas on toggle makes the freshly-created (or torn-down)
+		     canvas composite as an opaque WHITE box for a frame on slower GPUs — the recurring QA-only
+		     flash. The wrap is `position: absolute`, so keeping it mounted has no layout effect. -->
+		<div class="bp-free-spin-meter-wrap" class:bp-free-spin-meter-wrap--hidden={stateGame.ballPerDrop === 1}>
+			<div class="bp-free-spin-meter">
+				<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
 			</div>
-		{/if}
+		</div>
 
 		<div class="bottom-panel-form">
 			<div class="bottom-panel-chrome">

@@ -91,9 +91,12 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/hamburg_menu_ico_how_to_play.png',
 	'img/close_btn.png',
 
-	// Buy Bonus — board button + modal card frame + per-tier feature art (keys mirror BUY_BONUS_TIERS).
-	// Without these the button/logos/graphics pop in on first open (fresh-launch → click Buy Bonus).
+	// Buy Bonus — board button + modal card frame + per-tier feature art (keys mirror BUY_BONUS_TIERS)
+	// + the per-card "Activate" button background. Without these the button/logos/graphics pop in on
+	// first open (fresh-launch → click Buy Bonus). NOTE: `buy-bonus-btn.png` (hyphens) is the board
+	// button; `buy_bonus_button.png` (underscores) is the modal's Activate button — both are needed.
 	'img/buy-bonus-btn.png',
+	'img/buy_bonus_button.png',
 	'img/buy_bonus_panel.png',
 	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.png`),
 ];
