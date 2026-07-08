@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
+	import { fade, scale } from 'svelte/transition';
+	import { flip } from 'svelte/animate';
+	import { backOut } from 'svelte/easing';
 	import { page } from '$app/state';
 
 	import { stateBet, stateI18n, stateUrlDerived } from 'state-shared';
@@ -34,6 +37,7 @@
 		isBetControlsLocked,
 		isGameOngoing,
 		isRapidSingleBallMode,
+		clearRapidWinToasts,
 		onBallLanded,
 		onBonusEndAnnouncementClosed,
 		onMainPlayClick,
@@ -191,6 +195,19 @@
 			stateGame.showWinPopup = false;
 		}, 3000);
 		return () => clearTimeout(timer);
+	});
+
+	// 1-ball rapid win toasts show the amount without a currency symbol — plain locale-formatted
+	// number, matching the base-game win popup.
+	const formatRapidToastAmount = (amount: number) =>
+		stateI18n.i18n.number(amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+	// Leaving the 1-ball tier clears any lingering win toasts (and cancels their fade timers) so a
+	// stale toast can't reappear when the tier is re-selected.
+	$effect(() => {
+		if (stateGame.ballPerDrop !== 1 && stateGame.rapidWinToasts.length > 0) {
+			clearRapidWinToasts();
+		}
 	});
 
 	onMount(() => {
@@ -629,6 +646,25 @@
 							<span class="win-divider"></span>
 							<strong>{winPopupAmountDisplay}</strong>
 						</div>
+					</div>
+				{/if}
+
+				<!-- 1-ball rapid tier: stacking win toasts (newest on top, max 3). Each pops in (scale),
+				     older ones slide down as new ones stack (flip), and each fades out after its TTL. -->
+				{#if stateGame.ballPerDrop === 1 && stateGame.rapidWinToasts.length > 0}
+					<div class="rapid-toast-stack" role="status" aria-live="polite">
+						{#each stateGame.rapidWinToasts as toast (toast.id)}
+							<div
+								class="rapid-toast"
+								in:scale={{ start: 0.4, opacity: 0, duration: 220, easing: backOut }}
+								out:fade={{ duration: toast.instant ? 0 : 260 }}
+								animate:flip={{ duration: 260 }}
+							>
+								<span class="rapid-toast-label">{context.i18nDerived.t('Win')}</span>
+								<span class="rapid-toast-sep"></span>
+								<span class="rapid-toast-value">{formatRapidToastAmount(toast.amount)}</span>
+							</div>
+						{/each}
 					</div>
 				{/if}
 			</div>
@@ -1364,6 +1400,107 @@
 		font-weight: 800;
 
 		color: #54f917;
+	}
+
+	/* 1-ball rapid win-toast stack. Anchored so the NEWEST toast sits at the TOP of the pirate hat, with
+	   the TOP of the stack pinned there (offset up by half a toast) so that toast pops in at the hat top
+	   and older ones slide DOWN below it (over the hat/head). `--toast-anchor-top-ratio` is the vertical
+	   position as a fraction of the game-area box; the value is layout-specific because the frame PNG
+	   fills a different share of the box on desktop vs mobile (mobile override below). `--toast-h` is
+	   fixed so the offset is exact and the flip slide has a predictable step. Sizes in `rem` (the SDK
+	   scales root font-size per device). */
+	.rapid-toast-stack {
+		--toast-anchor-top-ratio: 0.08;
+		--toast-h: 2.5rem;
+
+		position: absolute;
+
+		left: 50%;
+
+		top: calc(var(--toast-anchor-top-ratio) * 100%);
+
+		/* Pin the stack's top-centre so slot 0 is centred on the anchor; the stack grows downward. */
+		transform: translate(-50%, calc(var(--toast-h) / -2));
+
+		display: flex;
+
+		flex-direction: column;
+
+		align-items: center;
+
+		gap: 0.45rem;
+
+		z-index: 21;
+
+		pointer-events: none;
+	}
+
+	/* Portrait/mobile: the frame PNG fills more of the box, so a smaller ratio lands on the same spot
+	   (top of the pirate hat) as the desktop value above. */
+	.game-root--mobile .rapid-toast-stack {
+		--toast-anchor-top-ratio: 0.07;
+	}
+
+	.rapid-toast {
+		box-sizing: border-box;
+
+		/* Horizontal rectangle: "Win" on the left, a vertical divider, then the value on the right. */
+		display: flex;
+
+		flex-direction: row;
+
+		align-items: center;
+
+		justify-content: center;
+
+		gap: 0.7rem;
+
+		height: var(--toast-h);
+
+		padding: 0 1.05rem;
+
+		white-space: nowrap;
+
+		/* Same dark radial fill + green gradient border as the win card (two-layer background trick),
+		   scaled down for the toast. */
+		background:
+			radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%) padding-box,
+			linear-gradient(135deg, #9dff5c 0%, #54f917 30%, #2f7d10 62%, #14480a 100%) border-box;
+
+		border: 0.22rem solid transparent;
+
+		border-radius: 0.5rem;
+	}
+
+	.rapid-toast-label {
+		color: #54f917;
+
+		font-size: 1rem;
+
+		font-weight: 700;
+
+		line-height: 1;
+	}
+
+	/* Vertical divider between "Win" and the value. */
+	.rapid-toast-sep {
+		width: 2px;
+
+		height: 1.15rem;
+
+		border-radius: 999px;
+
+		background: rgba(255, 255, 255, 0.45);
+	}
+
+	.rapid-toast-value {
+		color: #54f917;
+
+		font-size: 1.05rem;
+
+		font-weight: 800;
+
+		line-height: 1;
 	}
 
 	/* Replay mode — floating badge + Play Again (top center). */

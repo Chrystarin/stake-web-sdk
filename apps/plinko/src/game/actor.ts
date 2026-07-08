@@ -1,7 +1,11 @@
 import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet } from 'state-shared';
 import { createPrimaryMachines, createIntermediateMachines, createGameActor } from 'utils-xstate';
-import { getRgsErrorBalanceApiAmount, isInsufficientBalanceError } from 'utils-shared/rgsError';
+import {
+	getRgsErrorBalanceApiAmount,
+	isActiveRoundError,
+	isInsufficientBalanceError,
+} from 'utils-shared/rgsError';
 
 import { stateGame } from './stateGame.svelte';
 import { canAffordPlinkoWager, syncPlinkoPlayAmountFromBetLevels } from './plinkoBet';
@@ -25,12 +29,6 @@ import { releaseRoundInteractionLocks } from './meterFlow';
 import { playBet } from './bookEventHandlerMap';
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import { installPlinkoDevDebug } from './devDebug';
-
-function isActiveRoundPlayError(error: unknown): boolean {
-	const payload = error as { error?: string; message?: string } | undefined;
-	const message = String(payload?.message ?? error ?? '').toLowerCase();
-	return payload?.error === 'ERR_VAL' && message.includes('active round');
-}
 
 const primaryMachines = createPrimaryMachines<Bet>({
 	// MUST stay synchronous: the shared `resumeGame` does `bet: onResumeGameActive(betToResume)`
@@ -91,7 +89,7 @@ const primaryMachines = createPrimaryMachines<Bet>({
 				error: payload,
 			});
 		}
-		if (isActiveRoundPlayError(error)) {
+		if (isActiveRoundError(error)) {
 			await closeActiveRgsRound();
 		}
 	},

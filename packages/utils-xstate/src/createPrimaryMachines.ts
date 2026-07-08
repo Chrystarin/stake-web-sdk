@@ -3,7 +3,11 @@ import { fromPromise } from 'xstate';
 import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet, stateUrlDerived, stateModal } from 'state-shared';
 import { requestBet, requestEndRound } from 'rgs-requests';
-import { isInsufficientBalanceError } from 'utils-shared/rgsError';
+import {
+	isActiveRoundError,
+	isInsufficientBalanceError,
+	isRateLimitError,
+} from 'utils-shared/rgsError';
 
 import type { BaseBet } from './types';
 
@@ -49,9 +53,15 @@ const handleRequestBet = async ({
 		// play the client believed affordable is refused. Surface the friendly "insufficient funds"
 		// message and let the game re-sync its balance, instead of the fatal "something went wrong"
 		// error modal that interrupts the session.
-		stateModal.modal = isInsufficientBalanceError(error)
-			? { name: 'autoSpinMessage', message: 'insufficientFunds' }
-			: { name: 'error', error };
+		if (isInsufficientBalanceError(error)) {
+			stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientFunds' };
+		} else if (!isRateLimitError(error) && !isActiveRoundError(error)) {
+			// Fatal only for genuinely unexpected errors. A rate-limit burst (already retried in
+			// `rgsFetcher`) or an "active round" left by a dropped end-round is transient/recoverable:
+			// the game's `onError` performs any recovery (e.g. closing the stuck round) and the next
+			// bet self-heals — so DON'T pop the fatal "something went wrong" modal for those.
+			stateModal.modal = { name: 'error', error };
+		}
 		console.error(error);
 		throw error;
 	}

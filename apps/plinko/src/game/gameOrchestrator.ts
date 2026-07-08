@@ -784,6 +784,48 @@ function maybeReleaseRapidBalanceShadow() {
 	stateGame.rapidBalanceShadow = null;
 }
 
+/** 1-ball rapid tier: each paying drop shows a "Win | value" toast that pops in, then slides down as
+ * newer ones stack on top (newest first), fading out after its TTL. Capped to 3; a mode switch clears
+ * them via `clearRapidWinToasts`. The stack + animations live in Game.svelte. */
+const RAPID_WIN_TOAST_MAX = 3;
+const RAPID_WIN_TOAST_TTL_MS = 2600;
+let rapidWinToastSeq = 0;
+const rapidWinToastTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+function forgetRapidWinToastTimer(id: number) {
+	const timer = rapidWinToastTimers.get(id);
+	if (timer) clearTimeout(timer);
+	rapidWinToastTimers.delete(id);
+}
+
+function dismissRapidWinToast(id: number) {
+	forgetRapidWinToastTimer(id);
+	stateGame.rapidWinToasts = stateGame.rapidWinToasts.filter((toast) => toast.id !== id);
+}
+
+export function pushRapidWinToast(amount: number) {
+	const id = ++rapidWinToastSeq;
+	let next = [{ id, amount, instant: false }, ...stateGame.rapidWinToasts];
+	// Cap the stack at 3. The oldest (tail) entries are force-dropped: flag them `instant` so they
+	// leave WITHOUT the fade (else, when drops bunch up faster than the 260ms fade, the fading ones
+	// pile up past 3 on screen), and cancel their pending time-up timers.
+	if (next.length > RAPID_WIN_TOAST_MAX) {
+		next.slice(RAPID_WIN_TOAST_MAX).forEach((toast) => {
+			toast.instant = true;
+			forgetRapidWinToastTimer(toast.id);
+		});
+		next = next.slice(0, RAPID_WIN_TOAST_MAX);
+	}
+	stateGame.rapidWinToasts = next;
+	rapidWinToastTimers.set(id, setTimeout(() => dismissRapidWinToast(id), RAPID_WIN_TOAST_TTL_MS));
+}
+
+export function clearRapidWinToasts() {
+	rapidWinToastTimers.forEach((timer) => clearTimeout(timer));
+	rapidWinToastTimers.clear();
+	if (stateGame.rapidWinToasts.length > 0) stateGame.rapidWinToasts = [];
+}
+
 export function onBallLanded(
 	ballId: number,
 	multiplier: number,
@@ -829,6 +871,11 @@ export function onBallLanded(
 		}
 		if (stateGame.rapidBalanceShadow !== null) {
 			stateGame.rapidBalanceShadow += landCredit.win;
+		}
+		// Rapid 1-ball tier shows each paying drop as a stacking "Win | value" toast (max 3), revealed
+		// as the ball lands rather than on the settling click — see the toast stack in Game.svelte.
+		if (landCredit.win > 0) {
+			pushRapidWinToast(landCredit.win);
 		}
 	} else {
 		if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {

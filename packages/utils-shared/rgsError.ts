@@ -10,6 +10,8 @@
 type RgsErrorLike = {
 	error?: unknown;
 	statusCode?: string;
+	/** HTTP status attached by `rgsFetcher` when a non-JSON error body is wrapped (e.g. 429). */
+	httpStatus?: number;
 	message?: string;
 	status?: { statusCode?: string; statusMessage?: string };
 	balance?: { amount?: number };
@@ -45,4 +47,33 @@ export function isInsufficientBalanceError(error: unknown): boolean {
 export function getRgsErrorBalanceApiAmount(error: unknown): number | undefined {
 	const amount = asRecord(error).balance?.amount;
 	return typeof amount === 'number' && Number.isFinite(amount) ? amount : undefined;
+}
+
+/**
+ * True when the request was rejected because the client is sending too fast (HTTP 429). Recognises the
+ * structured wrapper `rgsFetcher` builds for a non-JSON 429 body (`httpStatus: 429` / `ERR_RATE_LIMIT`)
+ * as well as a plain "Too Many Requests" message. This is transient and safe to retry/ignore.
+ */
+export function isRateLimitError(error: unknown): boolean {
+	const e = asRecord(error);
+	if (e.httpStatus === 429) return true;
+	const code = getRgsErrorStatusCode(error);
+	if (code.includes('RATE_LIMIT') || code.includes('HTTP_429') || code === '429') return true;
+	const haystack = `${code} ${String(e.message ?? '')} ${String(
+		e.status?.statusMessage ?? '',
+	)}`.toUpperCase();
+	return haystack.includes('TOO MANY REQUESTS') || haystack.includes('RATE LIMIT');
+}
+
+/**
+ * True when the RGS rejected a play because the session already has an open round ("player has an
+ * active round"). Recoverable: the round can be resumed or closed and the next bet retried. Usually a
+ * downstream effect of a dropped `/wallet/end-round` (see the 429 retry in `rgsFetcher`).
+ */
+export function isActiveRoundError(error: unknown): boolean {
+	const e = asRecord(error);
+	const haystack = `${getRgsErrorStatusCode(error)} ${String(e.message ?? '')} ${String(
+		e.status?.statusMessage ?? '',
+	)}`.toLowerCase();
+	return haystack.includes('active round');
 }

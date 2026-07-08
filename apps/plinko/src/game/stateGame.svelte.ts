@@ -31,6 +31,10 @@ export type HistoryEntry = {
 	chips: HistoryChip[];
 };
 export type InfoModalTab = 'rules' | 'fair' | 'history' | 'howToPlay';
+/** One entry in the 1-ball rapid win-toast stack (newest first, capped to 3). `instant` marks a toast
+ * force-dropped by the 3-cap so it's removed WITHOUT the fade (only a natural time-up dismissal fades),
+ * which keeps at most 3 visible even when drops bunch up faster than the fade. */
+export type RapidWinToast = { id: number; amount: number; instant: boolean };
 export type MsgBoxConfig = {
 	text: string;
 	confirmText?: string;
@@ -134,6 +138,9 @@ export const stateGame = $state({
 	showWinPopup: false,
 	winPopupAmount: 0,
 	winPopupMultiplier: 0,
+	/** 1-ball rapid tier: stacking win toasts (newest first, max 3). Managed by the gameOrchestrator
+	 * toast helpers (`pushRapidWinToast` / `clearRapidWinToasts`); rendered in Game.svelte. */
+	rapidWinToasts: [] as RapidWinToast[],
 	/** Landed free-spin segment multiplier applied to the round win (e.g. 5 for `5X`). */
 	freeSpinWinMultiplier: 0,
 	/** Base drop win snapshotted when the free-spin wheel opens (before applying segment multiplier). */
