@@ -72,7 +72,7 @@
 									aria-hidden="true"
 								/>
 								<span class="bb-activate-text">
-									{affordable ? `Activate ${formatMoney(price)}` : 'Low balance'}
+									{#if affordable}Activate <span class="bb-price">{formatMoney(price)}</span>{:else}Low balance{/if}
 								</span>
 							</button>
 						</div>
@@ -233,6 +233,11 @@
 	}
 
 	.bb-free {
+		/* Numbers use Poppins Black (900) — the heaviest weight in the project and a clean geometric sans
+		 * that reads as a thicker cousin of the PotatoSans "FREE BALLS" label beside it. Already registered
+		 * and preloaded (see +layout.svelte / preloadAssets.ts), so no faux-bold and no first-open FOUT. */
+		font-family: 'Poppins', sans-serif;
+		font-weight: 900;
 		/* Gold gradient fill clipped to the glyphs (reference design); the "FREE BALLS" label stays white. */
 		background: linear-gradient(180deg, #f5b936 0%, #ebad26 56.7%, #d18a16 81.67%);
 		-webkit-background-clip: text;
@@ -301,6 +306,14 @@
 			-1px -1px 0 #000000,
 			0 2px 2px rgba(0, 0, 0, 0.6);
 		white-space: nowrap;
+	}
+
+	.bb-price {
+		/* Poppins Bold (700) — lighter than the free-ball number's Black (900) so the price doesn't
+		 * overpower the small "Activate" label. 700 is a real registered face (no faux-weight).
+		 * Keeps the white fill + black outline/shadow inherited from .bb-activate-text for legibility. */
+		font-family: 'Poppins', sans-serif;
+		font-weight: 700;
 	}
 
 	.bb-activate:hover:not(:disabled) {

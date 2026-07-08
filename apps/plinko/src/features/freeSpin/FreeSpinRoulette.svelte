@@ -57,9 +57,9 @@
 	};
 
 	// ⚠️ DEBUG ONLY — extra delay (ms) before the wheel starts spinning, so the assembled layout can be
-	// inspected first. Set back to `0` before shipping. Added on top of the normal pre-spin delay (~0.52s),
-	// so 6480 ≈ the wheel spins 7s after it appears (pairs with DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD in Game.svelte).
-	const DEBUG_SPIN_DELAY_MS = 6480;
+	// inspected first. Must be `0` when shipping. Added on top of the normal pre-spin delay (~0.52s),
+	// so e.g. 6480 ≈ the wheel spins 7s after it appears (pairs with DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD in Game.svelte).
+	const DEBUG_SPIN_DELAY_MS = 0;
 
 	// ─── Reassembled free-spin wheel ────────────────────────────────────────────────────────────────
 	// Composited at runtime from the blank copper disc `free_spin_roulette_empty.png` plus one value-wedge

@@ -251,7 +251,7 @@
 			// DEBUG_KEEP_OPEN: hold the assembled roulette on screen — skip the spin (and the announcement
 			// it leads into) so the layout stays visible for inspection.
 			if (DEBUG_KEEP_OPEN) return;
-			const spinTimer = setTimeout(() => startSpin(), 760 + DEBUG_SPIN_DELAY_MS);
+			const spinTimer = setTimeout(() => startSpin(), 360 + DEBUG_SPIN_DELAY_MS);
 			timers.push(spinTimer);
 		}, 620);
 		timers.push(assembleTimer);
