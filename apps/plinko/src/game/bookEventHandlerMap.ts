@@ -367,9 +367,12 @@ export const playBet = async (bet: Bet) => {
 	resetWinReconciliation();
 	stateGame.pendingDropWinAmount = 0;
 	stateGame.baseRoundDropWinAmount = 0;
-	// Rapid 1-ball mode keeps the last landed ball's win on screen until the NEXT ball reaches a slot,
-	// so don't blank the Win field at bet time (it's set on land in `onBallLanded`).
-	if (!isRapidSingleBallMode()) stateGame.winAmount = 0;
+	// Blank the Win field at bet time so every new drop starts from €0.00. The value is re-shown
+	// only when the ball lands (`onBallLanded` reveals each ball's stashed win). This applies in
+	// rapid 1-ball mode too: pressing Bet must clear the previous ball's win immediately rather than
+	// leaving it on screen while the freshly dropped ball is still falling. The pending win lives in
+	// `outcomeLandCredit` (a WeakMap keyed on the outcome), so this reset never drops it.
+	stateGame.winAmount = 0;
 	stateGame.deferWinPopupForFreeSpin = false;
 	// Per-round feature flags MUST reset each bet, otherwise `syncSpinMeterAfterBet` /
 	// `syncBonusMeterAfterBet` keep treating every later bet as "feature consumed" and wipe the
