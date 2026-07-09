@@ -11,7 +11,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.gameType = bookEvent.gameType;
 		stateGame.matchCount = bookEvent.selectedCount;
 		stateGame.resultReady = false;
-		const colours = resolveDiceColours(bookEvent.dice, stateGame.selectedColour);
+		const colours = resolveDiceColours(bookEvent.dice, stateGame.primaryColour);
 		await eventEmitter.broadcastAsync({
 			type: 'diceReveal',
 			colours,
