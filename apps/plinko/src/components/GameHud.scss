@@ -527,16 +527,19 @@
 		pointer-events: none;
 	}
 
-	&:hover:not(:disabled) {
+	&:hover:not(:disabled):not(.bp-btn-play--soft-disabled) {
 		transform: scale(1.04);
 		filter: drop-shadow(0 0.38vw 0.62vw rgba(0, 0, 0, 0.4));
 	}
 
-	&:active:not(:disabled) {
+	&:active:not(:disabled):not(.bp-btn-play--soft-disabled) {
 		transform: scale(0.98);
 	}
 
-	&:disabled {
+	&:disabled,
+	// Greyed out only for insufficient balance: looks disabled but stays clickable so a press can
+	// surface the "Insufficient Balance" toast (a native `disabled` button fires no click event).
+	&--soft-disabled {
 		// Disabled = low opacity.
 		opacity: 0.6;
 		cursor: not-allowed;
@@ -930,11 +933,14 @@
 		pointer-events: none;
 	}
 
-	&:active:not(:disabled) {
+	&:active:not(:disabled):not(.mobile-icon-btn--soft-disabled) {
 		transform: scale(0.97);
 	}
 
-	&:disabled {
+	&:disabled,
+	// Greyed out only for insufficient balance: looks disabled but stays clickable so the tap can
+	// surface the "Insufficient Balance" toast (a native `disabled` button fires no click event).
+	&--soft-disabled {
 		// Disabled = low opacity.
 		opacity: 0.6;
 		cursor: not-allowed;

@@ -17,6 +17,7 @@
 		isPlayActionBlockedByFreeSpinRoulette,
 		isRapidSingleBallMode,
 		isReplayMode,
+		showToast,
 		startAutoBet,
 		stopAutoBet,
 	} from '../game/gameOrchestrator';
@@ -26,6 +27,7 @@
 		plinkoMinStakePerBall,
 		plinkoStakePerBallOptions,
 		plinkoStakePerBallSteps,
+		plinkoWagerAmount,
 	} from '../game/plinkoBet';
 	import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
@@ -129,15 +131,24 @@
 				),
 	);
 
-	const playDisabledMain = $derived(
+	// Disable reasons OTHER than "can't afford the wager". The affordability reason is split out so a
+	// click on a button greyed out PURELY for insufficient balance can still surface a toast — a
+	// natively `disabled` button fires no click event at all, so it must stay clickable for that.
+	const playDisabledMainOther = $derived(
 		props.playDisabled ||
-			!canAffordPlinkoWager() ||
 			isPlayActionBlockedByBonusRoulette() ||
 			isPlayActionBlockedByFreeSpinRoulette(),
 	);
 
-	/** Same disabled state as the visible play / stop / bonus-play button (and Space). */
-	const isPlayButtonDisabled = $derived(
+	// The wager is a real (>0) bet the player can't afford — the sole "insufficient balance" reason.
+	const wagerUnaffordable = $derived(plinkoWagerAmount() > 0 && !canAffordPlinkoWager());
+
+	/**
+	 * HARD-disabled: block the play action outright (round running, locks, level-up overlay, roulette,
+	 * zero bet, …) — every reason EXCEPT insufficient balance. These buttons get the native `disabled`
+	 * attribute.
+	 */
+	const isPlayButtonHardDisabled = $derived(
 		// The Level-Up reward popup (e.g. "LEVEL 2 / +20 FREE BALLS") is a transient full-screen overlay
 		// with pointer-events:none, so clicks fall through and Space still fires. Block the play action
 		// for its whole on-screen life (open → fade-out) so a bet can't be queued behind the transition.
@@ -145,8 +156,18 @@
 			(props.hasPendingBonusBalls
 				? bonusPlayDisabled
 				: props.autoMode && !props.autoPlayStarted
-					? playDisabledMain || props.betAmount <= 0
-					: playDisabledMain),
+					? playDisabledMainOther || props.betAmount <= 0
+					: playDisabledMainOther),
+	);
+
+	/**
+	 * SOFT-disabled: the button is greyed out ONLY because the wager exceeds the spendable balance. It
+	 * stays clickable (no native `disabled`) but is styled disabled, so a click / Space shows the
+	 * "Insufficient Balance" toast instead of placing a bet. Not applicable to the free bonus-ball drop
+	 * (its wager is 0).
+	 */
+	const isPlayButtonSoftInsufficient = $derived(
+		!isPlayButtonHardDisabled && !props.hasPendingBonusBalls && wagerUnaffordable,
 	);
 
 	// True while a bet is being submitted or its balls are in flight, back to false the moment the
@@ -304,13 +325,25 @@
 	}
 
 	function onAutoGameStartClick() {
-		if (props.betAmount <= 0 || playDisabledMain) return;
+		if (isPlayButtonHardDisabled) return;
+		// Greyed out only for insufficient balance: surface the toast instead of arming Autobet.
+		if (isPlayButtonSoftInsufficient) {
+			showToast('Insufficient Balance');
+			return;
+		}
+		if (props.betAmount <= 0) return;
 		startAutoBet(() => props.onPlay());
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
 	}
 
 	function onMainActionClick() {
-		if (isPlayButtonDisabled) return;
+		if (isPlayButtonHardDisabled) return;
+		// The button is greyed out purely because the total bet exceeds the balance — a click still
+		// lands here (it is not natively `disabled`), so tell the player why instead of betting.
+		if (isPlayButtonSoftInsufficient) {
+			showToast('Insufficient Balance');
+			return;
+		}
 		// While a mid-Autobet bonus terminates the run the main button is the (bonus / plain) Play button,
 		// never the Autobet stop — so don't treat a press as "stop autobet".
 		if (props.hasPendingBonusBalls || !props.autoMode || autoBetStopping) {
@@ -336,7 +369,9 @@
 	 * (e.g. the bet-preset opener) — so Space doesn't both open that control and fire a bet.
 	 */
 	function onSpacePlay() {
-		if (isPlayButtonDisabled) return;
+		// Hard-disabled blocks Space entirely; the soft insufficient-balance case falls through to
+		// onMainActionClick, which shows the toast (keeping Space consistent with a click).
+		if (isPlayButtonHardDisabled) return;
 		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
 		if (document.activeElement?.getAttribute('role') === 'button') return;
 		onMainActionClick();
@@ -398,7 +433,7 @@
 	});
 </script>
 
-<OnHotkey hotkey="Space" disabled={isPlayButtonDisabled} onpress={onSpacePlay} />
+<OnHotkey hotkey="Space" disabled={isPlayButtonHardDisabled} onpress={onSpacePlay} />
 
 {#snippet bettingFieldFrame()}
 	<img
@@ -471,8 +506,10 @@
 				type="button"
 				class="mobile-icon-btn mobile-icon-btn--play"
 				class:mobile-icon-btn--play-loading={showPlayLoading}
-				disabled={isPlayButtonDisabled}
+				class:mobile-icon-btn--soft-disabled={isPlayButtonSoftInsufficient}
+				disabled={isPlayButtonHardDisabled}
 				aria-label="Bet"
+				aria-disabled={isPlayButtonSoftInsufficient}
 				aria-busy={showPlayLoading}
 				onclick={onMainActionClick}
 			>
@@ -789,10 +826,12 @@
 							type="button"
 							class="bp-btn-play"
 							class:bp-btn-play--loading={showPlayLoading}
-							disabled={isPlayButtonDisabled}
+							class:bp-btn-play--soft-disabled={isPlayButtonSoftInsufficient}
+							disabled={isPlayButtonHardDisabled}
 							aria-label="Bet"
+							aria-disabled={isPlayButtonSoftInsufficient}
 							aria-busy={showPlayLoading}
-							onclick={props.onPlay}
+							onclick={onMainActionClick}
 						>
 							{#if showPlayLoading}
 								<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
@@ -840,8 +879,10 @@
 						<button
 							type="button"
 							class="bp-btn-play bp-btn-play--narrow"
-							disabled={isPlayButtonDisabled}
+							class:bp-btn-play--soft-disabled={isPlayButtonSoftInsufficient}
+							disabled={isPlayButtonHardDisabled}
 							aria-label="Start autobet"
+							aria-disabled={isPlayButtonSoftInsufficient}
 							onclick={onAutoGameStartClick}
 						>
 							<img src={staticUrl('img/play-btn.png')} alt="" aria-hidden="true" />
