@@ -4,6 +4,7 @@
 	import { buyBonusPrice, canAffordBuyBonus } from '../game/plinkoBet';
 	import { BUY_BONUS_TIERS, type BuyBonusTier } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
+	import { currencySign as currencySignFor } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
@@ -14,7 +15,7 @@
 
 	const props: Props = $props();
 
-	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
+	const currencySign = $derived(currencySignFor(stateBet.currency));
 
 	function formatMoney(value: number) {
 		return `${currencySign}${value.toLocaleString('en-US', {
@@ -35,7 +36,12 @@
 
 {#if stateGame.buyBonusModalOpen}
 	<div class="bb-backdrop" role="presentation" onclick={close}>
-		<div class="bb-modal" role="dialog" aria-label="Buy Plinko Bonus" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="bb-modal"
+			role="dialog"
+			aria-label="Buy Plinko Bonus"
+			onclick={(e) => e.stopPropagation()}
+		>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
 				<img src={staticUrl('img/close_btn.png')} alt="" aria-hidden="true" />
 			</button>
@@ -47,7 +53,12 @@
 					{@const price = buyBonusPrice(tier.key)}
 					{@const affordable = canAffordBuyBonus(tier.key)}
 					<div class="bb-card">
-						<img class="bb-card-frame" src={staticUrl('img/buy_bonus_panel.png')} alt="" aria-hidden="true" />
+						<img
+							class="bb-card-frame"
+							src={staticUrl('img/buy_bonus_panel.png')}
+							alt=""
+							aria-hidden="true"
+						/>
 						<div class="bb-card-inner">
 							<h3 class="bb-card-title">{tier.name}</h3>
 							<p class="bb-card-desc">{tier.tagline}</p>
@@ -58,7 +69,9 @@
 								alt=""
 								aria-hidden="true"
 							/>
-							<div class="bb-card-total"><span class="bb-free">{tier.freeBalls}</span> Free Balls</div>
+							<div class="bb-card-total">
+								<span class="bb-free">{tier.freeBalls}</span> Free Balls
+							</div>
 							<button
 								type="button"
 								class="bb-activate"
@@ -72,7 +85,8 @@
 									aria-hidden="true"
 								/>
 								<span class="bb-activate-text">
-									{#if affordable}Activate <span class="bb-price">{formatMoney(price)}</span>{:else}Low balance{/if}
+									{#if affordable}Activate <span class="bb-price">{formatMoney(price)}</span
+										>{:else}Low balance{/if}
 								</span>
 							</button>
 						</div>
@@ -251,8 +265,7 @@
 		 * element's background layer (behind), while text-shadow paints in the text layer (in front), so a
 		 * text-shadow lands ON TOP of the gradient. drop-shadow composites the shadow behind the rendered
 		 * glyphs, matching the reference (shadow behind the number). */
-		filter:
-			drop-shadow(0px 2.42262px 2.42262px #000000)
+		filter: drop-shadow(0px 2.42262px 2.42262px #000000)
 			drop-shadow(0.605655px 1.21131px 0px #000000)
 			drop-shadow(0px 0px 12px rgba(237, 176, 42, 0.6));
 	}

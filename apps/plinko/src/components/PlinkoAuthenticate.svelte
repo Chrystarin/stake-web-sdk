@@ -22,6 +22,10 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 
 	const props: Props = $props();
 
+	// Set once the launch stake has been seeded, so the RGS `defaultBetLevel` is adopted only on the
+	// first fresh-session seed and never clobbers the player's later stake changes.
+	let hasSeededInitialStake = false;
+
 	const useLocalDevSession = $derived.by(() => {
 		if (!import.meta.env.DEV) return false;
 		// Replay must always go through the shared Authenticate (which fetches the replay book), even in
@@ -80,7 +84,20 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 
 		syncPlinkoBetModeFromUi();
 
-		if (stateBet.betAmount <= 0) {
+		// Latch on the first real seed (past the round-in-progress guard) so the default-bet adoption
+		// below only ever happens once — later reactive re-runs respect the player's own stake choice.
+		const isFirstSeed = !hasSeededInitialStake;
+		hasSeededInitialStake = true;
+
+		// FIRST launch of a fresh session (no active round to resume): take the starting bet straight
+		// from the RGS `defaultBetLevel` (populated by Authenticate from `/wallet/authenticate`) rather
+		// than the shared placeholder stake, which defaults every currency to 1.00. The value is used
+		// as-is — it is already a valid, per-currency `betLevels` entry from the RGS, so it is not
+		// derived or clamped here. Gated to fresh launches only: a resumed round already has its amount
+		// applied by Authenticate, and dev/no-default sessions fall through to the existing snap logic.
+		if (isFirstSeed && !stateBet.betToResume && stateConfig.defaultBetLevel > 0) {
+			stateBet.betAmount = stateConfig.defaultBetLevel;
+		} else if (stateBet.betAmount <= 0) {
 			stateBet.betAmount = pickAffordableStakePerBall();
 		} else {
 			const maxPerBall = maxAffordableStakePerBall() || stateBet.betAmount;

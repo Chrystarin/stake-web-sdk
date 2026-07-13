@@ -36,6 +36,25 @@ export function loadPlinkoSound(name: SoundEffectName, url: string): void {
 	}
 }
 
-export function playPlinkoSound(name: SoundEffectName): void {
-	howls.get(name)?.play();
+export function playPlinkoSound(name: SoundEffectName, rate = 1): void {
+	const howl = howls.get(name);
+	if (!howl) return;
+	const id = howl.play();
+	// Per-instance rate so overlapping plays (a 50-ball drop) each keep their own pitch. Rate
+	// doubles = one octave up; leave the default untouched so a plain play() is unchanged.
+	if (id != null && rate !== 1) {
+		howl.rate(rate, id);
+	}
+}
+
+/**
+ * Map a landed pocket multiplier to a playback rate so the 'pocket' sound is higher-pitched on
+ * bigger payouts. Logarithmic because board multipliers span a huge, low-clustered range
+ * (0×–100×, up to ~600× in buy modes) — a linear map would leave every low pocket sounding
+ * identical. Clamped to Howler's safe rate window. mult 0 → ~0.85 (low), 5 → ~1.26,
+ * 100 → ~1.9, and it keeps climbing gently past the top board value.
+ */
+export function pocketPitchForMultiplier(multiplier: number): number {
+	const rate = 0.85 + 0.2275 * Math.log(1 + Math.max(0, multiplier));
+	return Math.min(2.4, Math.max(0.5, rate));
 }

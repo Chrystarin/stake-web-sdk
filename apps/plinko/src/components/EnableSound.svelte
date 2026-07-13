@@ -30,9 +30,9 @@
 	});
 
 	context.eventEmitter.subscribeOnMount({
-		soundOnce: ({ name }) => {
+		soundOnce: ({ name, rate }) => {
 			if (!stateGame.soundEnabled) return;
-			playPlinkoSound(name as SoundEffectName);
+			playPlinkoSound(name as SoundEffectName, rate ?? 1);
 		},
 	});
 </script>

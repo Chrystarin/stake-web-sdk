@@ -69,7 +69,12 @@
 
 	import { isPlinkoOffline } from '../game/plinkoConnection';
 
-	import { isPortraitGameLayout } from '../lib/format';
+	import {
+		displayCurrency,
+		isPortraitGameLayout,
+		WIN_FRACTION_DIGITS,
+		formatWinAmount,
+	} from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 
 	import Background from './Background.svelte';
@@ -178,13 +183,11 @@
 			: 0,
 	);
 
-	// Win popup shows the amount without the currency symbol — plain locale-formatted
-	// number (thousands separators + 2 decimals), no currency icon.
+	// Win popup shows the amount without the currency symbol — plain locale-formatted number
+	// (thousands separators, up to 4 decimals so tiny wins on low bets aren't rounded to 0.00),
+	// no currency icon.
 	const winPopupAmountDisplay = $derived(
-		stateI18n.i18n.number(stateGame.winPopupAmount, {
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2,
-		}),
+		stateI18n.i18n.number(stateGame.winPopupAmount, WIN_FRACTION_DIGITS),
 	);
 
 	$effect(() => {
@@ -198,9 +201,9 @@
 	});
 
 	// 1-ball rapid win toasts show the amount without a currency symbol — plain locale-formatted
-	// number, matching the base-game win popup.
+	// number, matching the base-game win popup (up to 4 decimals for tiny wins on low bets).
 	const formatRapidToastAmount = (amount: number) =>
-		stateI18n.i18n.number(amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		stateI18n.i18n.number(amount, WIN_FRACTION_DIGITS);
 
 	// Leaving the 1-ball tier clears any lingering win toasts (and cancels their fade timers) so a
 	// stale toast can't reappear when the tier is re-selected.
@@ -633,8 +636,9 @@
 				     the DOM has no layout effect. -->
 				<div
 					class="bonus-meter-wrap"
-					class:bonus-meter-wrap--hidden={!(stateGame.ballPerDrop !== 1 ||
-						stateGame.bonusRoundActive)}
+					class:bonus-meter-wrap--hidden={!(
+						stateGame.ballPerDrop !== 1 || stateGame.bonusRoundActive
+					)}
 				>
 					<BonusMeter progress={bonusMeterProgress} />
 				</div>
@@ -715,7 +719,9 @@
 		<BonusRoulette
 			mode="message"
 			messageTitle="WIN"
-			messageValue="{stateGame.bonusEndWinAmount.toFixed(2)} {stateBet.currency}"
+			messageValue="{formatWinAmount(stateGame.bonusEndWinAmount)} {displayCurrency(
+				stateBet.currency,
+			)}"
 			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
 			autoDismiss={isReplay}
 			onClosed={onBonusEndAnnouncementClosed}

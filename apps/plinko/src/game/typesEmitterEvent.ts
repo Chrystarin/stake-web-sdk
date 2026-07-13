@@ -34,6 +34,8 @@ export type EmitterEventFreeSpin = {
 export type EmitterEventSound = {
 	type: 'soundOnce';
 	name: string;
+	/** Optional playback rate (pitch). Used to pitch the 'pocket' sound up on higher multipliers. */
+	rate?: number;
 };
 
 export type EmitterEventBonusBall = {

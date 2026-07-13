@@ -61,26 +61,62 @@ export const formatCompactAmount = (value: number): string => {
 };
 
 /**
- * Win-amount label for the result popup. Normally shows 2 decimals, but a tiny win that would
- * round to `0.00` at 2 decimals (e.g. 0.0025) is instead shown with enough decimals to reveal its
- * first two significant digits (→ `0.0025`), so the player can actually see what they won.
+ * Fraction-digit config for win / payout amounts. Per spec these show up to 4 decimals: the
+ * standard 2 decimals for normal wins, expanding as far as 4 so a tiny win on a low bet
+ * (e.g. a 0.005 win on a $0.01 stake) is shown as `0.0050` instead of being rounded away to
+ * `0.00`. Balances, bets and other currency values stay at 2 decimals (see `formatAmount`).
+ */
+export const WIN_FRACTION_DIGITS = {
+	minimumFractionDigits: 2,
+	maximumFractionDigits: 4,
+} as const;
+
+/**
+ * Win-amount label for the result popup. Shows the standard 2 decimals, expanding up to 4 so a
+ * tiny win that would round to `0.00` at 2 decimals (e.g. 0.0025 → `0.0025`) stays visible.
  */
 export const formatResultAmount = (value: number): string => {
 	if (value == null || Number.isNaN(value)) return '0.00';
-	// Only expand when 2-decimal rounding hides a genuinely non-zero win.
-	if (value !== 0 && Number(value.toFixed(2)) === 0) {
-		// Position of the first significant digit (0.0025 → 3), + 1 to keep two significant figures.
-		const decimals = Math.min(20, -Math.floor(Math.log10(Math.abs(value))) + 1);
-		return value.toFixed(decimals);
-	}
-	return value.toFixed(2);
+	return value.toLocaleString('en-US', WIN_FRACTION_DIGITS);
 };
 
+/**
+ * Social-casino currencies arrive from the RGS as `XSC` / `XGC`, but jurisdiction rules require
+ * them to be shown as `SC` / `GC` (the leading `X` is dropped). These codes only ever appear in
+ * Social Mode, so the remap is unconditional — every other currency is returned unchanged.
+ */
+const DISPLAY_CURRENCY_MAP: Record<string, string> = {
+	XSC: 'SC',
+	XGC: 'GC',
+};
+
+/** Player-facing currency code — remaps Social Mode `XSC`/`XGC` to `SC`/`GC`. */
+export const displayCurrency = (currency: string): string =>
+	DISPLAY_CURRENCY_MAP[currency] ?? currency;
+
+/**
+ * Currency prefix for amount labels: `$` for USD, otherwise the (display-remapped) currency code
+ * followed by a space — e.g. `SC 1.00`. Use everywhere an amount is shown with its currency.
+ */
+export const currencySign = (currency: string): string =>
+	currency === 'USD' ? '$' : `${displayCurrency(currency)} `;
+
+/** Balance / bet amount (up to 2 decimals). */
 export const formatAmount = (value: number, currency = ''): string => {
 	const formatted = value.toLocaleString(undefined, {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2,
 	});
+	return currency ? `${currency}${formatted}` : formatted;
+};
+
+/**
+ * Win / payout amount (up to 4 decimals — see {@link WIN_FRACTION_DIGITS}). Use this instead of
+ * `formatAmount` wherever a *win* is shown so small wins on low bets aren't rounded to `0.00`.
+ */
+export const formatWinAmount = (value: number, currency = ''): string => {
+	const n = value == null || Number.isNaN(value) ? 0 : value;
+	const formatted = n.toLocaleString('en-US', WIN_FRACTION_DIGITS);
 	return currency ? `${currency}${formatted}` : formatted;
 };
 

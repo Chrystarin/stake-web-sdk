@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { OnHotkey } from 'components-shared';
-	import { stateBet } from 'state-shared';
+	import { stateBet, stateUrlDerived } from 'state-shared';
 
 	import {
 		AUTO_BET_OPTIONS,
@@ -32,7 +32,11 @@
 	import { stateXstate } from '../game/stateXstate';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/freeSpin';
-	import { formatCompactAmount } from '../lib/format';
+	import {
+		currencySign as currencySignFor,
+		formatCompactAmount,
+		formatWinAmount,
+	} from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	import './GameHud.scss';
@@ -61,7 +65,15 @@
 	let betPresetOpen = $state(false);
 	let mobileBetPopupOpen = $state(false);
 
-	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
+	const currencySign = $derived(currencySignFor(stateBet.currency));
+	// Social Mode restricts the word "Bet": the wager-field labels become "Play amount" / "Play per
+	// ball" (rendered uppercase by CSS). Non-social sessions keep the localized "Bet" labels.
+	const betLabel = $derived(
+		stateUrlDerived.social() ? 'Play amount' : context.i18nDerived.t('Bet'),
+	);
+	const betPerBallLabel = $derived(
+		stateUrlDerived.social() ? 'Play per ball' : context.i18nDerived.t('Bet per ball'),
+	);
 	/** Settlement currency win from the last round — not recalculated from current stake. */
 	const displayWinAmount = $derived(stateGame.winAmount);
 	// Rapid 1-ball mode holds each drop's win in the balance until its ball lands; show that shadow when
@@ -176,6 +188,11 @@
 			maximumFractionDigits: 2,
 		});
 		return `${currencySign}${formatted}`;
+	}
+
+	/** Win amounts show up to 4 decimals so small wins on low bets aren't rounded to 0.00. */
+	function formatWin(value: number) {
+		return formatWinAmount(value, currencySign);
 	}
 
 	function getClosestPresetIndex(presets: readonly number[], amount: number) {
@@ -397,7 +414,7 @@
 		<div class="mobile-top-row">
 			<div class="mobile-top-card">
 				{@render bettingFieldFrame()}
-				<span class="mobile-top-card-label">{context.i18nDerived.t('Bet')}</span>
+				<span class="mobile-top-card-label">{betLabel}</span>
 				<span class="mobile-top-card-value">{formatMoney(props.totalBetAmount)}</span>
 			</div>
 			<div class="mobile-top-card">
@@ -407,7 +424,7 @@
 			</div>
 			<div class="mobile-top-card">
 				{@render bettingFieldFrame()}
-				<span class="mobile-top-card-label">{context.i18nDerived.t('Bet per ball')}</span>
+				<span class="mobile-top-card-label">{betPerBallLabel}</span>
 				<span class="mobile-top-card-value">{formatCompactAmount(props.betAmount)}</span>
 			</div>
 			<!-- Keep the free-spin card container even on the 1-ball tier (where the meter is hidden): it
@@ -418,7 +435,10 @@
 				     `{#if}`-unmount the Pixi/WebGL meter on a Ball-Per-Drop change — recreating its canvas
 				     flashes white for a frame on slower GPUs. The card already reserves this grid cell, so
 				     keeping the meter mounted inside it has no layout effect. -->
-				<div class="mobile-free-spin-meter" class:mobile-free-spin-meter--hidden={stateGame.ballPerDrop === 1}>
+				<div
+					class="mobile-free-spin-meter"
+					class:mobile-free-spin-meter--hidden={stateGame.ballPerDrop === 1}
+				>
 					<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
 				</div>
 			</div>
@@ -527,7 +547,7 @@
 					<div class="mobile-bet-popup-row mobile-bet-popup-row--stat">
 						{@render bettingFieldFrame()}
 						<div class="mobile-bet-popup-mid">
-							<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet')}</span>
+							<span class="mobile-bet-popup-label">{betLabel}</span>
 							<span class="mobile-bet-popup-value">{formatMoney(props.totalBetAmount)}</span>
 						</div>
 					</div>
@@ -580,7 +600,7 @@
 							/>
 						</button>
 						<div class="mobile-bet-popup-mid">
-							<span class="mobile-bet-popup-label">{context.i18nDerived.t('Bet per ball')}</span>
+							<span class="mobile-bet-popup-label">{betPerBallLabel}</span>
 							<span class="mobile-bet-popup-value">{formatCompactAmount(props.betAmount)}</span>
 						</div>
 						<button
@@ -605,7 +625,7 @@
 			<div class="mobile-corner-info mobile-corner-info--left">
 				<img src={staticUrl('img/coin-ico.png')} alt="" aria-hidden="true" />
 				<span class="mobile-corner-label">{context.i18nDerived.t('Win')}:</span>
-				<span class="mobile-corner-value">{formatMoney(displayWinAmount)}</span>
+				<span class="mobile-corner-value">{formatWin(displayWinAmount)}</span>
 			</div>
 			<div class="mobile-corner-info mobile-corner-info--right">
 				<img src={staticUrl('img/wallet-ico.png')} alt="" aria-hidden="true" />
@@ -620,7 +640,10 @@
 		     and destroying + recreating its canvas on toggle makes the freshly-created (or torn-down)
 		     canvas composite as an opaque WHITE box for a frame on slower GPUs — the recurring QA-only
 		     flash. The wrap is `position: absolute`, so keeping it mounted has no layout effect. -->
-		<div class="bp-free-spin-meter-wrap" class:bp-free-spin-meter-wrap--hidden={stateGame.ballPerDrop === 1}>
+		<div
+			class="bp-free-spin-meter-wrap"
+			class:bp-free-spin-meter-wrap--hidden={stateGame.ballPerDrop === 1}
+		>
 			<div class="bp-free-spin-meter">
 				<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
 			</div>
@@ -639,7 +662,7 @@
 
 					<div class="bp-field bp-field--bet-total">
 						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{context.i18nDerived.t('Bet')}</span>
+						<span class="bp-field-label">{betLabel}</span>
 						<div class="bp-total-stepper">
 							<span class="bp-total-display" aria-live="polite">
 								{formatMoney(props.totalBetAmount)}
@@ -651,7 +674,7 @@
 						{@render bettingFieldFrame()}
 						<span class="bp-field-label">{context.i18nDerived.t('Win')}</span>
 						<div class="bp-field-value">
-							<span>{formatMoney(displayWinAmount)}</span>
+							<span>{formatWin(displayWinAmount)}</span>
 						</div>
 					</div>
 
@@ -659,7 +682,7 @@
 						class="bp-field bp-field--bet bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
 					>
 						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{context.i18nDerived.t('Bet per ball')}</span>
+						<span class="bp-field-label">{betPerBallLabel}</span>
 						<div class="bp-bet-input-wrap">
 							<button
 								type="button"

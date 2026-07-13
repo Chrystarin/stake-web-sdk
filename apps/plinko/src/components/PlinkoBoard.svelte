@@ -12,6 +12,7 @@
 	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import config from '../game/config';
+	import { pocketPitchForMultiplier } from '../game/sound';
 	import { stateGame } from '../game/stateGame.svelte';
 	import type { PlinkoBallOutcome } from '../game/typesBookEvent';
 
@@ -33,7 +34,12 @@
 
 	const handleBallDropped = (event: BallDroppedEvent) => {
 		props.onBallDropped?.(event);
-		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'pocket' });
+		// Pitch the landing sound up on higher-paying pockets (center 0× is lowest, edge 100× highest).
+		context.eventEmitter.broadcast({
+			type: 'soundOnce',
+			name: 'pocket',
+			rate: pocketPitchForMultiplier(event.multiplier),
+		});
 	};
 
 	function syncEngineScene() {

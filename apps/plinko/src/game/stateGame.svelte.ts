@@ -45,7 +45,9 @@ export type MsgBoxConfig = {
 
 export const stateGame = $state({
 	rowCount: DEFAULT_ROW_COUNT,
-	ballPerDrop: 10,
+	// Launch on the single-ball tier so the opening wager is one default bet level (e.g. 100 JPY), NOT a
+	// 10× ball setup that would inflate the default 10×. Players opt into 10/20/50-ball tiers themselves.
+	ballPerDrop: 1,
 	coefficients: [] as number[],
 	fastGameEnabled: false,
 	animationEnabled: true,

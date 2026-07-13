@@ -6,6 +6,7 @@
 	import { buyBonusCost, plinkoBetLimits } from '../game/plinkoBet';
 	import { BUY_BONUS_TIERS } from '../game/plinkoBetMode';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
+	import { currencySign as currencySignFor, formatWinAmount } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
@@ -26,9 +27,7 @@
 		howToPlay: 'How to Play?',
 	};
 
-	const currencySign = $derived(
-		stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `,
-	);
+	const currencySign = $derived(currencySignFor(stateBet.currency));
 
 	/** Currency-accurate bet/win limits (USD presets, RGS-scaled for other currencies). */
 	const betLimits = $derived(plinkoBetLimits());
@@ -43,12 +42,15 @@
 		return `${currencySign}${value.toFixed(2)}`;
 	}
 
+	/** Win amounts show up to 4 decimals so small wins on low bets aren't rounded to 0.00. */
+	function formatWin(value: number) {
+		return formatWinAmount(value, currencySign);
+	}
+
 	/** Grouped amount without forcing decimals on whole numbers (e.g. 0.01, 2,500, 50,000). */
 	function formatLimit(value: number) {
 		const formatted =
-			value >= 1
-				? value.toLocaleString('en-US', { maximumFractionDigits: 2 })
-				: value.toFixed(2);
+			value >= 1 ? value.toLocaleString('en-US', { maximumFractionDigits: 2 }) : value.toFixed(2);
 		return `${currencySign}${formatted}`;
 	}
 
@@ -140,136 +142,142 @@
 							</div>
 						{:else}
 							<h3 class="info-section-title">Main Betting Components</h3>
-						<p>The betting interface is straightforward and matches the on-screen controls:</p>
-						<ul>
-							<li>
-								<strong>BET</strong> – Shows your total wager for the current round (automatically
-								calculated).
-							</li>
-							<li>
-								<strong>BET PER BALL</strong> – Base amount wagered on each single ball. Adjust
-								with + / − buttons.
-							</li>
-							<li>
-								<strong>BALL PER DROP</strong> – Number of balls released per round. Adjust with
-								+ / − buttons.
-							</li>
-						</ul>
-						<p>Total Bet is calculated as:</p>
-						<div class="info-formula">Total Bet = Bet Per Ball × Ball Per Drop</div>
-						<p><strong>Example:</strong></p>
-						<div class="info-formula">
-							Bet Per Ball = $0.10<br />
-							Ball Per Drop = 10<br />
-							Total Bet = $1.00
-						</div>
-						<p>
-							The game clearly displays the WIN amount after each round and shows your current total
-							bet near the controls.
-						</p>
-
-						<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
-						<p>
-							The bottom of the board features a row of colored multiplier slots (from low in the
-							center to high on the edges); the dead-center pocket is the SPIN (0×) slot, which pays nothing but fills the Free Spin meter.
-						</p>
-						<ul>
-							<li>
-								<strong>Low-value slots</strong> (near the center, green/yellow) = small returns,
-								below 1×.
-							</li>
-							<li>
-								<strong>High-value slots</strong> (outer edges, orange through pink/magenta) = huge multipliers
-								(up to 100× per ball, with bonus rounds reaching your tier's max payout — from 200×
-									on a single ball up to 400× with more balls per drop).
-							</li>
-						</ul>
-						<p>
-							The board layout is fixed — you control your own risk through your Bet per Ball and Ball
-							per Drop, not a difficulty or rows setting. Dropping more balls spreads them across more
-							pockets and raises the top potential payout.
-						</p>
-
-						<h3 class="info-section-title">Key Features &amp; Settings</h3>
-						<p>
-							<strong>RTP</strong> — Approximately 95.5%.
-						</p>
-						<p>
-							<strong>Max Win</strong> — Up to x480.
-						</p>
-						<p>
-							<strong>Volatility</strong> — High. Most balls settle near the center for small returns, so dry
-							spells are possible, but rare edge landings and the bonus features can deliver big wins.
-						</p>
-
-						<h3 class="info-section-title">Bonus Features</h3>
-						<p><strong>Free Spin</strong> — multiplier wheel</p>
-						<p>
-							The FREE SPIN meter (lower-right of the board) fills as balls land in the center SPIN
-							(0×) slot. When it fills during a drop, a wheel adds a multiplier of your Bet per Ball,
-							from 0.5× up to 20×, on top of your win.
-						</p>
-						<p>
-							One segment of that wheel is BONUS, which chains straight into a Bonus round. The Free
-							Spin feature is not available on the single-ball drop.
-						</p>
-						<p><strong>Bonus</strong> — free balls</p>
-						<ul>
-							<li>The Bonus meter (top-center of the board) fills as balls strike the 3 gold coin pegs.</li>
-							<li>
-								When it fills during a drop, a wheel awards a batch of free balls that drop
-								automatically at no extra cost.
-							</li>
-						</ul>
-						<p>
-							Strong bonus rounds can level up as more coin pegs are hit during the bonus, awarding
-							even more free balls.
-						</p>
-						<ul>
-							<li>
-								Free balls are staked at your current Bet per Ball and drop on their own — you don't
-								pay anything extra for them.
-							</li>
-							<li>
-								Both meters are per-drop: they fill from the current drop's hits and reset each round,
-								so they don't carry over between bets.
-							</li>
-						</ul>
-						<p>
-							Because both features resolve inside the same drop, one round can pay the base drop plus
-							a Free Spin multiplier and a batch of bonus balls.
-						</p>
-
-						<h3 class="info-section-title">Buy Bonus</h3>
-						<p>
-							The <strong>Buy Bonus</strong> button lets you instantly trigger the Crimson Fury bonus
-							without waiting for the Bonus meter to fill. Pick a tier and the bonus starts straight
-							away with that tier's batch of free balls — there is no separate paid drop.
-						</p>
-						<ul>
-							{#each BUY_BONUS_TIERS as tier}
+							<p>The betting interface is straightforward and matches the on-screen controls:</p>
+							<ul>
 								<li>
-									<strong>{tier.name}</strong> — {tier.freeBalls} free balls, costs
-									{buyBonusCost(tier.key)}× your Bet per Ball.
+									<strong>BET</strong> – Shows your total wager for the current round (automatically
+									calculated).
 								</li>
-							{/each}
-						</ul>
-						<p>
-							The price is your <strong>Bet per Ball × the tier's multiplier</strong> (for example, at
-							$1.00 per ball the Standard tier costs $80.00) and does not depend on your Ball per Drop.
-						</p>
-						<p>
-							<strong>Bigger tiers, bigger batch</strong> — each higher tier drops a larger batch of
-							free balls, so the bought balls are the reward. The round can still level up and chain
-							into extra balls as coin pegs are hit during the bonus.
-						</p>
-						<p>
-							A bought bonus plays exactly like a naturally triggered one: the free balls drop at your
-							current Bet per Ball, the round can level up for even more balls, and an in-bonus Free Spin
-							multiplier can still land. The balls you bought and any balls won during the bonus are
-							added together into your total.
-						</p>
-						<p>The Buy Bonus is not available on the single-ball drop.</p>
+								<li>
+									<strong>BET PER BALL</strong> – Base amount wagered on each single ball. Adjust with
+									+ / − buttons.
+								</li>
+								<li>
+									<strong>BALL PER DROP</strong> – Number of balls released per round. Adjust with +
+									/ − buttons.
+								</li>
+							</ul>
+							<p>Total Bet is calculated as:</p>
+							<div class="info-formula">Total Bet = Bet Per Ball × Ball Per Drop</div>
+							<p><strong>Example:</strong></p>
+							<div class="info-formula">
+								Bet Per Ball = $0.10<br />
+								Ball Per Drop = 10<br />
+								Total Bet = $1.00
+							</div>
+							<p>
+								The game clearly displays the WIN amount after each round and shows your current
+								total bet near the controls.
+							</p>
+
+							<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
+							<p>
+								The bottom of the board features a row of colored multiplier slots (from low in the
+								center to high on the edges); the dead-center pocket is the SPIN (0×) slot, which
+								pays nothing but fills the Free Spin meter.
+							</p>
+							<ul>
+								<li>
+									<strong>Low-value slots</strong> (near the center, green/yellow) = small returns, below
+									1×.
+								</li>
+								<li>
+									<strong>High-value slots</strong> (outer edges, orange through pink/magenta) = huge
+									multipliers (up to 100× per ball, with bonus rounds reaching your tier's max payout
+									— from 200× on a single ball up to 400× with more balls per drop).
+								</li>
+							</ul>
+							<p>
+								The board layout is fixed — you control your own risk through your Bet per Ball and
+								Ball per Drop, not a difficulty or rows setting. Dropping more balls spreads them
+								across more pockets and raises the top potential payout.
+							</p>
+
+							<h3 class="info-section-title">Key Features &amp; Settings</h3>
+							<p>
+								<strong>RTP</strong> — Approximately 95.5%.
+							</p>
+							<p>
+								<strong>Max Win</strong> — Up to x480.
+							</p>
+							<p>
+								<strong>Volatility</strong> — High. Most balls settle near the center for small returns,
+								so dry spells are possible, but rare edge landings and the bonus features can deliver
+								big wins.
+							</p>
+
+							<h3 class="info-section-title">Bonus Features</h3>
+							<p><strong>Free Spin</strong> — multiplier wheel</p>
+							<p>
+								The FREE SPIN meter (lower-right of the board) fills as balls land in the center
+								SPIN (0×) slot. When it fills during a drop, a wheel adds a multiplier of your Bet
+								per Ball, from 0.5× up to 20×, on top of your win.
+							</p>
+							<p>
+								One segment of that wheel is BONUS, which chains straight into a Bonus round. The
+								Free Spin feature is not available on the single-ball drop.
+							</p>
+							<p><strong>Bonus</strong> — free balls</p>
+							<ul>
+								<li>
+									The Bonus meter (top-center of the board) fills as balls strike the 3 gold coin
+									pegs.
+								</li>
+								<li>
+									When it fills during a drop, a wheel awards a batch of free balls that drop
+									automatically at no extra cost.
+								</li>
+							</ul>
+							<p>
+								Strong bonus rounds can level up as more coin pegs are hit during the bonus,
+								awarding even more free balls.
+							</p>
+							<ul>
+								<li>
+									Free balls are staked at your current Bet per Ball and drop on their own — you
+									don't pay anything extra for them.
+								</li>
+								<li>
+									Both meters are per-drop: they fill from the current drop's hits and reset each
+									round, so they don't carry over between bets.
+								</li>
+							</ul>
+							<p>
+								Because both features resolve inside the same drop, one round can pay the base drop
+								plus a Free Spin multiplier and a batch of bonus balls.
+							</p>
+
+							<h3 class="info-section-title">Buy Bonus</h3>
+							<p>
+								The <strong>Buy Bonus</strong> button lets you instantly trigger the Crimson Fury bonus
+								without waiting for the Bonus meter to fill. Pick a tier and the bonus starts straight
+								away with that tier's batch of free balls — there is no separate paid drop.
+							</p>
+							<ul>
+								{#each BUY_BONUS_TIERS as tier}
+									<li>
+										<strong>{tier.name}</strong> — {tier.freeBalls} free balls, costs
+										{buyBonusCost(tier.key)}× your Bet per Ball.
+									</li>
+								{/each}
+							</ul>
+							<p>
+								The price is your <strong>Bet per Ball × the tier's multiplier</strong> (for example,
+								at $1.00 per ball the Standard tier costs $80.00) and does not depend on your Ball per
+								Drop.
+							</p>
+							<p>
+								<strong>Bigger tiers, bigger batch</strong> — each higher tier drops a larger batch of
+								free balls, so the bought balls are the reward. The round can still level up and chain
+								into extra balls as coin pegs are hit during the bonus.
+							</p>
+							<p>
+								A bought bonus plays exactly like a naturally triggered one: the free balls drop at
+								your current Bet per Ball, the round can level up for even more balls, and an
+								in-bonus Free Spin multiplier can still land. The balls you bought and any balls won
+								during the bonus are added together into your total.
+							</p>
+							<p>The Buy Bonus is not available on the single-ball drop.</p>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
 						<div class="howto-pill-bar">
@@ -284,10 +292,10 @@
 								that every pocket multiplier is applied to.
 							</li>
 							<li>
-								<strong>Choose your Ball per Drop</strong> — Use the − / + steppers to release 1, 10,
-								20, or 50 balls per drop. Your total <strong>Bet</strong> is calculated automatically as
-								Bet per Ball × Ball per Drop. Dropping more balls fills the feature meters faster and
-								raises the top potential payout.
+								<strong>Choose your Ball per Drop</strong> — Use the − / + steppers to release 1,
+								10, 20, or 50 balls per drop. Your total <strong>Bet</strong> is calculated automatically
+								as Bet per Ball × Ball per Drop. Dropping more balls fills the feature meters faster
+								and raises the top potential payout.
 							</li>
 							<li>
 								<strong>Press Play to drop</strong> — Hit the Play button (or press the Space bar) to
@@ -305,8 +313,8 @@
 						<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
 						<p>
 							The pockets along the bottom of the board run from low in the center to high at the
-							edges. The board layout is fixed — you tune your own risk through Bet per Ball and Ball
-							per Drop rather than a difficulty or rows setting.
+							edges. The board layout is fixed — you tune your own risk through Bet per Ball and
+							Ball per Drop rather than a difficulty or rows setting.
 						</p>
 						<ul>
 							<li>
@@ -326,22 +334,22 @@
 						<h3 class="info-section-title">Bonus Features</h3>
 						<ul>
 							<li>
-								<strong>Free Spin</strong> — Balls that land in the center pockets fill the Free Spin
-								meter beside the board. When it fills during a drop, a wheel spins and adds a multiplier
-								(from 0.5× up to 20×) of your Bet per Ball on top of your win; landing on
-								<strong>BONUS</strong> chains straight into a bonus round. (Not available on the
-								single-ball drop.)
+								<strong>Free Spin</strong> — Balls that land in the center pockets fill the Free
+								Spin meter beside the board. When it fills during a drop, a wheel spins and adds a
+								multiplier (from 0.5× up to 20×) of your Bet per Ball on top of your win; landing on
+								<strong>BONUS</strong> chains straight into a bonus round. (Not available on the single-ball
+								drop.)
 							</li>
 							<li>
-								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus
-								meter. When it fills, a wheel awards a batch of free balls that drop automatically at no
-								extra cost. Strong bonus rounds can level up and award even more balls.
+								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus meter.
+								When it fills, a wheel awards a batch of free balls that drop automatically at no extra
+								cost. Strong bonus rounds can level up and award even more balls.
 							</li>
 							<li>
 								<strong>Buy Bonus</strong> — Skip the wait and trigger the bonus instantly. Tap the Buy
 								Bonus button and pick a tier for a batch of free balls; higher tiers drop a larger batch
-								for bigger chain potential. See the Game Rules for tier details.
-								(Not available on the single-ball drop.)
+								for bigger chain potential. See the Game Rules for tier details. (Not available on the
+								single-ball drop.)
 							</li>
 						</ul>
 
@@ -382,7 +390,9 @@
 							</li>
 							<li><strong>Fast game</strong> — Toggles faster ball drops on or off.</li>
 						</ul>
-						<p>On mobile, tap the coins button to open the Bet per Ball and Ball per Drop settings.</p>
+						<p>
+							On mobile, tap the coins button to open the Bet per Ball and Ball per Drop settings.
+						</p>
 						<p class="howto-subhead">Menu</p>
 						<p>Open the Menu button in the top corner to access:</p>
 						<ul>
@@ -395,7 +405,12 @@
 
 						<h3 class="info-section-title">Legal Notice</h3>
 						<p>
-							Malfunction voids all wins and plays. A consistent internet connection is required. In the event of a disconnection, reload the game to finish any uncompleted rounds. The expected return is calculated over many plays. The game display is not representative of any physical device and is for illustrative purposes only. Winnings are settled according to the amount received from the Remote Game Server and not from events within the web browser. TM and © 2026 Stake Engine.
+							Malfunction voids all wins and plays. A consistent internet connection is required. In
+							the event of a disconnection, reload the game to finish any uncompleted rounds. The
+							expected return is calculated over many plays. The game display is not representative
+							of any physical device and is for illustrative purposes only. Winnings are settled
+							according to the amount received from the Remote Game Server and not from events
+							within the web browser. TM and © 2026 Stake Engine.
 						</p>
 					{:else if stateGame.infoModalTab === 'fair'}
 						<p><strong>Provably fair settings</strong></p>
@@ -438,7 +453,7 @@
 														{/each}
 													</div>
 												</td>
-												<td>{formatMoney(row.win)}</td>
+												<td>{formatWin(row.win)}</td>
 											</tr>
 										{:else}
 											<tr>
