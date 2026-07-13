@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Otomatik bahis tamamlandı — oyundan çıkıldı',
 	'Finishing your previous round…': 'Önceki turunuz tamamlanıyor…',
 	'Set a valid bet amount': 'Geçerli bir bahis tutarı belirleyin',
+	'Insufficient Balance': 'Yetersiz bakiye',
 	'MASTER VOLUME': 'ANA SES',
 	SETTINGS: 'AYARLAR',
 };

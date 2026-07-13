@@ -185,10 +185,25 @@ export function plinkoWagerAmount(): number {
 	return plinkoPlayAmount() * plinkoBetModeCost();
 }
 
+/**
+ * Balance the player can actually spend right now — what affordability checks must gate on.
+ *
+ * In rapid 1-ball mode the authoritative `stateBet.balanceAmount` is credited with an in-flight
+ * ball's win the moment the round settles, which is BEFORE the ball visually lands and the player
+ * "receives" it (the win is held back in `rapidBalanceShadow` and revealed on land). Gating a new
+ * bet on the raw authoritative balance therefore let the player wager a win they hadn't been shown
+ * yet; that wager was then debited again on land, driving the visible balance negative. Gate on the
+ * same held-back value the HUD shows so a bet can only ever spend funds already visible on screen.
+ * Outside rapid mode the shadow is `null`, so this is just the authoritative balance.
+ */
+export function plinkoSpendableBalance(): number {
+	return stateGame.rapidBalanceShadow ?? stateBet.balanceAmount;
+}
+
 export function canAffordPlinkoWager(): boolean {
 	const wager = plinkoWagerAmount();
 	// A free feature-trigger bet has wager 0 — still affordable.
-	return wager >= 0 && wager <= stateBet.balanceAmount;
+	return wager >= 0 && wager <= plinkoSpendableBalance();
 }
 
 /** Published cost (×bet-per-ball) of a buy tier, from `config.betModes`. Bonus-only buy → bpd-independent. */

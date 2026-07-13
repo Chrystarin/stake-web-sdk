@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Taruhan otomatis selesai — permainan ditinggalkan',
 	'Finishing your previous round…': 'Menyelesaikan ronde sebelumnya…',
 	'Set a valid bet amount': 'Tetapkan jumlah taruhan yang valid',
+	'Insufficient Balance': 'Saldo tidak cukup',
 	'MASTER VOLUME': 'VOLUME UTAMA',
 	SETTINGS: 'PENGATURAN',
 };

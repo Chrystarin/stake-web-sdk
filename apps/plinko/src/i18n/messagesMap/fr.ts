@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Pari auto terminé — jeu quitté',
 	'Finishing your previous round…': 'Finalisation de votre tour précédent…',
 	'Set a valid bet amount': 'Définissez un montant de mise valide',
+	'Insufficient Balance': 'Fonds insuffisants',
 	'MASTER VOLUME': 'VOLUME PRINCIPAL',
 	SETTINGS: 'PARAMÈTRES',
 };

@@ -10,7 +10,6 @@
 		maxAffordableStakePerBall,
 		plinkoPlayAmount,
 		plinkoStakePerBallOptions,
-		plinkoWagerAmount,
 		snapStakeToBetLevels,
 	} from '../game/plinkoBet';
 import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
@@ -100,13 +99,12 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 		} else if (stateBet.betAmount <= 0) {
 			stateBet.betAmount = pickAffordableStakePerBall();
 		} else {
-			const maxPerBall = maxAffordableStakePerBall() || stateBet.betAmount;
-			stateBet.betAmount = snapStakeToBetLevels(
-				Math.max(0, Math.min(stateBet.betAmount, maxPerBall)),
-			);
-			if (stateBet.betAmount <= 0 || plinkoWagerAmount() > stateBet.balanceAmount) {
-				stateBet.betAmount = pickAffordableStakePerBall();
-			}
+			// Keep the player's chosen stake exactly where they set it — only snap it onto a valid
+			// betLevels entry (RGS validity). This effect re-runs whenever the balance changes, so any
+			// balance-based shrink here would silently drop bet-per-ball after a losing round. We never
+			// auto-adjust to the balance: an unaffordable stake instead disables the Bet button
+			// (`canAffordPlinkoWager`).
+			stateBet.betAmount = snapStakeToBetLevels(Math.max(0, stateBet.betAmount));
 		}
 
 		// Win display multiplies `payoutMultiplier` by this — use the play amount (per-ball

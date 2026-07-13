@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'オートベット終了 — ゲームを離れました',
 	'Finishing your previous round…': '前回のラウンドを終了しています…',
 	'Set a valid bet amount': '有効なベット額を設定してください',
+	'Insufficient Balance': '残高不足',
 	'MASTER VOLUME': 'マスター音量',
 	SETTINGS: '設定',
 };

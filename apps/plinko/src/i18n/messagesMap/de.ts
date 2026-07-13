@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Autobet beendet – Spiel wurde verlassen',
 	'Finishing your previous round…': 'Vorherige Runde wird abgeschlossen…',
 	'Set a valid bet amount': 'Gültigen Einsatzbetrag festlegen',
+	'Insufficient Balance': 'Unzureichendes Guthaben',
 	'MASTER VOLUME': 'GESAMTLAUTSTÄRKE',
 	SETTINGS: 'EINSTELLUNGEN',
 };

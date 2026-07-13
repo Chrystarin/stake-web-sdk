@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Automaattiveto päättyi — peli jätettiin',
 	'Finishing your previous round…': 'Viimeistellään edellistä kierrostasi…',
 	'Set a valid bet amount': 'Aseta kelvollinen panossumma',
+	'Insufficient Balance': 'Riittämätön saldo',
 	'MASTER VOLUME': 'KOKONAISÄÄNENVOIMAKKUUS',
 	SETTINGS: 'ASETUKSET',
 };

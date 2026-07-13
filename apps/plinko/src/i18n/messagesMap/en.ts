@@ -30,4 +30,5 @@ export default {
 	'Autobet Finished — game was left': 'Autobet Finished — game was left',
 	'Finishing your previous round…': 'Finishing your previous round…',
 	'Set a valid bet amount': 'Set a valid bet amount',
+	'Insufficient Balance': 'Insufficient Balance',
 };

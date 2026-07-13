@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Đã kết thúc cược tự động — đã rời trò chơi',
 	'Finishing your previous round…': 'Đang hoàn tất lượt chơi trước…',
 	'Set a valid bet amount': 'Đặt số tiền cược hợp lệ',
+	'Insufficient Balance': 'Số dư không đủ',
 	'MASTER VOLUME': 'ÂM LƯỢNG CHÍNH',
 	SETTINGS: 'CÀI ĐẶT',
 };

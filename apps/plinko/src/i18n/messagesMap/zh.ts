@@ -30,4 +30,5 @@ export default {
 	'Autobet Finished — game was left': '自动投注已结束 — 已离开游戏',
 	'Finishing your previous round…': '正在完成上一轮…',
 	'Set a valid bet amount': '请设置有效的投注金额',
+	'Insufficient Balance': '余额不足',
 };

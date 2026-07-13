@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Автоставка завершена — игра была покинута',
 	'Finishing your previous round…': 'Завершение предыдущего раунда…',
 	'Set a valid bet amount': 'Укажите корректную сумму ставки',
+	'Insufficient Balance': 'Недостаточно средств',
 	'MASTER VOLUME': 'ОБЩАЯ ГРОМКОСТЬ',
 	SETTINGS: 'НАСТРОЙКИ',
 };

@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'Aposta automática concluída — o jogo foi deixado',
 	'Finishing your previous round…': 'Concluindo sua rodada anterior…',
 	'Set a valid bet amount': 'Defina um valor de aposta válido',
+	'Insufficient Balance': 'Saldo insuficiente',
 	'MASTER VOLUME': 'VOLUME PRINCIPAL',
 	SETTINGS: 'CONFIGURAÇÕES',
 };

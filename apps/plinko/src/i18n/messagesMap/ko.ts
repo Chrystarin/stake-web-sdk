@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': '자동 베팅 종료됨 — 게임을 떠남',
 	'Finishing your previous round…': '이전 라운드를 완료하는 중…',
 	'Set a valid bet amount': '유효한 베팅 금액을 설정하세요',
+	'Insufficient Balance': '잔액 부족',
 	'MASTER VOLUME': '마스터 볼륨',
 	SETTINGS: '설정',
 };

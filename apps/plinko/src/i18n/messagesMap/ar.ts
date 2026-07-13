@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'انتهى الرهان التلقائي — تمت مغادرة اللعبة',
 	'Finishing your previous round…': 'جارٍ إنهاء جولتك السابقة…',
 	'Set a valid bet amount': 'حدد مبلغ رهان صالحًا',
+	'Insufficient Balance': 'رصيد غير كافٍ',
 	'MASTER VOLUME': 'مستوى الصوت الرئيسي',
 	SETTINGS: 'الإعدادات',
 };

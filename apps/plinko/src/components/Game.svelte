@@ -14,7 +14,6 @@
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
 	import {
 		canAffordPlinkoWager,
-		maxAffordableStakePerBall,
 		plinkoWagerAmount,
 		snapStakeToBetLevels,
 	} from '../game/plinkoBet';
@@ -290,8 +289,10 @@
 	});
 
 	function handleBetAmountChange(value: number) {
-		const maxPerBall = maxAffordableStakePerBall() || value;
-		stateBet.betAmount = snapStakeToBetLevels(Math.max(0, Math.min(value, maxPerBall)));
+		// Keep the player's chosen bet-per-ball exactly where they set it — only snap it onto a valid
+		// betLevels entry (RGS validity). Never shrink it to fit the current balance: an unaffordable
+		// stake simply disables the Bet button (see `canAffordPlinkoWager`), it is not auto-adjusted.
+		stateBet.betAmount = snapStakeToBetLevels(Math.max(0, value));
 	}
 
 	// Rapid 1-ball mode uses a lightweight INPUT THROTTLE instead of an input queue. Each click fires a
@@ -330,11 +331,14 @@
 		}
 
 		if (!canAffordPlinkoWager()) {
-			const wager = plinkoWagerAmount();
-			showToast(
-				wager <= 0 ? 'Set a valid bet amount' : `Insufficient balance (need ${wager.toFixed(2)})`,
-				'error',
-			);
+			// The Bet button is already disabled whenever the total bet exceeds the spendable balance;
+			// this is the safety net for any path that still reaches placeBet (e.g. the Space hotkey
+			// racing a balance change). Match the Autobet start/finish toast style — info, not error.
+			if (plinkoWagerAmount() <= 0) {
+				showToast('Set a valid bet amount', 'error');
+			} else {
+				showToast('Insufficient Balance');
+			}
 			return;
 		}
 

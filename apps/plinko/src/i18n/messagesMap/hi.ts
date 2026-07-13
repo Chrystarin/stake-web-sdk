@@ -30,6 +30,7 @@ export default {
 	'Autobet Finished — game was left': 'ऑटोबेट समाप्त — खेल छोड़ दिया गया',
 	'Finishing your previous round…': 'आपका पिछला राउंड पूरा किया जा रहा है…',
 	'Set a valid bet amount': 'एक मान्य दांव राशि सेट करें',
+	'Insufficient Balance': 'अपर्याप्त राशि',
 	'MASTER VOLUME': 'मास्टर वॉल्यूम',
 	SETTINGS: 'सेटिंग्स',
 };
