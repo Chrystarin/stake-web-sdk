@@ -140,6 +140,9 @@ export const stateGame = $state({
 	showWinPopup: false,
 	winPopupAmount: 0,
 	winPopupMultiplier: 0,
+	/** True while the on-win coin fountain is flying coins into the balance coin. Drives the coin's
+	 * starburst (BalanceCard) so the swirl only shows during the collect, then hides. */
+	coinFountainActive: false,
 	/** 1-ball rapid tier: stacking win toasts (newest first, max 3). Managed by the gameOrchestrator
 	 * toast helpers (`pushRapidWinToast` / `clearRapidWinToasts`); rendered in Game.svelte. */
 	rapidWinToasts: [] as RapidWinToast[],

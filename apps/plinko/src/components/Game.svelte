@@ -107,6 +107,10 @@
 
 	import Result from './Result.svelte';
 
+	import BalanceCard from './BalanceCard.svelte';
+
+	import CoinFountain from './CoinFountain.svelte';
+
 	import Toast from './Toast.svelte';
 
 	import type { BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
@@ -514,6 +518,8 @@
 
 <Result />
 
+<CoinFountain />
+
 <InfoModal />
 
 <BuyBonusModal disabled={buyBonusDisabled} onActivate={handleBuyBonusActivate} />
@@ -525,11 +531,12 @@
 		<Background />
 	</div>
 
-	{#if !isReplay}
+	<!-- Desktop moves Buy Bonus into the top-right HUD (beside Menu); mobile keeps the standalone
+	     top-right trigger. -->
+	{#if !isReplay && mobile}
 		<button
 			type="button"
-			class="buy-bonus-trigger"
-			class:buy-bonus-trigger--mobile={mobile}
+			class="buy-bonus-trigger buy-bonus-trigger--mobile"
 			class:buy-bonus-trigger--one-ball={stateGame.ballPerDrop === 1}
 			disabled={buyBonusDisabled}
 			onclick={openBuyBonus}
@@ -540,8 +547,24 @@
 	{/if}
 
 	{#if !mobile}
+		<BalanceCard />
+	{/if}
+
+	{#if !mobile}
 		<header class="top-hud">
 			<div class="top-hud-actions">
+				{#if !isReplay}
+					<button
+						type="button"
+						class="top-hud-btn top-hud-btn--buy-bonus"
+						class:top-hud-btn--buy-bonus-one-ball={stateGame.ballPerDrop === 1}
+						disabled={buyBonusDisabled}
+						onclick={openBuyBonus}
+						aria-label="Buy bonus"
+					>
+						<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
+					</button>
+				{/if}
 				<button
 					class="top-hud-btn top-hud-btn--menu"
 					type="button"
@@ -890,9 +913,10 @@
 
 		display: flex;
 
-		align-items: stretch;
+		/* Center so a slightly larger Buy Bonus badge lines up with the Menu button. */
+		align-items: center;
 
-		gap: 0.45vw;
+		gap: 0.6vw;
 
 		height: 100%;
 	}
@@ -911,6 +935,46 @@
 		cursor: pointer;
 
 		transition: transform 0.12s ease;
+	}
+
+	/* Buy Bonus badge sitting beside the Menu button in the top-right HUD (desktop). A touch larger
+	   than the square HUD buttons so the CTA reads, vertically centered against the Menu. */
+	.top-hud-btn--buy-bonus {
+		height: auto;
+		width: 4.6vw;
+		aspect-ratio: 1 / 1;
+		min-width: 48px;
+		padding: 0;
+		background: none;
+		display: grid;
+		place-items: center;
+		transition:
+			transform 0.12s ease,
+			filter 0.12s ease;
+	}
+
+	.top-hud-btn--buy-bonus img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		pointer-events: none;
+		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+	}
+
+	.top-hud-btn--buy-bonus:hover:not(:disabled) {
+		transform: scale(1.06);
+	}
+
+	.top-hud-btn--buy-bonus:disabled:not(.top-hud-btn--buy-bonus-one-ball) {
+		cursor: not-allowed;
+		filter: grayscale(0.7) brightness(0.55);
+	}
+
+	/* Single-ball (rapid) tier: feature not offered — keep the badge visible but faded + disabled,
+	   mirroring the original trigger's one-ball state. */
+	.top-hud-btn--buy-bonus-one-ball {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	/* Buy bonus trigger — desktop top-left, mobile top-right. */
@@ -1284,10 +1348,10 @@
 	.win-overlay {
 		/* Anchored inside .container (same box the pirate frame + bonus meter live in) so the card
 		   tracks the pirate art. `--win-anchor-top-ratio` is the vertical center as a fraction of the
-		   game-area box, tuned so the card sits midway between the pirate's hat and head. The frame
-		   PNG (object-fit: contain) fills a different share of the box on desktop vs mobile, so the
-		   ratio is layout-specific to land on the same spot on both (mobile override below). */
-		--win-anchor-top-ratio: 0.269;
+		   game-area box. Pulled up towards the top of the board (was 0.269, mid hat/head) per design.
+		   The frame PNG (object-fit: contain) fills a different share of the box on desktop vs mobile,
+		   so the ratio is layout-specific (mobile override below). */
+		--win-anchor-top-ratio: 0.14;
 
 		position: absolute;
 
@@ -1306,10 +1370,10 @@
 		pointer-events: none;
 	}
 
-	/* Portrait/mobile: the frame PNG fills more of the box, so a smaller ratio lands on the same
-	   point between the pirate's hat and head as the desktop value above. */
+	/* Portrait/mobile: the frame PNG fills more of the box, so a smaller ratio lands at the same height
+	   on the board as the desktop value above (both pulled up towards the top; was 0.185). */
 	.game-root--mobile .win-overlay {
-		--win-anchor-top-ratio: 0.185;
+		--win-anchor-top-ratio: 0.09;
 	}
 
 	/* Desktop only: shrink the whole card 20% (scales about its centre, so it stays anchored over

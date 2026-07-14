@@ -667,6 +667,13 @@
 			<div class="mobile-corner-info mobile-corner-info--right">
 				<img src={staticUrl('img/wallet-ico.png')} alt="" aria-hidden="true" />
 				<span class="mobile-corner-value">{formatMoney(displayBalance)}</span>
+				<img
+					class="mobile-balance-coin coin-fly-target"
+					data-coin-fly-target="balance"
+					src={staticUrl('img/coin_peg.png')}
+					alt=""
+					aria-hidden="true"
+				/>
 			</div>
 		</div>
 	</div>
@@ -689,14 +696,8 @@
 		<div class="bottom-panel-form">
 			<div class="bottom-panel-chrome">
 				<div class="bottom-panel-row">
-					<div class="bp-field">
-						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{context.i18nDerived.t('Balance')}</span>
-						<div class="bp-field-value">
-							<span>{formatMoney(displayBalance)}</span>
-						</div>
-					</div>
-
+					<!-- Balance moved out to the upper-left BalanceCard (desktop). The row now runs
+					     Bet | Win | Bet per ball | Ball per drop. -->
 					<div class="bp-field bp-field--bet-total">
 						{@render bettingFieldFrame()}
 						<span class="bp-field-label">{betLabel}</span>

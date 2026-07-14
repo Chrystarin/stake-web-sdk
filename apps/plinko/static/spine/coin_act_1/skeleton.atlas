@@ -1,0 +1,8 @@
+skeleton.png
+size:1416,1201
+filter:Linear,Linear
+pma:true
+coin_front
+bounds:2,2,1172,1197
+coin_side
+bounds:1176,7,238,1192
