@@ -68,31 +68,25 @@
 .bottom-panel-row {
 	--bp-item-height: 4.5vw;
 	--bp-field-height: calc(var(--bp-item-height) * 0.7);
-	--bp-column-gap: clamp(0.9vw, 1vw, 2vw);
-	--bp-fixed-controls-width: calc(7vw + 4.2vw);
+	/* Small gap between each edge field and the centered control cluster (reference art). */
+	--bp-column-gap: clamp(0.8vw, 1.1vw, 1.6vw);
 	--bp-label-value-gap: 0.11em;
 
-	/* ── Per-input width scale ──────────────────────────────────────────────
-	   Width multiplier for each betting input (1 = default equal width).
-	   Raise a value to widen that input, lower it to narrow it. All five inputs
-	   share the same available row space, so if you enlarge one you'll usually
-	   want to shrink another by a similar amount to keep the row balanced. */
-	--bp-width-balance: 1;
-	--bp-width-bet: 0.9;
-	--bp-width-win: 1;
-	--bp-width-bet-per-ball: 0.725;
-	--bp-width-ball-per-drop: 0.725;
+	/* Per-input width scale (1 = default). Only two stat inputs remain — Bet per ball and Ball per
+	   drop — sitting just outside a centered Auto | PLAY | Fast cluster (reference art). */
+	--bp-width-bet-per-ball: 1;
+	--bp-width-ball-per-drop: 1;
 
-	/* Equal-share width each input gets before its multiplier is applied. Four inputs now that
-	   Balance has moved to the upper-left card (was five), so five inter-item gaps not six. */
-	--bp-field-base-width: calc(
-		(100% - var(--bp-fixed-controls-width) - (5 * var(--bp-column-gap))) / 4
-	);
+	/* Fixed content width for each edge field (steppers live in the padding on top of this). Kept
+	   compact so the fields hug the control cluster instead of stretching to the panel edges. */
+	--bp-field-base-width: 8vw;
 
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	justify-content: flex-start;
+	/* Whole group (field | Auto | PLAY | Fast | field) sits centered, so the fields hug the middle
+	   controls with only --bp-column-gap between them (reference art). */
+	justify-content: center;
 	gap: var(--bp-column-gap);
 	flex-wrap: nowrap;
 	width: 100%;
@@ -127,24 +121,12 @@
 	}
 }
 
-/* Win is the only plain left-aligned stat field left in the row (Bet is centered), so it alone
-   keeps the extra left pad the Balance field used to share. */
-.bottom-panel-row > .bp-field:nth-child(2) {
-	padding-left: 1vw;
-}
-
-/* Map each betting input (in DOM order, Balance now relocated) to its width multiplier above:
-   Bet | Win | Bet per ball | Ball per drop. */
-.bottom-panel-row > .bp-field:nth-child(1) {
-	--bp-field-scale: var(--bp-width-bet);
-}
-.bottom-panel-row > .bp-field:nth-child(2) {
-	--bp-field-scale: var(--bp-width-win);
-}
-.bottom-panel-row > .bp-field:nth-child(3) {
+/* The two remaining stat fields sit at the row edges: Bet per ball (left) and Ball per drop
+   (right), flanking the centered control cluster. */
+.bottom-panel-row > .bp-field:first-child {
 	--bp-field-scale: var(--bp-width-bet-per-ball);
 }
-.bottom-panel-row > .bp-field:nth-child(4) {
+.bottom-panel-row > .bp-field:last-child {
 	--bp-field-scale: var(--bp-width-ball-per-drop);
 }
 
@@ -415,9 +397,11 @@
 
 .bp-bet-presets-panel {
 	position: absolute;
-	left: 50%;
+	/* Bet per ball sits at the row's left edge now — open the panel aligned to that edge so its
+	   27vw width can't spill off the left of the viewport. */
+	left: 0;
 	bottom: calc(100% + 0.75vw);
-	transform: translateX(-50%);
+	transform: none;
 	width: 27.46vw;
 	height: 8.1vw;
 	padding: 1.09vw 1.04vw;
@@ -519,35 +503,43 @@
 		0 0 0.62vw rgba(255, 155, 73, 0.24);
 }
 
+/* Auto | PLAY | Fast, centered between the two edge fields (reference art). */
+.bp-center-cluster {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	gap: clamp(0.6vw, 0.9vw, 1.4vw);
+}
+
 .bp-btn-play {
 	flex: 0 0 auto;
-	width: 7.25vw;
-	aspect-ratio: 1;
+	/* Wide pill from empty_play_btn.png (267×124). Made a touch taller than the native ratio (2:1
+	   vs 2.15:1) so the bigger PLAY label and the bottom-anchored bet pill get a clean gap, like the
+	   reference art — the green plaque only stretches ~7% vertically, which is imperceptible. */
+	width: 11.5vw;
+	aspect-ratio: 2 / 1;
 	min-width: 0;
-	align-self: stretch;
 	height: auto;
 	position: relative;
 	padding: 0;
 	border: none;
-	border-radius: 50%;
 	cursor: pointer;
 	background: transparent;
-	display: inline-flex;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
 	align-items: center;
-	justify-content: center;
+	/* PLAY sits high in the button, the bet pill drops to the bottom (reference art). */
+	justify-content: space-between;
+	gap: 0;
+	padding: 0.3vw 0 0.42vw;
 	filter: drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
 	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
 
-	img {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		display: block;
-		pointer-events: none;
-	}
-
 	&:hover:not(:disabled):not(.bp-btn-play--soft-disabled) {
-		transform: scale(1.04);
+		transform: scale(1.03);
 		filter: drop-shadow(0 0.38vw 0.62vw rgba(0, 0, 0, 0.4));
 	}
 
@@ -570,6 +562,75 @@
 	&--loading:disabled {
 		opacity: 1;
 	}
+}
+
+/* The green pill artwork, filling the button behind the PLAY label + bet pill. */
+.bp-btn-play-bg {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: fill;
+	display: block;
+	pointer-events: none;
+	z-index: 0;
+}
+
+/* "PLAY" — Righteous, big, sized to match the reference art (64px in the native ~124px button ≈
+   52% of the button height → 2.75vw here). Reference style: line-height 112.99%, -0.02em, #FFFFFF. */
+.bp-play-label {
+	position: relative;
+	z-index: 1;
+	/* Nudge the label down a touch from the button top (it has clearance above the bottom pill). */
+	top: 0.28vw;
+	font-family: 'Righteous', 'Poppins', sans-serif;
+	font-weight: 400;
+	font-synthesis: none;
+	font-size: 3vw;
+	/* Tightened leading so the bigger label still clears the bottom bet pill. */
+	line-height: 1;
+	letter-spacing: -0.02em;
+	text-transform: uppercase;
+	color: #ffffff;
+	/* Thin black outline. Default paint order draws the stroke over the fill, so it also slims the
+	   white letterform slightly — Righteous only ships at weight 400, so this is how the "lighter"
+	   look is achieved (there is no thinner Righteous face to switch to). */
+	-webkit-text-stroke: 0.05vw #000000;
+	text-shadow: 0 0.1vw 0.14vw rgba(0, 0, 0, 0.32);
+	pointer-events: none;
+}
+
+/* Bet-total pill under PLAY, on the empty_play_balance.png plaque. */
+.bp-play-balance {
+	position: relative;
+	z-index: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 6vw;
+	height: 1.5vw;
+	padding: 0 0.6vw;
+	box-sizing: border-box;
+	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	font-weight: 500;
+	font-synthesis: none;
+	font-size: 0.92vw;
+	line-height: 1;
+	letter-spacing: -0.01em;
+	color: #efeadd;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.bp-play-balance-bg {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: fill;
+	display: block;
+	pointer-events: none;
+	z-index: -1;
 }
 
 .bp-btn-play-spinner {
@@ -612,25 +673,10 @@
 	text-shadow: 0 0.08vw 0.2vw rgba(0, 0, 0, 0.55);
 }
 
-.bp-side-actions {
-	flex: 0 0 4.2vw;
-	width: 4.2vw;
-	min-width: 0;
-	/* Size to the (taller) button stack and center it against the row. */
-	align-self: center;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	/* Gap between Autobet and Fast game. Kept modest so the larger buttons stay within
-	   roughly the play-button height and don't grow the panel. */
-	gap: 0vw;
-}
-
 .bp-auto-wrap {
 	position: relative;
 	flex: 0 0 auto;
-	width: 3.9vw;
+	width: 4.3vw;
 	aspect-ratio: 1;
 	display: inline-flex;
 	align-items: stretch;
@@ -684,7 +730,7 @@
 	position: relative;
 	display: inline-flex;
 	flex: 0 0 auto;
-	width: 3.9vw;
+	width: 4.3vw;
 	aspect-ratio: 1;
 	align-items: center;
 	justify-content: center;
@@ -730,7 +776,10 @@
 
 .bp-autobet-panel {
 	position: absolute;
-	right: 0;
+	/* The Autobet toggle now sits just left of the centered PLAY button — open the panel centered
+	   above it instead of pinned to a (now non-existent) right-hand control column. */
+	left: 50%;
+	transform: translateX(-50%);
 	bottom: calc(100% + 0.35vw);
 	width: 27.46vw;
 	height: 8.1vw;

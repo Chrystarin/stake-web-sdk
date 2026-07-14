@@ -69,6 +69,8 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/betting-component-input-decrease.png',
 	'img/betting-component-input-increase.png',
 	'img/play-btn.png',
+	'img/empty_play_btn.png',
+	'img/empty_play_balance.png',
 	'img/pause-btn.png',
 	'img/auto-bet-btn.png',
 	'img/fast-game-btn.png',
@@ -83,6 +85,8 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/menu-btn-mobile.png',
 	'img/coin-ico.png',
 	'img/wallet-ico.png',
+	// Balance card: the coin's on-merge light burst (see BalanceCard / CoinFountain).
+	'img/balance_coin_light.png',
 
 	// Menu + modal icons
 	'img/hamburg_menu_ico_fair_settings.png',
@@ -111,6 +115,7 @@ const FONT_SPECS: readonly string[] = [
 	"600 1rem 'Instrument Sans'",
 	"700 1rem 'Instrument Sans'",
 	"400 1rem 'Poppins'",
+	"500 1rem 'Poppins'",
 	"600 1rem 'Poppins'",
 	"700 1rem 'Poppins'",
 	"800 1rem 'Poppins'",
@@ -118,6 +123,7 @@ const FONT_SPECS: readonly string[] = [
 	"1rem 'PiecesOfEight'",
 	"1rem 'PotatoSans'",
 	"1rem 'Perpetua'",
+	"400 1rem 'Righteous'",
 ];
 
 /** Load + decode a single image. Always resolves — a missing asset must never block the loader. */

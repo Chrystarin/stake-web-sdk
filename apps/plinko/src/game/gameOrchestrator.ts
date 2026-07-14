@@ -826,6 +826,15 @@ export function clearRapidWinToasts() {
 	if (stateGame.rapidWinToasts.length > 0) stateGame.rapidWinToasts = [];
 }
 
+/** 1-ball rapid tier: how many coins the small on-land burst throws, scaled by the landed multiplier
+ * (1 for low pays, 2 for mid, 3 for the big multipliers). */
+export function rapidCoinBurstCountForMultiplier(multiplier: number): number {
+	const m = Number(multiplier) || 0;
+	if (m >= 10) return 3;
+	if (m >= 2) return 2;
+	return 1;
+}
+
 export function onBallLanded(
 	ballId: number,
 	multiplier: number,
@@ -876,6 +885,11 @@ export function onBallLanded(
 		// as the ball lands rather than on the settling click — see the toast stack in Game.svelte.
 		if (landCredit.win > 0) {
 			pushRapidWinToast(landCredit.win);
+				// Also throw a SMALL coin burst (1-3 coins, scaled by the landed multiplier) into the
+				// balance coin — the 1-ball equivalent of the multi-ball win fountain. CoinFountain
+				// watches `rapidCoinBurstTick`.
+				stateGame.rapidCoinBurstCount = rapidCoinBurstCountForMultiplier(landCredit.multiplier);
+				stateGame.rapidCoinBurstTick++;
 		}
 	} else {
 		if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {

@@ -7,7 +7,7 @@
 	let hostEl: HTMLDivElement;
 	let renderer: CoinFountainRenderer | undefined;
 	let ready = false;
-	let fountainDoneTimer: ReturnType<typeof setTimeout> | undefined;
+	let lightHideTimer: ReturnType<typeof setTimeout> | undefined;
 
 	/** Centre of the first visible element matching `selector`, in client (screen) px. */
 	function rectCenter(selector: string): FountainPoint | undefined {
@@ -69,7 +69,22 @@
 		coin.classList.add('coin-fly-target--bump');
 	}
 
-	function launchBurst() {
+	// The balance coin's light shows ONLY while coins are actively merging into it: it lights on each
+	// arrival and hides a short beat after the last one lands (every arrival re-arms the hide timer, so
+	// a continuous stream keeps it lit; once arrivals stop it fades out).
+	function scheduleLightOff() {
+		if (lightHideTimer) clearTimeout(lightHideTimer);
+		lightHideTimer = setTimeout(() => {
+			stateGame.coinFountainActive = false;
+		}, 260);
+	}
+	function onCoinMerge() {
+		pulseBalanceCoin();
+		stateGame.coinFountainActive = true;
+		scheduleLightOff();
+	}
+
+	function launchBurst(countOverride?: number) {
 		if (!renderer || !ready) return;
 		// Origin: the gold coin pile at the pirate skull's MOUTH (baked into the game-area frame art).
 		// Fall back to the frame centre, then the viewport, so a burst always has somewhere to come from.
@@ -81,25 +96,18 @@
 		// No balance coin on screen (shouldn't happen) — nothing to collect into.
 		if (!to) return;
 
-		// A bigger multiplier throws a few more coins, capped inside the renderer.
+		// Multi-ball win: a bigger multiplier throws a few more coins. 1-ball rapid mode passes an explicit
+		// 1-3 count (see the rapid effect below). Capped inside the renderer.
 		const mult = stateGame.winPopupMultiplier || 0;
-		const count = Math.round(22 + Math.min(20, Math.log2(1 + mult) * 5));
-		// Show the coin's starburst only while coins are flying in; hide it when the burst finishes.
-		stateGame.coinFountainActive = true;
-		if (fountainDoneTimer) clearTimeout(fountainDoneTimer);
-		// Safety net: force the swirl off if onComplete somehow never fires (e.g. renderer torn down mid-burst).
-		fountainDoneTimer = setTimeout(() => {
-			stateGame.coinFountainActive = false;
-		}, 6000);
+		const count = countOverride ?? Math.round(22 + Math.min(20, Math.log2(1 + mult) * 5));
+		// The light is driven per-arrival (see onCoinMerge) — NOT lit at launch, so it only appears once
+		// coins actually start merging into the balance coin. onComplete is a safety to guarantee it hides.
 		renderer.burst({
 			from,
 			to,
 			count,
-			onArrive: pulseBalanceCoin,
-			onComplete: () => {
-				if (fountainDoneTimer) clearTimeout(fountainDoneTimer);
-				stateGame.coinFountainActive = false;
-			},
+			onArrive: onCoinMerge,
+			onComplete: scheduleLightOff,
 		});
 	}
 
@@ -109,7 +117,7 @@
 			ready = true;
 		});
 		return () => {
-			if (fountainDoneTimer) clearTimeout(fountainDoneTimer);
+			if (lightHideTimer) clearTimeout(lightHideTimer);
 			stateGame.coinFountainActive = false;
 			renderer?.destroy();
 			renderer = undefined;
@@ -124,10 +132,24 @@
 	$effect(() => {
 		const visible = stateGame.showWinPopup && stateGame.ballPerDrop !== 1;
 		if (visible && !winModalWasVisible) {
-			// Defer a frame so the win card has laid out and getBoundingClientRect is accurate.
-			requestAnimationFrame(() => requestAnimationFrame(launchBurst));
+			// Defer a frame so the win card has laid out and getBoundingClientRect is accurate. Wrap in an
+			// arrow so rAF's timestamp isn't forwarded as launchBurst's count argument.
+			requestAnimationFrame(() => requestAnimationFrame(() => launchBurst()));
 		}
 		winModalWasVisible = visible;
+	});
+
+	// 1-ball rapid tier: each paying land bumps `rapidCoinBurstTick` (see onBallLanded → gameOrchestrator).
+	// Throw a small 1-3 coin burst per land, the count scaled by the landed multiplier. No layout defer
+	// needed — the balance coin + skull frame are already on screen during rapid play.
+	// Seed from the current tick so a (re)mount with a nonzero tick doesn't fire a spurious burst.
+	let lastRapidTick = stateGame.rapidCoinBurstTick;
+	$effect(() => {
+		const tick = stateGame.rapidCoinBurstTick;
+		if (tick !== lastRapidTick) {
+			lastRapidTick = tick;
+			if (stateGame.ballPerDrop === 1) launchBurst(stateGame.rapidCoinBurstCount);
+		}
 	});
 </script>
 

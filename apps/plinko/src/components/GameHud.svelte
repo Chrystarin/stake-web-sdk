@@ -22,6 +22,7 @@
 		stopAutoBet,
 	} from '../game/gameOrchestrator';
 	import {
+		canAffordAutoBetRun,
 		canAffordPlinkoWager,
 		plinkoMaxStakePerBall,
 		plinkoMinStakePerBall,
@@ -309,6 +310,15 @@
 
 	function selectAutoBetCount(count: number) {
 		if (controlsLocked && !props.autoPlayStarted) return;
+		// Picking a count starts a fresh Autobet run immediately, and Autobet is all-or-nothing:
+		// the player must be able to fund every selected drop up front (count × per-drop wager). If
+		// the whole run isn't affordable, don't arm or start it at all — just show the toast.
+		// (Already-running Autobet just updates its remaining count.)
+		if (!props.autoPlayStarted && !canAffordAutoBetRun(count)) {
+			autoPanelOpen = false;
+			showToast('Insufficient Balance');
+			return;
+		}
 		stateGame.autoRoundsLeft = count;
 		stateGame.autoRoundsDisplay = count;
 		stateGame.autoMode = true;
@@ -326,8 +336,9 @@
 
 	function onAutoGameStartClick() {
 		if (isPlayButtonHardDisabled) return;
-		// Greyed out only for insufficient balance: surface the toast instead of arming Autobet.
-		if (isPlayButtonSoftInsufficient) {
+		// Autobet is all-or-nothing: require enough balance for the whole selected run (rounds ×
+		// per-drop wager), not just one drop. Otherwise surface the toast instead of arming Autobet.
+		if (!canAffordAutoBetRun(stateGame.autoRoundsLeft)) {
 			showToast('Insufficient Balance');
 			return;
 		}
@@ -696,26 +707,9 @@
 		<div class="bottom-panel-form">
 			<div class="bottom-panel-chrome">
 				<div class="bottom-panel-row">
-					<!-- Balance moved out to the upper-left BalanceCard (desktop). The row now runs
-					     Bet | Win | Bet per ball | Ball per drop. -->
-					<div class="bp-field bp-field--bet-total">
-						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{betLabel}</span>
-						<div class="bp-total-stepper">
-							<span class="bp-total-display" aria-live="polite">
-								{formatMoney(props.totalBetAmount)}
-							</span>
-						</div>
-					</div>
-
-					<div class="bp-field">
-						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{context.i18nDerived.t('Win')}</span>
-						<div class="bp-field-value">
-							<span>{formatWin(displayWinAmount)}</span>
-						</div>
-					</div>
-
+					<!-- Layout follows the reference art: Bet per ball | Auto | PLAY (with bet-total pill) |
+					     Fast | Ball per drop. Balance sits in the upper-left BalanceCard; the Bet-total and
+					     Win stat fields were removed (the bet total now shows in the pill under PLAY). -->
 					<div
 						class="bp-field bp-field--bet bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
 					>
@@ -786,111 +780,8 @@
 						{/if}
 					</div>
 
-					<div class="bp-field bp-field--select bp-field--bet-controls">
-						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{context.i18nDerived.t('Ball per drop')}</span>
-						<div class="bp-bet-input-wrap">
-							<button
-								type="button"
-								class="bp-stepper-btn bp-stepper-btn--decrease"
-								disabled={isBallPerDropStepDisabled(-1)}
-								aria-label="Decrease ball per drop"
-								onclick={() => adjustBallPerDrop(-1)}
-							>
-								<img
-									src={staticUrl('img/betting-component-input-decrease.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-							</button>
-							<div class="bp-bet-input-mid">
-								<span class="bp-select-display" aria-live="polite">{ballPerDropDisplay}</span>
-							</div>
-							<button
-								type="button"
-								class="bp-stepper-btn bp-stepper-btn--increase"
-								disabled={isBallPerDropStepDisabled(1)}
-								aria-label="Increase ball per drop"
-								onclick={() => adjustBallPerDrop(1)}
-							>
-								<img
-									src={staticUrl('img/betting-component-input-increase.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-							</button>
-						</div>
-					</div>
-
-					{#if !props.autoMode || props.hasPendingBonusBalls}
-						<button
-							type="button"
-							class="bp-btn-play"
-							class:bp-btn-play--loading={showPlayLoading}
-							class:bp-btn-play--soft-disabled={isPlayButtonSoftInsufficient}
-							disabled={isPlayButtonHardDisabled}
-							aria-label="Bet"
-							aria-disabled={isPlayButtonSoftInsufficient}
-							aria-busy={showPlayLoading}
-							onclick={onMainActionClick}
-						>
-							{#if showPlayLoading}
-								<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
-								<img
-									class="bp-btn-play-spinner"
-									src={staticUrl('img/loading_vector.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-							{:else}
-								<img
-									src={staticUrl(
-										props.hasPendingBonusBalls ? 'img/empty-btn.png' : 'img/play-btn.png',
-									)}
-									alt=""
-									aria-hidden="true"
-								/>
-								{#if props.hasPendingBonusBalls}
-									<span class="bp-bonus-count-badge">{props.bonusBallsRemaining}</span>
-								{/if}
-							{/if}
-						</button>
-					{:else if props.autoPlayStarted && !autoBetStopping}
-						<!-- During a running Autobet the main button mirrors the normal base-game loading
-						     state: a non-clickable Play with a spinner. The remaining-rounds count sits in
-						     the middle, like the bonus free-balls badge. Stopping is done from the Autobet
-						     toggle on the side. -->
-						<button
-							type="button"
-							class="bp-btn-play bp-btn-play--loading"
-							disabled
-							aria-label="Autobet running"
-							aria-busy="true"
-						>
-							<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
-							<img
-								class="bp-btn-play-spinner"
-								src={staticUrl('img/loading_vector.png')}
-								alt=""
-								aria-hidden="true"
-							/>
-							<span class="bp-bonus-count-badge">{props.autoRoundsLeft}</span>
-						</button>
-					{:else}
-						<button
-							type="button"
-							class="bp-btn-play bp-btn-play--narrow"
-							class:bp-btn-play--soft-disabled={isPlayButtonSoftInsufficient}
-							disabled={isPlayButtonHardDisabled}
-							aria-label="Start autobet"
-							aria-disabled={isPlayButtonSoftInsufficient}
-							onclick={onAutoGameStartClick}
-						>
-							<img src={staticUrl('img/play-btn.png')} alt="" aria-hidden="true" />
-						</button>
-					{/if}
-
-					<div class="bp-side-actions">
+					<!-- Center cluster mirrors the reference art around the play button: Auto | PLAY | Fast. -->
+					<div class="bp-center-cluster">
 						<div class="bp-auto-wrap">
 							<button
 								type="button"
@@ -930,6 +821,101 @@
 							{/if}
 						</div>
 
+						{#if !props.autoMode || props.hasPendingBonusBalls}
+							<button
+								type="button"
+								class="bp-btn-play"
+								class:bp-btn-play--loading={showPlayLoading}
+								class:bp-btn-play--soft-disabled={isPlayButtonSoftInsufficient}
+								disabled={isPlayButtonHardDisabled}
+								aria-label="Bet"
+								aria-disabled={isPlayButtonSoftInsufficient}
+								aria-busy={showPlayLoading}
+								onclick={onMainActionClick}
+							>
+								<img
+									class="bp-btn-play-bg"
+									src={staticUrl('img/empty_play_btn.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+								{#if showPlayLoading}
+									<img
+										class="bp-btn-play-spinner"
+										src={staticUrl('img/loading_vector.png')}
+										alt=""
+										aria-hidden="true"
+									/>
+								{:else if props.hasPendingBonusBalls}
+									<span class="bp-bonus-count-badge">{props.bonusBallsRemaining}</span>
+								{:else}
+									<span class="bp-play-label">PLAY</span>
+									<span class="bp-play-balance">
+										<img
+											class="bp-play-balance-bg"
+											src={staticUrl('img/empty_play_balance.png')}
+											alt=""
+											aria-hidden="true"
+										/>
+										{formatMoney(props.totalBetAmount)}
+									</span>
+								{/if}
+							</button>
+						{:else if props.autoPlayStarted && !autoBetStopping}
+							<!-- During a running Autobet the main button mirrors the normal base-game loading
+							     state: a non-clickable Play with a spinner. The remaining-rounds count sits in
+							     the middle, like the bonus free-balls badge. Stopping is done from the Autobet
+							     toggle on the side. -->
+							<button
+								type="button"
+								class="bp-btn-play bp-btn-play--loading"
+								disabled
+								aria-label="Autobet running"
+								aria-busy="true"
+							>
+								<img
+									class="bp-btn-play-bg"
+									src={staticUrl('img/empty_play_btn.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+								<img
+									class="bp-btn-play-spinner"
+									src={staticUrl('img/loading_vector.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+								<span class="bp-bonus-count-badge">{props.autoRoundsLeft}</span>
+							</button>
+						{:else}
+							<button
+								type="button"
+								class="bp-btn-play"
+								class:bp-btn-play--soft-disabled={isPlayButtonSoftInsufficient}
+								disabled={isPlayButtonHardDisabled}
+								aria-label="Start autobet"
+								aria-disabled={isPlayButtonSoftInsufficient}
+								onclick={onAutoGameStartClick}
+							>
+								<img
+									class="bp-btn-play-bg"
+									src={staticUrl('img/empty_play_btn.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+								<span class="bp-play-label">PLAY</span>
+								<span class="bp-play-balance">
+									<img
+										class="bp-play-balance-bg"
+										src={staticUrl('img/empty_play_balance.png')}
+										alt=""
+										aria-hidden="true"
+									/>
+									{formatMoney(props.totalBetAmount)}
+								</span>
+							</button>
+						{/if}
+
 						<div class="bp-fast-panel">
 							<button
 								type="button"
@@ -944,6 +930,42 @@
 								}}
 							>
 								<img src={staticUrl('img/fast-game-btn.png')} alt="" aria-hidden="true" />
+							</button>
+						</div>
+					</div>
+
+					<div class="bp-field bp-field--select bp-field--bet-controls">
+						{@render bettingFieldFrame()}
+						<span class="bp-field-label">{context.i18nDerived.t('Ball per drop')}</span>
+						<div class="bp-bet-input-wrap">
+							<button
+								type="button"
+								class="bp-stepper-btn bp-stepper-btn--decrease"
+								disabled={isBallPerDropStepDisabled(-1)}
+								aria-label="Decrease ball per drop"
+								onclick={() => adjustBallPerDrop(-1)}
+							>
+								<img
+									src={staticUrl('img/betting-component-input-decrease.png')}
+									alt=""
+									aria-hidden="true"
+								/>
+							</button>
+							<div class="bp-bet-input-mid">
+								<span class="bp-select-display" aria-live="polite">{ballPerDropDisplay}</span>
+							</div>
+							<button
+								type="button"
+								class="bp-stepper-btn bp-stepper-btn--increase"
+								disabled={isBallPerDropStepDisabled(1)}
+								aria-label="Increase ball per drop"
+								onclick={() => adjustBallPerDrop(1)}
+							>
+								<img
+									src={staticUrl('img/betting-component-input-increase.png')}
+									alt=""
+									aria-hidden="true"
+								/>
 							</button>
 						</div>
 					</div>

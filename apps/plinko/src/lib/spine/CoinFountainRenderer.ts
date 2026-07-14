@@ -179,14 +179,15 @@ export class CoinFountainRenderer {
 		if (!this.ready || !this.app) return;
 		const { from, to } = options;
 		if (options.onComplete) this.onBurstComplete = options.onComplete;
-		const count = Math.max(6, Math.min(48, Math.round(options.count ?? 26)));
+		const count = Math.max(1, Math.min(48, Math.round(options.count ?? 26)));
 
 		const dx = to.x - from.x;
 		const dy = to.y - from.y;
 		const dist = Math.max(1, Math.hypot(dx, dy));
 		// Baseline coin size scales gently with viewport so it reads on phones and desktop alike.
+		// (coefficient + clamp bounds cut 25% from the previous 0.042 / 22–46 for smaller coins.)
 		const viewMin = Math.min(this.app.renderer.width, this.app.renderer.height) || 400;
-		const baseSize = Math.max(22, Math.min(46, viewMin * 0.042));
+		const baseSize = Math.max(16.5, Math.min(34.5, viewMin * 0.0315));
 
 		for (let i = 0; i < count; i++) {
 			this.spawnCoin(from, to, dx, dy, dist, baseSize, i, count, options.onArrive);

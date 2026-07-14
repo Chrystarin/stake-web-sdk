@@ -27,11 +27,13 @@
 		<span class="balance-card-value">{formatMoney(displayBalance)}</span>
 	</div>
 	<div class="balance-card-coin">
-		<span
-			class="balance-card-coin-burst"
-			class:balance-card-coin-burst--active={stateGame.coinFountainActive}
+		<img
+			class="balance-card-coin-light"
+			class:balance-card-coin-light--active={stateGame.coinFountainActive}
+			src={staticUrl('img/balance_coin_light.png')}
+			alt=""
 			aria-hidden="true"
-		></span>
+		/>
 		<img
 			class="balance-card-coin-img coin-fly-target"
 			data-coin-fly-target="balance"
@@ -59,9 +61,11 @@
 		justify-content: space-between;
 		gap: 0.8vw;
 
-		/* Fixed width (no growing/shrinking with the amount) + a shorter, tighter plaque. */
+		/* Fixed width (no growing/shrinking with the amount). Symmetric vertical padding sets the
+		   plaque height around the coin/text content (raised to make the plaque ~20% taller without
+		   changing the label/amount or coin sizes). */
 		width: clamp(212px, 16.5vw, 286px);
-		padding: 0.32vw 0.5vw 0.4vw 1.15vw;
+		padding: 0.39vw 0.5vw 0.39vw 1.15vw;
 		box-sizing: border-box;
 		overflow: hidden;
 
@@ -90,14 +94,16 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 0.1vw;
+		gap: 0;
 	}
 
 	.balance-card-label {
 		font-family: 'Poppins', 'Instrument Sans', sans-serif;
-		font-weight: 700;
-		font-size: clamp(12px, 1.32vw, 22px);
-		line-height: 1.05;
+		font-weight: 500;
+		font-synthesis: none;
+		/* Font scaled down 25% (12/1.32/22 → 9/0.99/16.5). */
+		font-size: clamp(9px, 0.99vw, 16px);
+		line-height: 0.95;
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 
@@ -112,9 +118,11 @@
 	.balance-card-value {
 		display: inline-block;
 		font-family: 'Poppins', 'Instrument Sans', sans-serif;
-		font-weight: 700;
-		font-size: clamp(18px, 2vw, 32px);
-		line-height: 1.1;
+		font-weight: 500;
+		font-synthesis: none;
+		/* Font scaled down 25% (18/2/32 → 13.5/1.5/24). */
+		font-size: clamp(14px, 1.5vw, 24px);
+		line-height: 1;
 		letter-spacing: 0.04em;
 		white-space: nowrap;
 
@@ -129,59 +137,41 @@
 		position: relative;
 		z-index: 2;
 		flex-shrink: 0;
-		width: clamp(34px, 2.95vw, 50px);
-		height: clamp(34px, 2.95vw, 50px);
+		/* Coin scaled 15% smaller (34/2.95/50 → 29/2.51/42.5). */
+		width: clamp(29px, 2.51vw, 42.5px);
+		height: clamp(29px, 2.51vw, 42.5px);
 		display: grid;
 		place-items: center;
 		margin-right: 0.25vw;
 	}
 
-	/* Radiating starburst behind the coin: a warm central glow + fine white rays, faded out with a
-	   radial mask and clipped to the plaque by the card's overflow. HIDDEN by default — it only fades
-	   in + spins while the on-win coin fountain is flying coins in (`--active`), then fades back out. */
-	.balance-card-coin-burst {
+	/* Light burst behind the coin (balance_coin_light.png), clipped to the plaque by the card's overflow.
+	   HIDDEN by default — it only fades in WHILE coins are merging into the balance coin (`--active`,
+	   driven per-arrival by CoinFountain), then fades back out once arrivals stop. */
+	.balance-card-coin-light {
 		position: absolute;
 		left: 50%;
 		top: 50%;
-		width: 260%;
-		height: 260%;
+		width: 215%;
+		height: 215%;
 		transform: translate(-50%, -50%);
+		object-fit: contain;
 		z-index: 0;
 		pointer-events: none;
 		opacity: 0;
-		transition: opacity 0.35s ease;
-		background:
-			radial-gradient(
-				circle,
-				rgba(255, 246, 205, 0.95) 0%,
-				rgba(255, 216, 110, 0.45) 20%,
-				rgba(255, 216, 110, 0) 46%
-			),
-			repeating-conic-gradient(
-				from 6deg,
-				rgba(255, 255, 255, 0.9) 0deg 3deg,
-				rgba(255, 255, 255, 0) 3deg 8.5deg
-			);
-		-webkit-mask: radial-gradient(circle, #000 3%, rgba(0, 0, 0, 0.8) 24%, transparent 52%);
-		mask: radial-gradient(circle, #000 3%, rgba(0, 0, 0, 0.8) 24%, transparent 52%);
-		animation: balance-coin-burst-spin 9s linear infinite;
-		animation-play-state: paused;
+		transition: opacity 0.18s ease;
 	}
 
-	.balance-card-coin-burst--active {
+	.balance-card-coin-light--active {
 		opacity: 1;
-		animation-play-state: running;
-	}
-
-	@keyframes balance-coin-burst-spin {
-		to {
-			transform: translate(-50%, -50%) rotate(360deg);
-		}
 	}
 
 	.balance-card-coin-img {
 		position: relative;
 		z-index: 1;
+		/* The coin artwork sits ~2px/51 above its PNG's centre, so a box-centred coin reads slightly
+		   high. Nudge it down ~4% of the coin height to visually centre it in the plaque. */
+		top: 4%;
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
