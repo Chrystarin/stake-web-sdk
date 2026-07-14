@@ -16,6 +16,7 @@
 		bet: staticUrl('sound/bet.mp3'),
 		win: staticUrl('sound/win.mp3'),
 		pocket: staticUrl('sound/pocket.mp3'),
+		peg: staticUrl('sound/peg.wav'),
 		placeChip: staticUrl('sound/placeChip.mp3'),
 		clickingFail: staticUrl('sound/clickingFail.mp3'),
 		startAutoPlay: staticUrl('sound/startAutoPlay.mp3'),

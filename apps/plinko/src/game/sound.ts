@@ -10,6 +10,7 @@ export type SoundEffectName =
 	| 'bet'
 	| 'win'
 	| 'pocket'
+	| 'peg'
 	| 'placeChip'
 	| 'clickingFail'
 	| 'startAutoPlay'

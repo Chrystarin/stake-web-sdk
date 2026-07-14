@@ -42,6 +42,22 @@
 		});
 	};
 
+	// Per-peg "thunk" — fired immediately on every peg contact so hits in quick succession overlap
+	// (a single ball bounces off ~13 pegs on the way down, and a multi-ball drop many more). Each
+	// play() spawns its own Howler voice, so a new thunk mixes over any still ringing out. Slight
+	// random pitch keeps rapid repeats from sounding machine-gun identical. Coin (featured) pegs
+	// ring out distinctly higher-pitched than normal pegs.
+	const handlePegBounce = (event: { featured: boolean }) => {
+		const rate = event.featured
+			? 1.5 + Math.random() * 0.14 // coin peg: bright, clearly higher-pitched
+			: 0.92 + Math.random() * 0.16; // normal peg
+		context.eventEmitter.broadcast({
+			type: 'soundOnce',
+			name: 'peg',
+			rate,
+		});
+	};
+
 	function syncEngineScene() {
 		if (!engine) return;
 
@@ -94,6 +110,7 @@
 					hostElement: el,
 					onBallDropped: handleBallDropped,
 					onCoinPegHit: (event) => props.onCoinPegHit?.(event),
+					onPegBounce: handlePegBounce,
 				});
 				engine = eng;
 				await bootstrapEngine(eng);

@@ -15,10 +15,15 @@ export type BallDroppedEvent = {
 
 export type CoinPegHitEvent = { row: number; col: number; ballId: number };
 
+/** Per-bounce sound event. `featured` is true when the contacted peg is a coin (featured) peg. */
+export type PegBounceEvent = CoinPegHitEvent & { featured: boolean };
+
 export type PlinkoEngineOptions = {
 	hostElement: HTMLElement;
 	onBallDropped?: (event: BallDroppedEvent) => void;
 	onCoinPegHit?: (event: CoinPegHitEvent) => void;
+	/** Emitted on every peg contact (once per peg/row) so the UI can play a per-bounce sound. */
+	onPegBounce?: (event: PegBounceEvent) => void;
 };
 
 interface Ball {
@@ -115,6 +120,7 @@ export class PlinkoEngine {
 		this.hostElement = options.hostElement;
 		this.onBallDropped = options.onBallDropped;
 		this.onCoinPegHit = options.onCoinPegHit;
+		this.onPegBounce = options.onPegBounce;
 		if (isMobile()) {
 			this.pyramidConfig.bounceAmplitude = 12;
 		}
@@ -150,6 +156,8 @@ export class PlinkoEngine {
   onBallDropped?: (event: BallDroppedEvent) => void;
   /** Emitted when a featured (coin) peg is hit. */
   onCoinPegHit?: (event: CoinPegHitEvent) => void;
+  /** Emitted on every peg contact (once per peg/row) for the per-bounce "thunk" sound. */
+  onPegBounce?: (event: PegBounceEvent) => void;
   private hostElement: HTMLElement;
 
   private app?: Application;
@@ -2599,6 +2607,14 @@ export class PlinkoEngine {
         bouncePeg.bounceEffect = pathPoint.bounceIntensity;
         bouncePeg.bounceTime = currentTime;
         bouncePeg.isTouched = true;
+        // Fires once per peg contact (row is added to bouncedRows below, so no re-fire) — drives the
+        // per-bounce "thunk" sound. `featured` flags a coin-peg hit so the UI can pitch it up.
+        this.onPegBounce?.({
+          row: bouncePeg.row,
+          col: bouncePeg.col,
+          ballId: ball.id,
+          featured: this.isFeaturedPeg(bouncePeg),
+        });
         if (
           ball.creditBonusPegHit &&
           !ball.bonusPegEmitted &&
