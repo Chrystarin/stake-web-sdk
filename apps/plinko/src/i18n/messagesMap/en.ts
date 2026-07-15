@@ -2,7 +2,7 @@ export default {
 	Balance: 'Balance',
 	Bet: 'Bet',
 	'Bet per ball': 'Bet per ball',
-	'Ball per drop': 'Ball per drop',
+	'Ball per drop': 'Balls per drop',
 	Manual: 'Manual',
 	Auto: 'Auto',
 	'Start autobet': 'Start autobet',

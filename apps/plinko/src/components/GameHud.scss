@@ -943,13 +943,14 @@
 }
 
 .mobile-top-card-label {
-	// Scale with the card width (cqi) so long labels like "BALL PER DROP" shrink
+	// Scale with the card width (cqi) so long labels like "BALLS PER DROP" shrink
 	// to fit instead of being clipped on narrow phones. Clamped to stay legible on
 	// large screens and to still fit on very narrow (≤320px) phones.
-	font-size: clamp(5.75px, 13.225cqi, 13.8px);
+	font-size: clamp(5.15px, 12.2cqi, 13.8px);
 	font-weight: 800;
 	color: #f6be3a;
 	line-height: 1;
+	letter-spacing: -0.02em;
 	text-transform: uppercase;
 	white-space: nowrap;
 	max-width: 100%;

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { bonusRouletteSegmentsForTier } from '../../game-logic/constants';
+	import { eventEmitter } from '../../game/eventEmitter';
 	import { assertAuthoritativeOutcome } from '../../game/plinkoFairnessGuard';
 	import { stateGame } from '../../game/stateGame.svelte';
 	import { isPortraitGameLayout } from '../../lib/format';
@@ -307,8 +308,18 @@
 		return ((Math.round(-angle / segAngle) % n) + n) % n;
 	}
 
+	/** Ratchet "tick" each time a new wedge reaches the marker — the highlight hand-off already marks
+	 * exactly that boundary, so it doubles as the sound cue and the two can never drift apart.
+	 * At most one tick per frame: even at peak spin the wheel covers well under a wedge per frame, and
+	 * two plays in the same frame would land on top of each other inaudibly anyway. The `null` guards
+	 * keep the first tracked frame (and any frame before the wheel exists) silent — that is the glow
+	 * appearing, not a wedge passing. */
 	function trackHighlight() {
-		highlightedIndex = currentTopIndex();
+		const index = currentTopIndex();
+		if (index !== null && highlightedIndex !== null && index !== highlightedIndex) {
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'rouletteTick' });
+		}
+		highlightedIndex = index;
 		highlightRaf = requestAnimationFrame(trackHighlight);
 	}
 

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
+	import { eventEmitter } from '../../game/eventEmitter';
 	import { assertAuthoritativeOutcome } from '../../game/plinkoFairnessGuard';
 	import { isPortraitGameLayout } from '../../lib/format';
 	import { staticUrl } from '../../lib/staticUrl';
@@ -54,7 +55,7 @@
 	// ⚠️ DEBUG ONLY — extra delay (ms) before the wheel starts spinning, so the assembled layout can be
 	// inspected first. Must be `0` when shipping. Added on top of the normal pre-spin delay (~0.52s),
 	// so e.g. 6480 ≈ the wheel spins 7s after it appears (pairs with DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD in Game.svelte).
-	const DEBUG_SPIN_DELAY_MS = 4480;
+	const DEBUG_SPIN_DELAY_MS = 0;
 
 	// ─── Wheel art (img/bonus_roulette_v2) ─────────────────────────────────────────────────────────
 	// Three flat pieces, layered disc → highlight → frame. Native measurements below were recovered
@@ -67,10 +68,23 @@
 	//     — note that is ~0.3% BELOW the canvas centre, hence the asymmetric `top` below — outer
 	//     r=945.9. Drawn over the disc: the ring hides the disc's rim, the medallion hides the wedges'
 	//     converging apexes, and the pointer overhangs the rim by ~47px of native art.
-	//   wheel_segment_highlight.png (597×767) — ONE 45° wedge glow; apex (285.4, 772), r=777, bisector
-	//     vertical, apex at the BOTTOM. Its corners are clipped a pixel or two by its own canvas.
+	//   wheel_segment_highlight.png (597×767) — ONE 45° wedge glow; apex (285.4, 772) at the BOTTOM,
+	//     r=777. ⚠️ It is a hollow OUTLINE, not a fill: the interior is alpha 0 and only the gold rim +
+	//     soft glow are painted, so it traces the wedge's perimeter. Its edges sit at -21.99°/+22.76°
+	//     from its own vertical (i.e. it is very slightly lopsided), and its corners are clipped a px or
+	//     two by its own canvas.
 	const BASE_PNG = { w: 1911, h: 1925, cx: 955.46, cy: 968.93, outerR: 945.87, opaqueInnerR: 800 };
-	const HIGHLIGHT_PNG = { w: 597, h: 767, apexX: 285.4, apexY: 772, r: 777 };
+	const HIGHLIGHT_PNG = {
+		w: 597,
+		h: 767,
+		apexX: 285.4,
+		apexY: 772,
+		r: 777,
+		edgeLDeg: -21.99,
+		edgeRDeg: 22.76,
+	};
+	/** Disc radius in wheel_values.png px — the frame of reference for ART_WEDGE_GEOMETRY below. */
+	const VALUES_ART_R = 904;
 
 	/** Disc radius, expressed in base-PNG px — i.e. how far the disc reaches under the ring.
 	 * ⚠️ NOT the ring's nominal inner radius (~757). The ring's inner edge is a long SOFT alpha ramp:
@@ -99,8 +113,8 @@
 		left: 0.5 - HIGHLIGHT_PNG.apexX * highlightScale,
 		top: 0.5 - HIGHLIGHT_PNG.apexY * highlightScale,
 	};
-	// The apex, as a % of the highlight's own box — it sits on the wheel centre, so rotating about it
-	// swings the wedge around the hub.
+	// The apex, as a % of the highlight's own box. Every transform pivots here, so the outline swings
+	// and squeezes about its own point rather than sliding.
 	const HIGHLIGHT_ORIGIN = {
 		x: (HIGHLIGHT_PNG.apexX / HIGHLIGHT_PNG.w) * 100,
 		y: (HIGHLIGHT_PNG.apexY / HIGHLIGHT_PNG.h) * 100,
@@ -117,16 +131,93 @@
 	 * a DIFFERENT value than the one shown under the pointer. */
 	const ART_TOP_SEGMENT_INDEX = FREE_SPIN_SEGMENTS.indexOf('BONUS');
 
-	/** Where segment `index` sits, in degrees clockwise from the pointer, at rotation 0. */
-	function segmentAngleFromTop(index: number): number {
-		const n = FREE_SPIN_SEGMENTS.length;
-		return ((((index - ART_TOP_SEGMENT_INDEX) % n) + n) % n) * SEG_ANGLE;
+	/** Geometry of each wedge's ROPE-FREE INTERIOR, by ART SLOT (0 = the wedge the art parks under the
+	 * pointer = BONUS, then clockwise).
+	 * ⚠️ The 8 rope dividers are NOT radial. They are 4 straight CHORDS laid across the wheel, each
+	 * offset from the hub by 8–23px — so the two ropes bounding a wedge meet at a point that is NOT the
+	 * hub (up to 45px away). A wedge outline pivoted about the HUB therefore CROSSES its ropes: snug at
+	 * one radius, gaping at another (which is exactly what the user saw at the rim). Pin the outline's
+	 * apex to `apexX/apexY` instead and its edges run PARALLEL to the ropes at a constant pixel gap.
+	 * Note the bisectors land within ~1.2° of the ideal 45° grid and the half-angles all ≈22.4° — the
+	 * big "wedge centre drift" an earlier pass measured was an artefact of reading a chord's angle at
+	 * one radius, NOT real.
+	 * Recovered by total-least-squares line-fitting each rope's core pixels, offsetting each line inward
+	 * by its measured half-width (≈6.3px) + 2px of daylight, and intersecting the pairs.
+	 *   apexX/apexY: where a wedge's two rope-inner-edges meet, relative to the hub, in wheel_values.png
+	 *                px (VALUES_ART_R). +y is DOWN, matching CSS.
+	 *   bisectorDeg: direction of that interior's bisector, clockwise from the pointer.
+	 *   halfDeg:     half the angle between the two ropes. */
+	const ART_WEDGE_GEOMETRY = [
+		{ apexX: 0.7, apexY: -45.4, bisectorDeg: 0.7, halfDeg: 22.44 }, // BONUS
+		{ apexX: 16.0, apexY: -38.7, bisectorDeg: 45.44, halfDeg: 22.302 }, // 20X
+		{ apexX: 24.1, apexY: -24.0, bisectorDeg: 90.28, halfDeg: 22.533 }, // 15X
+		{ apexX: 14.5, apexY: -10.1, bisectorDeg: 135.22, halfDeg: 22.408 }, // 2X
+		{ apexX: 0.3, apexY: -0.8, bisectorDeg: 180.31, halfDeg: 22.678 }, // 0.5X
+		{ apexX: -16.2, apexY: -4.9, bisectorDeg: 225.99, halfDeg: 23.003 }, // 1X
+		{ apexX: -21.2, apexY: -20.7, bisectorDeg: 271.16, halfDeg: 22.169 }, // 5X
+		{ apexX: -13.2, apexY: -35.3, bisectorDeg: 315.79, halfDeg: 22.466 }, // 10X
+	];
+
+	const DEG = Math.PI / 180;
+	/** The art's edge angles after `scaleX(s)` about its apex. scaleX squeezes about the art's VERTICAL,
+	 * not its (slightly lopsided) bisector, so the bisector shifts a little too — hence both are returned. */
+	function squeezedEdges(s: number) {
+		const l = Math.atan(s * Math.tan(HIGHLIGHT_PNG.edgeLDeg * DEG)) / DEG;
+		const r = Math.atan(s * Math.tan(HIGHLIGHT_PNG.edgeRDeg * DEG)) / DEG;
+		return { halfDeg: (r - l) / 2, bisectorDeg: (r + l) / 2 };
+	}
+	/** The scaleX that opens the art to `targetHalf`. Monotonic in s, so bisect rather than invert. */
+	function squeezeForHalf(targetHalf: number): number {
+		let lo = 0.5;
+		let hi = 1.6;
+		for (let i = 0; i < 60; i++) {
+			const mid = (lo + hi) / 2;
+			if (squeezedEdges(mid).halfDeg < targetHalf) lo = mid;
+			else hi = mid;
+		}
+		return (lo + hi) / 2;
 	}
 
-	/** Art angle of the wedge under the marker RIGHT NOW, read from the wheel's LIVE (mid-transition)
+	/** Per-slot CSS transform inputs, resolved once. The apex offset is converted art px → fraction of
+	 * the disc radius → fraction of the stack → % of the outline's own box (so it scales with layout). */
+	const HIGHLIGHT_PLACEMENT = ART_WEDGE_GEOMETRY.map((g) => {
+		// scaleX/scaleY only set the wedge's ANGLE via their ratio, so scaleY is free to control how far
+		// the outline reaches without disturbing the edges: scaling about the apex leaves the edge LINES
+		// (apex + direction) fixed, and the directions depend only on sx/sy.
+		const ratio = squeezeForHalf(g.halfDeg);
+		const bisRad = g.bisectorDeg * DEG;
+		// How far the apex sits OUTWARD along the wedge's bisector. ⚠️ The outline's arc rides on the
+		// apex, so left uncompensated this shoves the arc the same distance PAST the rim and the ring
+		// eats the whole outer band (measured: only 1px of the ~40px band survived on 10X, 0px on
+		// BONUS/20X). Shrink radially by exactly that much to pin the arc back on the rim.
+		const outward = g.apexX * Math.sin(bisRad) - g.apexY * Math.cos(bisRad);
+		const scaleY = (VALUES_ART_R - outward) / VALUES_ART_R;
+		return {
+			rotateDeg: g.bisectorDeg - squeezedEdges(ratio).bisectorDeg,
+			scaleX: ratio * scaleY,
+			scaleY,
+			txPct: (((g.apexX / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.w) * 100,
+			tyPct: (((g.apexY / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.h) * 100,
+		};
+	});
+
+	/** Which art slot segment `index` occupies (see ART_TOP_SEGMENT_INDEX). */
+	function artSlot(index: number): number {
+		const n = FREE_SPIN_SEGMENTS.length;
+		return (((index - ART_TOP_SEGMENT_INDEX) % n) + n) % n;
+	}
+
+	/** Where segment `index` actually sits, in degrees clockwise from the pointer, at rotation 0. Used
+	 * for the landing, so the wedge settles centred under the pointer. */
+	function segmentAngleFromTop(index: number): number {
+		return ART_WEDGE_GEOMETRY[artSlot(index)].bisectorDeg;
+	}
+
+	/** Art slot of the wedge under the marker RIGHT NOW, read from the wheel's LIVE (mid-transition)
 	 * rotation θ. A wedge at art angle `a` displays at `a + θ`, so the one under the marker (0°) is the
-	 * one with `a ≈ -θ`, snapped to the wedge grid. */
-	function currentTopArtAngle(): number {
+	 * one with `a ≈ -θ`. The ideal 45° grid is accurate enough to pick the slot (the bisectors are all
+	 * within ~1.2° of it); the slot's exact geometry then comes from ART_WEDGE_GEOMETRY. */
+	function currentTopSlot(): number {
 		const el = wheelEl;
 		if (!el) return 0;
 		const t = getComputedStyle(el).transform;
@@ -134,11 +225,19 @@
 		const m = new DOMMatrixReadOnly(t);
 		const theta = (Math.atan2(m.b, m.a) * 180) / Math.PI;
 		const n = FREE_SPIN_SEGMENTS.length;
-		return (((Math.round(-theta / SEG_ANGLE) % n) + n) % n) * SEG_ANGLE;
+		return ((Math.round(-theta / SEG_ANGLE) % n) + n) % n;
 	}
 
+	/** Ratchet "tick" each time a new wedge reaches the pointer — the highlight hand-off already marks
+	 * exactly that boundary, so it doubles as the sound cue and the two can never drift apart.
+	 * At most one tick per frame: even at peak spin the wheel covers well under a wedge per frame, and
+	 * two plays in the same frame would land on top of each other inaudibly anyway. */
 	function trackHighlight() {
-		highlightAngleDeg = currentTopArtAngle();
+		const slot = currentTopSlot();
+		if (slot !== highlightSlot) {
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'rouletteTick' });
+		}
+		highlightSlot = slot;
 		highlightRaf = requestAnimationFrame(trackHighlight);
 	}
 
@@ -168,9 +267,10 @@
 	let wheelVisible = $state(false);
 	let wheelSpinClass = $state(false);
 	let wheelRotationDeg = $state(0);
-	/** Art angle of the wedge the highlight is glued to. It rides INSIDE the rotating disc, so between
-	 * hand-offs it follows its wedge for free; the tracker just re-points it at each boundary. */
-	let highlightAngleDeg = $state(0);
+	/** Art slot the outline is glued to. It rides INSIDE the rotating disc, so between hand-offs it
+	 * follows its wedge for free; the tracker just re-points it at each boundary. Starts on the wedge
+	 * the art parks under the pointer (slot 0 = BONUS), matching the wheel's rest pose. */
+	let highlightSlot = $state(0);
 	let highlightRaf = 0;
 	// Bound to the rotating disc container; drives the settle transitionend and is read each frame to
 	// find the wedge under the marker.
@@ -217,6 +317,7 @@
 
 	const labelWidthPx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
 	const stackSizePx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
+	const highlightPlacement = $derived(HIGHLIGHT_PLACEMENT[highlightSlot]);
 
 	// Tuning offsets, resolved to px from the disc diameter (positive X → right, positive Y → down).
 	const labelOffsetXPx = $derived(`${Math.round(rouletteSizePx * LABEL_OFFSET_X)}px`);
@@ -247,7 +348,7 @@
 			settled = true;
 			// Stop the per-frame tracking and pin the glow on the landed wedge (it's under the marker now).
 			stopHighlightTracking();
-			highlightAngleDeg = segmentAngleFromTop(winner);
+			highlightSlot = artSlot(winner);
 			afterSpin(winner);
 		};
 		requestAnimationFrame(() => {
@@ -338,7 +439,11 @@
 							style:height="{HIGHLIGHT_BOX.h * 100}%"
 							style:--highlight-origin-x="{HIGHLIGHT_ORIGIN.x}%"
 							style:--highlight-origin-y="{HIGHLIGHT_ORIGIN.y}%"
-							style:--highlight-angle-deg="{highlightAngleDeg}deg"
+							style:--highlight-angle-deg="{highlightPlacement.rotateDeg}deg"
+							style:--highlight-scale-x={highlightPlacement.scaleX}
+							style:--highlight-scale-y={highlightPlacement.scaleY}
+							style:--highlight-tx="{highlightPlacement.txPct}%"
+							style:--highlight-ty="{highlightPlacement.tyPct}%"
 							src={highlightSrc}
 							alt=""
 						/>
@@ -467,7 +572,13 @@
 		object-fit: fill;
 		pointer-events: none;
 		transform-origin: var(--highlight-origin-x) var(--highlight-origin-y);
-		transform: rotate(var(--highlight-angle-deg, 0deg));
+		/* Read right-to-left: open to the wedge's angle and pull the arc back to the rim (in the art's own
+		   upright frame, about the apex), swing onto the wedge's bisector, then slide the apex off the hub
+		   to where the wedge's two ropes actually meet — that last step is what keeps the edges parallel
+		   to the ropes. */
+		transform: translate(var(--highlight-tx, 0), var(--highlight-ty, 0))
+			rotate(var(--highlight-angle-deg, 0deg))
+			scale(var(--highlight-scale-x, 1), var(--highlight-scale-y, 1));
 	}
 	.free-spin-frame {
 		position: absolute;

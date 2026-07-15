@@ -11,6 +11,7 @@ export type SoundEffectName =
 	| 'win'
 	| 'pocket'
 	| 'peg'
+	| 'rouletteTick'
 	| 'placeChip'
 	| 'clickingFail'
 	| 'startAutoPlay'

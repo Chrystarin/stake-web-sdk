@@ -152,7 +152,7 @@
 	 * highlight can be watched. It spins after DEBUG_SPIN_DELAY_MS in FreeSpinRoulette.svelte (set to ~5s)
 	 * and lands on the debug target (10X). Rendered via its own preview flag below (independent of the
 	 * game's round flow, which would otherwise reset the open state during init). Reload to watch again. */
-	const DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD = true;
+	const DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD = false;
 	let devFreeSpinRoulettePreviewOpen = $state(DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD);
 
 	/** DEBUG: force the bonus meter's visual fill to a fixed value in 0..1 (e.g. 0.5 = half full).
