@@ -25,18 +25,11 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/free-spin-meter.png',
 	'img/free-spin-meter-wheel.png',
 	'img/free-spin-label.png',
-	'img/free-spin-roulette-marker.png',
-	// Free-spin wheel is composited from the blank copper disc + per-value wedge PNGs (see FreeSpinRoulette.svelte).
-	'img/free_spin_roulette_segments/free_spin_roulette_empty.png',
-	'img/free_spin_roulette_segments/segment_x2.png',
-	'img/free_spin_roulette_segments/segment_x0.5.png',
-	'img/free_spin_roulette_segments/segment_x1.png',
-	'img/free_spin_roulette_segments/segment_x5.png',
-	'img/free_spin_roulette_segments/segment_x10.png',
-	'img/free_spin_roulette_segments/segment_bonus.png',
-	'img/free_spin_roulette_segments/segment_x20.png',
-	'img/free_spin_roulette_segments/segment_x15.png',
-	'img/free-spin-roulette-base.png',
+	// Free-spin wheel: rotating value disc + static frame (ring/pointer/medallion) + the top wedge's
+	// highlight (see FreeSpinRoulette.svelte).
+	'img/bonus_roulette_v2/wheel_values.png',
+	'img/bonus_roulette_v2/wheel_base.png',
+	'img/bonus_roulette_v2/wheel_segment_highlight.png',
 	'img/free-spin-marker.png',
 
 	// Bonus meter + roulette + overlays
@@ -85,8 +78,9 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/menu-btn-mobile.png',
 	'img/coin-ico.png',
 	'img/wallet-ico.png',
-	// Balance card: the coin's on-merge light burst (see BalanceCard / CoinFountain).
-	'img/balance_coin_light.png',
+	// NOTE: the balance coin's on-merge light burst is no longer an image — it's the `glow` + `sparkle`
+	// spine skeletons (see BalanceCoinGlowRenderer), loaded by that renderer on mount like the coin
+	// fountain's. `img/balance_coin_light.png` is now unused.
 
 	// Menu + modal icons
 	'img/hamburg_menu_ico_fair_settings.png',

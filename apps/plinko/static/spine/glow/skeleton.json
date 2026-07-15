@@ -1,0 +1,140 @@
+{
+"skeleton": {
+	"hash": "fXz+3/9oFes",
+	"spine": "4.3.23",
+	"x": -114.5915,
+	"y": -109.77458,
+	"width": 231.7715,
+	"height": 219.54916,
+	"images": "../Assets/New folder/",
+	"audio": null
+},
+"bones": [
+	{ "name": "root" },
+	{ "name": "bone", "parent": "root" },
+	{ "name": "shine", "parent": "bone" },
+	{ "name": "sparkle", "parent": "bone", "x": -32.37398, "y": 20.915987 },
+	{ "name": "sparkle2", "parent": "bone", "x": 33.24076, "y": -28.0171 },
+	{ "name": "sparkle3", "parent": "bone", "x": -35.71025, "y": -10.223244 }
+],
+"slots": [
+	{ "name": "Group 1597888104", "bone": "root" },
+	{ "name": "shine", "bone": "shine", "attachment": "2642633 1" },
+	{ "name": "bone", "bone": "bone" },
+	{ "name": "sparkle", "bone": "sparkle" },
+	{ "name": "sparkle2", "bone": "sparkle2" },
+	{ "name": "sparkle3", "bone": "sparkle3" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"shine": {
+				"2642633 1": {
+					"type": "mesh",
+					"uvs": [ 1, 1, 0.6666666, 1, 0.3333333, 1, 0, 1, 0, 0.5, 0, 0, 0.3333333, 0, 0.6666667, 0, 1, 0, 1, 0.5, 0.6666666, 0.5, 0.3333333, 0.5 ],
+					"triangles": [ 0, 1, 9, 1, 10, 9, 9, 10, 8, 10, 7, 8, 1, 2, 10, 2, 11, 10, 10, 11, 7, 11, 6, 7, 2, 3, 11, 3, 4, 11, 11, 4, 6, 4, 5, 6 ],
+					"vertices": [ 117.18, -109.77, 39.92, -109.77, -37.33, -109.77, -114.59, -109.77, -114.59, 0.0, -114.59, 109.77, -37.33, 109.77, 39.92, 109.77, 117.18, 109.77, 117.18, 0.0, 39.92, 0.0, -37.33, 0.0 ],
+					"hull": 10,
+					"edges": [ 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14, 16, 16, 18, 18, 0 ],
+					"width": 512.0,
+					"height": 485.0
+				}
+			}
+		}
+	}
+],
+"animations": {
+	"animation": {
+		"slots": {
+			"bone": {
+				"attachment": [
+					{ "time": 2.266667 }
+				]
+			},
+			"shine": {
+				"rgba": [
+					{ "color": "ffffff00" },
+					{ "time": 0.5333333, "color": "ffffffff", "curve": "stepped" },
+					{ "time": 1.7333333, "color": "ffffffff" },
+					{ "time": 2.333333, "color": "ffffff00" }
+				]
+			},
+			"sparkle": {
+				"rgba": [
+					{ "color": "ffffff00", "curve": "stepped" },
+					{ "time": 0.3333333, "color": "ffffff00" },
+					{ "time": 0.6, "color": "ffffffff", "curve": "stepped" },
+					{ "time": 1.1, "color": "ffffffff" },
+					{ "time": 1.2666667, "color": "ffffff00" }
+				]
+			},
+			"sparkle2": {
+				"rgba": [
+					{ "color": "ffffff00", "curve": "stepped" },
+					{ "time": 0.6333333, "color": "ffffff00" },
+					{ "time": 0.9, "color": "ffffffff", "curve": "stepped" },
+					{ "time": 1.4, "color": "ffffffff" },
+					{ "time": 1.5666667, "color": "ffffff00" }
+				]
+			},
+			"sparkle3": {
+				"rgba": [
+					{ "color": "ffffff00", "curve": "stepped" },
+					{ "time": 1.0666667, "color": "ffffff00" },
+					{ "time": 1.3333334, "color": "ffffffff", "curve": "stepped" },
+					{ "time": 1.8333334, "color": "ffffffff" },
+					{ "time": 2, "color": "ffffff00" }
+				]
+			}
+		},
+		"bones": {
+			"shine": {
+				"rotate": [
+					{},
+					{ "time": 4.333333, "value": -359.745 }
+				],
+				"scale": [
+					{ "x": 0.5126336, "y": 0.5126336 },
+					{ "time": 0.6666667, "curve": "stepped" },
+					{ "time": 1.6666666 },
+					{ "time": 2.333333, "x": 0.6645896, "y": 0.6645896 }
+				]
+			},
+			"sparkle": {
+				"translate": [
+					{ "time": 0.3333333 },
+					{ "time": 1.2666667, "y": 33 }
+				],
+				"scale": [
+					{ "x": 0.5114811, "y": 0.5114811, "curve": "stepped" },
+					{ "time": 0.3333333, "x": 0.5114811, "y": 0.5114811 },
+					{ "time": 1.2666667 }
+				]
+			},
+			"sparkle2": {
+				"translate": [
+					{ "time": 0.6333333 },
+					{ "time": 1.5666667, "y": 33 }
+				],
+				"scale": [
+					{ "x": 0.5114811, "y": 0.5114811, "curve": "stepped" },
+					{ "time": 0.6333333, "x": 0.5114811, "y": 0.5114811 },
+					{ "time": 1.5666667 }
+				]
+			},
+			"sparkle3": {
+				"translate": [
+					{ "time": 1.0666667 },
+					{ "time": 2, "y": 33 }
+				],
+				"scale": [
+					{ "x": 0.5114811, "y": 0.5114811, "curve": "stepped" },
+					{ "time": 1.0666667, "x": 0.5114811, "y": 0.5114811 },
+					{ "time": 2 }
+				]
+			}
+		}
+	}
+}
+}

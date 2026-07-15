@@ -8,6 +8,12 @@
 	let renderer: CoinFountainRenderer | undefined;
 	let ready = false;
 	let lightHideTimer: ReturnType<typeof setTimeout> | undefined;
+	// Pending "+<win>" float timers — the float is shown a beat after launch (≈ when coins reach the
+	// balance coin). Tracked so they can be cleared on unmount.
+	const floatTimers = new Set<ReturnType<typeof setTimeout>>();
+	// Approx travel time before coins start merging into the balance coin (matches the renderer's
+	// startAt + duration for the earliest coins); the float appears then, so it reads "on merge".
+	const COIN_MERGE_DELAY_MS = 1400;
 
 	/** Centre of the first visible element matching `selector`, in client (screen) px. */
 	function rectCenter(selector: string): FountainPoint | undefined {
@@ -84,7 +90,7 @@
 		scheduleLightOff();
 	}
 
-	function launchBurst(countOverride?: number) {
+	function launchBurst(countOverride?: number, winAmount?: number) {
 		if (!renderer || !ready) return;
 		// Origin: the gold coin pile at the pirate skull's MOUTH (baked into the game-area frame art).
 		// Fall back to the frame centre, then the viewport, so a burst always has somewhere to come from.
@@ -109,6 +115,17 @@
 			onArrive: onCoinMerge,
 			onComplete: scheduleLightOff,
 		});
+
+		// Float a "+<win>" text down from the balance coin around when these coins start merging into it.
+		if (winAmount && winAmount > 0) {
+			const amount = winAmount;
+			const timer = setTimeout(() => {
+				floatTimers.delete(timer);
+				stateGame.balanceWinFloatAmount = amount;
+				stateGame.balanceWinFloatTick++;
+			}, COIN_MERGE_DELAY_MS);
+			floatTimers.add(timer);
+		}
 	}
 
 	onMount(() => {
@@ -118,6 +135,8 @@
 		});
 		return () => {
 			if (lightHideTimer) clearTimeout(lightHideTimer);
+			floatTimers.forEach((t) => clearTimeout(t));
+			floatTimers.clear();
 			stateGame.coinFountainActive = false;
 			renderer?.destroy();
 			renderer = undefined;
@@ -132,9 +151,10 @@
 	$effect(() => {
 		const visible = stateGame.showWinPopup && stateGame.ballPerDrop !== 1;
 		if (visible && !winModalWasVisible) {
-			// Defer a frame so the win card has laid out and getBoundingClientRect is accurate. Wrap in an
-			// arrow so rAF's timestamp isn't forwarded as launchBurst's count argument.
-			requestAnimationFrame(() => requestAnimationFrame(() => launchBurst()));
+			// Snapshot the round win now (the popup amount), and defer a frame so the win card has laid out
+			// and getBoundingClientRect is accurate. The arrow keeps rAF's timestamp out of the args.
+			const winAmount = stateGame.winPopupAmount;
+			requestAnimationFrame(() => requestAnimationFrame(() => launchBurst(undefined, winAmount)));
 		}
 		winModalWasVisible = visible;
 	});
@@ -148,7 +168,7 @@
 		const tick = stateGame.rapidCoinBurstTick;
 		if (tick !== lastRapidTick) {
 			lastRapidTick = tick;
-			if (stateGame.ballPerDrop === 1) launchBurst(stateGame.rapidCoinBurstCount);
+			if (stateGame.ballPerDrop === 1) launchBurst(stateGame.rapidCoinBurstCount, stateGame.winAmount);
 		}
 	});
 </script>

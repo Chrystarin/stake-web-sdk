@@ -152,7 +152,7 @@
 	 * highlight can be watched. It spins after DEBUG_SPIN_DELAY_MS in FreeSpinRoulette.svelte (set to ~5s)
 	 * and lands on the debug target (10X). Rendered via its own preview flag below (independent of the
 	 * game's round flow, which would otherwise reset the open state during init). Reload to watch again. */
-	const DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD = false;
+	const DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD = true;
 	let devFreeSpinRoulettePreviewOpen = $state(DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD);
 
 	/** DEBUG: force the bonus meter's visual fill to a fixed value in 0..1 (e.g. 0.5 = half full).
@@ -531,12 +531,13 @@
 		<Background />
 	</div>
 
-	<!-- Desktop moves Buy Bonus into the top-right HUD (beside Menu); mobile keeps the standalone
-	     top-right trigger. -->
-	{#if !isReplay && mobile}
+	<!-- Buy Bonus is a standalone badge in the top corner: top-left on desktop (opposite Menu),
+	     top-right on mobile. -->
+	{#if !isReplay}
 		<button
 			type="button"
-			class="buy-bonus-trigger buy-bonus-trigger--mobile"
+			class="buy-bonus-trigger"
+			class:buy-bonus-trigger--mobile={mobile}
 			class:buy-bonus-trigger--one-ball={stateGame.ballPerDrop === 1}
 			disabled={buyBonusDisabled}
 			onclick={openBuyBonus}
@@ -553,18 +554,6 @@
 	{#if !mobile}
 		<header class="top-hud">
 			<div class="top-hud-actions">
-				{#if !isReplay}
-					<button
-						type="button"
-						class="top-hud-btn top-hud-btn--buy-bonus"
-						class:top-hud-btn--buy-bonus-one-ball={stateGame.ballPerDrop === 1}
-						disabled={buyBonusDisabled}
-						onclick={openBuyBonus}
-						aria-label="Buy bonus"
-					>
-						<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
-					</button>
-				{/if}
 				<button
 					class="top-hud-btn top-hud-btn--menu"
 					type="button"
@@ -935,46 +924,6 @@
 		cursor: pointer;
 
 		transition: transform 0.12s ease;
-	}
-
-	/* Buy Bonus badge sitting beside the Menu button in the top-right HUD (desktop). A touch larger
-	   than the square HUD buttons so the CTA reads, vertically centered against the Menu. */
-	.top-hud-btn--buy-bonus {
-		height: auto;
-		width: 4.6vw;
-		aspect-ratio: 1 / 1;
-		min-width: 48px;
-		padding: 0;
-		background: none;
-		display: grid;
-		place-items: center;
-		transition:
-			transform 0.12s ease,
-			filter 0.12s ease;
-	}
-
-	.top-hud-btn--buy-bonus img {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		pointer-events: none;
-		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
-	}
-
-	.top-hud-btn--buy-bonus:hover:not(:disabled) {
-		transform: scale(1.06);
-	}
-
-	.top-hud-btn--buy-bonus:disabled:not(.top-hud-btn--buy-bonus-one-ball) {
-		cursor: not-allowed;
-		filter: grayscale(0.7) brightness(0.55);
-	}
-
-	/* Single-ball (rapid) tier: feature not offered — keep the badge visible but faded + disabled,
-	   mirroring the original trigger's one-ball state. */
-	.top-hud-btn--buy-bonus-one-ball {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 
 	/* Buy bonus trigger — desktop top-left, mobile top-right. */

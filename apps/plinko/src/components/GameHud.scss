@@ -77,9 +77,18 @@
 	--bp-width-bet-per-ball: 1;
 	--bp-width-ball-per-drop: 1;
 
-	/* Fixed content width for each edge field (steppers live in the padding on top of this). Kept
-	   compact so the fields hug the control cluster instead of stretching to the panel edges. */
-	--bp-field-base-width: 8vw;
+	/* Rendered plaque width for each edge field — the knob to turn when resizing them.
+	   16.554vw = the original 14.7vw plaque x 1.25 (+25%) x 0.99 (-1%) x 0.91 (-9%) = x1.1261 overall.
+	   ⚠️ BalanceCard.svelte mirrors this value and derives its own `left` from it — keep in sync. */
+	--bp-field-plaque-width: 16.554vw;
+
+	/* Fixed CONTENT width for each edge field: the plaque minus the stepper gutter that sits in the
+	   padding on each side. Derived rather than set directly because the gutters are square (tied to
+	   --bp-field-height) and must NOT grow with width — so every width change lands in the label/value
+	   area, and the steppers keep hugging the frame edges. */
+	--bp-field-base-width: calc(
+		var(--bp-field-plaque-width) - 2 * (var(--bp-field-height) + 0.2vw)
+	);
 
 	display: flex;
 	flex-direction: row;
@@ -515,9 +524,10 @@
 
 .bp-btn-play {
 	flex: 0 0 auto;
-	/* Wide pill from empty_play_btn.png (267×124). Made a touch taller than the native ratio (2:1
-	   vs 2.15:1) so the bigger PLAY label and the bottom-anchored bet pill get a clean gap, like the
-	   reference art — the green plaque only stretches ~7% vertically, which is imperceptible. */
+	/* Wide pill from empty_play_btn.png (267×124). Kept a touch taller than the native ratio (2:1 vs
+	   2.15:1) — the green plaque only stretches ~7% vertically, which is imperceptible. (The extra
+	   height was originally to clear the bottom-anchored bet pill, now hidden; the ratio is left as-is
+	   so the button's size doesn't change.) */
 	width: 11.5vw;
 	aspect-ratio: 2 / 1;
 	min-width: 0;
@@ -531,10 +541,14 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	/* PLAY sits high in the button, the bet pill drops to the bottom (reference art). */
-	justify-content: space-between;
+	/* PLAY is the only in-flow child now that the bet pill is hidden (see .bp-play-balance), so it
+	   centres in the button. The loading spinner and bonus-count badge are absolutely positioned and
+	   centre themselves, so they are unaffected by this.
+	   To restore the bet pill: un-hide .bp-play-balance, put this back to `space-between` with
+	   `padding: 0.3vw 0 0.42vw` (padding is already 0 above), and restore the `top: 0.28vw` nudge on
+	   .bp-play-label. */
+	justify-content: center;
 	gap: 0;
-	padding: 0.3vw 0 0.42vw;
 	filter: drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
 	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
 
@@ -581,13 +595,10 @@
 .bp-play-label {
 	position: relative;
 	z-index: 1;
-	/* Nudge the label down a touch from the button top (it has clearance above the bottom pill). */
-	top: 0.28vw;
 	font-family: 'Righteous', 'Poppins', sans-serif;
 	font-weight: 400;
 	font-synthesis: none;
 	font-size: 3vw;
-	/* Tightened leading so the bigger label still clears the bottom bet pill. */
 	line-height: 1;
 	letter-spacing: -0.02em;
 	text-transform: uppercase;
@@ -620,6 +631,15 @@
 	color: #efeadd;
 	white-space: nowrap;
 	pointer-events: none;
+}
+
+/* HIDDEN FOR NOW (kept, not deleted — the markup stays in GameHud.svelte on both the normal and the
+   autobet-start button, and the styles above are untouched, so this is the only switch).
+   To bring the bet pill back: delete this rule, then restore `justify-content: space-between` +
+   `padding: 0.3vw 0 0.42vw` on .bp-btn-play and the `top: 0.28vw` nudge on .bp-play-label — without
+   those, PLAY stays centred and the pill would overlap it. */
+.bp-play-balance {
+	display: none;
 }
 
 .bp-play-balance-bg {

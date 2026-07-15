@@ -147,6 +147,10 @@ export const stateGame = $state({
 	 * `rapidCoinBurstCount` carries how many coins to throw for that land (scaled by its multiplier). */
 	rapidCoinBurstTick: 0,
 	rapidCoinBurstCount: 1,
+	/** Bumped when coins merge into the balance coin to float a "+<win>" text down from it (BalanceCard).
+	 * `balanceWinFloatAmount` is the win amount to show. */
+	balanceWinFloatTick: 0,
+	balanceWinFloatAmount: 0,
 	/** 1-ball rapid tier: stacking win toasts (newest first, max 3). Managed by the gameOrchestrator
 	 * toast helpers (`pushRapidWinToast` / `clearRapidWinToasts`); rendered in Game.svelte. */
 	rapidWinToasts: [] as RapidWinToast[],

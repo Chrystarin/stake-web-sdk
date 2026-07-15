@@ -136,10 +136,12 @@ export function bonusRouletteSegmentsForTier(_ballsPerDrop?: number): number[] {
 /** @deprecated use `bonusRouletteSegmentsForTier` (now tier-independent). */
 export const BONUS_ROULETTE_SEGMENTS = bonusRouletteSegmentsForTier();
 
-/** Free-spin wheel segment labels — ORIGINAL values baked into the labeled `free-spin-roulette-wheel.png`
- * (clockwise from the top marker; index 0 = top = 2X). `BONUS` (1-in-8) chains a free bonus round; a
- * numeric `M` pays `stake_per_ball × M` on top of the drop. Must match `stake-math-sdk/games/
- * crimson_plinko/plinko_data.FREE_SPIN_SEGMENTS` (same order). */
+/** Free-spin wheel segment labels, clockwise around the wheel. `BONUS` (1-in-8) chains a free bonus
+ * round; a numeric `M` pays `stake_per_ball × M` on top of the drop. Must match `stake-math-sdk/games/
+ * crimson_plinko/plinko_data.FREE_SPIN_SEGMENTS` (same order) — so treat the ORDER as fixed.
+ * ⚠️ Index 0 is NOT the wedge under the pointer: the art (`img/bonus_roulette_v2/wheel_values.png`)
+ * parks BONUS there at rest. Only `FreeSpinRoulette.svelte` maps index → angle; see
+ * `ART_TOP_SEGMENT_INDEX` there rather than assuming `index * 45°`. */
 export const FREE_SPIN_SEGMENTS = [
 	'2X',
 	'0.5X',
