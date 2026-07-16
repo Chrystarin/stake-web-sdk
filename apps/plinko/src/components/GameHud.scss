@@ -68,9 +68,37 @@
 .bottom-panel-row {
 	--bp-item-height: 4.5vw;
 	--bp-field-height: calc(var(--bp-item-height) * 0.7);
+
+	/* Rendered height of an edge field's PLAQUE — what you see, and what other things line up against.
+	   The fields are `content-box`, so --bp-field-height is only their CONTENT: the 0.35vw of padding
+	   on each side lands outside it. (--bp-field-label-rise shifts padding between top and bottom but
+	   cancels in the total, so it can't affect this.) = 3.85vw.
+	   ⚠️ BalanceCard.svelte mirrors this to size its own plaque — keep in sync. */
+	--bp-field-plaque-height: calc(var(--bp-field-height) + 0.7vw);
+
+	/* Width of the round Autobet / Fast buttons, solved BACKWARDS from the height we actually want.
+	   Their art is 88×68 — NOT square — sitting in a square box under `object-fit: contain`, so the
+	   paint is limited by WIDTH and the box height is dead letterbox space:
+	       painted height = width × 68/88
+	   Setting the width to plaque × 88/68 therefore paints them exactly --bp-field-plaque-height tall,
+	   flush with the edge fields' frames (both are centred on the row, so matching heights = matching
+	   top and bottom edges). Do NOT "fix" this by setting a height — `contain` ignores it.
+	   ⚠️ This feeds the centre cluster's total width, which BalanceCard.svelte bakes into its `left`. */
+	--bp-side-btn-width: calc(var(--bp-field-plaque-height) * 88 / 68);
 	/* Small gap between each edge field and the centered control cluster (reference art). */
 	--bp-column-gap: clamp(0.8vw, 1.1vw, 1.6vw);
 	--bp-label-value-gap: 0.11em;
+
+	/* Lifts the label/value block off the field's centre line (both move together — the pair keeps its
+	   own spacing). 0.162vw = 20% of the 0.809vw the label used to sit below the frame's top edge.
+	   ⚠️ Cutting `padding-top` alone is NOT the knob it looks like: the pair is centred by grid ROW
+	   STRETCH (~0.46vw of slack above and below it), so only ~0.07vw of that gap is padding at all —
+	   and since `.bp-field` is `align-self: center` in this row, shrinking the field just re-centres it
+	   and hands most of the shift straight back (measured: 20% off padding-top moved the label 0.7px).
+	   So the rise is taken OUT of the top padding and given BACK to the bottom. Total padding stays
+	   0.7vw, which keeps the plaque at 3.85vw — load-bearing, since BalanceCard.svelte mirrors that
+	   height — and the steppers are absolute against the field's top edge, so they don't move either. */
+	--bp-field-label-rise: 0.162vw;
 
 	/* Per-input width scale (1 = default). Only two stat inputs remain — Bet per ball and Ball per
 	   drop — sitting just outside a centered Auto | PLAY | Fast cluster (reference art). */
@@ -78,9 +106,12 @@
 	--bp-width-ball-per-drop: 1;
 
 	/* Rendered plaque width for each edge field — the knob to turn when resizing them.
-	   16.554vw = the original 14.7vw plaque x 1.25 (+25%) x 0.99 (-1%) x 0.91 (-9%) = x1.1261 overall.
-	   ⚠️ BalanceCard.svelte mirrors this value and derives its own `left` from it — keep in sync. */
-	--bp-field-plaque-width: 16.554vw;
+	   14.8986vw = the original 14.7vw plaque x 1.25 (+25%) x 0.99 (-1%) x 0.91 (-9%) x 0.9 (-10%)
+	   = x1.0135 overall.
+	   ⚠️ BalanceCard.svelte mirrors this value (as --balance-field-width) to derive its own `left`,
+	   since the centred group's size depends on it — keep in sync. It no longer matches that card's
+	   OWN width, which was deliberately left at 16.554vw when these shrank. */
+	--bp-field-plaque-width: 14.8986vw;
 
 	/* Fixed CONTENT width for each edge field: the plaque minus the stepper gutter that sits in the
 	   padding on each side. Derived rather than set directly because the gutters are square (tied to
@@ -120,7 +151,9 @@
 	min-height: var(--bp-field-height);
 	height: var(--bp-field-height);
 	border-radius: 0;
-	padding: 0.35vw;
+	/* Top/bottom are 0.35vw ∓ the label rise — see --bp-field-label-rise. */
+	padding: calc(0.35vw - var(--bp-field-label-rise)) 0.35vw
+		calc(0.35vw + var(--bp-field-label-rise));
 	border: none;
 	box-shadow: none;
 
@@ -234,8 +267,11 @@
 	align-self: center;
 	position: relative;
 	overflow: visible;
-	/* One-Eyed Willy's Plinko: reserve side space for label/value; steppers pin to frame edges via absolute */
-	padding: 0.35vw calc(var(--bp-stepper-side) + 0.2vw) 0.35vw;
+	/* One-Eyed Willy's Plinko: reserve side space for label/value; steppers pin to frame edges via
+	   absolute. Overrides `.bp-field`'s padding outright, so it has to restate the top/bottom rise
+	   (--bp-field-label-rise) — this is the rule that actually renders for both edge fields. */
+	padding: calc(0.35vw - var(--bp-field-label-rise)) calc(var(--bp-stepper-side) + 0.2vw)
+		calc(0.35vw + var(--bp-field-label-rise));
 
 	> .bp-field-label {
 		grid-column: 1;
@@ -531,12 +567,12 @@
 	   box-centring alone reads low. Each overlay applies it in whatever unit it can (the % basis differs
 	   per element), so this is the shared source of truth rather than a directly-usable offset. */
 	--bp-play-disc-rise: 3.125%;
-	/* Round plaque from main_btn_empty.png (128×128), rendered at its native 1:1.
+	/* Round plaque from main_btn_empty.png (128×128). 6.46875vw = its native 1:1 (5.75vw) x 1.25 x 0.9.
 	   ⚠️ Both dimensions are load-bearing for BalanceCard.svelte, which is a SIBLING of this panel and
 	   positions itself by calc against this cluster: the width feeds its `left` (via the cluster total)
 	   and the height feeds its `bottom` (the button is the row's tallest item, so it sets the row
 	   centre). Keep those in sync — the derivations are spelled out there. */
-	width: 5.75vw;
+	width: 6.46875vw;
 	aspect-ratio: 1 / 1;
 	min-width: 0;
 	height: auto;
@@ -743,7 +779,9 @@
 .bp-auto-wrap {
 	position: relative;
 	flex: 0 0 auto;
-	width: 4.3vw;
+	/* Sized to paint the disc --bp-field-plaque-height tall — see that var. The box stays square, so it
+	   keeps the letterbox slack above/below the art that it has always had. */
+	width: var(--bp-side-btn-width);
 	aspect-ratio: 1;
 	display: inline-flex;
 	align-items: stretch;
@@ -786,6 +824,17 @@
 	}
 }
 
+/* ⚠️ Must state its own size. It is a flex item with no width, so it sizes to the art's INTRINSIC
+   88px and the img's `width: 100%` then resolves against that — self-referential, and it silently
+   caps the disc at natural size once the button box is wider than 88px. (It only tracked the box
+   before because the box was NARROWER, so flex-shrink pulled it down.) Fast has no such gap: its
+   button sets width/height directly. */
+.bp-btn-auto-ico {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
 .bp-btn-auto-ico img {
 	width: 100%;
 	height: 100%;
@@ -797,7 +846,8 @@
 	position: relative;
 	display: inline-flex;
 	flex: 0 0 auto;
-	width: 4.3vw;
+	/* Matches .bp-auto-wrap — same art dimensions, same solve. */
+	width: var(--bp-side-btn-width);
 	aspect-ratio: 1;
 	align-items: center;
 	justify-content: center;

@@ -25,11 +25,12 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/free-spin-meter.png',
 	'img/free-spin-meter-wheel.png',
 	'img/free-spin-label.png',
-	// Free-spin wheel: rotating value disc + static frame (ring/pointer/medallion) + the top wedge's
-	// highlight (see FreeSpinRoulette.svelte).
+	// Free-spin wheel: rotating value disc + the top wedge's highlight + the rope dividers over it +
+	// static frame (ring/pointer/medallion) (see FreeSpinRoulette.svelte).
 	'img/bonus_roulette_v2/wheel_values.png',
 	'img/bonus_roulette_v2/wheel_base.png',
 	'img/bonus_roulette_v2/wheel_segment_highlight.png',
+	'img/bonus_roulette_v2/wheel_divider.png',
 	'img/free-spin-marker.png',
 
 	// Bonus meter + roulette + overlays

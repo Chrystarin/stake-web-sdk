@@ -929,13 +929,18 @@
 	/* Buy bonus trigger — desktop top-left, mobile top-right. */
 	.buy-bonus-trigger {
 		position: absolute;
+		/* Equal corner inset. These are BOX offsets, but they land equal VISIBLE margins too: the art's
+		   opaque body carries a symmetric 11px of transparent padding on its top AND left edges
+		   (buy-bonus-btn.png, 161×159), so both sides gain the same amount. The only residue is the
+		   ~0.5px of vertical letterbox `object-fit: contain` adds for the art's 1.0126 aspect. */
 		top: 2.2vw;
-		left: 1vw;
+		left: 2.2vw;
 		z-index: 25;
-		width: 5vw;
-		height: 5vw;
-		min-width: 54px;
-		min-height: 54px;
+		/* 6.25vw = the original 5vw × 1.25. Mins scale with it so the +25% survives on small viewports. */
+		width: 6.25vw;
+		height: 6.25vw;
+		min-width: 67.5px;
+		min-height: 67.5px;
 		padding: 0;
 		border: none;
 		background: none;

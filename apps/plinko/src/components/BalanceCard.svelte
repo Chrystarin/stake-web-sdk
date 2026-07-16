@@ -115,29 +115,93 @@
 	.balance-card-root {
 		position: absolute;
 
-		/* Size of the plaque, matched to the betting fields' rendered frame.
-		   Width MIRRORS `--bp-field-plaque-width` in GameHud.scss (hand-synced — this component sits
-		   outside the bottom-panel subtree, so it can't inherit that var).
-		   Height: those fields are `content-box`, so their padding lands OUTSIDE the size they state —
-		   --bp-field-height (--bp-item-height 4.5vw × 0.7 = 3.15vw) + 0.35vw each side. `.balance-card`
-		   is `border-box`, so it states the total. */
+		/* Size of the plaque.
+		   Width is this card's OWN, deliberately independent: it used to mirror --bp-field-plaque-width,
+		   but the betting fields were shrunk 10% and this card was kept at its size, so the two are no
+		   longer the same number. (It still borrows their chrome and typography — just not their width.)
+		   Height DOES still match the fields: they are `content-box`, so their padding lands OUTSIDE the
+		   size they state — --bp-field-height (--bp-item-height 4.5vw × 0.7 = 3.15vw) + 0.35vw each side.
+		   `.balance-card` is `border-box`, so it states the total. */
 		--balance-card-width: 16.554vw;
 		--balance-card-height: calc(3.15vw + 2 * 0.35vw);
 
-		/* Row geometry (GameHud.scss): the bottom panel's row centre sits 3.53vw off the viewport
-		   bottom (0.15vw panel pad + 0.5vw chrome pad + half the 5.75vw PLAY button — the row's tallest
-		   item); centring this 3.85vw-tall card on that line puts its bottom edge at 1.6vw. */
-		bottom: 1.6vw;
-		/* One --bp-column-gap (1.1vw) to the left of the Bet-per-ball field. The row centres a fixed
-		   group on the viewport, so that field's left edge is deterministic. With w = the shared field
-		   width, and the cluster = auto 4.3 + 0.9 + PLAY 5.75 + 0.9 + fast 4.3 = 16.15vw:
-		     group    = w + gap 1.1 + cluster 16.15 + gap 1.1 + w = 2w + 18.35vw
-		     bet.left = 50vw − group/2       = 50vw − w − 9.175vw
-		     left     = bet.left − 1.1vw − w = 39.725vw − 2w
-		   Stated in terms of the width var so the two track automatically: the field width feeds the
-		   centred group TWICE (both edge fields), so it shifts this card by 2× its own growth — which is
-		   easy to get wrong by hand. Only the cluster's own size is baked in here. */
-		left: calc(39.725vw - 2 * var(--balance-card-width));
+		/* ⚠️ The frame art is NOT centred in its own canvas. betting-component-frame.png is 512×124, but
+		   the plaque BODY only occupies rows 0..109 — the bottom 14 are a soft shadow tail that fades to
+		   alpha 0. The img is stretched to fill this card (`object-fit: fill`, inset 0), so the plaque
+		   the player SEES is centred 7/124 = 5.645% of the card height ABOVE the card's box centre, and
+		   anything box-centred on the card reads ~4.2px LOW against the frame around it. = 0.217vw.
+		   🔑 Measure this off the OPAQUE body, never off "dark" pixels: the bottom bevel (rows 103..109)
+		   is lit from above, so it is nearly as dark as the recess and a darkness threshold swallows it
+		   — that under-reports the rise as 3.2% and leaves the coin visibly low. Cross-check: the recess
+		   alone (rows 6..102) puts it at 6.05%, agreeing to within 0.3px.
+		   Derived from the height so it tracks if the plaque is ever resized.
+		   ⚠️ The betting fields use this same art, so the same offset applies to them. */
+		--balance-frame-art-rise: calc(var(--balance-card-height) * 0.05645);
+
+		/* MIRRORS --bp-field-label-rise in GameHud.scss (hand-synced). The betting fields lift their
+		   label/value block off their plaque's centre line; this card's text is still centred, so
+		   without the same lift it reads exactly this much lower than theirs — measured at 3.11px on a
+		   1920 viewport, which is precisely this 0.162vw. The plaques themselves already line up (same
+		   height, same centre line), so this is the whole of the difference.
+		   Applied to the TEXT only, not through the padding the way the fields do it: this card's
+		   padding also positions the coin, and the coin is meant to stay centred in the plaque. */
+		--balance-label-rise: 0.162vw;
+
+		/* The betting fields' rendered width — MIRRORS --bp-field-plaque-width in GameHud.scss
+		   (hand-synced; this component is outside the bottom-panel subtree, so it can't inherit it).
+		   Not this card's width — it is needed because the centred group that `left` is solved against
+		   is built from the FIELD width. Keep in sync with GameHud.scss. */
+		--balance-field-width: 14.8986vw;
+
+		/* Gold coin at the right. Sized off the card height rather than its width, matching the
+		   reference art, where the coin fills most of the plaque's inner height and clears the frame's
+		   bevel by a hair: 2.8678vw (2.73125 × 1.05) is ~74% of the 3.85vw card.
+		   ⚠️ This is now AT the ceiling, and the limit is the frame's dark recess (rows 6..102 of the
+		   art = 57.8px at a 1920 viewport), NOT the card's padding: the coin renders 55.1px, leaving
+		   only ~1.4px of air above and below. Any further growth overlaps the bevel. */
+		--balance-coin-size: 2.8678vw;
+
+		/* Coin's right edge to the plaque's right edge: the card's own right padding plus the coin's
+		   margin (the card is `space-between`, so the coin would otherwise sit hard against the frame).
+		   Named because the "+win" float centres on the coin and has to find it. */
+		--balance-coin-inset: calc(0.45vw + 0.4vw);
+
+		/* Light burst around the coin. Pinned in vw INSTEAD of being sized off --balance-coin-size: it
+		   already sits against two hard edges (see `.balance-card-coin-burst`), so a bigger coin must
+		   not drag it out any further. This is the size it had when the coin was 2.1vw — 322.5% of it —
+		   which is where that clearance was measured, and the coin growing inside it only tightens the
+		   halo, it doesn't move it. */
+		--balance-coin-burst-size: 6.7725vw;
+
+		/* Row geometry (GameHud.scss): the bottom panel's row centre sits 3.884vw off the viewport
+		   bottom (0.15vw panel pad + 0.5vw chrome pad + half the 6.46875vw PLAY button — the row's
+		   tallest item, so it alone sets the centre); centring this 3.85vw-tall card on that line puts
+		   its bottom edge at 3.884 − 1.925 = 1.959vw. The row is anchored to the viewport BOTTOM, so
+		   PLAY grows/shrinks upward and this card has to follow to stay level with the fields. */
+		bottom: 1.959vw;
+		/* Clearance between this card's right edge and the Bet-per-ball field's left edge — the knob for
+		   sliding the card away from the betting cluster. Deliberately 4× the --bp-column-gap (1.1vw)
+		   that separates the row's own controls, so the card reads as a separate thing rather than as
+		   one more column in that group. Growing this walks the card toward the viewport's left edge
+		   (it is the leftmost thing on the row): at 4.4vw it still clears by 2.64vw. */
+		--balance-card-gap: 4.4vw;
+
+		/* The row centres a fixed group on the viewport, so the Bet-per-ball field's left edge is
+		   deterministic. With f = --balance-field-width, c = --balance-card-width, and the cluster =
+		   auto 4.982 + 0.9 + PLAY 6.469 + 0.9 + fast 4.982 = 18.233vw (--bp-side-btn-width in
+		   GameHud.scss, itself solved off the plaque height):
+		     group    = f + gap 1.1 + cluster 18.233 + gap 1.1 + f = 2f + 20.433vw
+		     bet.left = 50vw − group/2        = 50vw − f − 10.217vw
+		     left     = bet.left − gap − c    = 39.783vw − gap − f − c
+		   ⚠️ f and c are SEPARATE terms. This used to read `2 × width` because the card mirrored the
+		   field; they are independent sizes now, and collapsing them back would silently mis-place the
+		   card by their difference. Only the ROW's own geometry is baked into the constant.
+		   ⚠️ Resizing the Autobet/Fast buttons or PLAY moves this card too — they make up the centred
+		   cluster, and this constant absorbs half of any change to its total width. */
+		left: calc(
+			39.783vw - var(--balance-card-gap) - var(--balance-field-width) -
+				var(--balance-card-width)
+		);
 		z-index: 22;
 		width: max-content;
 	}
@@ -155,7 +219,10 @@
 		   `left` is also derived from so the two can never drift apart. */
 		width: var(--balance-card-width);
 		height: var(--balance-card-height);
-		padding: 0.35vw 0.45vw 0.35vw 0.7vw;
+		/* The left inset is deliberately much deeper than the right one (reference art): the label and
+		   amount start well clear of the frame's rounded corner, while the coin only needs
+		   --balance-coin-inset to clear the bevel on its side. */
+		padding: 0.35vw 0.45vw 0.35vw 1.2vw;
 		box-sizing: border-box;
 		/* Deliberately NOT `overflow: hidden` (and so no border-radius to clip to): the coin sits near
 		   the right edge, so a clip to this box cuts the light burst off mid-ray on the right, top and
@@ -181,6 +248,10 @@
 	/* Text sits above the frame + starburst so neither washes over the label/amount. */
 	.balance-card-text {
 		position: relative;
+		/* Lifted to land on the betting fields' label/value line — see --balance-label-rise. `top` on a
+		   `relative` box shifts the paint without touching layout, so the coin (a sibling flex item,
+		   centred by the card's own padding) stays exactly where it is. */
+		top: calc(-1 * var(--balance-label-rise));
 		z-index: 3;
 		display: flex;
 		flex-direction: column;
@@ -220,15 +291,20 @@
 	/* Coin cluster on the right — the on-win coin burst collects into this coin (fly target). */
 	.balance-card-coin {
 		position: relative;
+		/* Raised onto the frame's VISIBLE centre — see --balance-frame-art-rise. Applied to the whole
+		   cluster, not the coin img, so the light burst (absolutely positioned in here) rides along and
+		   stays centred on the coin. `top` on an already-`relative` box moves paint only, so the flex
+		   layout and the card's own padding are untouched. */
+		top: calc(-1 * var(--balance-frame-art-rise));
 		z-index: 2;
 		flex-shrink: 0;
-		/* Sized to the shorter field height so it clears the frame's top/bottom edges. */
-		width: 2.1vw;
-		height: 2.1vw;
+		width: var(--balance-coin-size);
+		height: var(--balance-coin-size);
 		display: grid;
 		place-items: center;
 		/* Breathing room on the coin's right, on top of the card's own 0.45vw padding — the card is
-		   `justify-content: space-between`, so without this the coin sits hard against the frame edge. */
+		   `justify-content: space-between`, so without this the coin sits hard against the frame edge.
+		   The pair of them is --balance-coin-inset; keep the two in step. */
 		margin-right: 0.4vw;
 	}
 
@@ -253,9 +329,10 @@
 		position: absolute;
 		left: 50%;
 		top: 50%;
-		/* 215% (the size the burst was fitted to the coin at) × the glow's 1.5 emphasis. */
-		width: 322.5%;
-		height: 322.5%;
+		/* Absolute (--balance-coin-burst-size), not a % of this coin box — the box is at its clipping
+		   limit, so the coin has to be free to grow inside it. Still centred on the coin either way. */
+		width: var(--balance-coin-burst-size);
+		height: var(--balance-coin-burst-size);
 		transform: translate(-50%, -50%);
 		pointer-events: none;
 		opacity: 0;
@@ -302,9 +379,10 @@
 	.balance-win-float {
 		position: absolute;
 		bottom: 46%;
-		/* Centre over the coin: it sits ~1.5vw in from the plaque's right edge; `right` + translateX(50%)
-		   places the text's centre on that point. */
-		right: 1.5vw;
+		/* Centre over the coin: `right` + translateX(50%) puts the text's centre on the coin's centre,
+		   which sits --balance-coin-inset + half a coin in from the plaque's right edge. Derived rather
+		   than measured so resizing the coin can't leave the float behind. */
+		right: calc(var(--balance-coin-inset) + var(--balance-coin-size) / 2);
 		z-index: 3;
 		white-space: nowrap;
 		font-family: 'Poppins', 'Instrument Sans', sans-serif;

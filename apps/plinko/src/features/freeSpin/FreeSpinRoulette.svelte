@@ -52,9 +52,69 @@
 		},
 	};
 
+	// ─── Tuning knobs: the per-segment gold highlight ──────────────────────────────────────────────
+	// EDIT THESE to move/resize the glowing outline that marks the wedge under the pointer. Every knob
+	// is a NO-OP at its default, which leaves the outline exactly where the art measurements put it
+	// (edges parallel to the wedge's ropes, arc on the disc rim) — so nudge from here rather than
+	// editing ART_WEDGE_GEOMETRY/HIGHLIGHT_PNG below, which are recovered measurements, not opinions.
+	// The outline rides INSIDE the rotating disc, so these are expressed in the WEDGE's own frame and
+	// apply identically to all 8 slots. There is no landscape/portrait split on purpose: the whole
+	// assembly scales as one, so the highlight already follows the `wheel` knobs above.
+	//   scale:            radial REACH — how far the outline extends from its apex. 1 = the arc lands on
+	//                     the disc rim; >1 pushes it out under the wooden ring (which will eat the outer
+	//                     band), <1 pulls it back toward the hub. The wedge's ANGLE is unaffected: only
+	//                     the scaleX:scaleY ratio sets that, and this scales both together.
+	//   widenDeg:         degrees added to the wedge's HALF-angle, so the outline opens by twice this in
+	//                     total (+1 ⇒ 1° more daylight on each side of the wedge; negative tightens).
+	//                     0 = matches the ropes exactly. Keep within roughly ±10 — past that the squeeze
+	//                     solver hits the ends of its search range and silently stops widening.
+	//   offsetRadial:     slide the whole outline along its bisector, as a fraction of the disc RADIUS
+	//                     (+ = outward toward the rim, − = inward toward the hub). 0.05 ≈ 5% of the
+	//                     hub→rim distance. Unlike `scale`, this carries the arc along with it.
+	//   offsetTangential: slide it sideways across its wedge, same units (+ = clockwise).
+	//   rotateDeg:        swing it about its apex (+ = clockwise). Use this to re-aim the outline along
+	//                     the ropes; `offsetTangential` shifts it bodily instead.
+	const FREE_SPIN_HIGHLIGHT_TUNING = {
+		scale: 1.01,
+		widenDeg: 0,
+		offsetRadial: 0,
+		offsetTangential: -.0,
+		rotateDeg: 0,
+	};
+
+	// ─── Tuning knob: the values disc (wheel_values.png) ───────────────────────────────────────────
+	// `scale` grows the wedge colours + their baked-in labels about the hub. The values are painted INTO
+	// this art, so this is the only way to size them without new art — the wedges grow with them.
+	// Safe because the ring hides the overflow: the disc rim normally lands exactly on the ring's opaque
+	// inner edge, so scaling up just tucks the disc's outer band further underneath (never a gap — that
+	// would need scale < 1). The wedges stay visible from the hub out to the ring either way.
+	// Does NOT disturb the other layers: a uniform scale about the hub preserves ANGLES, so the wedge
+	// bisectors/half-angles the highlight is built from are untouched, and the highlight's arc still
+	// lands on the ring's edge because the ring — not the disc rim — is what bounds the visible wedge.
+	// It does scale the seams' chord offsets by the same factor (see the ropes' note below): at 1.15 vs
+	// the ropes' 1.13 the two differ by 0.02×offset ≈ 0.5px, i.e. they track each other closely.
+	const FREE_SPIN_VALUES_TUNING = {
+		scale: 1.12,
+	};
+
+	// ─── Tuning knob: the rope dividers (wheel_divider.png) ────────────────────────────────────────
+	// `scale` grows the rope layer about the WHEEL CENTRE, so the ropes reach further out (and get
+	// proportionally thicker — it is one image, there is no radial-only stretch).
+	//   1     = the art's own registration: rope tips land at 802–829 art px from the hub. The tips
+	//           differ because the ropes are CHORDS, so a chord's two ends sit at different radii.
+	//   1.127 = the shortest rope just reaches the disc rim (904) = the ring's opaque inner edge, so
+	//           EVERY rope runs into the wood and the tip ferrules tuck out of sight beneath it.
+	// Below ~1.09 the shortest ropes stop short of the ring's shadow (starts at ~837) and you get a
+	// band of bare wedge colour at the rim — the gap this knob exists to close.
+	// Overshooting is safe: nothing here clips, and the frame (z 3) paints over anything past the rim;
+	// the ring's outer edge is ~1069 art px away, so there is plenty of headroom.
+	const FREE_SPIN_DIVIDER_TUNING = {
+		scale: 1.13,
+	};
+
 	// ⚠️ DEBUG ONLY — extra delay (ms) before the wheel starts spinning, so the assembled layout can be
 	// inspected first. Must be `0` when shipping. Added on top of the normal pre-spin delay (~0.52s),
-	// so e.g. 6480 ≈ the wheel spins 7s after it appears (pairs with DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD in Game.svelte).
+	// so e.g. 9480 ≈ the wheel spins 10s after it appears (pairs with DEV_SHOW_FREE_SPIN_ROULETTE_ON_LOAD in Game.svelte).
 	const DEBUG_SPIN_DELAY_MS = 0;
 
 	// ─── Wheel art (img/bonus_roulette_v2) ─────────────────────────────────────────────────────────
@@ -73,7 +133,23 @@
 	//     soft glow are painted, so it traces the wedge's perimeter. Its edges sit at -21.99°/+22.76°
 	//     from its own vertical (i.e. it is very slightly lopsided), and its corners are clipped a px or
 	//     two by its own canvas.
+	//   wheel_divider.png (1553×1564) — the 8 gold ROPES, on their own layer so the segment highlight can
+	//     sit UNDER them (see the layering note on the markup below). Rides inside the rotating disc.
+	//     ⚠️ The ropes are NOT radial — they are 4 straight CHORDS laid across the wheel (the art shows
+	//     them missing the hub, leaving a small gap), which is the same geometry ART_WEDGE_GEOMETRY below
+	//     was recovered from.
 	const BASE_PNG = { w: 1911, h: 1925, cx: 955.46, cy: 968.93, outerR: 945.87, opaqueInnerR: 800 };
+	/** wheel_divider.png is the rope layer of the SAME artboard as wheel_values.png, exported 1:1 and
+	 * trimmed — so it drops onto the disc at native size with a pure offset, no scaling.
+	 * Recovered by diffing the previous rope-BAKED wheel_values.png (git) against the current rope-free
+	 * one, which isolates the baked rope pixels exactly, then registering this art against them:
+	 * eroding both masks identically (so the erosion bias cancels) matched their extents at scale
+	 * 1.0033/1.0020/0.9993 across three erosion depths ⇒ 1:1; an offset-only IoU fit then peaked at
+	 * (121, 111), agreeing with the independent bbox-midpoint estimate of (120.5, 114). Verified by
+	 * overlaying this art on the OLD disc: the gold rope covers the baked cream rope with no ghosting.
+	 * ⚠️ Scale here is NOT recoverable by naive IoU/correlation — the ropes are long and thin, so they
+	 * overlap themselves under scaling and the score is flat to ±2% (a fit like that lands on ~1.10). */
+	const DIVIDER_PNG = { w: 1553, h: 1564, offsetX: 121, offsetY: 111 };
 	const HIGHLIGHT_PNG = {
 		w: 597,
 		h: 767,
@@ -119,10 +195,27 @@
 		x: (HIGHLIGHT_PNG.apexX / HIGHLIGHT_PNG.w) * 100,
 		y: (HIGHLIGHT_PNG.apexY / HIGHLIGHT_PNG.h) * 100,
 	};
+	// The rope layer shares the disc's artboard 1:1, and the disc is inscribed in that square canvas and
+	// fills the stack exactly — so disc-art px map to the stack by a plain divide, no scale term.
+	const VALUES_ART_D = VALUES_ART_R * 2;
+	const DIVIDER_BOX = {
+		w: DIVIDER_PNG.w / VALUES_ART_D,
+		h: DIVIDER_PNG.h / VALUES_ART_D,
+		left: DIVIDER_PNG.offsetX / VALUES_ART_D,
+		top: DIVIDER_PNG.offsetY / VALUES_ART_D,
+	};
+	// The wheel centre (the hub, at 50%/50% of the stack) in the rope layer's OWN box — the art is
+	// trimmed, so its box is NOT centred on the hub and a plain `50% 50%` origin would scale the ropes
+	// about the wrong point and slide them off their seams.
+	const DIVIDER_ORIGIN = {
+		x: ((VALUES_ART_R - DIVIDER_PNG.offsetX) / DIVIDER_PNG.w) * 100,
+		y: ((VALUES_ART_R - DIVIDER_PNG.offsetY) / DIVIDER_PNG.h) * 100,
+	};
 
 	const valuesSrc = staticUrl('img/bonus_roulette_v2/wheel_values.png');
 	const frameSrc = staticUrl('img/bonus_roulette_v2/wheel_base.png');
 	const highlightSrc = staticUrl('img/bonus_roulette_v2/wheel_segment_highlight.png');
+	const dividerSrc = staticUrl('img/bonus_roulette_v2/wheel_divider.png');
 
 	const SEG_ANGLE = 360 / FREE_SPIN_SEGMENTS.length;
 	/** ⚠️ The art and `FREE_SPIN_SEGMENTS` start at DIFFERENT wedges. Both run clockwise in the same
@@ -183,21 +276,39 @@
 	const HIGHLIGHT_PLACEMENT = ART_WEDGE_GEOMETRY.map((g) => {
 		// scaleX/scaleY only set the wedge's ANGLE via their ratio, so scaleY is free to control how far
 		// the outline reaches without disturbing the edges: scaling about the apex leaves the edge LINES
-		// (apex + direction) fixed, and the directions depend only on sx/sy.
-		const ratio = squeezeForHalf(g.halfDeg);
+		// (apex + direction) fixed, and the directions depend only on sx/sy. `scale` therefore rides on
+		// scaleY and is carried into scaleX by the `ratio *` below, leaving the ratio — and so the
+		// angle — untouched; `widenDeg` is the only knob that moves the edges.
+		const ratio = squeezeForHalf(g.halfDeg + FREE_SPIN_HIGHLIGHT_TUNING.widenDeg);
 		const bisRad = g.bisectorDeg * DEG;
 		// How far the apex sits OUTWARD along the wedge's bisector. ⚠️ The outline's arc rides on the
 		// apex, so left uncompensated this shoves the arc the same distance PAST the rim and the ring
 		// eats the whole outer band (measured: only 1px of the ~40px band survived on 10X, 0px on
 		// BONUS/20X). Shrink radially by exactly that much to pin the arc back on the rim.
+		// Deliberately read from the UNTUNED apex: this compensation belongs to the art, so the offset
+		// knobs below stay a pure nudge on top of it rather than re-deriving (and fighting) it.
 		const outward = g.apexX * Math.sin(bisRad) - g.apexY * Math.cos(bisRad);
-		const scaleY = (VALUES_ART_R - outward) / VALUES_ART_R;
+		const scaleY = ((VALUES_ART_R - outward) / VALUES_ART_R) * FREE_SPIN_HIGHLIGHT_TUNING.scale;
+		// The offset knobs are in the WEDGE's frame, so rotate them onto the disc's axes before adding.
+		// Outward radial unit = (sin θ, −cos θ) with +y DOWN — the same vector `outward` dots against —
+		// and tangential is that turned 90° clockwise = (cos θ, sin θ).
+		const apexX =
+			g.apexX +
+			(FREE_SPIN_HIGHLIGHT_TUNING.offsetRadial * Math.sin(bisRad) +
+				FREE_SPIN_HIGHLIGHT_TUNING.offsetTangential * Math.cos(bisRad)) *
+				VALUES_ART_R;
+		const apexY =
+			g.apexY +
+			(-FREE_SPIN_HIGHLIGHT_TUNING.offsetRadial * Math.cos(bisRad) +
+				FREE_SPIN_HIGHLIGHT_TUNING.offsetTangential * Math.sin(bisRad)) *
+				VALUES_ART_R;
 		return {
-			rotateDeg: g.bisectorDeg - squeezedEdges(ratio).bisectorDeg,
+			rotateDeg:
+				g.bisectorDeg - squeezedEdges(ratio).bisectorDeg + FREE_SPIN_HIGHLIGHT_TUNING.rotateDeg,
 			scaleX: ratio * scaleY,
 			scaleY,
-			txPct: (((g.apexX / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.w) * 100,
-			tyPct: (((g.apexY / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.h) * 100,
+			txPct: (((apexX / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.w) * 100,
+			tyPct: (((apexY / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.h) * 100,
 		};
 	});
 
@@ -428,7 +539,16 @@
 						role="img"
 						aria-label="Free spin wheel"
 					>
-						<img class="free-spin-wheel-values" src={valuesSrc} alt="" />
+						<!-- Layer order inside the rotating disc: values → highlight → ropes. The wedge colours
+						     are bare here (the ropes are their own layer now), so the glow sits ON the wedge and
+						     the ropes draw OVER it — the outline is bounded by the ropes instead of painting on
+						     top of them. -->
+						<img
+							class="free-spin-wheel-values"
+							style:--values-scale={FREE_SPIN_VALUES_TUNING.scale}
+							src={valuesSrc}
+							alt=""
+						/>
 						<!-- Rides INSIDE the rotating disc, so it stays glued to its wedge while the wheel turns;
 						     the rAF tracker only re-points it as each new wedge reaches the marker. -->
 						<img
@@ -445,6 +565,21 @@
 							style:--highlight-tx="{highlightPlacement.txPct}%"
 							style:--highlight-ty="{highlightPlacement.tyPct}%"
 							src={highlightSrc}
+							alt=""
+						/>
+						<!-- The ropes. Same artboard as the disc, so this is a plain 1:1 placement — it must NOT
+						     be stretched to the stack, or the ropes leave their seams. The tuning scale then
+						     grows them about the hub so they run into the ring. -->
+						<img
+							class="free-spin-divider"
+							style:left="{DIVIDER_BOX.left * 100}%"
+							style:top="{DIVIDER_BOX.top * 100}%"
+							style:width="{DIVIDER_BOX.w * 100}%"
+							style:height="{DIVIDER_BOX.h * 100}%"
+							style:--divider-origin-x="{DIVIDER_ORIGIN.x}%"
+							style:--divider-origin-y="{DIVIDER_ORIGIN.y}%"
+							style:--divider-scale={FREE_SPIN_DIVIDER_TUNING.scale}
+							src={dividerSrc}
 							alt=""
 						/>
 					</div>
@@ -554,13 +689,16 @@
 	.free-spin-wheel--animating {
 		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
 	}
-	/* The coloured disc is inscribed in its square canvas, so it fills the stack exactly. */
+	/* The coloured disc is inscribed in its square canvas, so it fills the stack exactly — which also
+	   means the hub IS this box's centre, so the default 50%/50% origin scales about the hub. */
 	.free-spin-wheel-values {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
 		pointer-events: none;
+		transform-origin: 50% 50%;
+		transform: scale(var(--values-scale, 1));
 	}
 	/* `fill` on both of these: the boxes are already the art's exact aspect ratio, and `contain` would
 	   silently letterbox (and so break the registration) on any rounding drift. */
@@ -572,6 +710,7 @@
 		object-fit: fill;
 		pointer-events: none;
 		transform-origin: var(--highlight-origin-x) var(--highlight-origin-y);
+		/* z-index 1: above the wedge colours, below the ropes (z-index 2). */
 		/* Read right-to-left: open to the wedge's angle and pull the arc back to the rim (in the art's own
 		   upright frame, about the apex), swing onto the wedge's bisector, then slide the apex off the hub
 		   to where the wedge's two ropes actually meet — that last step is what keeps the edges parallel
@@ -579,6 +718,17 @@
 		transform: translate(var(--highlight-tx, 0), var(--highlight-ty, 0))
 			rotate(var(--highlight-angle-deg, 0deg))
 			scale(var(--highlight-scale-x, 1), var(--highlight-scale-y, 1));
+	}
+	/* Between the highlight (1) and the frame (3): the ropes bound the glow, the ring still covers their
+	   ends. `fill` matches the other pieces — the box is already the art's exact aspect ratio.
+	   Scaled about the HUB (not the box centre — the art is trimmed) so the ropes reach the ring. */
+	.free-spin-divider {
+		position: absolute;
+		z-index: 2;
+		object-fit: fill;
+		pointer-events: none;
+		transform-origin: var(--divider-origin-x) var(--divider-origin-y);
+		transform: scale(var(--divider-scale, 1));
 	}
 	.free-spin-frame {
 		position: absolute;
