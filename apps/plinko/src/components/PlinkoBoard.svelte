@@ -11,6 +11,7 @@
 	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
 	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
+	import { frameImagePoint, SKULL_MOUTH_CAVITY } from '../lib/frameArt';
 	import config from '../game/config';
 	import { pocketPitchForMultiplier } from '../game/sound';
 	import { stateGame } from '../game/stateGame.svelte';
@@ -111,6 +112,10 @@
 					onBallDropped: handleBallDropped,
 					onCoinPegHit: (event) => props.onCoinPegHit?.(event),
 					onPegBounce: handlePegBounce,
+					// Balls are thrown out of the black cavity in the pirate skull's mouth, which is
+					// painted into the game-area frame art rather than drawn by the board.
+					resolveSpawnAnchor: () =>
+						frameImagePoint(SKULL_MOUTH_CAVITY.x, SKULL_MOUTH_CAVITY.y) ?? null,
 				});
 				engine = eng;
 				await bootstrapEngine(eng);
@@ -299,11 +304,18 @@
 		pointer-events: auto;
 	}
 
+	/* The buffer is taller than the host: the board sits low inside it so there is airspace above
+	   for the skull-mouth spawn. The engine drives these two vars as a matched pair — the canvas
+	   grows upward by exactly the amount it is pulled up by — so the extra airspace becomes visible
+	   above the host box while the board itself stays put. Falling back to the plain 100%/0 box (if
+	   the vars are ever missing) just hides the airspace again; it never moves the board.
+	   `!important` is needed to beat the inline size Pixi's autoDensity writes. */
 	.plinko-host :global(canvas) {
 		display: block;
 		width: 100% !important;
-		height: 100% !important;
+		height: var(--plinko-canvas-height, 100%) !important;
 		position: relative;
+		top: var(--plinko-canvas-top, 0px);
 		z-index: 1;
 		background: transparent !important;
 	}

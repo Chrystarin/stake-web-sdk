@@ -24,6 +24,13 @@ export type PlinkoEngineOptions = {
 	onCoinPegHit?: (event: CoinPegHitEvent) => void;
 	/** Emitted on every peg contact (once per peg/row) so the UI can play a per-bounce sound. */
 	onPegBounce?: (event: PegBounceEvent) => void;
+	/**
+	 * Where balls are thrown from, in client (screen) px — the black cavity in the skull's mouth,
+	 * which lives in the frame art outside this engine's host. Injected so the engine stays free of
+	 * the app's markup; when it is absent or returns null (e.g. the board rendered bare in
+	 * Storybook) the spawn falls back to the board's own centre.
+	 */
+	resolveSpawnAnchor?: () => { x: number; y: number } | null | undefined;
 };
 
 interface Ball {
@@ -33,6 +40,11 @@ interface Ball {
   prevX: number;
   prevY: number;
   scale: number;
+  /**
+   * Emergence from the skull's mouth: 0 the instant it appears in the cavity, 1 once it is fully
+   * out. Drives size and brightness only (see `drawBallsPixi`) — never physics.
+   */
+  emerge: number;
   isDropping: boolean;
   currentPoint: number;
   path: PathPoint[];
@@ -121,6 +133,7 @@ export class PlinkoEngine {
 		this.onBallDropped = options.onBallDropped;
 		this.onCoinPegHit = options.onCoinPegHit;
 		this.onPegBounce = options.onPegBounce;
+		this.resolveSpawnAnchor = options.resolveSpawnAnchor;
 		if (isMobile()) {
 			this.pyramidConfig.bounceAmplitude = 12;
 		}
@@ -158,6 +171,8 @@ export class PlinkoEngine {
   onCoinPegHit?: (event: CoinPegHitEvent) => void;
   /** Emitted on every peg contact (once per peg/row) for the per-bounce "thunk" sound. */
   onPegBounce?: (event: PegBounceEvent) => void;
+  /** Resolves the skull-mouth spawn in client px; see `PlinkoEngineOptions`. */
+  private resolveSpawnAnchor?: () => { x: number; y: number } | null | undefined;
   private hostElement: HTMLElement;
 
   private app?: Application;
@@ -304,6 +319,22 @@ export class PlinkoEngine {
   private hiddenStepCarryMs = 0;
   private readonly BASE_VIEWPORT_WIDTH = 1920;
   private readonly MAX_RENDER_RESOLUTION = 2;
+
+  /**
+   * Spawn airspace above the host box, as a fraction of host height. Enough to clear the skull's
+   * mouth on the tightest layout (portrait phone, where the mouth sits ~9px above the host and the
+   * ball is ~5px across); desktop has room to spare. Costs one extra strip of buffer, nothing else.
+   */
+  private static readonly TOP_AIRSPACE_RATIO = 0.075;
+
+  /** Ball size the instant it appears in the mouth, as a fraction of its real radius. */
+  private static readonly EMERGE_MIN_SCALE = 0.12;
+
+  /** Ball brightness the instant it appears — near-black, so it reads as deep inside the skull. */
+  private static readonly EMERGE_MIN_BRIGHTNESS = 0.14;
+
+  /** Emergence finishes once the ball has fallen this many of its own radii clear of the mouth. */
+  private static readonly EMERGE_FALL_RADII = 2.4;
   private frameTick = 0;
   private slotLabelFontSize = 14;
   private slotLabelLetterSpacingPx = 0;
@@ -977,13 +1008,64 @@ export class PlinkoEngine {
    * phone and a narrow desktop window, so gating this on isMobile() made the phone drop the offset
    * and float the board higher than the tuned desktop-portrait. One value keeps them identical.
    */
-  private getWorldViewportYOffset(): number {
+  private getBoardViewportYOffset(): number {
     return this.layoutHeight * 0.085;
+  }
+
+  /** Buffer height before any spawn airspace — the baseline the canvas squash is defined against. */
+  private get baseRendererHeight(): number {
+    return Math.ceil(this.containerHeight + this.getBoardViewportYOffset());
+  }
+
+  /**
+   * Extra world rows kept ABOVE the host box, purely so the skull-mouth spawn is on-canvas: the
+   * mouth is painted above the board (~9px above the host's top edge on a phone), so a ball thrown
+   * from it would otherwise be clipped at the buffer edge instead of rising into view.
+   *
+   * Whole buffer pixels only — `syncCanvasViewportStyle` cancels this exactly, and the cancellation
+   * is only exact while the buffer grows by the same integer the world shifts down by.
+   */
+  private getTopAirspace(): number {
+    return Math.round(this.layoutHeight * PlinkoEngine.TOP_AIRSPACE_RATIO);
+  }
+
+  private getWorldViewportYOffset(): number {
+    return this.getBoardViewportYOffset() + this.getTopAirspace();
   }
 
   /** Pixi buffer height: host size plus viewport offset so bottom slots are not clipped. */
   private getRendererHeight(): number {
-    return Math.ceil(this.containerHeight + this.getWorldViewportYOffset());
+    return this.baseRendererHeight + this.getTopAirspace();
+  }
+
+  /**
+   * Show the spawn airspace ABOVE the host box without moving the board a single pixel.
+   *
+   * The canvas box grows by a fraction `p = airspace / baseBuffer` of the host's height and is
+   * pulled up by exactly that much, so its bottom edge stays on the host's bottom edge. Writing
+   * `hostH` for the host's height and `k` for the squash the board is tuned around
+   * (`hostH / baseBuffer` — the buffer has always been taller than the box CSS paints it into):
+   *
+   *   canvasHeight = hostH * (1 + p)      canvasTop = hostTop - hostH * p
+   *   scale        = canvasHeight / buffer = hostH * (baseBuffer + airspace) / baseBuffer
+   *                                          ÷ (baseBuffer + airspace)      = k   ← unchanged
+   *   screenY(w)   = canvasTop + (w + boardOffset + airspace) * k
+   *                = hostTop + (w + boardOffset) * k                        ← unchanged
+   *
+   * Expressed as a PERCENTAGE of the host box — the same thing the canvas's `height: 100%` already
+   * resolves against. Client rects are measured after the game-area's `scale()` transform while CSS
+   * boxes are laid out before it, so a px value taken from a rect would come out scaled; a
+   * percentage sidesteps that (and any px rounding) entirely.
+   *
+   * Driven through CSS vars because the stylesheet's `height: 100% !important` (which is there to
+   * override what Pixi's `autoDensity` writes inline) would otherwise win.
+   */
+  private syncCanvasViewportStyle(): void {
+    const base = this.baseRendererHeight;
+    if (!(base > 0)) return;
+    const growPct = (this.getTopAirspace() / base) * 100;
+    this.hostElement.style.setProperty('--plinko-canvas-height', `${100 + growPct}%`);
+    this.hostElement.style.setProperty('--plinko-canvas-top', `${-growPct}%`);
   }
 
   /**
@@ -992,6 +1074,7 @@ export class PlinkoEngine {
    */
   private updateWorldViewportOffset(): void {
     this.world.position.set(0, this.getWorldViewportYOffset());
+    this.syncCanvasViewportStyle();
   }
 
   private syncFeaturedPegSprites(): void {
@@ -1328,12 +1411,21 @@ export class PlinkoEngine {
   /** Synchronous layout + redraw before spawning balls (avoids rAF race with drop burst). */
   refreshLayoutSync(): void {
     if (!this.app) return;
+    const prevWidth = this.containerWidth || this.lastWidth;
+    const prevHeight = this.containerHeight || this.lastHeight;
     const { width, height } = this.getContainerSize();
+    // Size the buffer exactly as `resizeCanvasToContainer` does — including the viewport offset and
+    // spawn airspace. Resizing to the bare host height here dropped the airspace right when balls
+    // spawn, and left `lastHeight` in units the other path never matches (so each undid the
+    // other's dedupe and the buffer flip-flopped until a later pass settled it).
+    this.containerWidth = width;
+    this.containerHeight = height;
+    const renderHeight = this.getRendererHeight();
     const winW = typeof window !== 'undefined' ? window.innerWidth : 0;
     const winH = typeof window !== 'undefined' ? window.innerHeight : 0;
     if (
       width === this.lastWidth &&
-      height === this.lastHeight &&
+      renderHeight === this.lastHeight &&
       winW === this.lastWindowInnerW &&
       winH === this.lastWindowInnerH &&
       this.rows &&
@@ -1345,11 +1437,9 @@ export class PlinkoEngine {
       this.renderFrame();
       return;
     }
-    const prevWidth = this.containerWidth || this.lastWidth;
-    const prevHeight = this.containerHeight || this.lastHeight;
-    this.app.renderer.resize(width, height);
+    this.app.renderer.resize(width, renderHeight);
     this.lastWidth = width;
-    this.lastHeight = height;
+    this.lastHeight = renderHeight;
     this.lastWindowInnerW = winW;
     this.lastWindowInnerH = winH;
     this.updateContainerSize();
@@ -1891,8 +1981,8 @@ export class PlinkoEngine {
     if (!this.app || !this.slots.length) return [];
 
     const centerX = this.containerWidth / 2;
-    // Spawn from higher above the board while keeping peg/slot layout unchanged.
-    const launchY = this.topMargin - this.pegSpacing * 1.35;
+    // Thrown out of the skull's mouth, which is painted above the board; peg/slot layout unchanged.
+    const spawn = this.resolveSpawnPoint();
     const targetSlot = this.slots[targetIndex];
     const targetX = targetSlot.centerX;
 
@@ -1967,7 +2057,7 @@ export class PlinkoEngine {
     const earlyAvoidBias = laneOffsets[0] ?? 0;
 
     const path: PathPoint[] = [];
-    path.push({ x: centerX, y: launchY, row: -1, closestPeg: null, bounceIntensity: 0, travelDir: 0 });
+    path.push({ x: spawn.x, y: spawn.y, row: -1, closestPeg: null, bounceIntensity: 0, travelDir: 0 });
     path.push({
       x: centerX + spawnLaneBias + earlyAvoidBias * 0.12,
       y: this.topMargin - this.pegSpacing * 0.32,
@@ -2068,6 +2158,7 @@ export class PlinkoEngine {
       prevX: path[0].x,
       prevY: path[0].y,
       scale: 1,
+      emerge: 0,
       isDropping: true,
       currentPoint: 0,
       path,
@@ -2255,6 +2346,16 @@ export class PlinkoEngine {
             ball.laneOffsetX +
             ball.collisionOffsetX;
           ball.y = baseY + ball.velocityY + ball.collisionOffsetY;
+        }
+
+        // Emerging from the skull: driven by distance fallen clear of the mouth rather than by a
+        // timer, so it costs no extra time and reads the same at any animation speed. Ratcheted
+        // forward only — the ball must never appear to sink back into the mouth.
+        if (ball.emerge < 1) {
+          const span = this.ballRadius * PlinkoEngine.EMERGE_FALL_RADII;
+          const fallen = ball.y - ball.path[0].y;
+          const reached = span > 0 ? Math.max(0, Math.min(1, fallen / span)) : 1;
+          if (reached > ball.emerge) ball.emerge = reached;
         }
 
         ball.prevX = previousX;
@@ -2499,6 +2600,48 @@ export class PlinkoEngine {
     const maxCollisionY = this.pegSpacing * 0.1;
     ball.collisionOffsetX = Math.max(-maxCollisionX, Math.min(maxCollisionX, ball.collisionOffsetX));
     ball.collisionOffsetY = Math.max(-maxCollisionY, Math.min(maxCollisionY, ball.collisionOffsetY));
+  }
+
+  /**
+   * Client (screen) px → world coords. Reads the canvas's live rect, so it already accounts for the
+   * spawn airspace shift and the CSS squash without repeating either.
+   */
+  private clientPointToWorld(clientX: number, clientY: number): { x: number; y: number } | null {
+    const canvas = this.app?.canvas as HTMLCanvasElement | undefined;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return {
+      x: ((clientX - rect.left) / rect.width) * this.containerWidth,
+      y:
+        ((clientY - rect.top) / rect.height) * this.getRendererHeight() -
+        this.getWorldViewportYOffset(),
+    };
+  }
+
+  /**
+   * Where a ball is thrown from: the black cavity in the skull's mouth, resolved from the frame art
+   * so it stays glued to the picture at any size. Falls back to the board's own centre and launch
+   * height when the art isn't on screen — e.g. the board rendered bare in Storybook.
+   */
+  private resolveSpawnPoint(): { x: number; y: number } {
+    const fallbackX = this.containerWidth / 2;
+    const fallbackY = this.topMargin - this.pegSpacing * 1.35;
+    const anchor = this.resolveSpawnAnchor?.();
+    if (!anchor) return { x: fallbackX, y: fallbackY };
+    const world = this.clientPointToWorld(anchor.x, anchor.y);
+    if (!world || !Number.isFinite(world.x) || !Number.isFinite(world.y)) {
+      return { x: fallbackX, y: fallbackY };
+    }
+    // Never spawn off the top of the buffer: a ball there would pop into existence at the canvas
+    // edge instead of rising out of the mouth. `getTopAirspace` is sized so this shouldn't bite.
+    const minY = -this.getWorldViewportYOffset() + this.ballRadius * 0.5;
+    return { x: world.x, y: Math.max(minY, world.y) };
+  }
+
+  private easeOutCubic(t: number): number {
+    const c = Math.max(0, Math.min(1, t));
+    return 1 - (1 - c) ** 3;
   }
 
   private easeSmoothstep(t: number): number {
@@ -2952,6 +3095,14 @@ export class PlinkoEngine {
     return 0x64748b;
   }
 
+  /** Scale a packed RGB colour's channels by `k` (0 = black, 1 = unchanged). */
+  private shadeColor(color: number, k: number): number {
+    const r = Math.round(((color >> 16) & 255) * k);
+    const g = Math.round(((color >> 8) & 255) * k);
+    const b = Math.round((color & 255) * k);
+    return (r << 16) | (g << 8) | b;
+  }
+
   private numberToRgb(color: number): { r: number; g: number; b: number } {
     return {
       r: (color >> 16) & 255,
@@ -2967,13 +3118,26 @@ export class PlinkoEngine {
     for (let i = 0; i < this.balls.length; i++) {
       const ball = this.balls[i];
       if (ball.scale <= 0) continue;
-      const r = this.ballRadius * ball.scale;
+      // Thrown up out of the skull's throat: it starts tiny and near-black (far back, in shadow)
+      // and swells to full size and full colour as it clears the mouth.
+      const t = this.easeOutCubic(ball.emerge);
+      const emergeScale =
+        PlinkoEngine.EMERGE_MIN_SCALE + (1 - PlinkoEngine.EMERGE_MIN_SCALE) * t;
+      const lit =
+        PlinkoEngine.EMERGE_MIN_BRIGHTNESS + (1 - PlinkoEngine.EMERGE_MIN_BRIGHTNESS) * t;
+      const r = this.ballRadius * ball.scale * emergeScale;
       const x = ball.x;
       const y = ball.y;
-      g.circle(x, y, r).fill({ color: 0xd9e7ff, alpha: 0.95 });
+      g.circle(x, y, r).fill({ color: this.shadeColor(0xd9e7ff, lit), alpha: 0.95 });
       if (!useSimpleBallRender) {
-        g.circle(x - r * 0.22, y - r * 0.22, r * 0.72).fill({ color: 0xf3f8ff, alpha: 0.92 });
-        g.circle(x - r * 0.32, y - r * 0.32, r * 0.38).fill({ color: 0xffffff, alpha: 0.98 });
+        g.circle(x - r * 0.22, y - r * 0.22, r * 0.72).fill({
+          color: this.shadeColor(0xf3f8ff, lit),
+          alpha: 0.92,
+        });
+        g.circle(x - r * 0.32, y - r * 0.32, r * 0.38).fill({
+          color: this.shadeColor(0xffffff, lit),
+          alpha: 0.98,
+        });
       }
     }
   }

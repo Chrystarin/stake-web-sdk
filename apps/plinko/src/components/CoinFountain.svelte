@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
+	import { frameImagePoint, SKULL_GOLD_PILE } from '../lib/frameArt';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { CoinFountainRenderer, type FountainPoint } from '../lib/spine/CoinFountainRenderer';
 
@@ -25,40 +26,6 @@
 			}
 		}
 		return undefined;
-	}
-
-	// The coins pour out of the gold pile at the pirate SKULL'S MOUTH, which is baked into the
-	// game-area frame art (`game_area_background.png`). These are the pile's centre as a fraction of
-	// that image (measured from the art): centred horizontally, ~0.39 down — i.e. under the teeth, not
-	// on the face. Mapping through the image below keeps the spawn glued to the mouth at any size.
-	const FRAME_NATURAL_W = 1142;
-	const FRAME_NATURAL_H = 1010;
-	const SKULL_MOUTH_RATIO_X = 0.508;
-	const SKULL_MOUTH_RATIO_Y = 0.39;
-
-	/**
-	 * Map a point given as a fraction of the frame image (0..1) to client (screen) px, accounting for
-	 * the frame's `object-fit` letterboxing (contain on desktop, cover on mobile) with `object-position:
-	 * top center`. Read live from `getBoundingClientRect` + `naturalWidth`, so the returned point tracks
-	 * the current layout — it re-resolves correctly on every canvas resize / orientation change.
-	 */
-	function frameImagePoint(ratioX: number, ratioY: number): FountainPoint | undefined {
-		const img = document.querySelector<HTMLImageElement>('.game-area-frame');
-		if (!img) return undefined;
-		const rect = img.getBoundingClientRect();
-		if (rect.width <= 0 || rect.height <= 0) return undefined;
-		const natW = img.naturalWidth || FRAME_NATURAL_W;
-		const natH = img.naturalHeight || FRAME_NATURAL_H;
-		const cover = getComputedStyle(img).objectFit === 'cover';
-		const scale = cover
-			? Math.max(rect.width / natW, rect.height / natH)
-			: Math.min(rect.width / natW, rect.height / natH);
-		const paintedW = natW * scale;
-		const paintedH = natH * scale;
-		// object-position: top center → horizontally centred, top-aligned.
-		const paintedLeft = rect.left + (rect.width - paintedW) / 2;
-		const paintedTop = rect.top;
-		return { x: paintedLeft + ratioX * paintedW, y: paintedTop + ratioY * paintedH };
 	}
 
 	/** Pulse the balance coin as coins land (throttled so a stream of arrivals doesn't thrash it). */
@@ -95,7 +62,7 @@
 		// Origin: the gold coin pile at the pirate skull's MOUTH (baked into the game-area frame art).
 		// Fall back to the frame centre, then the viewport, so a burst always has somewhere to come from.
 		const from =
-			frameImagePoint(SKULL_MOUTH_RATIO_X, SKULL_MOUTH_RATIO_Y) ??
+			frameImagePoint(SKULL_GOLD_PILE.x, SKULL_GOLD_PILE.y) ??
 			rectCenter('.game-area-frame') ??
 			(() => ({ x: window.innerWidth / 2, y: window.innerHeight * 0.4 }))();
 		const to = rectCenter('[data-coin-fly-target="balance"]');
