@@ -524,37 +524,62 @@
 
 .bp-btn-play {
 	flex: 0 0 auto;
-	/* Wide pill from empty_play_btn.png (267×124). Kept a touch taller than the native ratio (2:1 vs
-	   2.15:1) — the green plaque only stretches ~7% vertically, which is imperceptible. (The extra
-	   height was originally to clear the bottom-anchored bet pill, now hidden; the ratio is left as-is
-	   so the button's size doesn't change.) */
-	width: 11.5vw;
-	aspect-ratio: 2 / 1;
+	/* ⚠️ The green disc is NOT centred in its own PNG: main_btn_empty.png draws it 4px above the canvas
+	   centre (alpha bbox y=0..119 of 128 — the art reserves empty space at the bottom). The image fills
+	   the button box, so the circle a player actually sees sits 4/128 = 3.125% of the button height
+	   ABOVE the box centre. Anything that must look centred ON THE CIRCLE has to be raised by this much;
+	   box-centring alone reads low. Each overlay applies it in whatever unit it can (the % basis differs
+	   per element), so this is the shared source of truth rather than a directly-usable offset. */
+	--bp-play-disc-rise: 3.125%;
+	/* Round plaque from main_btn_empty.png (128×128), rendered at its native 1:1.
+	   ⚠️ Both dimensions are load-bearing for BalanceCard.svelte, which is a SIBLING of this panel and
+	   positions itself by calc against this cluster: the width feeds its `left` (via the cluster total)
+	   and the height feeds its `bottom` (the button is the row's tallest item, so it sets the row
+	   centre). Keep those in sync — the derivations are spelled out there. */
+	width: 5.75vw;
+	aspect-ratio: 1 / 1;
 	min-width: 0;
 	height: auto;
 	position: relative;
 	padding: 0;
 	border: none;
+	border-radius: 50%;
 	cursor: pointer;
 	background: transparent;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	/* PLAY is the only in-flow child now that the bet pill is hidden (see .bp-play-balance), so it
-	   centres in the button. The loading spinner and bonus-count badge are absolutely positioned and
-	   centre themselves, so they are unaffected by this.
-	   To restore the bet pill: un-hide .bp-play-balance, put this back to `space-between` with
-	   `padding: 0.3vw 0 0.42vw` (padding is already 0 above), and restore the `top: 0.28vw` nudge on
-	   .bp-play-label. */
+	/* Every state's content (icon, spinner, count badge) is absolutely positioned and centres itself,
+	   so this only matters as a fallback. */
 	justify-content: center;
 	gap: 0;
-	filter: drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
-	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
+	/* brightness BEFORE drop-shadow on purpose: filters apply in order, and drop-shadow is generated from
+	   the alpha of whatever it receives. Brightening first leaves the shadow the colour it was declared;
+	   the reverse order would wash the shadow out as the pulse brightens the button. */
+	filter: brightness(1) drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
+	/* How much of the hover pulse to apply, 0..1. Transitioning THIS — rather than adding/removing the
+	   animation — is what lets the button ease back to rest on mouse-out; see the pulse block below. */
+	--bp-play-pulse-amt: 0;
+	/* The pulse is permanently attached but PAUSED, so an idle HUD ticks nothing. Hover starts its clock
+	   and fades the amplitude in; leaving stops the clock and fades the amplitude back out.
+	   ⚠️ Do NOT "simplify" this to `&:hover { animation: … }`. Removing an animation does NOT fire a
+	   transition — the button SNAPS from wherever the pulse was to rest in a single frame (measured:
+	   scale 1.059 → 1 and brightness 1.296 → 1 between two frames, with `transition: scale/filter` set
+	   and doing nothing). Amplitude is the only part that can be transitioned. */
+	animation: bp-play-pulse 1.6s ease-in-out infinite paused;
+	transition: transform 0.12s ease, --bp-play-pulse-amt 0.32s ease, opacity 0.12s ease;
+	/* Hold-to-drop (bonus free balls): keep a long press a press — no scroll-steal (it would fire
+	   pointercancel and cut the stream), no selection, no iOS long-press callout. */
+	touch-action: none;
+	user-select: none;
+	-webkit-touch-callout: none;
 
+	/* Excluded while disabled/soft-disabled — an unaffordable or mid-round button must not invite a
+	   click. Those keep amplitude 0, so the paused pulse resolves to the resting values. */
 	&:hover:not(:disabled):not(.bp-btn-play--soft-disabled) {
-		transform: scale(1.03);
-		filter: drop-shadow(0 0.38vw 0.62vw rgba(0, 0, 0, 0.4));
+		--bp-play-pulse-amt: 1;
+		animation-play-state: running;
 	}
 
 	&:active:not(:disabled):not(.bp-btn-play--soft-disabled) {
@@ -578,7 +603,7 @@
 	}
 }
 
-/* The green pill artwork, filling the button behind the PLAY label + bet pill. */
+/* The round green artwork, filling the button behind whichever icon the current state shows. */
 .bp-btn-play-bg {
 	position: absolute;
 	inset: 0;
@@ -590,67 +615,30 @@
 	z-index: 0;
 }
 
-/* "PLAY" — Righteous, big, sized to match the reference art (64px in the native ~124px button ≈
-   52% of the button height → 2.75vw here). Reference style: line-height 112.99%, -0.02em, #FFFFFF. */
-.bp-play-label {
-	position: relative;
-	z-index: 1;
-	font-family: 'Righteous', 'Poppins', sans-serif;
-	font-weight: 400;
-	font-synthesis: none;
-	font-size: 3vw;
-	line-height: 1;
-	letter-spacing: -0.02em;
-	text-transform: uppercase;
-	color: #ffffff;
-	/* Thin black outline. Default paint order draws the stroke over the fill, so it also slims the
-	   white letterform slightly — Righteous only ships at weight 400, so this is how the "lighter"
-	   look is achieved (there is no thinner Righteous face to switch to). */
-	-webkit-text-stroke: 0.05vw #000000;
-	text-shadow: 0 0.1vw 0.14vw rgba(0, 0, 0, 0.32);
-	pointer-events: none;
-}
+/* Play triangle, at the proportion it was drawn at against the 128px base (50px = 39%), so it keeps
+   the weight the artist gave it.
 
-/* Bet-total pill under PLAY, on the empty_play_balance.png plaque. */
-.bp-play-balance {
-	position: relative;
-	z-index: 1;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 6vw;
-	height: 1.5vw;
-	padding: 0 0.6vw;
-	box-sizing: border-box;
-	font-family: 'Poppins', 'Instrument Sans', sans-serif;
-	font-weight: 500;
-	font-synthesis: none;
-	font-size: 0.92vw;
-	line-height: 1;
-	letter-spacing: -0.01em;
-	color: #efeadd;
-	white-space: nowrap;
-	pointer-events: none;
-}
+   Optical centring. A triangle's mass sits toward its base, so box-centring the icon leaves it reading
+   noticeably left in a circle — measured on the artwork's own alpha, its centroid is 11.9% of the
+   icon's width left of the canvas centre. Shift it back by exactly that (a % translate is relative to
+   the ICON, not the button — an easy way to silently under-shoot by 4×).
 
-/* HIDDEN FOR NOW (kept, not deleted — the markup stays in GameHud.svelte on both the normal and the
-   autobet-start button, and the styles above are untouched, so this is the only switch).
-   To bring the bet pill back: delete this rule, then restore `justify-content: space-between` +
-   `padding: 0.3vw 0 0.42vw` on .bp-btn-play and the `top: 0.28vw` nudge on .bp-play-label — without
-   those, PLAY stays centred and the pill would overlap it. */
-.bp-play-balance {
-	display: none;
-}
-
-.bp-play-balance-bg {
+   Vertically it is left box-centred on purpose: the triangle is drawn 5.86% of its own height high in
+   its canvas, which at width:39% works out to 2.1px — almost exactly cancelling the 2.9px
+   --bp-play-disc-rise it would otherwise need. Residual is +0.8px on a 92px button, below noticing.
+   (The spinner gets no such luck — its bias runs the other way and compounds; see below.) */
+.bp-btn-play-icon {
 	position: absolute;
 	inset: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: fill;
+	margin: auto;
+	width: 39%;
+	height: auto;
+	object-fit: contain;
 	display: block;
 	pointer-events: none;
-	z-index: -1;
+	filter: drop-shadow(0 0.06vw 0.1vw rgba(0, 0, 0, 0.4));
+	transform: translateX(11.9%);
+	z-index: 1;
 }
 
 .bp-btn-play-spinner {
@@ -659,9 +647,26 @@
 	// image's true center (translate-based centering made the rotation wobble off-axis).
 	inset: 0;
 	margin: auto;
-	width: 42% !important;
+	// 70% of the round plaque. This is a proportion of the button's WIDTH, which used to be the 11.5vw
+	// pill — 42% of that was 4.83vw. The button is now a 5.75vw circle, so the old 42% would render the
+	// spinner at barely 2.4vw, lost in the middle of the plaque; 70% restores the ring to roughly the
+	// size it read at before while still leaving a green margin inside the rim.
+	width: 70% !important;
 	height: auto !important;
 	aspect-ratio: 1;
+	// Sit the ring on the DISC's centre, not the button box's — see --bp-play-disc-rise on .bp-btn-play.
+	// That rise is a % of the BUTTON's height; a % translate here resolves against the SPINNER's own
+	// height, so it converts through the 70% width above (hence the /0.7). Lands within 0.25px of the
+	// measured optimum.
+	// ⚠️ Do NOT "correct" this by the ring's bbox — loading_vector.png's ink bbox looks 4/120 low only
+	// because an arrowhead pokes further down than up. By MASS the ring is symmetric about its canvas
+	// centre (it self-matches under a 180° rotation there), so transform-origin: center is right and the
+	// art needs no bias of its own; trusting the bbox double-corrects and throws it ~2px high.
+	// Uses the standalone `translate` property, NOT `transform`: the spin animation owns `transform`, so
+	// a translate there would be overwritten by the keyframes — and baking it INTO them is wrong too,
+	// since `bp-play-spin` is shared with the mobile spinner, whose art has no such offset.
+	// `translate` composes BEFORE `transform`, so the ring still spins about its own centre.
+	translate: 0 calc(-1 * var(--bp-play-disc-rise) / 0.7);
 	transform-origin: center center;
 	animation: bp-play-spin 0.9s linear infinite;
 	pointer-events: none;
@@ -677,20 +682,62 @@
 	}
 }
 
+/* Registered so it can be TRANSITIONED — a plain custom property can't be, and that transition is the
+   whole mechanism behind the pulse's smooth ramp-in/out (see .bp-btn-play). */
+@property --bp-play-pulse-amt {
+	syntax: '<number>';
+	inherits: false;
+	initial-value: 0;
+}
+
+/* Hover pulse: the plaque breathes bigger/smaller while brightening and settling back.
+
+   Every animated value is scaled by --bp-play-pulse-amt, so at amplitude 0 BOTH keyframes collapse to
+   exactly the resting values. That is what makes pausing safe: the animation is always in effect (even
+   paused, it overrides the base `filter`), and it can be frozen at ANY phase — off-hover it still
+   resolves to rest, because there is nothing left to interpolate between.
+
+   ⚠️ Animates the standalone `scale` property, NOT `transform: scale()`. A CSS animation outranks any
+   normal declaration, so a transform-based pulse would silently swallow
+   `.bp-btn-play:active { transform: scale(0.98) }` — and since a mouse press is ALWAYS preceded by
+   hover, that would kill the press feedback outright, exactly when it matters. `scale` composes with
+   `transform` instead of replacing it, so the press still reads through the pulse (0.98 × the pulse).
+
+   The drop-shadow is deliberately identical in both keyframes: it plays no part in the pulse, and
+   holding it constant means one less value that has to cancel out at amplitude 0. */
+@keyframes bp-play-pulse {
+	0%,
+	100% {
+		scale: 1;
+		filter: brightness(1) drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
+	}
+	50% {
+		scale: calc(1 + 0.06 * var(--bp-play-pulse-amt));
+		filter: brightness(calc(1 + 0.3 * var(--bp-play-pulse-amt)))
+			drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
+	}
+}
+
+/* The centred count: bonus free balls left, or rounds left in a running Autobet (where it sits inside
+   the spinning ring). Sized down from 1.34vw with the plaque, which lost half its width becoming a
+   circle — at the old size a 3-digit count ran past the ring. The loader art's hole is small, so the
+   number still overlaps the arcs a little; it rides above them (z-index) and the shadow carries it. */
 .bp-bonus-count-badge {
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
 	position: absolute;
-	top: 50%;
+	/* Raised onto the disc's centre (--bp-play-disc-rise) so the count agrees with the ring it sits
+	   inside; `top` resolves against the button's height, which is exactly that var's basis. */
+	top: calc(50% - var(--bp-play-disc-rise));
 	left: 50%;
 	transform: translate(-50%, -50%);
 	color: #f0f6ff;
-	font-size: 1.34vw;
+	font-size: 1.12vw;
 	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
 	z-index: 4;
 	pointer-events: none;
-	text-shadow: 0 0.08vw 0.2vw rgba(0, 0, 0, 0.55);
+	text-shadow: 0 0.08vw 0.28vw rgba(0, 0, 0, 0.9), 0 0 0.5vw rgba(0, 0, 0, 0.75);
 }
 
 .bp-auto-wrap {
@@ -1039,6 +1086,10 @@
 .mobile-icon-btn--play {
 	transform: scale(1.75);
 	position: relative;
+	/* See .bp-btn-play — hold-to-drop needs a long press to stay a press on touch. */
+	touch-action: none;
+	user-select: none;
+	-webkit-touch-callout: none;
 }
 
 // Keep the play button fully opaque while loading so the spinner reads clearly.

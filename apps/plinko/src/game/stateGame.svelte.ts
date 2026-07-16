@@ -140,9 +140,12 @@ export const stateGame = $state({
 	showWinPopup: false,
 	winPopupAmount: 0,
 	winPopupMultiplier: 0,
-	/** True while the on-win coin fountain is flying coins into the balance coin. Drives the coin's
-	 * starburst (BalanceCard) so the swirl only shows during the collect, then hides. */
-	coinFountainActive: false,
+	/** The balance coin's two light layers, lit around coins merging into it so they only show during
+	 * the collect, then hide (BalanceCard renders them; CoinFountain drives both — see its LEAD/LINGER
+	 * constants). Separate flags because the sparkle brackets the glow: it lights earlier and holds
+	 * longer, so the twinkle is already going before the light comes up and outlasts it. */
+	balanceGlowActive: false,
+	balanceSparkleActive: false,
 	/** 1-ball rapid tier: bumped on each paying land so CoinFountain fires a small (1-3 coin) burst.
 	 * `rapidCoinBurstCount` carries how many coins to throw for that land (scaled by its multiplier). */
 	rapidCoinBurstTick: 0,

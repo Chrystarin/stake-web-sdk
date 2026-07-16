@@ -19,7 +19,9 @@
 		isReplayMode,
 		showToast,
 		startAutoBet,
+		startBonusBallHoldDrop,
 		stopAutoBet,
+		stopBonusBallHoldDrop,
 	} from '../game/gameOrchestrator';
 	import {
 		canAffordAutoBetRun,
@@ -347,7 +349,40 @@
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
 	}
 
+	/**
+	 * A pointer press on the play button DURING A BONUS ROUND is owned by the hold handlers below
+	 * (`onPlayPointerDown` drops the first free ball, then streams while held). The browser still
+	 * fires a `click` on release, which must not drop a second ball — and, once the last free ball is
+	 * gone, must not fall through to a real wager either. So a pointer-driven bonus press consumes its
+	 * own trailing click. Cleared as soon as the press ends, so a keyboard activation (a `click` with
+	 * no preceding `pointerdown`) is never swallowed.
+	 */
+	let bonusPointerPressActive = false;
+
+	function onPlayPointerDown(event: PointerEvent) {
+		// Base game: a press is an ordinary single bet — leave it to the click handler. (Repeat-betting
+		// with real money is Autobet's job, and it is armed deliberately.)
+		if (!props.hasPendingBonusBalls) return;
+		if (!event.isPrimary) return;
+		if (event.pointerType === 'mouse' && event.button !== 0) return;
+		bonusPointerPressActive = true;
+		// Follow the pointer off the button so the release still reaches us; `lostpointercapture` then
+		// also covers the button going `disabled` mid-hold (a wheel opening), which would otherwise
+		// swallow the pointerup and leave the stream running.
+		(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+		startBonusBallHoldDrop();
+	}
+
+	function onPlayPointerRelease() {
+		stopBonusBallHoldDrop();
+		// The trailing `click` fires before this, so it still sees the flag set.
+		setTimeout(() => {
+			bonusPointerPressActive = false;
+		}, 0);
+	}
+
 	function onMainActionClick() {
+		if (bonusPointerPressActive) return;
 		if (isPlayButtonHardDisabled) return;
 		// The button is greyed out purely because the total bet exceeds the balance — a click still
 		// lands here (it is not natively `disabled`), so tell the player why instead of betting.
@@ -386,6 +421,18 @@
 		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
 		if (document.activeElement?.getAttribute('role') === 'button') return;
 		onMainActionClick();
+	}
+
+	/**
+	 * Space held (400ms — `OnHotkey`) streams free balls, matching a held press on the button. Bonus
+	 * only: a held Space in the base game must not repeat-bet, so there the single `onpress` drop from
+	 * `onSpacePlay` stands. `OnHotkey` calls `onholdend` when the key lifts AND when it goes disabled
+	 * (a wheel opening), so the stream can't outlive the hold.
+	 */
+	function onSpaceHold() {
+		if (!props.hasPendingBonusBalls) return;
+		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
+		startBonusBallHoldDrop();
 	}
 
 	function toggleMobileBetPopup() {
@@ -444,12 +491,35 @@
 	});
 </script>
 
-<OnHotkey hotkey="Space" disabled={isPlayButtonHardDisabled} onpress={onSpacePlay} />
+<OnHotkey
+	hotkey="Space"
+	disabled={isPlayButtonHardDisabled}
+	onpress={onSpacePlay}
+	onhold={onSpaceHold}
+	onholdend={stopBonusBallHoldDrop}
+/>
+
+<svelte:window onblur={stopBonusBallHoldDrop} />
 
 {#snippet bettingFieldFrame()}
 	<img
 		class="bp-field-frame"
 		src={staticUrl('img/betting-component-frame.png')}
+		alt=""
+		aria-hidden="true"
+	/>
+{/snippet}
+
+<!-- The desktop main action button is one round plaque across every state (play / loading / autobet /
+     bonus count); only what sits on top of it changes. -->
+{#snippet mainButtonBase()}
+	<img class="bp-btn-play-bg" src={staticUrl('img/main_btn_empty.png')} alt="" aria-hidden="true" />
+{/snippet}
+
+{#snippet mainButtonPlayIcon()}
+	<img
+		class="bp-btn-play-icon"
+		src={staticUrl('img/main_btn_play_icon.png')}
 		alt=""
 		aria-hidden="true"
 	/>
@@ -523,6 +593,10 @@
 				aria-disabled={isPlayButtonSoftInsufficient}
 				aria-busy={showPlayLoading}
 				onclick={onMainActionClick}
+				onpointerdown={onPlayPointerDown}
+				onpointerup={onPlayPointerRelease}
+				onpointercancel={onPlayPointerRelease}
+				onlostpointercapture={onPlayPointerRelease}
 			>
 				{#if showPlayLoading}
 					<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
@@ -832,13 +906,12 @@
 								aria-disabled={isPlayButtonSoftInsufficient}
 								aria-busy={showPlayLoading}
 								onclick={onMainActionClick}
+								onpointerdown={onPlayPointerDown}
+								onpointerup={onPlayPointerRelease}
+								onpointercancel={onPlayPointerRelease}
+								onlostpointercapture={onPlayPointerRelease}
 							>
-								<img
-									class="bp-btn-play-bg"
-									src={staticUrl('img/empty_play_btn.png')}
-									alt=""
-									aria-hidden="true"
-								/>
+								{@render mainButtonBase()}
 								{#if showPlayLoading}
 									<img
 										class="bp-btn-play-spinner"
@@ -849,23 +922,14 @@
 								{:else if props.hasPendingBonusBalls}
 									<span class="bp-bonus-count-badge">{props.bonusBallsRemaining}</span>
 								{:else}
-									<span class="bp-play-label">PLAY</span>
-									<span class="bp-play-balance">
-										<img
-											class="bp-play-balance-bg"
-											src={staticUrl('img/empty_play_balance.png')}
-											alt=""
-											aria-hidden="true"
-										/>
-										{formatMoney(props.totalBetAmount)}
-									</span>
+									{@render mainButtonPlayIcon()}
 								{/if}
 							</button>
 						{:else if props.autoPlayStarted && !autoBetStopping}
-							<!-- During a running Autobet the main button mirrors the normal base-game loading
-							     state: a non-clickable Play with a spinner. The remaining-rounds count sits in
-							     the middle, like the bonus free-balls badge. Stopping is done from the Autobet
-							     toggle on the side. -->
+							<!-- A running Autobet is a DISPLAY, not a control: the plaque shows the spinning loader
+							     with the rounds left counting down inside it, and takes no clicks. Stopping is
+							     done from the side Autobet toggle, which is the only control deliberately exempt
+							     from the run's own `controlsLocked`. -->
 							<button
 								type="button"
 								class="bp-btn-play bp-btn-play--loading"
@@ -873,12 +937,7 @@
 								aria-label="Autobet running"
 								aria-busy="true"
 							>
-								<img
-									class="bp-btn-play-bg"
-									src={staticUrl('img/empty_play_btn.png')}
-									alt=""
-									aria-hidden="true"
-								/>
+								{@render mainButtonBase()}
 								<img
 									class="bp-btn-play-spinner"
 									src={staticUrl('img/loading_vector.png')}
@@ -897,22 +956,8 @@
 								aria-disabled={isPlayButtonSoftInsufficient}
 								onclick={onAutoGameStartClick}
 							>
-								<img
-									class="bp-btn-play-bg"
-									src={staticUrl('img/empty_play_btn.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-								<span class="bp-play-label">PLAY</span>
-								<span class="bp-play-balance">
-									<img
-										class="bp-play-balance-bg"
-										src={staticUrl('img/empty_play_balance.png')}
-										alt=""
-										aria-hidden="true"
-									/>
-									{formatMoney(props.totalBetAmount)}
-								</span>
+								{@render mainButtonBase()}
+								{@render mainButtonPlayIcon()}
 							</button>
 						{/if}
 

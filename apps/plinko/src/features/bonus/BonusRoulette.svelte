@@ -34,7 +34,7 @@
 
 	const props: Props = $props();
 
-	/** Shared wheel diameter from viewport; label/base/marker derive from this. */
+	/** Shared wheel diameter from viewport; label/wheel derive from this. */
 	const LABEL_HEIGHT_TO_WIDTH = 594 / 1280;
 	/** Per the bonus art, the "FREE BALLS" banner is wider than the wheel — it's the widest element and
 	 * therefore drives the horizontal budget (the wheel = label / LABEL_TO_WHEEL). */
@@ -44,34 +44,31 @@
 	const MOBILE_LABEL_VW = 0.96;
 	const DESKTOP_LABEL_VW = 0.8;
 	/** Vertical gap between the banner and the wheel, as a fraction of the wheel diameter. Sized so the
-	 * marker spear's tail (which pokes ~0.105·wheel above the rim) clears the banner. */
+	 * frame's crown pointer (which pokes ~0.10·wheel above the ring) clears the banner. */
 	const LABEL_GAP_TO_WHEEL = 0.1;
-	/** Bonus medallion sits inside the wheel's center hole (~0.53 of the wheel). */
-	const BASE_TO_WHEEL = 0.53;
-	// Marker intrinsic size is 168×416 (bonus-spin-marker.png); ÷1348 reference × 0.65 preserves its aspect.
-	const MARKER_WIDTH_TO_WHEEL = (168 / 1348) * 0.65;
-	const MARKER_HEIGHT_TO_WHEEL = (416 / 1348) * 0.65;
 
-	// ─── Tuning knobs: independently scale & reposition the three roulette pieces ───────────────────
+	// ─── Tuning knobs: independently scale & reposition the roulette pieces ─────────────────────────
 	// EDIT THESE to move/resize the bonus roulette. Values are split by orientation: `landscape` is used
 	// on desktop/wide layouts, `portrait` on mobile/tall layouts (chosen by `portrait` below).
-	//   scale:    1 = base size (what the layout computes); >1 = larger, <1 = smaller.
-	//   offsetX:  horizontal shift as a fraction of the wheel diameter (positive = right).
-	//   offsetY:  vertical shift as a fraction of the wheel diameter (positive = down).
-	// The wheel's center medallion scales/moves with the wheel. The marker stays pinned to the (scaled)
-	// wheel rim by default, so its offsets only fine-tune from there.
+	//   scale:    1 = base size (what the layout computes); >1 = larger, <1 = smaller. For `wheel` this
+	//             sizes the assembly by its OUTER (wooden ring) diameter = rouletteSizePx × scale.
+	//   offsetX:  horizontal shift as a fraction of `rouletteSizePx` (positive = right).
+	//   offsetY:  vertical shift as a fraction of `rouletteSizePx` (positive = down).
+	// ⚠️ The offsets are fractions of the UNSCALED `rouletteSizePx`, not of the on-screen diameter, so
+	// they do not follow `scale` — changing one does not require re-tuning the other.
+	// `wheel` moves/scales the whole assembly (disc + highlight + frame) as one — they must stay
+	// registered with each other, so there are no separate frame/marker knobs (the pointer is baked into
+	// the frame art).
 	// Note: pieces are clipped at the screen edges (the overlay hides overflow), so very large scales
 	// will crop — lower the scale or nudge with the offsets.
 	const BONUS_ROULETTE_TUNING = {
 		landscape: {
 			label: { scale: 1.8, offsetX: 0, offsetY: -0.05 },
 			wheel: { scale: 1.8, offsetX: 0, offsetY: 0.3 },
-			marker: { scale: 3, offsetX: 0, offsetY: 0.3 },
 		},
 		portrait: {
 			label: { scale: 1.2, offsetX: 0, offsetY: 0 },
 			wheel: { scale: 1.2, offsetX: 0, offsetY: -0.2 },
-			marker: { scale: 1.85, offsetX: 0, offsetY: -0.2 },
 		},
 	};
 
@@ -84,36 +81,166 @@
 	// inspected first. Set back to `0` before shipping. Added on top of the normal pre-spin delay.
 	const DEBUG_SPIN_DELAY_MS = 0;
 
-	// ─── Reassembled bonus wheel ────────────────────────────────────────────────────────────────────
-	// The wheel is composited at runtime from the label-less `bonus_roulette_empty.png` (984×984 ring +
-	// gems + empty interior) plus one individually-cropped value-wedge SVG per segment. {w,h} = the SVG's
-	// displayed size and {l,t} = its top-left, all as fractions of the 984px wheel so they scale with the
-	// rendered size. Positions come from each SVG's wheel-centre (recovered via its two radial edges,
-	// which intersect at the centre); the SVGs were exported at slightly different scales, so each is then
-	// scaled about that centre so its OUTER arc lands on the ring's inner edge (r≈356/984) — giving a clean
-	// outer circle and gap-free tiling. Keyed by free-ball value (matches `segment_<value>.svg`).
-	const BONUS_SEGMENT_PLACEMENTS: Record<number, { w: number; h: number; l: number; t: number }> = {
-		100: { w: 0.24484, h: 0.16092, l: 0.38643, t: 0.13485 },
-		90: { w: 0.3056, h: 0.2935, l: 0.53327, t: 0.13924 },
-		80: { w: 0.21761, h: 0.29084, l: 0.66889, t: 0.32039 },
-		70: { w: 0.27638, h: 0.31443, l: 0.59199, t: 0.50299 },
-		60: { w: 0.2854, h: 0.22735, l: 0.43265, t: 0.66207 },
-		50: { w: 0.27535, h: 0.23248, l: 0.24429, t: 0.64881 },
-		40: { w: 0.27625, h: 0.32373, l: 0.10976, t: 0.45826 },
-		30: { w: 0.22563, h: 0.30362, l: 0.11482, t: 0.28123 },
-		20: { w: 0.31639, h: 0.30078, l: 0.1672, t: 0.1302 },
+	// ─── Wheel art (img/free_bonus_roulette_v2) ────────────────────────────────────────────────────
+	// Three flat pieces, layered disc → highlight → frame (mirrors FreeSpinRoulette). This replaced the
+	// old runtime reassembly (label-less ring PNG + one value-wedge SVG per segment). Native measurements
+	// below were recovered from the PNGs themselves (opaque-mask radial scans + least-squares circle/edge
+	// fits), which is what registers them to each other:
+	//   wheel_values.png (1806²) — the ROTATING disc, with the free-ball values BAKED IN. The coloured
+	//     disc is inscribed in the square canvas: centre (903,903), r=903, so it renders at exactly the
+	//     stack's box.
+	//   wheel_base.png (1971×2109) — the STATIC frame: wooden ring + top crown pointer + bottom ornament
+	//     + centre skull medallion all baked into ONE image, so none of them can rotate independently
+	//     (the old separate marker <img> and counter-rotating centre base are gone). Ring centre
+	//     (986.2, 1117.5) — note that is ~3% BELOW the canvas centre because the crown is taller than the
+	//     bottom ornament, hence the asymmetric `top` below — outer r=932.3.
+	//   wheel_segment_highlight.png (510×633) — ONE 40° wedge glow. ⚠️ It is a hollow OUTLINE, not a
+	//     fill: the interior is alpha 0 and only the gold rim + soft green glow are painted, so it traces
+	//     the wedge's perimeter. Its apex (261.16, 770.55) is 137px BELOW its own canvas — the art is a
+	//     TRUNCATED wedge whose point is cut off where the medallion covers it. Its edges sit at
+	//     -19.95°/+19.16° from its own vertical (i.e. it is very slightly lopsided).
+	const BASE_PNG = { w: 1971, h: 2109, cx: 986.2, cy: 1117.5, outerR: 932.3, opaqueInnerR: 779 };
+	const HIGHLIGHT_PNG = {
+		w: 510,
+		h: 633,
+		apexX: 261.16,
+		apexY: 770.55,
+		r: 769.5,
+		edgeLDeg: -19.954,
+		edgeRDeg: 19.157,
 	};
+	/** Disc radius in wheel_values.png px — the frame of reference for ART_WEDGE_GEOMETRY below. */
+	const VALUES_ART_R = 903;
+
+	/** Disc radius, expressed in base-PNG px — i.e. how far the disc reaches under the ring.
+	 * ⚠️ This is the disc's OWN radius (1:1), NOT the ring's inner radius — the opposite of what the
+	 * free-spin wheel does, because this art is built differently. The three PNGs here are layers of ONE
+	 * artwork exported at the SAME scale, proven three ways: the ropes stop at r≈775 and the ring's
+	 * opaque inner edge is 779; the highlight's arc is 770 from its apex and slot 0's apex sits 7.2px off
+	 * the hub (7.2+770 = 777). So the ring is MEANT to cover everything past r≈779 — and it must, because
+	 * past its rope the art leaves a DARK GREY divider stub running all the way out to the rim (the wedge
+	 * COLOURS do reach the rim, so nothing shows through). Scaling the disc so its rim met the ring's
+	 * inner edge instead put those stubs on screen as black spokes at every boundary. */
+	const DISC_R_IN_BASE_PX = VALUES_ART_R;
+	/** Hub-radius (in values-art px) every wedge's highlight arc is pinned to = the ring's opaque inner
+	 * edge, so the outline reaches the ring and the soft glow that bleeds past it is hidden underneath. */
+	const HIGHLIGHT_ARC_R = BASE_PNG.opaqueInnerR;
+
+	// Frame/highlight boxes as fractions of the disc diameter D — the stack is D×D with the disc filling
+	// it, so these drop straight into CSS percentages. Each piece is placed by pinning its own measured
+	// registration point (the frame's ring centre, the highlight's apex) to the wheel centre at 50%/50%.
+	const baseScale = 0.5 / DISC_R_IN_BASE_PX;
+	const FRAME_BOX = {
+		w: BASE_PNG.w * baseScale,
+		h: BASE_PNG.h * baseScale,
+		left: 0.5 - BASE_PNG.cx * baseScale,
+		top: 0.5 - BASE_PNG.cy * baseScale,
+	};
+	// Sized so the art's own arc radius maps to HIGHLIGHT_ARC_R; the per-slot scaleY below then pins the
+	// arc there for every wedge. The apex end is hidden under the frame's medallion.
+	const highlightScale = ((HIGHLIGHT_ARC_R / VALUES_ART_R) * 0.5) / HIGHLIGHT_PNG.r;
+	const HIGHLIGHT_BOX = {
+		w: HIGHLIGHT_PNG.w * highlightScale,
+		h: HIGHLIGHT_PNG.h * highlightScale,
+		left: 0.5 - HIGHLIGHT_PNG.apexX * highlightScale,
+		top: 0.5 - HIGHLIGHT_PNG.apexY * highlightScale,
+	};
+	// The apex, as a % of the highlight's own box. Every transform pivots here, so the outline swings and
+	// squeezes about its own point rather than sliding. y > 100% — the apex is below the box.
+	const HIGHLIGHT_ORIGIN = {
+		x: (HIGHLIGHT_PNG.apexX / HIGHLIGHT_PNG.w) * 100,
+		y: (HIGHLIGHT_PNG.apexY / HIGHLIGHT_PNG.h) * 100,
+	};
+
+	const valuesSrc = staticUrl('img/free_bonus_roulette_v2/wheel_values.png');
+	const frameSrc = staticUrl('img/free_bonus_roulette_v2/wheel_base.png');
+	const highlightSrc = staticUrl('img/free_bonus_roulette_v2/wheel_segment_highlight.png');
+
+	/** Free-ball values BAKED into wheel_values.png, clockwise from the wedge parked under the pointer at
+	 * rotation 0. Recovered by hue-sampling the art at each wedge's bisector (100 red, 90 orange, 80 blue,
+	 * 70 amber, 60 teal, 50 green, 40 purple, 30 magenta, 20 dark green).
+	 * ⚠️ This is what makes the wheel land on the value it PAYS: `artSlot()` maps a segment onto its wedge
+	 * BY VALUE, so the wheel stays honest even if `BONUS_WHEEL_FREE_BALLS` is ever reordered. (The
+	 * free-spin wheel's art is offset from its constant by 3 wedges; this one happens to line up, but do
+	 * not rely on index === slot.) If the art is re-exported with the values in a different order, fix
+	 * this array — it is the single source of truth for art order.
+	 * ⚠️ 50 and 20 are both green and differ only in brightness — a hue-only check would merge them. */
+	const ART_SLOT_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20];
+
+	/** Geometry of each wedge's ROPE-FREE INTERIOR, by ART SLOT (0 = the wedge the art parks under the
+	 * pointer = 100, then clockwise).
+	 * ⚠️ The 9 rope dividers are NOT radial — each is offset from the hub by up to 16px, so the two ropes
+	 * bounding a wedge meet at a point that is NOT the hub (up to 46px away). An outline pivoted about the
+	 * HUB therefore CROSSES its ropes: snug at one radius, gaping at another. Pin the outline's apex to
+	 * `apexX/apexY` instead and its edges run PARALLEL to the ropes at a constant pixel gap.
+	 * Note the rope DIRECTIONS land within 0.55° of the ideal 40° grid — an angular histogram of the rope
+	 * pixels reads them as ±1.9° off, but that is an artefact of the hub offset, NOT real.
+	 * Recovered by total-least-squares line-fitting each rope's core pixels, offsetting each line inward
+	 * by its measured half-width (≈5.5px) + 2px of daylight, and intersecting the pairs.
+	 *   apexX/apexY: where a wedge's two rope-inner-edges meet, relative to the hub, in wheel_values.png
+	 *                px (VALUES_ART_R). +y is DOWN, matching CSS.
+	 *   bisectorDeg: direction of that interior's bisector, clockwise from the pointer.
+	 *   halfDeg:     half the angle between the two ropes. */
+	const ART_WEDGE_GEOMETRY = [
+		{ apexX: 2.9, apexY: -7.2, bisectorDeg: 0.168, halfDeg: 19.965 }, // 100
+		{ apexX: 17.0, apexY: -2.2, bisectorDeg: 40.203, halfDeg: 20.07 }, // 90
+		{ apexX: 21.9, apexY: 12.3, bisectorDeg: 80.162, halfDeg: 19.889 }, // 80
+		{ apexX: 34.4, apexY: 29.9, bisectorDeg: 120.129, halfDeg: 20.079 }, // 70
+		{ apexX: 12.3, apexY: 27.0, bisectorDeg: 160.379, halfDeg: 20.171 }, // 60
+		{ apexX: -2.8, apexY: 37.5, bisectorDeg: 200.532, halfDeg: 19.982 }, // 50
+		{ apexX: -11.2, apexY: 24.2, bisectorDeg: 240.226, halfDeg: 19.712 }, // 40
+		{ apexX: -19.5, apexY: 10.5, bisectorDeg: 280.098, halfDeg: 20.16 }, // 30
+		{ apexX: -11.1, apexY: -2.1, bisectorDeg: 320.23, halfDeg: 19.972 }, // 20
+	];
+
+	const DEG = Math.PI / 180;
+	/** The art's edge angles after `scaleX(s)` about its apex. scaleX squeezes about the art's VERTICAL,
+	 * not its (slightly lopsided) bisector, so the bisector shifts a little too — hence both are returned. */
+	function squeezedEdges(s: number) {
+		const l = Math.atan(s * Math.tan(HIGHLIGHT_PNG.edgeLDeg * DEG)) / DEG;
+		const r = Math.atan(s * Math.tan(HIGHLIGHT_PNG.edgeRDeg * DEG)) / DEG;
+		return { halfDeg: (r - l) / 2, bisectorDeg: (r + l) / 2 };
+	}
+	/** The scaleX that opens the art to `targetHalf`. Monotonic in s, so bisect rather than invert. */
+	function squeezeForHalf(targetHalf: number): number {
+		let lo = 0.5;
+		let hi = 1.6;
+		for (let i = 0; i < 60; i++) {
+			const mid = (lo + hi) / 2;
+			if (squeezedEdges(mid).halfDeg < targetHalf) lo = mid;
+			else hi = mid;
+		}
+		return (lo + hi) / 2;
+	}
+
+	/** Per-slot CSS transform inputs, resolved once. The apex offset is converted art px → fraction of
+	 * the disc radius → fraction of the stack → % of the outline's own box (so it scales with layout). */
+	const HIGHLIGHT_PLACEMENT = ART_WEDGE_GEOMETRY.map((g) => {
+		// scaleX/scaleY only set the wedge's ANGLE via their ratio, so scaleY is free to control how far
+		// the outline reaches without disturbing the edges: scaling about the apex leaves the edge LINES
+		// (apex + direction) fixed, and the directions depend only on sx/sy.
+		const ratio = squeezeForHalf(g.halfDeg);
+		const bisRad = g.bisectorDeg * DEG;
+		// How far the apex sits OUTWARD along the wedge's bisector. ⚠️ The outline's arc rides on the
+		// apex, so left uncompensated this shoves the arc the same distance past the ring's inner edge and
+		// the ring eats the outer band (worst here: slot 3's apex is 45px out).
+		const outward = g.apexX * Math.sin(bisRad) - g.apexY * Math.cos(bisRad);
+		const scaleY = (HIGHLIGHT_ARC_R - outward) / HIGHLIGHT_ARC_R;
+		return {
+			rotateDeg: g.bisectorDeg - squeezedEdges(ratio).bisectorDeg,
+			scaleX: ratio * scaleY,
+			scaleY,
+			txPct: (((g.apexX / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.w) * 100,
+			tyPct: (((g.apexY / VALUES_ART_R) * 0.5) / HIGHLIGHT_BOX.h) * 100,
+		};
+	});
 
 	let slidePhase = $state<'enter' | 'idle' | 'exit'>('enter');
 	let bgJoined = $state(false);
 	let labelVisible = $state(false);
 	let wheelVisible = $state(false);
-	let markerVisible = $state(false);
 	let wheelSpinClass = $state(false);
 	let wheelRotationDeg = $state(0);
-	// Center base counter-rotates with the wheel (opposite direction, whole turns) so it lands back on its
-	// original orientation exactly when the wheel stops.
-	let baseRotationDeg = $state(0);
 	let announcementVisible = $state(false);
 	let announcementBgVisible = $state(false);
 	let announcementTextVisible = $state(false);
@@ -122,8 +249,10 @@
 	// and is read each frame to know which wedge is under the top marker.
 	let wheelEl = $state<HTMLDivElement | undefined>(undefined);
 	let stageEl = $state<HTMLDivElement | undefined>(undefined);
-	// Index of the segment currently under the top marker (glows gold); null = no highlight.
-	let highlightedIndex = $state<number | null>(null);
+	/** Art slot the outline is glued to. It rides INSIDE the rotating disc, so between hand-offs it
+	 * follows its wedge for free; the tracker just re-points it at each boundary. Starts on the wedge the
+	 * art parks under the pointer (slot 0 = 100), matching the wheel's rest pose. */
+	let highlightSlot = $state(0);
 	let highlightRaf = 0;
 	let rouletteSizePx = $state(0);
 	let pendingResult: BonusRouletteResult | null = null;
@@ -141,9 +270,12 @@
 	const WHEEL_SCALE = tuning.wheel.scale;
 	const WHEEL_OFFSET_X = tuning.wheel.offsetX;
 	const WHEEL_OFFSET_Y = tuning.wheel.offsetY;
-	const MARKER_SCALE = tuning.marker.scale;
-	const MARKER_OFFSET_X = tuning.marker.offsetX;
-	const MARKER_OFFSET_Y = tuning.marker.offsetY;
+
+	/** `wheel.scale` is expressed as the assembly's OUTER (ring) diameter, but the group it drives scales
+	 * the DISC — so divide out the ring:disc ratio. Keeps the knob stable if the disc/ring fit changes,
+	 * and preserves the knob's original values from the old (ring-sized) wheel image. */
+	const RING_OUTER_TO_DISC = BASE_PNG.outerR / DISC_R_IN_BASE_PX;
+	const wheelGroupScale = WHEEL_SCALE / RING_OUTER_TO_DISC;
 
 	function updateRouletteLayout() {
 		const stage = stageEl;
@@ -168,37 +300,13 @@
 		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * LABEL_GAP_TO_WHEEL)}px` : undefined,
 	);
 	const stackSizePx = $derived(rouletteSizePx > 0 ? `${rouletteSizePx}px` : undefined);
-	const baseWidthPx = $derived(
-		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * BASE_TO_WHEEL)}px` : undefined,
-	);
-	const markerWidthPx = $derived(
-		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_WIDTH_TO_WHEEL)}px` : undefined,
-	);
-	const markerHeightPx = $derived(
-		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * MARKER_HEIGHT_TO_WHEEL)}px` : undefined,
-	);
-	// Marker sits at the wheel rim; tracking WHEEL_SCALE keeps it on the (scaled) rim by default.
-	const markerYOffsetPx = $derived(
-		rouletteSizePx > 0 ? `-${Math.round(rouletteSizePx * 0.5 * WHEEL_SCALE)}px` : undefined,
-	);
+	const highlightPlacement = $derived(HIGHLIGHT_PLACEMENT[highlightSlot]);
 
 	// Tuning offsets, resolved to px from the wheel diameter (positive X → right, positive Y → down).
 	const labelOffsetXPx = $derived(`${Math.round(rouletteSizePx * LABEL_OFFSET_X)}px`);
 	const labelOffsetYPx = $derived(`${Math.round(rouletteSizePx * LABEL_OFFSET_Y)}px`);
 	const wheelOffsetXPx = $derived(`${Math.round(rouletteSizePx * WHEEL_OFFSET_X)}px`);
 	const wheelOffsetYPx = $derived(`${Math.round(rouletteSizePx * WHEEL_OFFSET_Y)}px`);
-	const markerOffsetXPx = $derived(`${Math.round(rouletteSizePx * MARKER_OFFSET_X)}px`);
-	const markerOffsetYPx = $derived(`${Math.round(rouletteSizePx * MARKER_OFFSET_Y)}px`);
-	// Data-driven labels on the label-less `bonus-roulette-wheel-empty.png`: segment `i` sits at `i*45°`
-	// from the top marker (same angle the spin lands on), so the value under the marker matches the
-	// book result. Per-tier values (resize with balls-per-drop). Radius/font tunables mirror the
-	// free-spin wheel.
-	const labelRadiusPx = $derived(
-		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * 0.315)}px` : '0px',
-	);
-	const labelFontPx = $derived(
-		rouletteSizePx > 0 ? `${Math.round(rouletteSizePx * 0.072)}px` : '0px',
-	);
 
 	const headlineText = $derived(
 		props.mode === 'message' ? (props.messageTitle ?? 'CONGRATULATIONS!') : 'CONGRATULATIONS!',
@@ -207,23 +315,31 @@
 		props.mode === 'message' ? (props.messageValue ?? '') : `YOU WON ${wonFreeBalls} DROPS`,
 	);
 
-	// Per-tier wheel values (avg ≈ balls-per-drop). `stateGame.ballPerDrop` is the real selected tier
-	// (the HUD shows 1 during the bonus, but the tier is unchanged), so the wheel resizes per tier.
+	// Wheel values. `stateGame.ballPerDrop` is the real selected tier (the HUD shows 1 during the bonus,
+	// but the tier is unchanged); the values are tier-INDEPENDENT and are baked into the art.
 	const segments = $derived(
 		bonusRouletteSegmentsForTier(stateGame.ballPerDrop).map((freeBalls, i) => ({
 			label: String(freeBalls),
 			freeBalls,
 			index: i,
-			placement: BONUS_SEGMENT_PLACEMENTS[freeBalls] as
-				| { w: number; h: number; l: number; t: number }
-				| undefined,
-			src: staticUrl(`img/bonus_roulette_segments/segment_${freeBalls}.svg`),
 		})),
 	);
-	const emptyWheelSrc = staticUrl('img/bonus_roulette_segments/bonus_roulette_empty.png');
-	// N equal slices (the labeled bonus wheel has 8 → 45° each); the per-segment angle and landing target
-	// derive from the segment count so they always match the wheel image.
-	const segAngle = $derived(segments.length > 0 ? 360 / segments.length : 45);
+	// The art is 9 equal 40° slices; the per-segment angle derives from the art so they cannot drift.
+	const segAngle = 360 / ART_SLOT_FREE_BALLS.length;
+
+	/** Which art slot segment `index` occupies — matched BY VALUE, so the wedge that stops under the
+	 * pointer is always the one the book pays. Returns -1 if the value isn't on the wheel. */
+	function artSlot(index: number): number {
+		const seg = segments[index];
+		return seg ? ART_SLOT_FREE_BALLS.indexOf(seg.freeBalls) : -1;
+	}
+
+	/** Where segment `index` actually sits, in degrees clockwise from the pointer, at rotation 0. Used
+	 * for the landing, so the wedge settles centred under the pointer. */
+	function segmentAngleFromTop(index: number): number {
+		const slot = artSlot(index);
+		return slot >= 0 ? ART_WEDGE_GEOMETRY[slot].bisectorDeg : 0;
+	}
 
 	onMount(() => {
 		if (props.mode === 'message') {
@@ -248,7 +364,6 @@
 		const assembleTimer = setTimeout(() => {
 			labelVisible = true;
 			wheelVisible = true;
-			markerVisible = true;
 			// DEBUG_KEEP_OPEN: hold the assembled roulette on screen — skip the spin (and the announcement
 			// it leads into) so the layout stays visible for inspection.
 			if (DEBUG_KEEP_OPEN) return;
@@ -293,33 +408,31 @@
 		return Math.floor(Math.random() * segments.length);
 	}
 
-	/** Which wedge is under the top marker right now, read from the wheel's LIVE (mid-transition) rotation.
-	 * Segment `i` sits `i*segAngle` clockwise from the top at rest, so the top wedge is `round(-angle/segAngle)`
-	 * (mod segment count). Returns null before the wheel exists. */
-	function currentTopIndex(): number | null {
+	/** Art slot of the wedge under the marker RIGHT NOW, read from the wheel's LIVE (mid-transition)
+	 * rotation θ. A wedge at art angle `a` displays at `a + θ`, so the one under the marker (0°) is the
+	 * one with `a ≈ -θ`. The ideal 40° grid is accurate enough to pick the slot (the bisectors are all
+	 * within ~0.6° of it); the slot's exact geometry then comes from ART_WEDGE_GEOMETRY. */
+	function currentTopSlot(): number {
 		const el = wheelEl;
-		if (!el) return null;
+		if (!el) return 0;
 		const t = getComputedStyle(el).transform;
 		if (!t || t === 'none') return 0;
 		const m = new DOMMatrixReadOnly(t);
-		const angle = (Math.atan2(m.b, m.a) * 180) / Math.PI;
-		const n = segments.length;
-		if (n === 0) return null;
-		return ((Math.round(-angle / segAngle) % n) + n) % n;
+		const theta = (Math.atan2(m.b, m.a) * 180) / Math.PI;
+		const n = ART_SLOT_FREE_BALLS.length;
+		return ((Math.round(-theta / segAngle) % n) + n) % n;
 	}
 
 	/** Ratchet "tick" each time a new wedge reaches the marker — the highlight hand-off already marks
 	 * exactly that boundary, so it doubles as the sound cue and the two can never drift apart.
 	 * At most one tick per frame: even at peak spin the wheel covers well under a wedge per frame, and
-	 * two plays in the same frame would land on top of each other inaudibly anyway. The `null` guards
-	 * keep the first tracked frame (and any frame before the wheel exists) silent — that is the glow
-	 * appearing, not a wedge passing. */
+	 * two plays in the same frame would land on top of each other inaudibly anyway. */
 	function trackHighlight() {
-		const index = currentTopIndex();
-		if (index !== null && highlightedIndex !== null && index !== highlightedIndex) {
+		const slot = currentTopSlot();
+		if (slot !== highlightSlot) {
 			eventEmitter.broadcast({ type: 'soundOnce', name: 'rouletteTick' });
 		}
-		highlightedIndex = index;
+		highlightSlot = slot;
 		highlightRaf = requestAnimationFrame(trackHighlight);
 	}
 
@@ -331,24 +444,20 @@
 	function startSpin() {
 		const winner = resolveWinnerIndex();
 		const extraRounds = 5 + Math.floor(Math.random() * 3);
-		const targetDeg = wheelRotationDeg + extraRounds * 360 - winner * segAngle;
-		// Base counter-rotates: opposite direction, a whole number of turns (so it lands back on its original
-		// orientation) at the same speed/duration as the wheel — same `extraRounds` over the same transition.
-		const baseTargetDeg = baseRotationDeg - extraRounds * 360;
+		const targetDeg = wheelRotationDeg + extraRounds * 360 - segmentAngleFromTop(winner);
 		let settled = false;
 		const settle = () => {
 			if (settled) return;
 			settled = true;
 			// Stop the per-frame tracking and pin the glow on the landed wedge (it's under the marker now).
 			stopHighlightTracking();
-			highlightedIndex = winner;
+			highlightSlot = Math.max(0, artSlot(winner));
 			afterSpin(winner);
 		};
 		requestAnimationFrame(() => {
 			wheelSpinClass = true;
 			wheelRotationDeg = targetDeg;
-			baseRotationDeg = baseTargetDeg;
-			// Light up each wedge as the marker sweeps over it during the spin.
+			// Hand the glow from wedge to wedge as the marker sweeps over them during the spin.
 			stopHighlightTracking();
 			trackHighlight();
 		});
@@ -377,8 +486,6 @@
 			setTimeout(() => {
 				labelVisible = false;
 				wheelVisible = false;
-				markerVisible = false;
-				highlightedIndex = null;
 				pendingResult = {
 					segmentIndex: winner,
 					segmentLabel: String(freeBallCount),
@@ -430,41 +537,6 @@
 	aria-modal="true"
 	aria-label="Bonus roulette wheel"
 >
-	<!-- Inner-glow filter for the lit wedge. A CSS box-shadow can't follow an <img>'s alpha (it uses the
-	     rectangular box), so this recreates the design's gold inset glow + inner vignette along the actual
-	     wedge outline: flood a colour OUTSIDE the shape, blur it inward, then clip back INTO the shape. -->
-	<svg class="bonus-spin-filter-defs" width="0" height="0" aria-hidden="true" focusable="false">
-		<filter
-			id="bonus-seg-lit-glow"
-			x="-25%"
-			y="-25%"
-			width="150%"
-			height="150%"
-			color-interpolation-filters="sRGB"
-		>
-			<!-- inner black vignette (broad) — the `inset 0 0 50px #000` layer -->
-			<feFlood flood-color="rgb(0,0,0)" flood-opacity="0.5" result="dark" />
-			<feComposite in="dark" in2="SourceAlpha" operator="out" result="darkRing" />
-			<feGaussianBlur in="darkRing" stdDeviation="22" result="darkBlur" />
-			<feComposite in="darkBlur" in2="SourceAlpha" operator="in" result="darkGlow" />
-			<!-- broad gold inset glow — the `inset ±30px rgba(255,184,x,0.8)` layers -->
-			<feFlood flood-color="rgb(255,184,1)" flood-opacity="0.95" result="gold" />
-			<feComposite in="gold" in2="SourceAlpha" operator="out" result="goldRing" />
-			<feGaussianBlur in="goldRing" stdDeviation="15" result="goldBlur" />
-			<feComposite in="goldBlur" in2="SourceAlpha" operator="in" result="goldGlow" />
-			<!-- crisp bright rim right at the outline -->
-			<feFlood flood-color="rgb(255,201,46)" flood-opacity="1" result="rim" />
-			<feComposite in="rim" in2="SourceAlpha" operator="out" result="rimRing" />
-			<feGaussianBlur in="rimRing" stdDeviation="4" result="rimBlur" />
-			<feComposite in="rimBlur" in2="SourceAlpha" operator="in" result="rimGlow" />
-			<feMerge>
-				<feMergeNode in="SourceGraphic" />
-				<feMergeNode in="darkGlow" />
-				<feMergeNode in="goldGlow" />
-				<feMergeNode in="rimGlow" />
-			</feMerge>
-		</filter>
-	</svg>
 	{#if props.mode !== 'message'}
 		<div
 			class="bonus-spin-bg-drop"
@@ -487,58 +559,53 @@
 					alt="Free balls"
 				/>
 				<div class="bonus-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>
-					<img
-						class="bonus-spin-marker"
-						class:bonus-spin-marker--visible={markerVisible}
-						style:width={markerWidthPx}
-						style:height={markerHeightPx}
-						style:--marker-y-offset={markerYOffsetPx}
-						style:--marker-scale={MARKER_SCALE}
-						style:--marker-offset-x={markerOffsetXPx}
-						style:--marker-offset-y={markerOffsetYPx}
-						src={staticUrl('img/bonus-spin-marker.png')}
-						alt=""
-					/>
+					<!-- One transformed group so the disc, highlight and frame keep their measured registration
+					     under the tuning scale/offsets and the entry animation. -->
 					<div
-						bind:this={wheelEl}
-						class="bonus-spin-wheel"
-						class:bonus-spin-wheel--animating={wheelSpinClass}
-						class:bonus-spin-wheel--visible={wheelVisible}
-						style:--wheel-rotation-deg="{wheelRotationDeg}deg"
-						style:--wheel-scale={WHEEL_SCALE}
+						class="bonus-spin-wheel-group"
+						class:bonus-spin-wheel-group--visible={wheelVisible}
+						style:--wheel-scale={wheelGroupScale}
 						style:--wheel-offset-x={wheelOffsetXPx}
 						style:--wheel-offset-y={wheelOffsetYPx}
-						role="img"
-						aria-label="Bonus roulette wheel"
 					>
-						<img class="bonus-spin-wheel-base" src={emptyWheelSrc} alt="" />
-						{#each segments as seg (seg.index)}
-							{#if seg.placement}
-								<img
-									class="bonus-spin-seg"
-									class:bonus-spin-seg--lit={highlightedIndex === seg.index}
-									style:left="{seg.placement.l * 100}%"
-									style:top="{seg.placement.t * 100}%"
-									style:width="{seg.placement.w * 100}%"
-									style:height="{seg.placement.h * 100}%"
-									src={seg.src}
-									alt=""
-								/>
-							{/if}
-						{/each}
+						<div
+							bind:this={wheelEl}
+							class="bonus-spin-wheel"
+							class:bonus-spin-wheel--animating={wheelSpinClass}
+							style:--wheel-rotation-deg="{wheelRotationDeg}deg"
+							role="img"
+							aria-label="Bonus roulette wheel"
+						>
+							<img class="bonus-spin-wheel-values" src={valuesSrc} alt="" />
+							<!-- Rides INSIDE the rotating disc, so it stays glued to its wedge while the wheel turns;
+							     the rAF tracker only re-points it as each new wedge reaches the marker. -->
+							<img
+								class="bonus-spin-highlight"
+								style:left="{HIGHLIGHT_BOX.left * 100}%"
+								style:top="{HIGHLIGHT_BOX.top * 100}%"
+								style:width="{HIGHLIGHT_BOX.w * 100}%"
+								style:height="{HIGHLIGHT_BOX.h * 100}%"
+								style:--highlight-origin-x="{HIGHLIGHT_ORIGIN.x}%"
+								style:--highlight-origin-y="{HIGHLIGHT_ORIGIN.y}%"
+								style:--highlight-angle-deg="{highlightPlacement.rotateDeg}deg"
+								style:--highlight-scale-x={highlightPlacement.scaleX}
+								style:--highlight-scale-y={highlightPlacement.scaleY}
+								style:--highlight-tx="{highlightPlacement.txPct}%"
+								style:--highlight-ty="{highlightPlacement.tyPct}%"
+								src={highlightSrc}
+								alt=""
+							/>
+						</div>
+						<img
+							class="bonus-spin-frame"
+							style:left="{FRAME_BOX.left * 100}%"
+							style:top="{FRAME_BOX.top * 100}%"
+							style:width="{FRAME_BOX.w * 100}%"
+							style:height="{FRAME_BOX.h * 100}%"
+							src={frameSrc}
+							alt=""
+						/>
 					</div>
-					<img
-						class="bonus-spin-center-base"
-						class:bonus-spin-center-base--animating={wheelSpinClass}
-						class:bonus-spin-center-base--visible={wheelVisible}
-						style:width={baseWidthPx}
-						style:--base-rotation-deg="{baseRotationDeg}deg"
-						style:--wheel-scale={WHEEL_SCALE}
-						style:--wheel-offset-x={wheelOffsetXPx}
-						style:--wheel-offset-y={wheelOffsetYPx}
-						src={staticUrl('img/bonus-roulette-center-base.png')}
-						alt=""
-					/>
 				</div>
 			</div>
 		</div>
@@ -629,8 +696,7 @@
 	}
 	.bonus-spin-title {
 		position: relative;
-		/* Above the wheel-stack's marker (z 2) and center-base (z 3) so the banner always paints over the
-		   marker's tail when it pokes up past the rim. */
+		/* Above the wheel assembly so the label always paints over the frame's crown pointer when it pokes up. */
 		z-index: 4;
 		width: min(72vw, 100%);
 		max-width: 100%;
@@ -659,142 +725,64 @@
 		flex-shrink: 0;
 		place-self: center;
 	}
-	.bonus-spin-marker {
-		position: absolute;
-		left: 50%;
-		top: 50%;
-		object-fit: contain;
-		transform: translate(-50%, -50%) translateY(-150vh) scale(var(--marker-scale, 1));
-		transform-origin: 50% 50%;
-		opacity: 0;
-		pointer-events: none;
-		transition:
-			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-			opacity 0.34s ease;
-		z-index: 2;
-	}
-	.bonus-spin-marker--visible {
-		transform: translate(-50%, -50%)
-			translate(
-				var(--marker-offset-x, 0px),
-				calc(var(--marker-y-offset, 0px) + var(--marker-offset-y, 0px))
-			)
-			scale(var(--marker-scale, 1));
-		opacity: 1;
-	}
-	.bonus-spin-wheel {
-		position: relative;
-		display: block;
-		width: 100%;
-		height: 100%;
-		transform-origin: 50% 50%;
-		--wheel-rotation-deg: 0deg;
-		transform: translateY(125vh) rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
-		opacity: 0;
-	}
-	/* Label-less base ring (gold rim + gems + empty interior); the value wedges layer on top. */
-	.bonus-spin-wheel-base {
+	/* The frame overhangs this box (it is ~1.09× the disc), so nothing here may clip. */
+	.bonus-spin-wheel-group {
 		position: absolute;
 		inset: 0;
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		pointer-events: none;
+		transform-origin: 50% 50%;
+		transform: translateY(125vh) scale(var(--wheel-scale, 1));
+		opacity: 0;
 	}
-	/* One value wedge per segment, positioned/sized as fractions of the wheel (see BONUS_SEGMENT_PLACEMENTS). */
-	.bonus-spin-seg {
-		position: absolute;
-		object-fit: contain;
-		pointer-events: none;
-	}
-	.bonus-spin-filter-defs {
-		position: absolute;
-		width: 0;
-		height: 0;
-		pointer-events: none;
-	}
-	/* Highlight on the wedge under the marker: gold inset glow + inner vignette along the wedge outline
-	   (SVG inner-glow filter, see #bonus-seg-lit-glow) plus the design's soft outer shadow. */
-	.bonus-spin-seg--lit {
-		z-index: 1;
-		filter: url(#bonus-seg-lit-glow) drop-shadow(0 0 10px rgba(0, 0, 0, 0.25));
-	}
-	.bonus-spin-wheel--visible {
+	.bonus-spin-wheel-group--visible {
 		transform: translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
-			rotate(var(--wheel-rotation-deg)) scale(var(--wheel-scale, 1));
+			scale(var(--wheel-scale, 1));
 		opacity: 1;
 		transition:
 			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
 			opacity 0.34s ease;
+	}
+	/* The only piece that rotates. */
+	.bonus-spin-wheel {
+		position: absolute;
+		inset: 0;
+		transform-origin: 50% 50%;
+		--wheel-rotation-deg: 0deg;
+		transform: rotate(var(--wheel-rotation-deg));
 	}
 	.bonus-spin-wheel--animating {
 		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
 	}
-	/* Per-tier free-ball labels overlay — rotates in lock-step with the (label-less) wheel image so each
-	   value stays glued to its wedge; the value under the marker is always the book result. */
-	.bonus-spin-wheel-labels {
+	/* The coloured disc is inscribed in its square canvas, so it fills the stack exactly. */
+	.bonus-spin-wheel-values {
 		position: absolute;
 		inset: 0;
-		z-index: 2;
+		width: 100%;
+		height: 100%;
 		pointer-events: none;
-		transform-origin: 50% 50%;
-		--wheel-rotation-deg: 0deg;
-		transform: translateY(125vh) rotate(var(--wheel-rotation-deg));
-		opacity: 0;
 	}
-	.bonus-spin-wheel-labels--visible {
-		transform: translateY(0) rotate(var(--wheel-rotation-deg));
-		opacity: 1;
-		transition:
-			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-			opacity 0.34s ease;
-	}
-	.bonus-spin-wheel-labels--animating {
-		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
-	}
-	.bonus-spin-wheel-label {
+	/* `fill` on both of these: the boxes are already the art's exact aspect ratio, and `contain` would
+	   silently letterbox (and so break the registration) on any rounding drift. */
+	/* Deliberately NOT transitioned — the glow must SNAP to the next wedge as it reaches the marker,
+	   then ride along with it (it is inside the rotating disc). */
+	.bonus-spin-highlight {
 		position: absolute;
-		left: 50%;
-		top: 50%;
-		transform: translate(-50%, -50%) rotate(var(--seg-angle, 0deg))
-			translateY(calc(-1 * var(--label-radius, 0px)));
-		transform-origin: 50% 50%;
-		font-family: 'PotatoSans', sans-serif;
-		font-weight: 800;
-		font-size: var(--label-font-size, 16px);
-		line-height: 1;
-		color: #fff;
-		white-space: nowrap;
-		-webkit-text-stroke: 0.06em #3a1d05;
-		paint-order: stroke fill;
-		text-shadow: 0 0.04em 0.06em rgba(0, 0, 0, 0.55);
-		user-select: none;
+		z-index: 1;
+		object-fit: fill;
+		pointer-events: none;
+		transform-origin: var(--highlight-origin-x) var(--highlight-origin-y);
+		/* Read right-to-left: open to the wedge's angle and pull the arc back to the ring's inner edge (in
+		   the art's own upright frame, about the apex), swing onto the wedge's bisector, then slide the apex
+		   off the hub to where the wedge's two ropes actually meet — that last step is what keeps the edges
+		   parallel to the ropes. */
+		transform: translate(var(--highlight-tx, 0), var(--highlight-ty, 0))
+			rotate(var(--highlight-angle-deg, 0deg))
+			scale(var(--highlight-scale-x, 1), var(--highlight-scale-y, 1));
 	}
-	.bonus-spin-center-base {
+	.bonus-spin-frame {
 		position: absolute;
-		left: 50%;
-		top: 50%;
-		height: auto;
-		object-fit: contain;
-		transform-origin: 50% 50%;
-		--base-rotation-deg: 0deg;
-		transform: translate(-50%, -50%) translateY(125vh) rotate(var(--base-rotation-deg))
-			scale(var(--wheel-scale, 1));
-		opacity: 0;
 		z-index: 3;
-		transition:
-			transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-			opacity 0.34s ease;
-	}
-	.bonus-spin-center-base--visible {
-		transform: translate(-50%, -50%)
-			translate(var(--wheel-offset-x, 0px), var(--wheel-offset-y, 0px))
-			rotate(var(--base-rotation-deg)) scale(var(--wheel-scale, 1));
-		opacity: 1;
-	}
-	/* Matches the wheel's spin timing so the counter-rotating base stops at the same moment. */
-	.bonus-spin-center-base--animating {
-		transition: transform 4.1s cubic-bezier(0.12, 0.72, 0.12, 1);
+		object-fit: fill;
+		pointer-events: none;
 	}
 	.bonus-announcement {
 		position: absolute;

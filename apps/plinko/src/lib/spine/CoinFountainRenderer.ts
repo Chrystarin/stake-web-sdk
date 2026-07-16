@@ -13,6 +13,9 @@ import type { SpineAssetDef } from './types';
 
 export type FountainPoint = { x: number; y: number };
 
+/** A "this coin is about to land" callback, fired `ms` before it does. See CoinBurstOptions.leads. */
+export type CoinBurstLead = { ms: number; onLead: () => void };
+
 export type CoinBurstOptions = {
 	/** Screen-space (client px) origin — the coins pour out of here (the win modal). */
 	from: FountainPoint;
@@ -20,6 +23,13 @@ export type CoinBurstOptions = {
 	to: FountainPoint;
 	/** How many coins to launch. Clamped to a sane range. */
 	count?: number;
+	/**
+	 * Landing warnings: each fires once per coin, `ms` before that coin reaches the destination. The
+	 * lead is taken off the coin's OWN remaining flight time, so it holds however the frame rate
+	 * wanders — unlike a wall-clock timer started at launch, which has to guess the travel time and
+	 * drifts out of it on a slow frame. Order doesn't matter (sorted internally).
+	 */
+	leads?: CoinBurstLead[];
 	/** Fired each time a coin reaches the destination (throttled by the caller if needed). */
 	onArrive?: () => void;
 	/** Fired once when the last coin of this burst has landed and none remain in flight. */
@@ -53,6 +63,10 @@ type FlyingCoin = {
 	/** extra flip speed multiplier for variety. */
 	spinRate: number;
 	arrived: boolean;
+	/** Landing warnings for this coin, sorted EARLIEST first (descending `ms`). Shared, read-only. */
+	leads: CoinBurstLead[];
+	/** How many of `leads` have fired — they are one-shot, and sorted, so a cursor is enough. */
+	leadsFired: number;
 	onArrive?: () => void;
 };
 
@@ -189,8 +203,11 @@ export class CoinFountainRenderer {
 		const viewMin = Math.min(this.app.renderer.width, this.app.renderer.height) || 400;
 		const baseSize = Math.max(16.5, Math.min(34.5, viewMin * 0.0315));
 
+		// Sorted once here, earliest warning first, so each coin only needs a cursor into it.
+		const leads = [...(options.leads ?? [])].sort((a, b) => b.ms - a.ms);
+
 		for (let i = 0; i < count; i++) {
-			this.spawnCoin(from, to, dx, dy, dist, baseSize, i, count, options.onArrive);
+			this.spawnCoin(from, to, dx, dy, dist, baseSize, i, count, options, leads);
 		}
 
 		if (!this.running) {
@@ -208,7 +225,8 @@ export class CoinFountainRenderer {
 		baseSize: number,
 		index: number,
 		count: number,
-		onArrive?: () => void,
+		options: CoinBurstOptions,
+		leads: CoinBurstLead[],
 	): void {
 		const app = this.app;
 		if (!app) return;
@@ -267,7 +285,9 @@ export class CoinFountainRenderer {
 			// Flip speed multiplier (the coin_act animation is a 1s flip loop; >1 spins faster).
 			spinRate: 1.7 + rand() * 1.6,
 			arrived: false,
-			onArrive,
+			leads,
+			leadsFired: 0,
+			onArrive: options.onArrive,
 		});
 	}
 
@@ -279,6 +299,17 @@ export class CoinFountainRenderer {
 		for (const coin of this.coins) {
 			if (coin.arrived) continue;
 			coin.elapsed += dt;
+
+			// Announce the landing ahead of time, off this coin's own clock — what the balance coin's
+			// light layers ride in on, so each is up by the time the coin merges (see CoinFountain).
+			// Sorted earliest-first, so everything now due is at the cursor.
+			while (coin.leadsFired < coin.leads.length) {
+				const lead = coin.leads[coin.leadsFired];
+				if (coin.elapsed < coin.startAt + coin.duration - lead.ms) break;
+				coin.leadsFired++;
+				lead.onLead();
+			}
+
 			const tRaw = (coin.elapsed - coin.startAt) / coin.duration;
 
 			if (tRaw <= 0) {

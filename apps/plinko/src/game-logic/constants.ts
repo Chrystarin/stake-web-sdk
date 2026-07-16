@@ -82,6 +82,14 @@ export const AUTO_BET_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100] as const;
 /** Minimum milliseconds between consecutive ball spawns. */
 export const MIN_MS_BETWEEN_BALL_SPAWNS = 400;
 
+/**
+ * Bonus hold-to-drop: milliseconds between free balls while the player holds Play during a bonus
+ * round. Sits inside the spacing the board already uses for a spaced 10-ball drop (~110–220ms per
+ * ball, see `PlinkoBoard.spawnOutcomes`), so a held stream reads like a normal multi-ball drop rather
+ * than a new density of ball. Fast Game compresses it by the `SIM_SPEED` ratio, like that spread.
+ */
+export const BONUS_HOLD_DROP_INTERVAL_MS = 200;
+
 /** Normal vs fast simulation speed multipliers. (`fast` reduced 25% from 2.4 → 1.8 so peg
  * bounces stay readable — see PlinkoEngine speed-factor handling.) */
 export const SIM_SPEED = { normal: 0.7, fast: 1.4 } as const;
@@ -121,10 +129,13 @@ export function bonusLevelBalls(level: number): number {
 	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
 }
 
-/** Bonus roulette ABSOLUTE free-ball awards — REVISED values baked into the labeled
- * `bonus-roulette-wheel-revised-values.png` (9 segments, clockwise from the top marker; index 0 = top
- * = 100, then 90, 80, 70, 60, 50, 40, 30, 20). Mirror of stake-math-sdk
- * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT. */
+/** Bonus roulette ABSOLUTE free-ball awards — values baked into
+ * `img/free_bonus_roulette_v2/wheel_values.png` (9 segments, clockwise from the top pointer; index 0 =
+ * top = 100, then 90, 80, 70, 60, 50, 40, 30, 20). Mirror of stake-math-sdk
+ * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT.
+ * ⚠️ Only `BonusRoulette.svelte` maps index → angle, and it matches segments onto art wedges BY VALUE
+ * (`ART_SLOT_FREE_BALLS`) rather than assuming `index * 40°` — so reordering here stays honest, but the
+ * VALUES must keep matching the art. */
 export const BONUS_WHEEL_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20] as const;
 
 /** Bonus-wheel free-ball values. ABSOLUTE, independent of the balls-per-drop tier. Mirror of

@@ -8,13 +8,30 @@
 	let hostEl: HTMLDivElement;
 	let renderer: CoinFountainRenderer | undefined;
 	let ready = false;
-	let lightHideTimer: ReturnType<typeof setTimeout> | undefined;
+	let glowHideTimer: ReturnType<typeof setTimeout> | undefined;
+	let sparkleHideTimer: ReturnType<typeof setTimeout> | undefined;
 	// Pending "+<win>" float timers — the float is shown a beat after launch (≈ when coins reach the
 	// balance coin). Tracked so they can be cleared on unmount.
 	const floatTimers = new Set<ReturnType<typeof setTimeout>>();
 	// Approx travel time before coins start merging into the balance coin (matches the renderer's
 	// startAt + duration for the earliest coins); the float appears then, so it reads "on merge".
 	const COIN_MERGE_DELAY_MS = 1400;
+	// The balance coin's light LEADS the coins in: each layer lights this far ahead of a coin landing,
+	// so its burst is already up when they start merging rather than chasing them. The renderer takes
+	// this off each coin's own remaining flight time (see CoinBurstOptions.leads); a timer started at
+	// launch would have to guess the travel time, and guessing it short lights the coin, hides it
+	// again, then re-lights it on the arrival.
+	// …and LINGERS after them: each holds this far past the beat where arrivals stop, so it fades out
+	// on its own rather than snapping off with the last coin.
+	// The SPARKLE brackets the GLOW — in earlier, out later — so the coin is already twinkling as the
+	// light comes up, and is still twinkling once it has gone. It can hold a window this wide because
+	// it loops just its star segment (see loopRange); the glow would sit on a dead tail.
+	const GLOW_LEAD_MS = 500;
+	const GLOW_LINGER_MS = 500;
+	const SPARKLE_LEAD_MS = 1000;
+	const SPARKLE_LINGER_MS = 1000;
+	// How long after the last arrival the stream counts as over (every arrival re-arms this).
+	const LIGHT_ARRIVALS_IDLE_MS = 260;
 
 	/** Centre of the first visible element matching `selector`, in client (screen) px. */
 	function rectCenter(selector: string): FountainPoint | undefined {
@@ -42,19 +59,35 @@
 		coin.classList.add('coin-fly-target--bump');
 	}
 
-	// The balance coin's light shows ONLY while coins are actively merging into it: it lights on each
-	// arrival and hides a short beat after the last one lands (every arrival re-arms the hide timer, so
-	// a continuous stream keeps it lit; once arrivals stop it fades out).
-	function scheduleLightOff() {
-		if (lightHideTimer) clearTimeout(lightHideTimer);
-		lightHideTimer = setTimeout(() => {
-			stateGame.coinFountainActive = false;
-		}, 260);
+	// Each light layer shows only around coins actually merging into the coin: it lights shortly before
+	// one lands (its _LEAD_MS) and hides a beat after the last one has (every lead and arrival re-arms
+	// its hide timer, so a continuous stream keeps it lit; once they stop it lingers, then fades out).
+	// Every lead is followed by that coin's arrival its own lead later — well inside the hide window,
+	// which is longer than any lead — so neither layer can blink off mid-stream.
+	function scheduleGlowOff() {
+		if (glowHideTimer) clearTimeout(glowHideTimer);
+		glowHideTimer = setTimeout(() => {
+			stateGame.balanceGlowActive = false;
+		}, LIGHT_ARRIVALS_IDLE_MS + GLOW_LINGER_MS);
+	}
+	function scheduleSparkleOff() {
+		if (sparkleHideTimer) clearTimeout(sparkleHideTimer);
+		sparkleHideTimer = setTimeout(() => {
+			stateGame.balanceSparkleActive = false;
+		}, LIGHT_ARRIVALS_IDLE_MS + SPARKLE_LINGER_MS);
+	}
+	function showGlow() {
+		stateGame.balanceGlowActive = true;
+		scheduleGlowOff();
+	}
+	function showSparkle() {
+		stateGame.balanceSparkleActive = true;
+		scheduleSparkleOff();
 	}
 	function onCoinMerge() {
 		pulseBalanceCoin();
-		stateGame.coinFountainActive = true;
-		scheduleLightOff();
+		showGlow();
+		showSparkle();
 	}
 
 	function launchBurst(countOverride?: number, winAmount?: number) {
@@ -73,14 +106,22 @@
 		// 1-3 count (see the rapid effect below). Capped inside the renderer.
 		const mult = stateGame.winPopupMultiplier || 0;
 		const count = countOverride ?? Math.round(22 + Math.min(20, Math.log2(1 + mult) * 5));
-		// The light is driven per-arrival (see onCoinMerge) — NOT lit at launch, so it only appears once
-		// coins actually start merging into the balance coin. onComplete is a safety to guarantee it hides.
+		// The light is driven by the coins themselves (see leads/onCoinMerge) — NOT lit at launch, so it
+		// only appears around coins actually merging into the balance coin. onComplete is a safety to
+		// guarantee both layers hide.
 		renderer.burst({
 			from,
 			to,
 			count,
+			leads: [
+				{ ms: SPARKLE_LEAD_MS, onLead: showSparkle },
+				{ ms: GLOW_LEAD_MS, onLead: showGlow },
+			],
 			onArrive: onCoinMerge,
-			onComplete: scheduleLightOff,
+			onComplete: () => {
+				scheduleGlowOff();
+				scheduleSparkleOff();
+			},
 		});
 
 		// Float a "+<win>" text down from the balance coin around when these coins start merging into it.
@@ -101,10 +142,12 @@
 			ready = true;
 		});
 		return () => {
-			if (lightHideTimer) clearTimeout(lightHideTimer);
+			if (glowHideTimer) clearTimeout(glowHideTimer);
+			if (sparkleHideTimer) clearTimeout(sparkleHideTimer);
 			floatTimers.forEach((t) => clearTimeout(t));
 			floatTimers.clear();
-			stateGame.coinFountainActive = false;
+			stateGame.balanceGlowActive = false;
+			stateGame.balanceSparkleActive = false;
 			renderer?.destroy();
 			renderer = undefined;
 			ready = false;

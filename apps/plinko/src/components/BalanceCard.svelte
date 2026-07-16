@@ -9,12 +9,13 @@
 	import { i18nDerived } from '../i18n/i18nDerived';
 
 	let glowHostEl: HTMLDivElement;
+	let sparkleHostEl: HTMLDivElement;
 	let glowRenderer: BalanceCoinGlowRenderer | undefined;
 
 	onMount(() => {
 		// Mounted once for the session and left idle — never torn down/recreated on a state change, since
 		// churning a WebGL canvas mid-game can flash white for a frame on slower GPUs.
-		glowRenderer = new BalanceCoinGlowRenderer(glowHostEl);
+		glowRenderer = new BalanceCoinGlowRenderer({ back: glowHostEl, front: sparkleHostEl });
 		void glowRenderer.init();
 		return () => {
 			glowRenderer?.destroy();
@@ -22,10 +23,14 @@
 		};
 	});
 
-	// Run the burst only while win coins are merging into the coin — the same signal that used to fade
-	// the old static light PNG (driven per-arrival by CoinFountain).
+	// Run each layer only around win coins merging into the coin (driven by CoinFountain). Separate
+	// effects, not one: the sparkle brackets the glow, lighting earlier and holding longer, so reading
+	// both flags in a single effect would restart whichever layer the OTHER one just toggled.
 	$effect(() => {
-		glowRenderer?.setActive(stateGame.coinFountainActive);
+		glowRenderer?.setActive('back', stateGame.balanceGlowActive);
+	});
+	$effect(() => {
+		glowRenderer?.setActive('front', stateGame.balanceSparkleActive);
 	});
 
 	const currencySign = $derived(currencySignFor(stateBet.currency));
@@ -56,11 +61,12 @@
 			<span class="balance-card-value">{formatMoney(displayBalance)}</span>
 		</div>
 		<div class="balance-card-coin">
-			<!-- Spine light burst behind the coin (glow + sparkle). The renderer only animates while
-			     coins are merging; this host does the fade, so it keeps working with the ticker stopped. -->
+			<!-- Spine light burst, straddling the coin: `glow` behind it, `sparkle` over it (one canvas
+			     each — see BalanceCoinGlowRenderer). The renderer only animates while coins are merging;
+			     these hosts do the fade, so it keeps working with the tickers stopped. -->
 			<div
-				class="balance-card-coin-glow"
-				class:balance-card-coin-glow--active={stateGame.coinFountainActive}
+				class="balance-card-coin-burst balance-card-coin-burst--back"
+				class:balance-card-coin-burst--active={stateGame.balanceGlowActive}
 				bind:this={glowHostEl}
 				aria-hidden="true"
 			></div>
@@ -71,6 +77,12 @@
 				alt=""
 				aria-hidden="true"
 			/>
+			<div
+				class="balance-card-coin-burst balance-card-coin-burst--front"
+				class:balance-card-coin-burst--active={stateGame.balanceSparkleActive}
+				bind:this={sparkleHostEl}
+				aria-hidden="true"
+			></div>
 		</div>
 	</div>
 
@@ -113,19 +125,19 @@
 		--balance-card-height: calc(3.15vw + 2 * 0.35vw);
 
 		/* Row geometry (GameHud.scss): the bottom panel's row centre sits 3.53vw off the viewport
-		   bottom (0.15vw panel pad + 0.5vw chrome pad + half the 5.75vw PLAY button); centring this
-		   3.85vw-tall card on that line puts its bottom edge at 1.6vw. */
+		   bottom (0.15vw panel pad + 0.5vw chrome pad + half the 5.75vw PLAY button — the row's tallest
+		   item); centring this 3.85vw-tall card on that line puts its bottom edge at 1.6vw. */
 		bottom: 1.6vw;
 		/* One --bp-column-gap (1.1vw) to the left of the Bet-per-ball field. The row centres a fixed
 		   group on the viewport, so that field's left edge is deterministic. With w = the shared field
-		   width, and the cluster = auto 4.3 + 0.9 + PLAY 11.5 + 0.9 + fast 4.3 = 21.9vw:
-		     group    = w + gap 1.1 + cluster 21.9 + gap 1.1 + w = 2w + 24.1vw
-		     bet.left = 50vw − group/2       = 50vw − w − 12.05vw
-		     left     = bet.left − 1.1vw − w = 36.85vw − 2w
+		   width, and the cluster = auto 4.3 + 0.9 + PLAY 5.75 + 0.9 + fast 4.3 = 16.15vw:
+		     group    = w + gap 1.1 + cluster 16.15 + gap 1.1 + w = 2w + 18.35vw
+		     bet.left = 50vw − group/2       = 50vw − w − 9.175vw
+		     left     = bet.left − 1.1vw − w = 39.725vw − 2w
 		   Stated in terms of the width var so the two track automatically: the field width feeds the
 		   centred group TWICE (both edge fields), so it shifts this card by 2× its own growth — which is
 		   easy to get wrong by hand. Only the cluster's own size is baked in here. */
-		left: calc(36.85vw - 2 * var(--balance-card-width));
+		left: calc(39.725vw - 2 * var(--balance-card-width));
 		z-index: 22;
 		width: max-content;
 	}
@@ -145,8 +157,10 @@
 		height: var(--balance-card-height);
 		padding: 0.35vw 0.45vw 0.35vw 0.7vw;
 		box-sizing: border-box;
-		overflow: hidden;
-		border-radius: 0.3vw;
+		/* Deliberately NOT `overflow: hidden` (and so no border-radius to clip to): the coin sits near
+		   the right edge, so a clip to this box cuts the light burst off mid-ray on the right, top and
+		   bottom. It is meant to bloom past the plaque. Nothing else here overflows — the frame art and
+		   the text are sized inside it. */
 
 		pointer-events: none;
 		user-select: none;
@@ -218,30 +232,51 @@
 		margin-right: 0.4vw;
 	}
 
-	/* Light burst behind the coin — the `glow` + `sparkle` spine skeletons in a small Pixi canvas
-	   (BalanceCoinGlowRenderer), replacing the old static balance_coin_light.png. Clipped to the plaque
-	   by the card's overflow, and sized past the coin so the rays reach out like the old art did.
-	   HIDDEN by default — it only fades in WHILE coins are merging into the balance coin (`--active`,
-	   driven per-arrival by CoinFountain), then fades back out once arrivals stop. The FADE lives here
-	   rather than in the renderer, so it still runs while the renderer's ticker is stopped. */
-	.balance-card-coin-glow {
+	/* Light burst around the coin — the `glow` + `sparkle` spine skeletons (BalanceCoinGlowRenderer),
+	   replacing the old static balance_coin_light.png. One Pixi canvas each, straddling the coin img:
+	   `glow` behind it (--back, under the coin's z-index 1) and `sparkle` on top (--front). Sized past
+	   the coin so the rays reach out like the old art did, and NOT clipped to the plaque — see
+	   `.balance-card`. HIDDEN by default — they only fade in WHILE coins are merging into the balance coin
+	   (`--active`, driven per-arrival by CoinFountain), then fade back out once arrivals stop. The FADE
+	   lives here rather than in the renderer, so it still runs while the tickers are stopped.
+
+	   Both hosts are the SAME box, so the renderer's shared fit scale centres the two on the same point
+	   and holds the sizes they were authored at relative to each other. The box holds the EMPHASISED
+	   glow (its `emphasis` in balanceCoinGlowAsset.ts is baked into the fit basis), so growing the glow
+	   means growing both this box and that multiplier by the same factor — sparkle stays put.
+
+	   Headroom for growing it further is thin on two sides, and both are hard edges rather than the
+	   soft plaque overflow above: the box bottom clears the viewport by only ~0.14vw (the card sits
+	   1.6vw up and this is centred on the coin), below which the app shell's overflow cuts it; and its
+	   right tips stop just inside the 1.1vw gutter before the Bet-per-ball field. */
+	.balance-card-coin-burst {
 		position: absolute;
 		left: 50%;
 		top: 50%;
-		width: 215%;
-		height: 215%;
+		/* 215% (the size the burst was fitted to the coin at) × the glow's 1.5 emphasis. */
+		width: 322.5%;
+		height: 322.5%;
 		transform: translate(-50%, -50%);
-		z-index: 0;
 		pointer-events: none;
 		opacity: 0;
 		transition: opacity 0.18s ease;
 	}
 
-	.balance-card-coin-glow--active {
+	/* Straddle `.balance-card-coin-img` (z-index 1). Both stay inside this cluster's own stacking
+	   context (`.balance-card-coin`, z-index 2), so neither can wash over the label/amount at 3. */
+	.balance-card-coin-burst--back {
+		z-index: 0;
+	}
+
+	.balance-card-coin-burst--front {
+		z-index: 2;
+	}
+
+	.balance-card-coin-burst--active {
 		opacity: 1;
 	}
 
-	.balance-card-coin-glow :global(canvas) {
+	.balance-card-coin-burst :global(canvas) {
 		display: block;
 		width: 100%;
 		height: 100%;

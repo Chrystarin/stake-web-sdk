@@ -4,9 +4,11 @@ import { isPlinkoReplay } from './plinkoReplay';
 import { isPlinkoOffline } from './plinkoConnection';
 import { clearBonusProgress, saveBonusProgress } from './plinkoBonusProgress';
 import {
+	BONUS_HOLD_DROP_INTERVAL_MS,
 	BONUS_LEVEL_LABELS,
 	BONUS_METER_FILL_SPEED_PER_SECOND,
 	FREE_SPIN_SEGMENTS,
+	SIM_SPEED,
 	bonusLevelBalls,
 } from '../game-logic/constants';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
@@ -420,6 +422,57 @@ export function playOneBonusBall() {
 	if (stateGame.bonusBallsRemaining <= 0) {
 		void settleBonusRoundWhenFinished();
 	}
+}
+
+let bonusHoldDropTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Cadence of a held free-ball stream, compressed in Fast Game like the board's own spawn spread. */
+function bonusHoldDropIntervalMs(): number {
+	const speedUp = stateGame.fastGameEnabled ? SIM_SPEED.normal / SIM_SPEED.fast : 1;
+	return Math.round(BONUS_HOLD_DROP_INTERVAL_MS * speedUp);
+}
+
+/**
+ * True while a free ball may leave the funnel right now. The held stream re-checks this every tick
+ * instead of stopping, so it PAUSES for a level-up reward / wheel / end-of-level gap and resumes on
+ * its own once the next batch of free balls is awarded — the player just keeps holding.
+ */
+function canDropBonusBallNow(): boolean {
+	if (stateGame.bonusLevelUpOverlayOpen || stateGame.bonusEndAnnouncementOpen) return false;
+	return !isBonusPlayButtonDisabled();
+}
+
+/**
+ * BONUS HOLD-TO-DROP. A bonus round drops its free balls one per Play press; holding Play instead
+ * streams them out continuously (first ball on press, then one every `bonusHoldDropIntervalMs`)
+ * until `stopBonusBallHoldDrop`. Wired to both HUD play buttons (pointer) and the Space hotkey.
+ *
+ * The stream only ever drops BONUS balls — it calls `playOneBonusBall` directly rather than the
+ * shared play action, so running out of free balls mid-hold can never fall through to a real wager.
+ *
+ * Safe to call while already streaming: `OnHotkey` fires `onhold` twice, and a pointer press can
+ * overlap it.
+ */
+export function startBonusBallHoldDrop(): void {
+	if (bonusHoldDropTimer !== null) return;
+	if (isReplayMode() || !stateGameDerived.hasPendingBonusBalls) return;
+	if (canDropBonusBallNow()) playOneBonusBall();
+	bonusHoldDropTimer = setInterval(() => {
+		// Bonus fully played out — nothing left to stream, so don't leave a timer idling behind a
+		// hold the player may never "release" (e.g. the button went `disabled` under their finger).
+		if (!stateGame.bonusRoundActive) {
+			stopBonusBallHoldDrop();
+			return;
+		}
+		if (canDropBonusBallNow()) playOneBonusBall();
+	}, bonusHoldDropIntervalMs());
+}
+
+/** Idempotent — every path that can end a hold calls this, and several can fire for one release. */
+export function stopBonusBallHoldDrop(): void {
+	if (bonusHoldDropTimer === null) return;
+	clearInterval(bonusHoldDropTimer);
+	bonusHoldDropTimer = null;
 }
 
 /**
