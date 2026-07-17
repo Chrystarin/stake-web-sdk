@@ -478,17 +478,23 @@ export function stopBonusBallHoldDrop(): void {
 /**
  * REPLAY DRIVER — one step. In Stake's deterministic replay there is no player to click, but this
  * Plinko's bonus round drops its free balls on player Play presses. So during replay we auto-drop the
- * next pending bonus ball whenever the board is idle, until the round settles. Everything else
- * self-resolves: the bonus wheel via `BonusRoulette`'s `autoDismiss` prop, the free-spin wheel
- * auto-finishes, and the bonus-end announcement auto-dismisses. No-op outside replay.
+ * next pending bonus ball on a fixed cadence (`REPLAY_TICK_MS`), streaming them out rather than waiting
+ * for each ball to fully land — this mirrors the live hold-to-drop stream and keeps a multi-ball bonus
+ * from crawling. Everything else self-resolves: the bonus wheel via `BonusRoulette`'s `autoDismiss`
+ * prop, the free-spin wheel auto-finishes, and the bonus-end announcement auto-dismisses. No-op
+ * outside replay.
  */
 export function tickReplayBonusBalls(): void {
 	if (!isReplayMode()) return;
 	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining <= 0) return;
 	if (stateGame.bonusRouletteOpen || stateGame.freeSpinRouletteOpen) return;
 	if (stateGame.bonusEndAnnouncementOpen) return;
-	if (isGameOngoing()) return;
-	// `playOneBonusBall` applies its own `isBonusPlayButtonDisabled` guard (roulette / no pending balls).
+	// Pause the stream (don't stop it) while a level-up reward is on screen — awarded balls resume the
+	// stream on the next tick, exactly like the live hold-to-drop stream.
+	if (stateGame.bonusLevelUpOverlayOpen) return;
+	// NOTE: intentionally no `isGameOngoing()` idle guard — we stream one ball per tick regardless of
+	// whether the prior ball has landed. `playOneBonusBall` applies its own `isBonusPlayButtonDisabled`
+	// guard (roulette / no pending balls).
 	playOneBonusBall();
 }
 

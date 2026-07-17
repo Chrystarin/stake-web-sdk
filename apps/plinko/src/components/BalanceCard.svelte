@@ -156,9 +156,9 @@
 		/* Gold coin at the right. Sized off the card height rather than its width, matching the
 		   reference art, where the coin fills most of the plaque's inner height and clears the frame's
 		   bevel by a hair. Base fit was 2.8678vw (2.73125 × 1.05, ~74% of the 3.85vw card, AT the
-		   frame-recess ceiling); this is that value scaled to 90% (2.8678 × 0.9), so the coin sits a
-		   touch inside the bevel with more air above and below. */
-		--balance-coin-size: 2.58102vw;
+		   frame-recess ceiling); this is that value scaled to 81% (2.8678 × 0.9 × 0.9), so the coin
+		   sits well inside the bevel with plenty of air above and below. */
+		--balance-coin-size: 2.322918vw;
 
 		/* Coin's right edge to the plaque's right edge: the card's own right padding plus the coin's
 		   margin (the card is `space-between`, so the coin would otherwise sit hard against the frame).
