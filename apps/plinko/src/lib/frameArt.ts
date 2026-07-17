@@ -20,6 +20,13 @@ const FRAME_NATURAL_H = 1010;
  */
 export const SKULL_MOUTH_CAVITY: FramePoint = { x: 583 / FRAME_NATURAL_W, y: 377 / FRAME_NATURAL_H };
 
+/**
+ * Half the cavity's width (of the x 471..697 run above), as a fraction of the art. Balls are thrown
+ * from a point offset to one side of `SKULL_MOUTH_CAVITY` rather than from its centre; this bounds
+ * that offset so the spawn stays on black instead of creeping onto a tooth.
+ */
+export const SKULL_MOUTH_CAVITY_HALF_W = 113 / FRAME_NATURAL_W;
+
 /** The gold pile heaped in the mouth, just below the cavity — origin of the win coin fountain. */
 export const SKULL_GOLD_PILE: FramePoint = { x: 0.508, y: 0.39 };
 

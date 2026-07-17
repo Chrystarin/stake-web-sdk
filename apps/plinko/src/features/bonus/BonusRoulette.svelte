@@ -341,6 +341,22 @@
 		return slot >= 0 ? ART_WEDGE_GEOMETRY[slot].bisectorDeg : 0;
 	}
 
+	/** How long the roulette screen's backdrop takes to slide down and cover the view — matches the
+	 * `.bonus-spin-bg-drop` transform transition (0.62s). Used to land the closing-door slam on it. */
+	const BONUS_BG_SLIDE_MS = 620;
+
+	/** Fire the same closing-door slam that the congratulations screen uses, timed to land as a screen
+	 * finishes sliding down. `slideMs` is that screen's slide duration; the slam sits at the sprite's
+	 * start, so schedule it ahead of the settle (sprite lead-in + audio latency + a 0.2s advance). */
+	function scheduleDoorCloseForSlide(slideMs: number) {
+		timers.push(
+			setTimeout(
+				() => eventEmitter.broadcast({ type: 'soundOnce', name: 'doorClose' }),
+				Math.max(0, slideMs - 240),
+			),
+		);
+	}
+
 	onMount(() => {
 		if (props.mode === 'message') {
 			requestAnimationFrame(() => (slidePhase = 'idle'));
@@ -360,6 +376,9 @@
 		requestAnimationFrame(() => {
 			slidePhase = 'idle';
 			bgJoined = true;
+			// The bonus roulette screen slides down now (bg-drop) — play the same closing-door slam as the
+			// congratulations screen, landing as the backdrop finishes covering the view.
+			scheduleDoorCloseForSlide(BONUS_BG_SLIDE_MS);
 		});
 		const assembleTimer = setTimeout(() => {
 			labelVisible = true;
@@ -497,8 +516,18 @@
 		);
 	}
 
-	/** Replay has no player to dismiss the "press anywhere" screen — show it briefly, then advance. */
-	const AUTO_DISMISS_DELAY_MS = 1800;
+	/** Replay has no player to dismiss the "press anywhere" screen — show it briefly, then advance.
+	 * Measured from the start of the slide-down, so it must clear the 1s slide plus a beat of readable
+	 * hold before auto-advancing. */
+	const AUTO_DISMISS_DELAY_MS = 2000;
+
+	/** How long the congratulations screen takes to slide down and fully cover the view — matches the
+	 * `.bonus-announcement` transform transition (1s). The text also fades in at this mark. */
+	const ANNOUNCEMENT_SLIDE_MS = 1000;
+
+	/** How long the overlay takes to slide back up and off screen on dismiss — matches the
+	 * `.bonus-spin-overlay` exit transform transition (1s). */
+	const ANNOUNCEMENT_SLIDE_UP_MS = 1000;
 
 	function startAnnouncementSequence() {
 		announcementVisible = true;
@@ -506,8 +535,20 @@
 			resultReadyEmitted = true;
 			props.onResultReady?.(pendingResult);
 		}
-		requestAnimationFrame(() => (announcementBgVisible = true));
-		timers.push(setTimeout(() => (announcementTextVisible = true), 620));
+		// Kick the slide-down. The announcement mounts at translateY(-100%) and animates to 0 when the
+		// `--bg-visible` class lands. The browser only runs the CSS transform transition if it has
+		// PAINTED the off-screen start state first — a single rAF can toggle the class before that first
+		// paint, so the screen SNAPS into place with no visible slide. A double rAF guarantees one paint
+		// at translateY(-100%) before we flip to translateY(0), so the slide actually plays.
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => {
+				announcementBgVisible = true;
+				// The slide-down starts on THIS frame, so measure the sound + text off it. Land the
+				// closing-door slam as the screen finishes covering the view.
+				scheduleDoorCloseForSlide(ANNOUNCEMENT_SLIDE_MS);
+				timers.push(setTimeout(() => (announcementTextVisible = true), ANNOUNCEMENT_SLIDE_MS));
+			}),
+		);
 		if (props.autoDismiss) {
 			timers.push(setTimeout(() => onAnnouncementClick(), AUTO_DISMISS_DELAY_MS));
 		}
@@ -516,6 +557,8 @@
 	function onAnnouncementClick() {
 		if (!announcementVisible) return;
 		announcementTextVisible = false;
+		// The screen slides back up to reveal the game — play the opening-door creak to match.
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'doorOpen' });
 		slidePhase = 'exit';
 		timers.push(
 			setTimeout(() => {
@@ -524,7 +567,7 @@
 				const result = pendingResult;
 				pendingResult = null;
 				if (result) props.onFinished?.(result);
-			}, 520 + 320),
+			}, ANNOUNCEMENT_SLIDE_UP_MS + 320),
 		);
 	}
 </script>
@@ -654,8 +697,8 @@
 		overflow: hidden;
 		transform: translateX(0);
 		transition:
-			transform 0.52s cubic-bezier(0.33, 1, 0.68, 1),
-			opacity 0.3s ease;
+			transform 1s cubic-bezier(0.33, 1, 0.68, 1),
+			opacity 0.8s ease;
 		pointer-events: auto;
 	}
 	.bonus-spin-overlay--exit {
@@ -794,7 +837,7 @@
 		background-color: transparent;
 		background-size: 100% 100%;
 		transform: translateY(-100%);
-		transition: transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+		transition: transform 1s cubic-bezier(0.22, 1, 0.36, 1);
 		cursor: pointer;
 		display: flex;
 		flex-direction: column;

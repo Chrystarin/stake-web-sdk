@@ -3,6 +3,7 @@
 
 	import { frameImagePoint, SKULL_GOLD_PILE } from '../lib/frameArt';
 	import { stateGame } from '../game/stateGame.svelte';
+	import { eventEmitter } from '../game/eventEmitter';
 	import { CoinFountainRenderer, type FountainPoint } from '../lib/spine/CoinFountainRenderer';
 
 	let hostEl: HTMLDivElement;
@@ -32,6 +33,24 @@
 	const SPARKLE_LINGER_MS = 1000;
 	// How long after the last arrival the stream counts as over (every arrival re-arms this).
 	const LIGHT_ARRIVALS_IDLE_MS = 260;
+
+	// --- Merge SFX ---------------------------------------------------------------------------------
+	function playSound(name: string, rate?: number) {
+		eventEmitter.broadcast({ type: 'soundOnce', name, rate });
+	}
+
+	// Coin-shuffle bed, played once as a win's coins start spawning. The two names are the same sample
+	// sliced to different windows (see EnableSound): a short 0–1.5s for 1-ball rapid wins, a longer
+	// 2–4s for the busier 10/20/50-ball drops.
+	function playSpawnSfx() {
+		playSound(stateGame.ballPerDrop === 1 ? 'coinShuffleSingle' : 'coinShuffleMulti');
+	}
+
+	// Each coin that reaches the balance coin flips a coin sound, with a touch of random pitch so a
+	// stream of them reads as a cascade of distinct coins rather than one machine-gun tone.
+	function playMergeSfx() {
+		playSound('coinFlip', 0.94 + Math.random() * 0.12);
+	}
 
 	/** Centre of the first visible element matching `selector`, in client (screen) px. */
 	function rectCenter(selector: string): FountainPoint | undefined {
@@ -88,6 +107,7 @@
 		pulseBalanceCoin();
 		showGlow();
 		showSparkle();
+		playMergeSfx();
 	}
 
 	function launchBurst(countOverride?: number, winAmount?: number) {
@@ -106,6 +126,8 @@
 		// 1-3 count (see the rapid effect below). Capped inside the renderer.
 		const mult = stateGame.winPopupMultiplier || 0;
 		const count = countOverride ?? Math.round(22 + Math.min(20, Math.log2(1 + mult) * 5));
+		// Coins are about to start spawning — kick off the one-shot coin-shuffle bed for this win.
+		playSpawnSfx();
 		// The light is driven by the coins themselves (see leads/onCoinMerge) — NOT lit at launch, so it
 		// only appears around coins actually merging into the balance coin. onComplete is a safety to
 		// guarantee both layers hide.

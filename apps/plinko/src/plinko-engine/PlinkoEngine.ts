@@ -30,7 +30,7 @@ export type PlinkoEngineOptions = {
 	 * the app's markup; when it is absent or returns null (e.g. the board rendered bare in
 	 * Storybook) the spawn falls back to the board's own centre.
 	 */
-	resolveSpawnAnchor?: () => { x: number; y: number } | null | undefined;
+	resolveSpawnAnchor?: () => { x: number; y: number; halfWidth?: number } | null | undefined;
 };
 
 interface Ball {
@@ -125,7 +125,12 @@ interface Slot {
   animationActive: boolean;
 }
 
-type SpawnDirection = -2 | -1 | 0 | 1 | 2;
+/**
+ * Which way, and how hard, a ball is thrown out of the mouth. Never straight down: the reference
+ * game (inout Aztec) spits every ball to one side or the other, and a centre launch reads as the
+ * ball being dropped rather than thrown.
+ */
+type SpawnDirection = -2 | -1 | 1 | 2;
 
 export class PlinkoEngine {
 	constructor(options: PlinkoEngineOptions) {
@@ -172,7 +177,7 @@ export class PlinkoEngine {
   /** Emitted on every peg contact (once per peg/row) for the per-bounce "thunk" sound. */
   onPegBounce?: (event: PegBounceEvent) => void;
   /** Resolves the skull-mouth spawn in client px; see `PlinkoEngineOptions`. */
-  private resolveSpawnAnchor?: () => { x: number; y: number } | null | undefined;
+  private resolveSpawnAnchor?: () => { x: number; y: number; halfWidth?: number } | null | undefined;
   private hostElement: HTMLElement;
 
   private app?: Application;
@@ -326,6 +331,29 @@ export class PlinkoEngine {
    * ball is ~5px across); desktop has room to spare. Costs one extra strip of buffer, nothing else.
    */
   private static readonly TOP_AIRSPACE_RATIO = 0.075;
+
+  /**
+   * How far to one side of the cavity centre a ball is born, per unit of `SpawnDirection`, as a
+   * fraction of top-row peg spacing. Measured off the reference game (inout Aztec), whose balls
+   * first appear 0.34–1.08 peg-spacings out from centre (mean 0.75) and never in between: the two
+   * strengths here span that range, and `spawnLaneBias` then carries the ball further the same way.
+   */
+  private static readonly SPAWN_MOUTH_OFFSET_RATIO = 0.38;
+
+  /**
+   * The sideways kick given to a ball as it leaves the mouth, per unit of `SpawnDirection`, as a
+   * fraction of top-row peg spacing.
+   *
+   * The reference game front-loads the throw: its balls cover ~20px sideways in the first few frames
+   * while dropping only ~3px, then arc over and fall. Aiming straight from the mouth at the peg-field
+   * entry instead spreads that sideways motion evenly down the whole airspace, which reads as a drop
+   * from an off-centre point rather than a throw — so the launch gets its own apex (below), and the
+   * entry point is left exactly where it was.
+   */
+  private static readonly SPAWN_LAUNCH_BURST_RATIO = 0.22;
+
+  /** How far down the airspace the launch apex sits, as a fraction of mouth → peg-field entry. */
+  private static readonly SPAWN_LAUNCH_APEX_FALL = 0.28;
 
   /** Ball size the instant it appears in the mouth, as a fraction of its real radius. */
   private static readonly EMERGE_MIN_SCALE = 0.12;
@@ -1642,13 +1670,17 @@ export class PlinkoEngine {
     return keys;
   }
 
-  private randomSpawnDirection(): SpawnDirection {
-    const bucket = Math.floor(Math.random() * 5);
+  /** Launch side + strength from a unit random. Four buckets, none of them centre. */
+  private spawnDirectionFromUnit(unit: number): SpawnDirection {
+    const bucket = Math.floor(Math.min(0.9999999, Math.max(0, unit)) * 4);
     if (bucket === 0) return -2; // far left
     if (bucket === 1) return -1; // left
-    if (bucket === 2) return 0; // middle
-    if (bucket === 3) return 1; // right
+    if (bucket === 2) return 1; // right
     return 2; // far right
+  }
+
+  private randomSpawnDirection(): SpawnDirection {
+    return this.spawnDirectionFromUnit(Math.random());
   }
 
   private createPathRng(seed: number): () => number {
@@ -2004,14 +2036,13 @@ export class PlinkoEngine {
       const j = Math.floor(nextRandom() * (i + 1));
       [turns[i], turns[j]] = [turns[j], turns[i]];
     }
-    // Randomize initial direction from origin:
-    // far-left, left, middle, right, far-right.
+    // Which way this ball is thrown: far-left, left, right, far-right — never straight down.
     const spawnDirection = pathOptions?.deterministic
-      ? (Math.floor(nextRandom() * 5) - 2)
+      ? this.spawnDirectionFromUnit(nextRandom())
       : this.randomSpawnDirection();
     // Keep launch direction consistent with first peg impact so the ball
     // doesn't visually launch to one side and immediately snap to the other.
-    if (spawnDirection !== 0 && turns.length > 1) {
+    if (turns.length > 1) {
       const desiredFirstTurn = spawnDirection < 0 ? -1 : 1;
       const originalFirstTurn = turns[0];
       if (originalFirstTurn !== desiredFirstTurn) {
@@ -2035,6 +2066,21 @@ export class PlinkoEngine {
     // so we preserve slot targeting and avoid flinging to far slots.
     const spawnLaneBias = spawnDirection * this.pegSpacingXForRow(0) * 0.42;
 
+    // Born already off-centre, on the side it is thrown — the reference game never shows a ball
+    // appearing in the middle of the cavity. `spawnLaneBias` is the larger offset, so the ball
+    // keeps travelling outward from here rather than doubling back across the mouth. Clamped to the
+    // black cavity (less a ball radius) so the spawn can't creep onto a tooth on a narrow layout.
+    const cavityLimit = Number.isFinite(spawn.cavityHalfWidth)
+      ? Math.max(0, spawn.cavityHalfWidth - this.ballRadius)
+      : Number.POSITIVE_INFINITY;
+    const spawnMouthOffset = Math.max(
+      -cavityLimit,
+      Math.min(
+        cavityLimit,
+        spawnDirection * this.pegSpacingXForRow(0) * PlinkoEngine.SPAWN_MOUTH_OFFSET_RATIO,
+      ),
+    );
+
     const featuredTarget = pathOptions?.hitBonusPeg
       ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
       : null;
@@ -2056,11 +2102,35 @@ export class PlinkoEngine {
     }
     const earlyAvoidBias = laneOffsets[0] ?? 0;
 
+    const spawnX = spawn.x + spawnMouthOffset;
+    const entryY = this.topMargin - this.pegSpacing * 0.32;
+
     const path: PathPoint[] = [];
-    path.push({ x: spawn.x, y: spawn.y, row: -1, closestPeg: null, bounceIntensity: 0, travelDir: 0 });
+    // Born off-centre, inside the black cavity.
+    path.push({
+      x: spawnX,
+      y: spawn.y,
+      row: -1,
+      closestPeg: null,
+      bounceIntensity: 0,
+      travelDir: 0,
+    });
+    // Thrown: most of the sideways motion happens here, in the first stretch below the mouth. The
+    // ball overshoots the entry point and arcs back onto it, which is what a thrown ball does.
+    path.push({
+      x:
+        spawnX +
+        spawnDirection * this.pegSpacingXForRow(0) * PlinkoEngine.SPAWN_LAUNCH_BURST_RATIO,
+      y: spawn.y + (entryY - spawn.y) * PlinkoEngine.SPAWN_LAUNCH_APEX_FALL,
+      row: -1,
+      closestPeg: null,
+      bounceIntensity: 0,
+      travelDir: 0,
+    });
+    // Peg-field entry — unchanged, so nothing downstream of the launch moves.
     path.push({
       x: centerX + spawnLaneBias + earlyAvoidBias * 0.12,
-      y: this.topMargin - this.pegSpacing * 0.32,
+      y: entryY,
       row: -1,
       closestPeg: null,
       bounceIntensity: 0,
@@ -2624,19 +2694,28 @@ export class PlinkoEngine {
    * so it stays glued to the picture at any size. Falls back to the board's own centre and launch
    * height when the art isn't on screen — e.g. the board rendered bare in Storybook.
    */
-  private resolveSpawnPoint(): { x: number; y: number } {
+  private resolveSpawnPoint(): { x: number; y: number; cavityHalfWidth: number } {
     const fallbackX = this.containerWidth / 2;
     const fallbackY = this.topMargin - this.pegSpacing * 1.35;
+    // With no art on screen there is no cavity to stay inside, so the launch offset goes unclamped.
+    const unbounded = Number.POSITIVE_INFINITY;
     const anchor = this.resolveSpawnAnchor?.();
-    if (!anchor) return { x: fallbackX, y: fallbackY };
+    if (!anchor) return { x: fallbackX, y: fallbackY, cavityHalfWidth: unbounded };
     const world = this.clientPointToWorld(anchor.x, anchor.y);
     if (!world || !Number.isFinite(world.x) || !Number.isFinite(world.y)) {
-      return { x: fallbackX, y: fallbackY };
+      return { x: fallbackX, y: fallbackY, cavityHalfWidth: unbounded };
+    }
+    // The cavity's half-width arrives in client px; map it through the same transform as the centre
+    // so it tracks the art's scale and fit mode rather than being a fixed world distance.
+    let cavityHalfWidth = unbounded;
+    if (anchor.halfWidth != null && anchor.halfWidth > 0) {
+      const edge = this.clientPointToWorld(anchor.x + anchor.halfWidth, anchor.y);
+      if (edge && Number.isFinite(edge.x)) cavityHalfWidth = Math.abs(edge.x - world.x);
     }
     // Never spawn off the top of the buffer: a ball there would pop into existence at the canvas
     // edge instead of rising out of the mouth. `getTopAirspace` is sized so this shouldn't bite.
     const minY = -this.getWorldViewportYOffset() + this.ballRadius * 0.5;
-    return { x: world.x, y: Math.max(minY, world.y) };
+    return { x: world.x, y: Math.max(minY, world.y), cavityHalfWidth };
   }
 
   private easeOutCubic(t: number): number {

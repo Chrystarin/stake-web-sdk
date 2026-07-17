@@ -16,23 +16,53 @@ export type SoundEffectName =
 	| 'clickingFail'
 	| 'startAutoPlay'
 	| 'openPopup'
-	| 'clickUIButton';
+	| 'clickUIButton'
+	// Fired once per coin as it merges into the balance coin. See CoinFountain.
+	| 'coinFlip'
+	// Coin (featured) peg hit. See PlinkoBoard.
+	| 'coinPeg'
+	// A coin-shuffle bed played once when a win's coins start spawning. Two windows of the SAME file:
+	// a short 0–1.5s slice for 1-ball rapid wins, a longer 2–4s slice for 10/20/50-ball drops.
+	| 'coinShuffleSingle'
+	| 'coinShuffleMulti'
+	// Bonus congratulations screen: a closing-door thud as the screen slides down and an
+	// opening-door creak as it slides back up. Both are sprite windows of their source clip
+	// (see EnableSound). See BonusRoulette.
+	| 'doorClose'
+	| 'doorOpen';
+
+/** A [startMs, durationMs] slice of the source file to play instead of the whole thing. */
+export type SoundSprite = [startMs: number, durationMs: number];
+
+export type LoadSoundOptions = { volume?: number; sprite?: SoundSprite };
 
 const howls = new Map<SoundEffectName, Howl>();
+// Names whose Howl was built with a sprite window — those must be played by sprite id, not bare.
+const SPRITE_ID = 'seg';
+const spriteSounds = new Set<SoundEffectName>();
 
-export function loadPlinkoSound(name: SoundEffectName, url: string): void {
+export function loadPlinkoSound(
+	name: SoundEffectName,
+	url: string,
+	options: LoadSoundOptions = {},
+): void {
 	if (howls.has(name)) return;
+	const { volume = 1, sprite } = options;
 	try {
 		howls.set(
 			name,
 			new Howl({
 				src: [url],
-				volume: 1,
+				volume,
+				// Play only a slice of the file when a sprite window is given (e.g. seconds 0–1.5 vs 2–4
+				// of the same coin-shuffle sample). Howler indexes sprites in milliseconds.
+				...(sprite ? { sprite: { [SPRITE_ID]: sprite } } : {}),
 				onloaderror: (_id, err) => {
 					console.warn(`[plinko] sound "${name}" failed to load (${url})`, err);
 				},
 			}),
 		);
+		if (sprite) spriteSounds.add(name);
 	} catch (err) {
 		console.warn(`[plinko] sound "${name}" could not be created`, err);
 	}
@@ -41,7 +71,8 @@ export function loadPlinkoSound(name: SoundEffectName, url: string): void {
 export function playPlinkoSound(name: SoundEffectName, rate = 1): void {
 	const howl = howls.get(name);
 	if (!howl) return;
-	const id = howl.play();
+	// A sprite sound must be triggered by its window id so only that slice plays.
+	const id = spriteSounds.has(name) ? howl.play(SPRITE_ID) : howl.play();
 	// Per-instance rate so overlapping plays (a 50-ball drop) each keep their own pitch. Rate
 	// doubles = one octave up; leave the default untouched so a plain play() is unchanged.
 	if (id != null && rate !== 1) {

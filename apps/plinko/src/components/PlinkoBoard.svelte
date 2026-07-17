@@ -11,7 +11,7 @@
 	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
 	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
-	import { frameImagePoint, SKULL_MOUTH_CAVITY } from '../lib/frameArt';
+	import { frameImagePoint, SKULL_MOUTH_CAVITY, SKULL_MOUTH_CAVITY_HALF_W } from '../lib/frameArt';
 	import config from '../game/config';
 	import { pocketPitchForMultiplier } from '../game/sound';
 	import { stateGame } from '../game/stateGame.svelte';
@@ -49,14 +49,13 @@
 	// random pitch keeps rapid repeats from sounding machine-gun identical. Coin (featured) pegs
 	// ring out distinctly higher-pitched than normal pegs.
 	const handlePegBounce = (event: { featured: boolean }) => {
-		const rate = event.featured
-			? 1.5 + Math.random() * 0.14 // coin peg: bright, clearly higher-pitched
-			: 0.92 + Math.random() * 0.16; // normal peg
-		context.eventEmitter.broadcast({
-			type: 'soundOnce',
-			name: 'peg',
-			rate,
-		});
+		// Coin (featured) peg plays its own coin_peg.wav sample, with a touch of random pitch. Normal
+		// pegs keep the original peg "thunk".
+		context.eventEmitter.broadcast(
+			event.featured
+				? { type: 'soundOnce', name: 'coinPeg', rate: 0.94 + Math.random() * 0.12 }
+				: { type: 'soundOnce', name: 'peg', rate: 0.92 + Math.random() * 0.16 },
+		);
 	};
 
 	function syncEngineScene() {
@@ -113,9 +112,17 @@
 					onCoinPegHit: (event) => props.onCoinPegHit?.(event),
 					onPegBounce: handlePegBounce,
 					// Balls are thrown out of the black cavity in the pirate skull's mouth, which is
-					// painted into the game-area frame art rather than drawn by the board.
-					resolveSpawnAnchor: () =>
-						frameImagePoint(SKULL_MOUTH_CAVITY.x, SKULL_MOUTH_CAVITY.y) ?? null,
+					// painted into the game-area frame art rather than drawn by the board. The width
+					// comes along so the engine can throw from off-centre without leaving the black.
+					resolveSpawnAnchor: () => {
+						const centre = frameImagePoint(SKULL_MOUTH_CAVITY.x, SKULL_MOUTH_CAVITY.y);
+						if (!centre) return null;
+						const edge = frameImagePoint(
+							SKULL_MOUTH_CAVITY.x + SKULL_MOUTH_CAVITY_HALF_W,
+							SKULL_MOUTH_CAVITY.y,
+						);
+						return { ...centre, halfWidth: edge ? Math.abs(edge.x - centre.x) : undefined };
+					},
 				});
 				engine = eng;
 				await bootstrapEngine(eng);
