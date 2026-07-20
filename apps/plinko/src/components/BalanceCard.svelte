@@ -3,6 +3,7 @@
 	import { stateBet } from 'state-shared';
 
 	import { stateGame } from '../game/stateGame.svelte';
+	import { plinkoDisplayBalance } from '../game/plinkoBet';
 	import { currencySign as currencySignFor, formatWinAmount } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 	import { BalanceCoinGlowRenderer } from '../lib/spine/BalanceCoinGlowRenderer';
@@ -34,9 +35,9 @@
 	});
 
 	const currencySign = $derived(currencySignFor(stateBet.currency));
-	// Rapid 1-ball mode holds each drop's win in the balance until its ball lands; show that shadow
-	// when present, otherwise the authoritative balance (mirrors the old HUD balance field).
-	const displayBalance = $derived(stateGame.rapidBalanceShadow ?? stateBet.balanceAmount);
+	// Held-back / counting-up display balance (rapid shadow, multi-ball win hold, or authoritative) —
+	// see plinkoDisplayBalance. NOT for affordability (that uses plinkoSpendableBalance).
+	const displayBalance = $derived(plinkoDisplayBalance());
 	const label = $derived(i18nDerived.t('Balance'));
 
 	function formatMoney(value: number) {
@@ -151,7 +152,7 @@
 		   (hand-synced; this component is outside the bottom-panel subtree, so it can't inherit it).
 		   Not this card's width — it is needed because the centred group that `left` is solved against
 		   is built from the FIELD width. Keep in sync with GameHud.scss. */
-		--balance-field-width: 14.8986vw;
+		--balance-field-width: 16.38846vw;
 
 		/* Gold coin at the right. Sized off the card height rather than its width, matching the
 		   reference art, where the coin fills most of the plaque's inner height and clears the frame's

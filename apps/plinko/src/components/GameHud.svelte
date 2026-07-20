@@ -26,6 +26,7 @@
 	import {
 		canAffordAutoBetRun,
 		canAffordPlinkoWager,
+		plinkoDisplayBalance,
 		plinkoMaxStakePerBall,
 		plinkoMinStakePerBall,
 		plinkoStakePerBallOptions,
@@ -81,9 +82,9 @@
 	);
 	/** Settlement currency win from the last round — not recalculated from current stake. */
 	const displayWinAmount = $derived(stateGame.winAmount);
-	// Rapid 1-ball mode holds each drop's win in the balance until its ball lands; show that shadow when
-	// present, otherwise the authoritative balance.
-	const displayBalance = $derived(stateGame.rapidBalanceShadow ?? stateBet.balanceAmount);
+	// Held-back / counting-up display balance (rapid shadow, multi-ball win hold, or authoritative) —
+	// see plinkoDisplayBalance. NOT for affordability (that uses plinkoSpendableBalance).
+	const displayBalance = $derived(plinkoDisplayBalance());
 	const controlsLocked = $derived.by(() => {
 		stateGame.isSubmitting;
 		stateGame.isAnimating;

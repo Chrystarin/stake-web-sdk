@@ -1,3 +1,5 @@
+import { stateBet } from 'state-shared';
+
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import { isBetControlsLocked, isDropBatchPending, isGameOngoing } from './gameOrchestrator';
 import { forceUnlockBettingControls } from './meterFlow';
@@ -45,6 +47,7 @@ export function installPlinkoDevDebug() {
 		plinkoDebugLocks?: () => PlinkoLockDebugSnapshot;
 		plinkoPlayMeta?: () => Record<string, unknown>;
 		plinkoForceUnlock?: () => PlinkoLockDebugSnapshot;
+		plinkoTestWin?: (amount?: number, multiplier?: number, balls?: number) => void;
 	};
 
 	w.plinkoPlayMeta = buildPlinkoPlayPayloadPreview;
@@ -55,5 +58,22 @@ export function installPlinkoDevDebug() {
 	w.plinkoForceUnlock = () => {
 		forceUnlockBettingControls();
 		return snapshotPlinkoLocks();
+	};
+
+	// Dev-only: fire the full-screen win celebration on demand (multi-ball tiers only) without having
+	// to actually win a round — e.g. `plinkoTestWin(1234.56, 30)` for an Epic Bounty. `multiplier`
+	// picks the tier (Massive < 5 ≤ Epic < 25 ≤ Captain) and scales the coin count.
+	w.plinkoTestWin = (amount = 1234.56, multiplier = 30, balls = 10) => {
+		stateGame.ballPerDrop = balls <= 1 ? 10 : balls;
+		stateGame.winPopupAmount = amount;
+		stateGame.winPopupMultiplier = multiplier;
+		// Mirror the real finalWin flow: pin the pre-win balance, show the popup, then credit the win a
+		// beat later — so the celebration holds the balance and counts it up (rather than it being there
+		// from the start).
+		stateGame.balanceWinHold = stateBet.balanceAmount;
+		stateGame.showWinPopup = true;
+		setTimeout(() => {
+			stateBet.balanceAmount += amount;
+		}, 60);
 	};
 }

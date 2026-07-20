@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { fade, scale } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
@@ -75,6 +75,7 @@
 		formatWinAmount,
 	} from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
+	import { WIN_CELEBRATION_TOTAL_MS, WIN_TIMING } from '../lib/winCelebration';
 
 	import Background from './Background.svelte';
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
@@ -110,6 +111,8 @@
 	import BalanceCard from './BalanceCard.svelte';
 
 	import CoinFountain from './CoinFountain.svelte';
+
+	import WinCelebration from './WinCelebration.svelte';
 
 	import Toast from './Toast.svelte';
 
@@ -186,21 +189,57 @@
 			: 0,
 	);
 
-	// Win popup shows the amount without the currency symbol — plain locale-formatted number
-	// (thousands separators, up to 4 decimals so tiny wins on low bets aren't rounded to 0.00),
-	// no currency icon.
-	const winPopupAmountDisplay = $derived(
-		stateI18n.i18n.number(stateGame.winPopupAmount, WIN_FRACTION_DIGITS),
-	);
-
+	// Clear the win-popup gate once the full-screen WinCelebration has played out (it owns its own
+	// reveal → count-up → hold → merge → fade timeline). Re-reading winPopupAmount restarts the timer
+	// if a fresh win lands while one is showing, so the celebration always runs its full length.
 	$effect(() => {
 		if (!stateGame.showWinPopup) return;
 		if (DEV_SHOW_WIN_MODAL_ON_LOAD) return;
 		stateGame.winPopupAmount;
 		const timer = setTimeout(() => {
 			stateGame.showWinPopup = false;
-		}, 3000);
+		}, WIN_CELEBRATION_TOTAL_MS + 300);
 		return () => clearTimeout(timer);
+	});
+
+	// Balance count-up driver. WinCelebration holds the displayed balance at its pre-win value and, once
+	// the coins have merged + the "+win" float has slid, bumps `balanceWinReleaseTick`. Here (in the
+	// always-mounted root, so it survives the overlay unmounting) we ease the displayed balance from the
+	// held value up to the credited total, then clear the override so it falls back to authoritative.
+	let balanceCountUpRaf = 0;
+	let lastBalanceReleaseTick = stateGame.balanceWinReleaseTick;
+	$effect(() => {
+		const tick = stateGame.balanceWinReleaseTick;
+		untrack(() => {
+			if (tick === lastBalanceReleaseTick) return;
+			lastBalanceReleaseTick = tick;
+			const from = stateGame.balanceWinHold ?? stateBet.balanceAmount;
+			const to = stateBet.balanceAmount;
+			stateGame.balanceWinHold = null; // hand the display over to the count-up value
+			if (balanceCountUpRaf) cancelAnimationFrame(balanceCountUpRaf);
+			if (Math.abs(to - from) < 0.005) {
+				stateGame.balanceCountUpValue = null; // nothing to count (e.g. not yet credited) — just release
+				return;
+			}
+			stateGame.balanceCountUpValue = from;
+			const t0 = performance.now();
+			const dur = WIN_TIMING.balanceCountUp;
+			const step = (now: number) => {
+				const p = Math.min(1, (now - t0) / dur);
+				const eased = 1 - Math.pow(1 - p, 2.2);
+				stateGame.balanceCountUpValue = from + (to - from) * eased;
+				if (p < 1) {
+					balanceCountUpRaf = requestAnimationFrame(step);
+				} else {
+					balanceCountUpRaf = 0;
+					stateGame.balanceCountUpValue = null; // done → display falls back to authoritative
+				}
+			};
+			balanceCountUpRaf = requestAnimationFrame(step);
+		});
+	});
+	$effect(() => () => {
+		if (balanceCountUpRaf) cancelAnimationFrame(balanceCountUpRaf);
 	});
 
 	// 1-ball rapid win toasts show the amount without a currency symbol — plain locale-formatted
@@ -520,6 +559,8 @@
 
 <CoinFountain />
 
+<WinCelebration />
+
 <InfoModal />
 
 <BuyBonusModal disabled={buyBonusDisabled} onActivate={handleBuyBonusActivate} />
@@ -659,15 +700,8 @@
 					<BonusMeter progress={bonusMeterProgress} />
 				</div>
 
-				{#if stateGame.showWinPopup && stateGame.ballPerDrop !== 1}
-					<div class="win-overlay" role="dialog">
-						<div class="win-card">
-							<p>{context.i18nDerived.t('Win')}</p>
-							<span class="win-divider"></span>
-							<strong>{winPopupAmountDisplay}</strong>
-						</div>
-					</div>
-				{/if}
+				<!-- The multi-ball (10/20/50) win reveal is the full-screen <WinCelebration /> overlay
+				     (mounted at the top level, alongside <CoinFountain />), not a card in here. -->
 
 				<!-- 1-ball rapid tier: stacking win toasts (newest on top, max 3). Each pops in (scale),
 				     older ones slide down as new ones stack (flip), and each fades out after its TTL. -->
@@ -1299,136 +1333,8 @@
 		transition: opacity 0.28s ease-in-out;
 	}
 
-	.win-overlay {
-		/* Anchored inside .container (same box the pirate frame + bonus meter live in) so the card
-		   tracks the pirate art. `--win-anchor-top-ratio` is the vertical center as a fraction of the
-		   game-area box. Pulled up towards the top of the board (was 0.269, mid hat/head) per design.
-		   The frame PNG (object-fit: contain) fills a different share of the box on desktop vs mobile,
-		   so the ratio is layout-specific (mobile override below). */
-		--win-anchor-top-ratio: 0.14;
-
-		position: absolute;
-
-		left: 50%;
-
-		top: calc(var(--win-anchor-top-ratio) * 100%);
-
-		display: grid;
-
-		place-items: center;
-
-		transform: translate(-50%, -50%);
-
-		z-index: 20;
-
-		pointer-events: none;
-	}
-
-	/* Portrait/mobile: the frame PNG fills more of the box, so a smaller ratio lands at the same height
-	   on the board as the desktop value above (both pulled up towards the top; was 0.185). */
-	.game-root--mobile .win-overlay {
-		--win-anchor-top-ratio: 0.09;
-	}
-
-	/* Desktop only: shrink the whole card 20% (scales about its centre, so it stays anchored over
-	   the pirate). Mobile keeps full size. */
-	.game-root:not(.game-root--mobile) .win-card {
-		transform: scale(0.8);
-	}
-
-	.win-card {
-		box-sizing: border-box;
-
-		/* Near-square rounded card matching the reference art (≈1.13:1 w:h), widening further as the
-		   win amount gets longer. `--win-w` is the width floor (so a short amount keeps the reference
-		   aspect ratio) and `--win-h` the fixed height; `max-content` lets a longer amount push the
-		   width past the floor. The divider uses a relative width (below) so the *amount* — not the
-		   divider — drives how wide the card grows.
-		   NOTE: floor + height + padding are in `rem` (like the text) so the aspect ratio is identical
-		   on desktop and mobile — the SDK scales the root font-size per device, and px/vw units would
-		   leave the box fixed while the text grew, distorting the shape on mobile. */
-		--win-w: 13rem;
-		--win-h: 11.5rem;
-
-		display: flex;
-
-		flex-direction: column;
-
-		align-items: center;
-
-		justify-content: center;
-
-		width: max-content;
-
-		height: var(--win-h);
-
-		min-width: var(--win-w);
-
-		max-width: 96vw;
-
-		padding: 0 2.75rem;
-
-		text-align: center;
-
-		/* Dark radial fill + green *gradient* rounded border. The two-layer background trick keeps the
-		   gradient constrained to the border ring while preserving border-radius: the radial fill is
-		   clipped to the padding-box, the green gradient to the border-box, and the border itself is
-		   transparent so the gradient shows through. Border + radius are in `rem` too so they stay
-		   proportionate to the card on mobile (the SDK scales the root font-size per device). */
-		background:
-			radial-gradient(ellipse at center, #332f3e 0%, #1a191d 100%) padding-box,
-			/* Diagonal (135deg = top-left → bottom-right): bright lime in the top-left corner falling off
-			   to a near-black deep green in the bottom-right, per the reference. */
-				linear-gradient(135deg, #9dff5c 0%, #54f917 30%, #2f7d10 62%, #14480a 100%) border-box;
-
-		border: 0.5rem solid transparent;
-
-		border-radius: 1rem;
-	}
-
-	.win-card p {
-		color: #54f917;
-
-		/* 1.58125rem base, +20%. */
-		font-size: 1.8975rem;
-
-		/* Bold to match the heavy text in the reference. */
-		font-weight: 700;
-
-		margin: 0;
-	}
-
-	.win-divider {
-		display: block;
-
-		/* Relative width so the divider tracks the card instead of forcing its min-width
-		   (lets the win amount drive how wide the card grows). Short + centered like the reference. */
-		width: 42%;
-
-		height: 3px;
-
-		margin: 12px auto 0;
-
-		border-radius: 999px;
-
-		background: rgba(255, 255, 255, 0.45);
-	}
-
-	.win-card strong {
-		display: block;
-
-		white-space: nowrap;
-
-		/* 1.3rem base, +20%. */
-		font-size: 1.56rem;
-
-		margin: 10px 0 0;
-
-		/* Heaviest weight — the win amount is the thickest element in the reference. */
-		font-weight: 800;
-
-		color: #54f917;
-	}
+	/* The multi-ball win reveal moved to the full-screen <WinCelebration /> overlay (its own component);
+	   the old green `.win-card` / `.win-overlay` that lived here is gone. */
 
 	/* 1-ball rapid win-toast stack. Anchored so the NEWEST toast sits at the TOP of the pirate hat, with
 	   the TOP of the stack pinned there (offset up by half a toast) so that toast pops in at the hat top

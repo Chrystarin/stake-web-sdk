@@ -176,20 +176,11 @@
 		};
 	});
 
-	// Fire a burst on the rising edge of the win modal. The modal is only shown on the multi-ball tiers
-	// (never in 1-ball rapid mode), which is exactly where we want the celebration — so gate on the same
-	// condition the `.win-card` uses.
-	let winModalWasVisible = false;
-	$effect(() => {
-		const visible = stateGame.showWinPopup && stateGame.ballPerDrop !== 1;
-		if (visible && !winModalWasVisible) {
-			// Snapshot the round win now (the popup amount), and defer a frame so the win card has laid out
-			// and getBoundingClientRect is accurate. The arrow keeps rAF's timestamp out of the args.
-			const winAmount = stateGame.winPopupAmount;
-			requestAnimationFrame(() => requestAnimationFrame(() => launchBurst(undefined, winAmount)));
-		}
-		winModalWasVisible = visible;
-	});
+	// The multi-ball (10/20/50) win now plays the full-screen WinCelebration overlay, which owns its
+	// OWN coins — they erupt from the middle of the screen and stream into the balance coin (and drive
+	// the balance glow/sparkle/float there directly). So this renderer no longer fires the skull→balance
+	// stream on the win-modal edge; doing both would double the coins. It stays mounted purely for the
+	// 1-ball rapid bursts below.
 
 	// 1-ball rapid tier: each paying land bumps `rapidCoinBurstTick` (see onBallLanded → gameOrchestrator).
 	// Throw a small 1-3 coin burst per land, the count scaled by the landed multiplier. No layout defer

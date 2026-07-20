@@ -106,12 +106,12 @@
 	--bp-width-ball-per-drop: 1;
 
 	/* Rendered plaque width for each edge field — the knob to turn when resizing them.
-	   14.8986vw = the original 14.7vw plaque x 1.25 (+25%) x 0.99 (-1%) x 0.91 (-9%) x 0.9 (-10%)
-	   = x1.0135 overall.
+	   16.38846vw = the original 14.7vw plaque x 1.25 (+25%) x 0.99 (-1%) x 0.91 (-9%) x 0.9 (-10%)
+	   x 1.1 (+10%) = x1.11485 overall.
 	   ⚠️ BalanceCard.svelte mirrors this value (as --balance-field-width) to derive its own `left`,
 	   since the centred group's size depends on it — keep in sync. It no longer matches that card's
 	   OWN width, which was deliberately left at 16.554vw when these shrank. */
-	--bp-field-plaque-width: 14.8986vw;
+	--bp-field-plaque-width: 16.38846vw;
 
 	/* Fixed CONTENT width for each edge field: the plaque minus the stepper gutter that sits in the
 	   padding on each side. Derived rather than set directly because the gutters are square (tied to
@@ -257,8 +257,20 @@
 }
 
 .bp-field--bet-controls {
-	/* Steppers are square and as tall as the field, so reserve their full width on each side. */
+	/* Horizontal gutter reserved on each side for the steppers (drives the label/value width via the
+	   padding below). Kept at the field height so this reservation — and therefore the plaque's total
+	   width — is unchanged; the button's RENDERED box is sized separately, from the frame cavity. */
 	--bp-stepper-side: var(--bp-field-height);
+
+	/* Rendered stepper button box. The frame art (betting-component-frame.png, 512x124) is a raised
+	   plaque whose dark inner cavity runs y=7..102 of its 124px — i.e. it starts 5.65% down and is
+	   76.6% of the plaque tall. Sizing the buttons to the full border-box let their bottom edge spill
+	   past the lower bevel (the overflow); instead fit + vertically-centre them to that cavity, leaving
+	   an even --bp-stepper-margin of air top and bottom. */
+	--bp-stepper-margin: 0.24vw;
+	--bp-stepper-cavity-top: calc(var(--bp-field-plaque-height) * 0.0565);
+	--bp-stepper-cavity-height: calc(var(--bp-field-plaque-height) * 0.766);
+	--bp-stepper-size: calc(var(--bp-stepper-cavity-height) - 2 * var(--bp-stepper-margin));
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 	justify-items: center;
@@ -300,11 +312,12 @@
 	/* Position against .bp-field--bet-controls (not .bp-bet-input-wrap) — matches legacy layout */
 	.bp-stepper-btn {
 		position: absolute;
-		/* Scale with the input component: full field height, square, inset slightly
-		   from the left/right corners of the field frame. */
-		top: 0.3vw;
-		height: var(--bp-field-height);
-		width: var(--bp-field-height);
+		/* Square, sized + vertically centred to the frame's inner cavity (see the --bp-stepper-*
+		   vars above) so the button clears the plaque bevel with an even --bp-stepper-margin gap
+		   instead of spilling over the bottom edge. Inset slightly from the left/right corners. */
+		top: calc(var(--bp-stepper-cavity-top) + var(--bp-stepper-margin));
+		height: var(--bp-stepper-size);
+		width: var(--bp-stepper-size);
 		z-index: 3;
 	}
 

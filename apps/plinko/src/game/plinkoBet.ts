@@ -200,6 +200,23 @@ export function plinkoSpendableBalance(): number {
 	return stateGame.rapidBalanceShadow ?? stateBet.balanceAmount;
 }
 
+/**
+ * Balance to DISPLAY (BalanceCard + GameHud) — distinct from {@link plinkoSpendableBalance}, which
+ * governs what can be wagered. On a multi-ball win the credited balance is held back and then counted
+ * up so it doesn't jump ahead of the win animation:
+ *  - `balanceCountUpValue` — mid count-up, the animating figure (Game.svelte drives it).
+ *  - `balanceWinHold` — before the count-up, the pinned pre-win value.
+ * Rapid 1-ball mode's `rapidBalanceShadow` still wins over both. Never feed this to affordability checks.
+ */
+export function plinkoDisplayBalance(): number {
+	return (
+		stateGame.rapidBalanceShadow ??
+		stateGame.balanceCountUpValue ??
+		stateGame.balanceWinHold ??
+		stateBet.balanceAmount
+	);
+}
+
 export function canAffordPlinkoWager(): boolean {
 	const wager = plinkoWagerAmount();
 	// A free feature-trigger bet has wager 0 — still affordable.

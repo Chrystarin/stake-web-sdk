@@ -313,6 +313,11 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 			applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
 			stateGame.winPopupMultiplier = payoutMultiplier;
 			if (!stateGame.showWinPopup) {
+				// Pin the DISPLAYED balance at its pre-win value BEFORE this win is credited (the credit
+				// lands after playBet resolves). The WinCelebration holds it here, then counts it up once
+				// the coins have merged and the "+win" float has slid — so it never jumps ahead of the
+				// animation. Cleared by the count-up in Game.svelte (or the celebration's teardown safety).
+				stateGame.balanceWinHold = stateBet.balanceAmount;
 				stateGame.showWinPopup = true;
 				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
 			}

@@ -154,6 +154,15 @@ export const stateGame = $state({
 	 * `balanceWinFloatAmount` is the win amount to show. */
 	balanceWinFloatTick: 0,
 	balanceWinFloatAmount: 0,
+	/** Multi-ball win celebration: the DISPLAYED balance is held at the pre-win value (`balanceWinHold`)
+	 * while the coins merge and the "+win" float slides from the coin — so it doesn't jump ahead of the
+	 * animation. `balanceWinReleaseTick` is then bumped to hand off to a quick count-up
+	 * (`balanceCountUpValue` carries the animating value) that ticks the balance up to the credited total.
+	 * All three are DISPLAY-ONLY (affordability still gates on the authoritative balance). `null` = show
+	 * authoritative. See WinCelebration (sets the hold + release) and Game.svelte (drives the count-up). */
+	balanceWinHold: null as number | null,
+	balanceWinReleaseTick: 0,
+	balanceCountUpValue: null as number | null,
 	/** 1-ball rapid tier: stacking win toasts (newest first, max 3). Managed by the gameOrchestrator
 	 * toast helpers (`pushRapidWinToast` / `clearRapidWinToasts`); rendered in Game.svelte. */
 	rapidWinToasts: [] as RapidWinToast[],
