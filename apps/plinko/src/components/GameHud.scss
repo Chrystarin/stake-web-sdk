@@ -14,8 +14,17 @@
 .game-bottom-panel {
 	position: absolute;
 	left: 50%;
-	bottom: 0;
-	transform: translateX(-50%);
+	/* Lifted 0.75vw off the viewport bottom so the scaled-down PLAY button clears the panel's inner
+	   padding by enough to fit the total-bet plaque BELOW it (see .bp-play-total). Without the lift,
+	   the pill would extend past the viewport's bottom edge and be clipped. */
+	bottom: 0.75vw;
+	/* Two transforms combined into one declaration (they don't stack across multiple `transform` rules
+	   — the later one wins). translateX(-50%) still handles the horizontal centring; scale(0.9) shrinks
+	   the whole panel — and everything inside it (buttons, fields, meter, pill) — by 10%.
+	   `transform-origin: 50% 100%` scales from the panel's own bottom-centre, so the panel stays
+	   centred on the viewport and anchored at its bottom edge; only the top edge moves inward. */
+	transform: translateX(-50%) scale(0.9);
+	transform-origin: 50% 100%;
 	flex-shrink: 0;
 	width: 93.88vw;
 	box-sizing: border-box;
@@ -587,7 +596,11 @@
 .bp-play-total {
 	position: absolute;
 	left: 50%;
-	bottom: -0.45vw;
+	/* Sits FULLY BELOW the round PLAY disc: with pill height 1.4vw, `bottom: -1.4vw` puts the pill's
+	   TOP exactly at the button's bottom edge — no more disc-overlap. Depends on the 10% panel-scale
+	   + the panel's 0.75vw lift off the viewport bottom (see .game-bottom-panel); together they carve
+	   out just enough room for the pill without it clipping past the viewport. */
+	bottom: -1.4vw;
 	transform: translateX(-50%);
 	z-index: 5;
 	display: inline-flex;

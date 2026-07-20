@@ -173,12 +173,20 @@
 		   halo, it doesn't move it. */
 		--balance-coin-burst-size: 6.7725vw;
 
-		/* Row geometry (GameHud.scss): the bottom panel's row centre sits 3.884vw off the viewport
-		   bottom (0.15vw panel pad + 0.5vw chrome pad + half the 6.46875vw PLAY button — the row's
-		   tallest item, so it alone sets the centre); centring this 3.85vw-tall card on that line puts
-		   its bottom edge at 3.884 − 1.925 = 1.959vw. The row is anchored to the viewport BOTTOM, so
-		   PLAY grows/shrinks upward and this card has to follow to stay level with the fields. */
-		bottom: 1.959vw;
+		/* Row geometry (GameHud.scss): the panel is now scaled to 90% from its bottom-centre AND lifted
+		   0.75vw off the viewport bottom (see `.game-bottom-panel`), so the row-centre it used to be
+		   solved against has moved:
+		     new row centre = 0.75vw lift + 0.9 × 3.884vw = 0.75 + 3.4956 = 4.246vw above viewport bottom.
+		   This card is also scaled 90% (see `transform` below), so its visual height is 0.9 × 3.85 =
+		   3.465vw. Centring 3.465vw on 4.246vw puts its visual bottom edge at 4.246 − 1.733 = 2.514vw.
+		   Since the transform-origin is bottom-centre, the DECLARED `bottom` equals the visual bottom. */
+		bottom: 2.514vw;
+		/* Match the panel's 10% shrink from bottom-centre — same scale, same origin metric — so the
+		   card and the row read as one visual group. Scaling around the card's own bottom-centre keeps
+		   its horizontal centre anchored (declared centre-x is unchanged), and shrinks the box symmetrically
+		   on both sides. See the `left` calc below for how its adjacency to the (scaled) panel is preserved. */
+		transform: scale(0.9);
+		transform-origin: 50% 100%;
 		/* Clearance between this card's right edge and the Bet-per-ball field's left edge — the knob for
 		   sliding the card away from the betting cluster. Deliberately 4× the --bp-column-gap (1.1vw)
 		   that separates the row's own controls, so the card reads as a separate thing rather than as
@@ -197,9 +205,19 @@
 		   field; they are independent sizes now, and collapsing them back would silently mis-place the
 		   card by their difference. Only the ROW's own geometry is baked into the constant.
 		   ⚠️ Resizing the Autobet/Fast buttons or PLAY moves this card too — they make up the centred
-		   cluster, and this constant absorbs half of any change to its total width. */
+		   cluster, and this constant absorbs half of any change to its total width.
+
+		   Panel-scale correction (0.9). The formula above places the DECLARED right edge of the card at
+		   the DECLARED bet-per-ball left minus the DECLARED gap, but the panel is now visually scaled
+		   90% from its bottom-centre, so bet-per-ball's VISUAL left is at 50 − 0.9 × (50 − bet.left).
+		   This card is ALSO visually scaled 90% from its own bottom-centre, so its VISUAL right edge =
+		   card_centre_x + 0.9 × width/2 (declared centre-x is unchanged). Reworking the invariant
+		   "visual right of card is `--balance-card-gap` left of visual bet-per-ball left" and solving
+		   for the constant that replaces 39.783 gives 43.275vw (a +3.492vw nudge on the constant only,
+		   the same solve as before with 0.9-scaled panel geometry). Everything else in the calc still
+		   works — --balance-card-gap, f, c stay in their declared vw's; visual adjacency is what matters. */
 		left: calc(
-			39.783vw - var(--balance-card-gap) - var(--balance-field-width) -
+			43.275vw - var(--balance-card-gap) - var(--balance-field-width) -
 				var(--balance-card-width)
 		);
 		z-index: 22;
