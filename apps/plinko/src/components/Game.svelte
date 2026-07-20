@@ -472,6 +472,8 @@
 		if (buyBonusDisabled) return;
 		stateGame.menuOpen = false;
 		stateGame.buyBonusModalOpen = true;
+		// Same click SFX as the bet-panel steppers.
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
 
 	// Close the buy-bonus modal if the player switches to the single-ball tier while it's open (the

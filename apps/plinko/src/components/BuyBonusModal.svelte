@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { stateBet } from 'state-shared';
 
+	import { getContext } from '../game/context';
 	import { buyBonusPrice, canAffordBuyBonus } from '../game/plinkoBet';
 	import { BUY_BONUS_TIERS, type BuyBonusTier } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { currencySign as currencySignFor } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
+
+	const context = getContext();
 
 	type Props = {
 		/** Disabled while a round/bonus is in progress (can't buy mid-round). */
@@ -26,6 +29,8 @@
 
 	function close() {
 		stateGame.buyBonusModalOpen = false;
+		// Same click SFX as the bet-panel steppers.
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
 
 	function activate(tier: BuyBonusTier) {

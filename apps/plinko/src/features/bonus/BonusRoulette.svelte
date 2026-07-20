@@ -254,6 +254,11 @@
 	 * art parks under the pointer (slot 0 = 100), matching the wheel's rest pose. */
 	let highlightSlot = $state(0);
 	let highlightRaf = 0;
+	// Throttle the tick SFX only (the glow hand-off below still updates every wedge). Near the start of
+	// the spin the wheel crosses a wedge almost every frame, so an un-throttled tick fires ~60×/s and
+	// the identical waveforms stack into a clipped, distorted buzz. A min gap keeps a clean ratchet.
+	const ROULETTE_TICK_MIN_GAP_MS = 55;
+	let lastTickAt = 0;
 	let rouletteSizePx = $state(0);
 	let pendingResult: BonusRouletteResult | null = null;
 	let resultReadyEmitted = false;
@@ -449,7 +454,11 @@
 	function trackHighlight() {
 		const slot = currentTopSlot();
 		if (slot !== highlightSlot) {
-			eventEmitter.broadcast({ type: 'soundOnce', name: 'rouletteTick' });
+			const now = performance.now();
+			if (now - lastTickAt >= ROULETTE_TICK_MIN_GAP_MS) {
+				lastTickAt = now;
+				eventEmitter.broadcast({ type: 'soundOnce', name: 'rouletteTick' });
+			}
 		}
 		highlightSlot = slot;
 		highlightRaf = requestAnimationFrame(trackHighlight);

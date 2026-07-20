@@ -317,6 +317,8 @@
 		// Inert while a mid-Autobet bonus is terminating the run.
 		if (autoBetStopping) return;
 		if (controlsLocked && !props.autoPlayStarted) return;
+		// Same click SFX as the bet-panel steppers.
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 		if (props.autoMode) {
 			stateGame.autoMode = false;
 			stopAutoBet();

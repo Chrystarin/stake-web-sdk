@@ -176,6 +176,9 @@
 		// which runs BEFORE the win is credited — more reliable than reading it here, where the credit may
 		// already have landed. We only RELEASE it (below), once the coins + float have played.
 
+		// Popup-appear SFX as the reveal begins (covers every win popup, incl. after the roulette spin).
+		playSound('openPopup');
+
 		// Reveal: backdrop + rays + banner play their enter transitions (guarded double-rAF).
 		raf2(() => {
 			entered = true;
