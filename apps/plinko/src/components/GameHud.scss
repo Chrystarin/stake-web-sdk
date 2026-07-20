@@ -563,12 +563,65 @@
 
 /* Auto | PLAY | Fast, centered between the two edge fields (reference art). */
 .bp-center-cluster {
+	/* Positioning context for the total-bet plaque below, which hangs off the PLAY button. Safe: the
+	   Auto | PLAY | Fast children are static flex items (their own absolute panels anchor to their own
+	   `position: relative` wraps), so this only affects the plaque. */
+	position: relative;
 	flex: 0 0 auto;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
 	gap: clamp(0.6vw, 0.9vw, 1.4vw);
+}
+
+/* Total bet (bet-per-ball × ball-per-drop) on a small plaque tucked under the round PLAY button.
+   ⚠️ The bottom panel sits on the viewport's bottom edge (see .game-bottom-panel) and .game-root is
+   `overflow: hidden`, so there is NO room to drop this fully below the disc — it would be clipped.
+   Instead it hangs off the button's lower rim, sitting mostly below the green disc with a slight tuck.
+   Absolutely positioned so it takes NO space in the Auto | PLAY | Fast row: that row's geometry is
+   baked into BalanceCard.svelte's `left`/`bottom`, so its layout must not change. Centred on the
+   cluster, which is symmetric (Auto and Fast share --bp-side-btn-width), so cluster centre = PLAY
+   centre. `bottom`/`height` are the two knobs for how far it hangs — kept clear of the viewport
+   bottom (~0.65vw below the button) so it is never cut off. */
+.bp-play-total {
+	position: absolute;
+	left: 50%;
+	bottom: -0.45vw;
+	transform: translateX(-50%);
+	z-index: 5;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 6vw;
+	height: 1.4vw;
+	padding: 0 0.7vw;
+	box-sizing: border-box;
+	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	font-weight: 500;
+	font-synthesis: none;
+	font-size: 0.9vw;
+	line-height: 1;
+	letter-spacing: -0.01em;
+	color: #efeadd;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.bp-play-total-bg {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: fill;
+	display: block;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.bp-play-total-value {
+	position: relative;
+	z-index: 1;
 }
 
 .bp-btn-play {

@@ -1,5 +1,11 @@
 import { Application, Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
-import { Spine, Physics, type Bone } from '@esotericsoftware/spine-pixi-v8';
+import {
+  Spine,
+  Physics,
+  type Bone,
+  type Slot as SpineSlot,
+  type Attachment as SpineAttachment
+} from '@esotericsoftware/spine-pixi-v8';
 import { slotColorForMultiplier } from '../game-logic/slotColors';
 import { formatCoefficientLabel, isMobile } from '../lib/format';
 import { getGlowNumbersAsset } from '../lib/spine/glowNumbersAsset';
@@ -200,6 +206,12 @@ export class PlinkoEngine {
   private glowBoneBySlotIndex: (Bone | undefined)[] = [];
   /** Uniform display scale of the glow spine (used to convert the slot bounce offset to bone units). */
   private glowScale = 1;
+  /** Runtime slot + default attachment of the center "SPIN" glyph, captured on spine load so the glyph
+   *  can be hidden in the 1-ball rapid tier (where the center pocket is a plain 0×, not a spin). */
+  private glowSpinSlot?: SpineSlot;
+  private glowSpinDefaultAttachment: SpineAttachment | null = null;
+  /** 1-ball rapid tier: the center pocket carries no bonus, so it shows "0" instead of the "SPIN" glyph. */
+  private rapidSingleBall = false;
   /** Slot count the spine was authored for — only render glow when the board matches it. */
   private static readonly GLOW_SPINE_SLOT_COUNT = 15;
   /** Spine bones in spatial left→right order (15 numbers, center = Spin). */
@@ -718,6 +730,8 @@ export class PlinkoEngine {
     this.glowSpine = undefined;
     this.glowSpineReady = false;
     this.glowBoneBySlotIndex = [];
+    this.glowSpinSlot = undefined;
+    this.glowSpinDefaultAttachment = null;
     this.app?.destroy(true, { children: true, texture: false });
   }
 
@@ -1130,6 +1144,29 @@ export class PlinkoEngine {
     return idx === this.getMiddleSlotIndex();
   }
 
+  /**
+   * 1-ball rapid tier: the center pocket is a plain 0× slot (bonus/free-spin features are hidden), so
+   * the "SPIN" wording is replaced by a printed "0". Toggling re-runs the slot rebuild so the center
+   * gains/loses its label and the glow spine's baked "SPIN" glyph is hidden/restored.
+   */
+  setRapidSingleBall(value: boolean): void {
+    if (this.rapidSingleBall === value) return;
+    this.rapidSingleBall = value;
+    this.applyCenterSpinGlyphVisibility();
+    // Rebuild the slots directly rather than via `refreshLayoutSync()`: a ball-per-drop switch leaves
+    // the viewport dimensions unchanged, so `refreshLayoutSync` would hit its dedupe guard and skip the
+    // slot rebuild — leaving the center "0" label (or the restored "SPIN" glyph) out of sync.
+    this.rebuildScene();
+  }
+
+  /** Hide (rapid 1-ball) or restore the glow spine's center "SPIN" glyph. Safe to call before load. */
+  private applyCenterSpinGlyphVisibility(): void {
+    const slot = this.glowSpinSlot;
+    if (!slot) return;
+    // Spine 4.3 exposes the slot's attachment via `slot.pose` (same place bone transforms live).
+    slot.pose.setAttachment(this.rapidSingleBall ? null : this.glowSpinDefaultAttachment);
+  }
+
   /** Spin uses spin asset; neighbors use tier 1..7 by distance from center. */
   private getMultiplierSlotTextureForIndex(idx: number): Sprite['texture'] | undefined {
     const middle = this.getMiddleSlotIndex();
@@ -1194,10 +1231,16 @@ export class PlinkoEngine {
         }
       }
 
+      // Capture the center "SPIN" glyph so it can be hidden on the 1-ball rapid tier (plain 0× pocket).
+      this.glowSpinSlot = spine.skeleton.findSlot('spin') ?? undefined;
+      this.glowSpinDefaultAttachment = this.glowSpinSlot?.pose.getAttachment() ?? null;
+
       spine.visible = false;
       this.slotSpineLayer.addChild(spine);
       this.glowSpine = spine;
       this.glowSpineReady = true;
+      // Honor a rapid-mode flag set before the spine finished loading.
+      this.applyCenterSpinGlyphVisibility();
     } catch (err) {
       console.warn('[PlinkoEngine] glow_numbers spine failed to load', err);
       this.glowSpineReady = false;
@@ -1269,7 +1312,9 @@ export class PlinkoEngine {
         this.slotSprites.push(undefined);
       }
 
-      if (this.isSpinSlotIndex(i)) {
+      // The center pocket normally shows the "SPIN" glyph (no printed label). On the 1-ball rapid tier
+      // it becomes a plain 0× slot, so fall through to build a "0" text label instead.
+      if (this.isSpinSlotIndex(i) && !this.rapidSingleBall) {
         this.slotLabels.push(undefined);
         this.slotLabelSprites.push(undefined);
         continue;
@@ -1634,7 +1679,12 @@ export class PlinkoEngine {
         originalY: bottomY,
         width: slotWidth,
         coefficient,
-        labelText: i === middleIndex ? '' : String(formatCoefficientLabel(coefficient)),
+        labelText:
+          i === middleIndex
+            ? this.rapidSingleBall
+              ? '0'
+              : ''
+            : String(formatCoefficientLabel(coefficient)),
         centerX: slotX + slotWidth / 2,
         color: this.getSlotColor(coefficient),
         colorNumber: 0,
@@ -3157,6 +3207,11 @@ export class PlinkoEngine {
 
     // Apply the per-slot bone bounce to the glow spine in one pass (kept in sync with the labels).
     if (glowActive && this.glowSpine) {
+      // Keep the center "SPIN" glyph hidden every frame in rapid mode — the spine animation re-applies
+      // the setup pose each tick, which would otherwise restore the glyph over the printed "0".
+      if (this.rapidSingleBall && this.glowSpinSlot?.pose.getAttachment()) {
+        this.glowSpinSlot.pose.setAttachment(null);
+      }
       this.glowSpine.skeleton.updateWorldTransform(Physics.update);
     }
   }

@@ -70,6 +70,9 @@
 	let autoPanelOpen = $state(false);
 	let betPresetOpen = $state(false);
 	let mobileBetPopupOpen = $state(false);
+	// While the player hovers an Autobet count option, the total-bet displays preview what that whole
+	// run would cost (per-drop total × rounds) instead of the single-drop total. Cleared on mouse-out.
+	let hoveredAutoRounds = $state<number | null>(null);
 
 	const currencySign = $derived(currencySignFor(stateBet.currency));
 	// Social Mode restricts the word "Bet": the wager-field labels become "Play amount" / "Play per
@@ -80,6 +83,19 @@
 	const betPerBallLabel = $derived(
 		stateUrlDerived.social() ? 'Play per ball' : context.i18nDerived.t('Bet per ball'),
 	);
+	// Total bet shown in the plaque under PLAY (and the mobile total cards): the single-drop total
+	// normally, or — while an Autobet count option is hovered — the whole run's cost (per-drop × rounds).
+	const displayTotalBet = $derived(
+		hoveredAutoRounds != null
+			? props.totalBetAmount * hoveredAutoRounds
+			: props.totalBetAmount,
+	);
+	// Belt-and-braces reset: the panel can close from many paths (click-outside, other-panel-open,
+	// autobet stop, select, …), not just mouse-out. Whenever the panel is not open, the hover preview
+	// cannot be true regardless of the last mouse/focus event that fired.
+	$effect(() => {
+		if (!autoPanelOpen) hoveredAutoRounds = null;
+	});
 	/** Settlement currency win from the last round — not recalculated from current stake. */
 	const displayWinAmount = $derived(stateGame.winAmount);
 	// Held-back / counting-up display balance (rapid shadow, multi-ball win hold, or authoritative) —
@@ -312,6 +328,9 @@
 	}
 
 	function selectAutoBetCount(count: number) {
+		// The panel is closing either way; make sure the hover-preview doesn't stay pinned to the
+		// last-hovered option (esp. on the toast branch, which doesn't move focus off the option).
+		hoveredAutoRounds = null;
 		if (controlsLocked && !props.autoPlayStarted) return;
 		// Picking a count starts a fresh Autobet run immediately, and Autobet is all-or-nothing:
 		// the player must be able to fund every selected drop up front (count × per-drop wager). If
@@ -532,7 +551,7 @@
 			<div class="mobile-top-card">
 				{@render bettingFieldFrame()}
 				<span class="mobile-top-card-label">{betLabel}</span>
-				<span class="mobile-top-card-value">{formatMoney(props.totalBetAmount)}</span>
+				<span class="mobile-top-card-value">{formatMoney(displayTotalBet)}</span>
 			</div>
 			<div class="mobile-top-card">
 				{@render bettingFieldFrame()}
@@ -671,7 +690,7 @@
 						{@render bettingFieldFrame()}
 						<div class="mobile-bet-popup-mid">
 							<span class="mobile-bet-popup-label">{betLabel}</span>
-							<span class="mobile-bet-popup-value">{formatMoney(props.totalBetAmount)}</span>
+							<span class="mobile-bet-popup-value">{formatMoney(displayTotalBet)}</span>
 						</div>
 					</div>
 					<div class="mobile-bet-popup-row">
@@ -881,13 +900,17 @@
 								</span>
 							</button>
 							{#if autoPanelOpen}
-								<div class="bp-autobet-panel">
+								<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+								<div class="bp-autobet-panel" onmouseleave={() => (hoveredAutoRounds = null)}>
 									{#each AUTO_BET_OPTIONS as option}
 										<button
 											type="button"
 											class="bp-autobet-option"
 											disabled={controlsLocked}
 											onclick={() => selectAutoBetCount(option)}
+											onmouseenter={() => (hoveredAutoRounds = option)}
+											onfocus={() => (hoveredAutoRounds = option)}
+											onblur={() => (hoveredAutoRounds = null)}
 										>
 											{option}
 										</button>
@@ -977,6 +1000,21 @@
 							>
 								<img src={staticUrl('img/fast-game-btn.png')} alt="" aria-hidden="true" />
 							</button>
+						</div>
+
+						<!-- Total bet (bet-per-ball × ball-per-drop) on a plaque tucked under the PLAY button.
+						     A sibling of the buttons (absolutely positioned), so it never shifts the
+						     Auto | PLAY | Fast row that BalanceCard's position is solved against. -->
+						<div class="bp-play-total" aria-label="Total bet">
+							<img
+								class="bp-play-total-bg"
+								src={staticUrl('img/empty_play_balance.png')}
+								alt=""
+								aria-hidden="true"
+							/>
+							<span class="bp-play-total-value" aria-live="polite">
+								{formatMoney(displayTotalBet)}
+							</span>
 						</div>
 					</div>
 

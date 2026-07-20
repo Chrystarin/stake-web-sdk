@@ -221,6 +221,13 @@
 		if (props.animationSpeed != null) e.animationSpeed = props.animationSpeed;
 	});
 
+	// 1-ball rapid tier: the center pocket is a plain 0× slot (no bonus), so the board shows "0"
+	// instead of the "SPIN" glyph. Keep the engine in sync as the ball-per-drop tier changes.
+	$effect(() => {
+		const rapid = stateGame.ballPerDrop === 1;
+		engine?.setRapidSingleBall(rapid);
+	});
+
 	function spawnOutcomes(outcomes: PlinkoBallOutcome[]) {
 		if (!engine) return;
 
