@@ -109,9 +109,11 @@
 			x: (innerWidth.current ?? window.innerWidth) / 2,
 			y: (innerHeight.current ?? window.innerHeight) * 0.42,
 		};
-		const bf = frameImagePoint(0.5, 0.165) ?? {
+		// Banner sits just above the number (was 0.165 — a big gap); pulled down to tighten the
+		// title↔value spacing.
+		const bf = frameImagePoint(0.5, 0.29) ?? {
 			x: (innerWidth.current ?? window.innerWidth) / 2,
-			y: (innerHeight.current ?? window.innerHeight) * 0.2,
+			y: (innerHeight.current ?? window.innerHeight) * 0.32,
 		};
 		numberX = nf.x;
 		numberY = nf.y;
@@ -179,9 +181,13 @@
 			entered = true;
 		});
 
-		// Count-up starts after the reveal has settled, then the coins erupt when it lands.
+		// Count-up starts after the reveal has settled — and the coin shower erupts AT THE SAME TIME,
+		// its throw spread across the count-up so coins keep pouring while the value climbs. When the
+		// count lands, the eruption is done (no new coins); the merge (below) follows shortly after.
 		addTimer(() => {
 			numberVisible = true;
+			playSound('coinShuffleMulti');
+			shower?.burst(burstOrigin(), coinCount, WIN_TIMING.countUp);
 			startCountUp(amount, decimals);
 		}, WIN_TIMING.countDelay);
 
@@ -208,16 +214,9 @@
 			} else {
 				countRaf = 0;
 				numberChars = fmt(amount, decimals).split('');
-				onCountDone();
 			}
 		};
 		countRaf = requestAnimationFrame(tick);
-	}
-
-	function onCountDone() {
-		// Coins erupt from the middle.
-		playSound('coinShuffleMulti');
-		shower?.burst(burstOrigin(), coinCount);
 	}
 
 	function beginMerge(amount: number) {

@@ -54,20 +54,21 @@ const easeInOutCubic = (t: number) =>
 /** Tunables, expressed relative to the viewport's short side so it reads the same at any size. */
 const BURST = {
 	/** launch speed range as a fraction of the viewport short side, per second. */
-	speedMin: 0.95,
+	speedMin: 1.0,
 	speedMax: 1.75,
 	/**
-	 * Coins leave the middle in TWO streams — one up-and-to-the-LEFT, one up-and-to-the-RIGHT — so
-	 * they arc out to the top corners and frame the number instead of spraying over it. `sideAngle`
-	 * is the centre of each stream off straight-up (radians, ≈41°); `streamSpread` is the half-spread
-	 * within a stream. The gap left around straight-up keeps the middle (the win number) clearer.
+	 * A FOUNTAIN, matching the reference clip: coins erupt from the middle in a WIDE upward fan (all
+	 * upward directions, from up-left through straight-up to up-right), then arc over and fall back
+	 * down. `spread` is the half-angle of that cone around straight-up (radians, ≈±76°).
 	 */
-	sideAngle: 0.72,
-	streamSpread: 0.34,
-	/** downward pull, fraction of short side per second². Gentle so the arc reaches out before it falls. */
-	gravity: 0.52,
-	/** air drag (per second); higher = coins shed their launch speed faster and drift. */
-	drag: 1.7,
+	spread: 1.33,
+	/**
+	 * Gravity-DOMINANT so the coins genuinely arc up and RAIN back down (the reference look), rather
+	 * than hanging in the air. Paired with only light drag below.
+	 */
+	gravity: 1.28,
+	/** air drag (per second) — light, so the motion stays ballistic (up, over, down). */
+	drag: 0.3,
 	/** base coin diameter, fraction of short side. */
 	size: 0.05,
 	/**
@@ -122,19 +123,21 @@ export class WinCoinShower {
 		this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	}
 
-	/** Erupt `count` coins from `origin` (client px). Starts the loop if idle. */
-	burst(origin: ShowerPoint, count: number): void {
+	/**
+	 * Erupt `count` coins from `origin` (client px). Starts the loop if idle. `throwWindowMs` spreads the
+	 * launches over that span (default `BURST.throwWindow`) — pass the count-up duration so the shower
+	 * erupts WHILE the value counts and finishes as it lands.
+	 */
+	burst(origin: ShowerPoint, count: number, throwWindowMs = BURST.throwWindow): void {
 		const n = clamp(Math.round(count), 1, 160);
 		const base = this.unit * BURST.size;
 		for (let i = 0; i < n; i++) {
-			// Alternate coins between the left and right streams so both fill evenly.
-			const side = i % 2 === 0 ? -1 : 1;
-			const center = -Math.PI / 2 + side * BURST.sideAngle;
-			const angle = center + (Math.random() - 0.5) * 2 * BURST.streamSpread;
+			// Launch up into a wide fan (a fountain) — anywhere from up-left through straight-up to up-right.
+			const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2 * BURST.spread;
 			const speed = this.unit * (BURST.speedMin + Math.random() * (BURST.speedMax - BURST.speedMin));
 			// Stagger the launch across the throw window so coins stream out (thrown), not pop at once.
 			// `bornAt` is the moment this coin is thrown: until then it sits invisibly at the origin.
-			const launchAt = this.clock + (i / n) * BURST.throwWindow + Math.random() * 45;
+			const launchAt = this.clock + (i / n) * throwWindowMs + Math.random() * 45;
 			this.coins.push({
 				x: origin.x + (Math.random() - 0.5) * base * 0.6,
 				y: origin.y + (Math.random() - 0.5) * base * 0.6,

@@ -63,22 +63,27 @@ export const winDigitArt = (digit: string): string => `img/win_popup/${digit}.pn
 export const WIN_TIMING = {
 	countDelay: 550,
 	countUp: 1150,
-	hold: 1750,
+	/**
+	 * Beat between the count finishing (the shower has stopped erupting) and the coins turning to
+	 * stream into the balance coin — short, so the merge follows the count-up promptly.
+	 */
+	hold: 550,
 	/** Window over which coins are launched into, and travel to, the balance coin. */
 	merge: 1500,
 	/** How long the backdrop/rays/banner/number take to fade once the merge begins. */
 	fadeOut: 600,
 	/**
-	 * Gap from the merge STARTING to the balance itself counting up. Covers the coins reaching the
-	 * balance coin AND the "+win" float sliding up from it — the balance is held at its pre-win value
-	 * until then, so it never jumps ahead of the animation.
+	 * Gap from the merge STARTING to the balance itself counting up. Set so the count-up begins as the
+	 * FIRST coins reach the balance coin (~620ms of travel) and then runs DURING the rest of the merge —
+	 * the balance ticks up while the coins are still pouring in, not after they've all landed. (The
+	 * balance is held at its pre-win value until this point so it never jumps ahead of the animation.)
 	 */
-	balanceReleaseDelay: 1650,
-	/** Duration of the balance count-up (pre-win → credited total). */
+	balanceReleaseDelay: 700,
+	/** Duration of the balance count-up (pre-win → credited total) — runs concurrently with the merge. */
 	balanceCountUp: 700,
 } as const;
 
-/** When (ms after mount) the balance is released to count up — coins have landed, float has slid. */
+/** When (ms after mount) the balance is released to count up — as the first coins reach the coin. */
 export const WIN_BALANCE_RELEASE_AT_MS =
 	WIN_TIMING.countDelay + WIN_TIMING.countUp + WIN_TIMING.hold + WIN_TIMING.balanceReleaseDelay;
 
