@@ -16,6 +16,7 @@
 		WIN_BACKDROP_ART,
 		WIN_COIN_ART,
 		winDigitArt,
+		WIN_DOT_ART,
 		WIN_TIMING,
 		WIN_BALANCE_RELEASE_AT_MS,
 		type WinTier,
@@ -289,6 +290,7 @@
 		coin.onload = () => shower?.setCoinImage(coin);
 		coin.src = staticUrl(WIN_COIN_ART);
 		for (let d = 0; d < 10; d++) new Image().src = staticUrl(winDigitArt(String(d)));
+		new Image().src = staticUrl(WIN_DOT_ART);
 		for (const banner of Object.values(WIN_TIER_BANNER)) new Image().src = staticUrl(banner);
 
 		const ro = new ResizeObserver(() => {
@@ -345,8 +347,10 @@
 		<div class="wc-number" class:visible={numberVisible}>
 			<div class="wc-number-row">
 				{#each numberChars as ch, i (i)}
-					{#if ch === ',' || ch === '.'}
+					{#if ch === ','}
 						<span class="wc-sep">{ch}</span>
+					{:else if ch === '.'}
+						<img class="wc-digit wc-dot" src={staticUrl(WIN_DOT_ART)} alt="." />
 					{:else}
 						<img class="wc-digit" src={staticUrl(winDigitArt(ch))} alt={ch} />
 					{/if}
@@ -364,13 +368,16 @@
 		pointer-events: none;
 		overflow: hidden;
 
-		/* Ray burst + banner sizes. Landscape defaults; portrait overrides below. */
-		--wc-rays-size: clamp(340px, 48vw, 760px);
-		--wc-banner-text-h: clamp(30px, 4.4vw, 74px);
+		/* Ray burst + banner sizes. Landscape defaults; portrait overrides below.
+		   Sparkle (rays) footprint enlarged 30% (then another 30% on top) per design; the banner
+		   (label) text height is bumped ~30% so the title reads bigger relative to the value,
+		   matching the reference proportions. */
+		--wc-rays-size: clamp(575px, 81.1vw, 1284px);
+		--wc-banner-text-h: clamp(39px, 5.7vw, 96px);
 	}
 	.wc-overlay--portrait {
-		--wc-rays-size: 116vw;
-		--wc-banner-text-h: 8.6vw;
+		--wc-rays-size: 196vw;
+		--wc-banner-text-h: 11.2vw;
 	}
 
 	.wc-coins {
@@ -455,8 +462,13 @@
 	.wc-banner[data-tier='epic'] {
 		height: calc(var(--wc-banner-text-h) * 2.04);
 	}
+	/* Massive scaled 20% below the normalized base (0.976); Captain scaled 30% above its prior size
+	   (2.366) — per-tier size requests layered on top of the shared cross-tier normalization above. */
+	.wc-banner[data-tier='massive'] {
+		height: calc(var(--wc-banner-text-h) * 0.976);
+	}
 	.wc-banner[data-tier='captain'] {
-		height: calc(var(--wc-banner-text-h) * 1.82);
+		height: calc(var(--wc-banner-text-h) * 2.366);
 	}
 	@keyframes wc-banner-pop {
 		0% {
@@ -502,6 +514,13 @@
 		width: auto;
 		display: block;
 		margin: 0 calc(var(--wc-digit-h) * -0.008);
+	}
+	/* Decimal-point glyph art is cropped tight to just the dot (not a full digit-height canvas), so it's
+	   scaled down to match the dot's proportion within a digit and sits on the baseline like the comma. */
+	.wc-dot {
+		height: calc(var(--wc-digit-h) * 0.27);
+		align-self: flex-end;
+		margin: 0 calc(var(--wc-digit-h) * 0.008);
 	}
 	.wc-sep {
 		align-self: flex-end;

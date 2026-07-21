@@ -19,6 +19,11 @@
 		messageTitle?: string;
 		messageValue?: string;
 		messageHint?: string;
+		/** Bonus-end win screen: render the "CONGRATULATIONS! / YOU HAVE WON / $value" treasure layout
+		 * (rising treasure table + twinkling sparkles) instead of the falling-coin free-balls congrats. */
+		treasureWin?: boolean;
+		/** The pre-formatted win amount shown big in the AustereBlackCapsSSK value font (e.g. "$1,733"). */
+		winValue?: string;
 		targetFreeBalls?: number;
 		/** When true, wheel outcome must come from `targetFreeBalls` (RGS/math book). */
 		serverAuthoritative?: boolean;
@@ -235,6 +240,88 @@
 		};
 	});
 
+	// ─── Congratulations-screen coin shower ────────────────────────────────────────────────────────
+	// Two coin art variants fall behind the headline while the "PRESS ANYWHERE" screen is up. Generated
+	// once per mount (not reactive) so the shower doesn't reshuffle on every render.
+	const ANNOUNCEMENT_COIN_IMAGES = [
+		staticUrl('img/congratulations_screen/coin_1.png'),
+		staticUrl('img/congratulations_screen/coin_2.png'),
+	];
+	type AnnouncementCoin = {
+		id: number;
+		img: string;
+		leftPct: number;
+		sizeVw: number;
+		durationS: number;
+		delayS: number;
+		rotateDeg: number;
+		driftPx: number;
+	};
+	const ANNOUNCEMENT_COIN_COUNT = 24;
+	const announcementCoins: AnnouncementCoin[] = Array.from(
+		{ length: ANNOUNCEMENT_COIN_COUNT },
+		(_, i) => {
+			// Slow fall so the rotation reads as a gentle tumble rather than a spin.
+			const durationS = 5.5 + Math.random() * 3;
+			return {
+				id: i,
+				img: ANNOUNCEMENT_COIN_IMAGES[i % ANNOUNCEMENT_COIN_IMAGES.length],
+				leftPct: Math.random() * 100,
+				sizeVw: 3.2 + Math.random() * 3.6,
+				durationS,
+				// Spread across the FULL fall cycle (not just a beat) so the shower never reads as one
+				// synchronized curtain — at any moment some coins are just starting, some mid-fall, some
+				// about to loop. Every coin's first frame is still its 0% keyframe (off-screen above the
+				// view, opacity 0), so each one genuinely starts its fall from the top, just at its own
+				// staggered moment.
+				delayS: Math.random() * durationS,
+				rotateDeg: (Math.random() < 0.5 ? -1 : 1) * (180 + Math.random() * 280),
+				driftPx: (Math.random() - 0.5) * 160,
+			};
+		},
+	);
+
+	// ─── Treasure-win congratulations screen (treasureWin) ───────────────────────────────────────────
+	// The bonus-end "CONGRATULATIONS! / YOU HAVE WON / $X" screen swaps the falling-coin shower for a
+	// treasure table that rises from the bottom, with white star sparkles twinkling over the hoard and the
+	// win value (matches the reference art + guide video). Positions are hand-placed over the art.
+	const TREASURE_ART = staticUrl('img/congratulations_screen/treasure_table.png');
+	const SPARKLE_ART = staticUrl('img/congratulations_screen/sparkle.png');
+	type Sparkle = {
+		id: number;
+		xPct: number;
+		yPct: number;
+		size: number;
+		durationS: number;
+		delayS: number;
+	};
+	// ⚙️ SPARKLE POSITIONS — edit these to move/resize each sparkle. One entry per sparkle; positions are
+	// over the treasure art (chest+coins left, loose coins centre, sack+barrel right), and the sparkles
+	// live INSIDE the treasure wrap so they track it as it rises and across screen sizes.
+	//   x    — horizontal position: 0 = left edge of the treasure, 50 = centre, 100 = right edge
+	//   y    — vertical position:   0 = top of the treasure, 100 = bottom (the floor)
+	//   size — sparkle width as a % of the treasure's width (bigger number = bigger star)
+	// Add or delete a line to add or remove a sparkle. The trailing comment just notes what each sits on.
+	const TREASURE_SPARKLE_POSITIONS: Array<{ x: number; y: number; size: number }> = [
+		{ x: 13.4, y: 38.4, size: 6.4 }, // chest — front-left coins
+		{ x: 23.3, y: 29.4, size: 6.6 }, // chest — upper coins
+		{ x: 37.5, y: 55.9, size: 4.2 }, // floor coin right of the chest
+		{ x: 24.1, y: 76.8, size: 5.5 }, // floor coins below the chest
+		{ x: 60.7, y: 53.1, size: 4.4 }, // centre floor coins (left)
+		{ x: 67.6, y: 50.4, size: 4.2 }, // centre floor coins (right)
+		{ x: 87.0, y: 17.9, size: 4.9 }, // barrel top rim
+		{ x: 77.0, y: 67.9, size: 5.2 }, // coins left of the sack
+		{ x: 89.35, y: 65.7, size: 4.9 }, // bottom-right coins
+	];
+	const treasureSparkles: Sparkle[] = TREASURE_SPARKLE_POSITIONS.map((p, i) => ({
+		id: i,
+		xPct: p.x,
+		yPct: p.y,
+		size: p.size,
+		durationS: 1.1 + Math.random() * 0.9,
+		delayS: -Math.random() * 2,
+	}));
+
 	let slidePhase = $state<'enter' | 'idle' | 'exit'>('enter');
 	let bgJoined = $state(false);
 	let labelVisible = $state(false);
@@ -244,6 +331,7 @@
 	let announcementVisible = $state(false);
 	let announcementBgVisible = $state(false);
 	let announcementTextVisible = $state(false);
+	let announcementCoinsVisible = $state(false);
 	let wonFreeBalls = $state(0);
 	// Bound to the rotating wheel container (was the single wheel <img>). Drives the settle transitionend
 	// and is read each frame to know which wedge is under the top marker.
@@ -538,6 +626,12 @@
 	 * `.bonus-spin-overlay` exit transform transition (1s). */
 	const ANNOUNCEMENT_SLIDE_UP_MS = 1000;
 
+	/** How long the headline/reward "pop" reveal takes to fully finish — the reward's
+	 * `animation-delay` (0.12s) plus its `bonus-announcement-pop` duration (0.6s). Coins are held off
+	 * until this elapses so the message finishes animating before the shower starts. ⚠️ Keep in sync
+	 * with the CSS below. */
+	const ANNOUNCEMENT_TEXT_POP_MS = 720;
+
 	function startAnnouncementSequence() {
 		announcementVisible = true;
 		if (pendingResult && !resultReadyEmitted) {
@@ -556,6 +650,12 @@
 				// closing-door slam as the screen finishes covering the view.
 				scheduleDoorCloseForSlide(ANNOUNCEMENT_SLIDE_MS);
 				timers.push(setTimeout(() => (announcementTextVisible = true), ANNOUNCEMENT_SLIDE_MS));
+				timers.push(
+					setTimeout(
+						() => (announcementCoinsVisible = true),
+						ANNOUNCEMENT_SLIDE_MS + ANNOUNCEMENT_TEXT_POP_MS,
+					),
+				);
 			}),
 		);
 		if (props.autoDismiss) {
@@ -566,6 +666,7 @@
 	function onAnnouncementClick() {
 		if (!announcementVisible) return;
 		announcementTextVisible = false;
+		announcementCoinsVisible = false;
 		// The screen slides back up to reveal the game — play the opening-door creak to match.
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'doorOpen' });
 		slidePhase = 'exit';
@@ -668,14 +769,56 @@
 			type="button"
 			class="bonus-announcement"
 			class:bonus-announcement--win={props.mode === 'message'}
+			class:bonus-announcement--treasure={props.treasureWin}
 			class:bonus-announcement--mobile={portrait}
 			class:bonus-announcement--bg-visible={announcementBgVisible}
 			class:bonus-announcement--text-visible={announcementTextVisible}
+			class:bonus-announcement--coins-visible={announcementCoinsVisible}
 			style:background-image="url({portrait
 				? staticUrl('img/announcement-message-background-mobile.png')
 				: staticUrl('img/announcement-message-background.png')})"
 			onclick={onAnnouncementClick}
 		>
+			{#if props.treasureWin}
+				<!-- Treasure table rises up from the bottom, then its sparkles twinkle over the hoard. -->
+				<div
+					class="congrats-treasure"
+					class:congrats-treasure--in={announcementTextVisible}
+					aria-hidden="true"
+				>
+					<img class="congrats-treasure-img" src={TREASURE_ART} alt="" />
+					<div class="congrats-sparkles" class:congrats-sparkles--on={announcementCoinsVisible}>
+						{#each treasureSparkles as sp (sp.id)}
+							<img
+								class="congrats-sparkle"
+								src={SPARKLE_ART}
+								alt=""
+								style:left="{sp.xPct}%"
+								style:top="{sp.yPct}%"
+								style:width="{sp.size}%"
+								style:animation-duration="{sp.durationS}s"
+								style:animation-delay="{sp.delayS}s"
+							/>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<div class="bonus-announcement-coins" aria-hidden="true">
+					{#each announcementCoins as coin (coin.id)}
+						<img
+							class="bonus-announcement-coin"
+							src={coin.img}
+							alt=""
+							style:left="{coin.leftPct}%"
+							style:width="{coin.sizeVw}vw"
+							style:animation-duration="{coin.durationS}s"
+							style:animation-delay="{coin.delayS}s"
+							style:--coin-rotate="{coin.rotateDeg}deg"
+							style:--coin-drift="{coin.driftPx}px"
+						/>
+					{/each}
+				</div>
+			{/if}
 			<div class="bonus-announcement-main">
 				<div class="bonus-announcement-headline">
 					<span class="bonus-announcement-text-stroke" aria-hidden="true">{headlineText}</span>
@@ -689,6 +832,12 @@
 						>{rewardText}</span
 					>
 				</div>
+				{#if props.treasureWin}
+					<div class="congrats-value" class:congrats-value--in={announcementTextVisible}>
+						<span class="congrats-value-stroke" aria-hidden="true">{props.winValue ?? ''}</span>
+						<span class="congrats-value-fill">{props.winValue ?? ''}</span>
+					</div>
+				{/if}
 			</div>
 			<div class="bonus-announcement-hint">
 				{props.messageHint ?? 'PRESS ANYWHERE TO GO BACK TO THE GAME'}
@@ -854,7 +1003,47 @@
 		justify-content: center;
 		color: #f4d36d;
 	}
+	.bonus-announcement-coins {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		overflow: hidden;
+		pointer-events: none;
+	}
+	.bonus-announcement-coin {
+		position: absolute;
+		top: -12%;
+		height: auto;
+		object-fit: contain;
+		pointer-events: none;
+		will-change: transform, opacity;
+		filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+		animation-name: bonus-announcement-coin-fall;
+		animation-timing-function: linear;
+		animation-iteration-count: infinite;
+		/* Held paused until the message text has finished its pop-in, so the coin shower starts after it. */
+		animation-play-state: paused;
+	}
+	.bonus-announcement--coins-visible .bonus-announcement-coin {
+		animation-play-state: running;
+	}
+	@keyframes bonus-announcement-coin-fall {
+		0% {
+			transform: translateY(0) translateX(0) rotate(0deg);
+			opacity: 0;
+		}
+		6% {
+			opacity: 1;
+		}
+		100% {
+			transform: translateY(128vh) translateX(var(--coin-drift, 0px))
+				rotate(var(--coin-rotate, 360deg));
+			opacity: 1;
+		}
+	}
 	.bonus-announcement-main {
+		position: relative;
+		z-index: 2;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -862,6 +1051,7 @@
 	}
 	.bonus-announcement-hint {
 		position: absolute;
+		z-index: 2;
 		left: 0;
 		right: 0;
 		bottom: clamp(16px, 5vh, 56px);
@@ -882,19 +1072,59 @@
 	.bonus-announcement-reward,
 	.bonus-announcement-hint {
 		opacity: 0;
-		transition: opacity 0.32s ease;
 		text-align: center;
 	}
-	.bonus-announcement--text-visible .bonus-announcement-headline,
-	.bonus-announcement--text-visible .bonus-announcement-reward,
+	.bonus-announcement-hint {
+		transition: opacity 0.32s ease;
+	}
 	.bonus-announcement--text-visible .bonus-announcement-hint {
 		opacity: 1;
+	}
+	/* Headline/reward "pop" in with a bouncy overshoot instead of a plain fade. */
+	.bonus-announcement-headline,
+	.bonus-announcement-reward {
+		transform: scale(0.4);
+		transition:
+			opacity 0.28s ease,
+			transform 0.28s ease;
+	}
+	.bonus-announcement--text-visible .bonus-announcement-headline {
+		animation: bonus-announcement-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+	}
+	.bonus-announcement--text-visible .bonus-announcement-reward {
+		animation: bonus-announcement-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.12s forwards;
+	}
+	@keyframes bonus-announcement-pop {
+		0% {
+			transform: scale(0.4);
+			opacity: 0;
+		}
+		55% {
+			transform: scale(1.12);
+			opacity: 1;
+		}
+		75% {
+			transform: scale(0.94);
+		}
+		100% {
+			transform: scale(1);
+			opacity: 1;
+		}
 	}
 	.bonus-announcement-headline,
 	.bonus-announcement-reward {
 		display: inline-grid;
 		width: max-content;
-		max-width: 100%;
+		/* NOT `100%` — this row's parent (`.bonus-announcement-main`, a `align-items: center` flex child)
+		   shrink-wraps to ITS content, so a percentage here has no fixed value to resolve against and
+		   ends up constraining nothing. Anchor to the viewport directly so there's always a real cap. */
+		max-width: 94vw;
+		/* Safety net: if the text is ever wider than that (a narrow embed, a font-metric difference from
+		   what was measured, a longer localisation) it WRAPS to a second line instead of silently bleeding
+		   past the edge and getting clipped by the fullscreen overlay's `overflow: hidden`. Only engages
+		   when content doesn't fit — normal single-line rendering is unaffected. */
+		overflow-wrap: break-word;
+		word-break: break-word;
 	}
 	.bonus-announcement-headline > *,
 	.bonus-announcement-reward > * {
@@ -957,10 +1187,16 @@
 	.bonus-announcement--mobile .bonus-announcement-headline,
 	.bonus-announcement--mobile .bonus-announcement-reward,
 	.bonus-announcement--mobile .bonus-announcement-hint {
-		max-width: calc(100vw - 10vw);
+		/* A LITTLE more budget than before (was 100vw - 10vw) — the treasure variant's wider letter-spacing
+		   (below) needs the extra room so long strings like "CONGRATULATIONS!" don't overflow this box and
+		   get clipped by the fullscreen overlay's `overflow: hidden` (content here is left-aligned within
+		   the box, so any overflow bleeds off the right edge — that's what was cutting off the "!"/"Y"). */
+		max-width: calc(100vw - 6vw);
 		margin-left: auto;
 		margin-right: auto;
 		box-sizing: border-box;
+	}
+	.bonus-announcement--mobile .bonus-announcement-hint {
 		white-space: nowrap;
 	}
 	.bonus-announcement--mobile .bonus-announcement-headline {
@@ -975,5 +1211,208 @@
 		bottom: clamp(12px, 3.5vh, 32px);
 		font-size: 3.5vw;
 		line-height: 1.2;
+	}
+
+	/* ─── Treasure-win congratulations screen ─────────────────────────────────────────────────────── */
+	/* Content sits in the upper half so the treasure table can rise into the lower half beneath it. */
+	.bonus-announcement--treasure {
+		justify-content: flex-start;
+	}
+	.bonus-announcement--treasure .bonus-announcement-main {
+		position: relative;
+		z-index: 2;
+		/* Sit lower on the screen so the value drops into the treasure zone (matches the reference). */
+		margin-top: clamp(44px, 22vh, 150px);
+		gap: clamp(8px, 2vh, 22px);
+	}
+	/* "YOU HAVE WON" subheading: cream fill + gold gradient outline (the fill starts light enough that it
+	   reads distinctly on top of the gold rim), smaller than the CONGRATULATIONS headline (overrides --win). */
+	.bonus-announcement--treasure .bonus-announcement-reward {
+		/* Low min so the text keeps shrinking with the viewport instead of pinning at a min size and
+		   overflowing on narrow/high-DPI screens — the 4.7vw scaling keeps it on one line at any width. */
+		font-size: clamp(16px, 4.7vw, 68px);
+		/* Wider than the Figma spec's 0.06em — bumped further for more visible breathing room between
+		   characters. Line-height ~0.945 (121/128) still matches the spec. */
+		letter-spacing: 0.12em;
+		line-height: 0.945;
+		--announcement-stroke-width: 0.13em;
+		/* Same warm-yellow glow as the win value (soft halo hugging the glyphs) + a soft dark drop. */
+		--announcement-glow-shadow:
+			0 0 0.42em rgba(255, 196, 62, 0.75), 0 0 0.95em rgba(255, 178, 44, 0.45);
+		--announcement-highlight-shadow: 0 0.045em 0.04em rgba(0, 0, 0, 0.32);
+	}
+	/* Gradient outline via the transparent-stroke + background-clip trick (see the headline for the how). */
+	.bonus-announcement--treasure .bonus-announcement-reward .bonus-announcement-text-stroke {
+		-webkit-text-stroke-color: transparent;
+		background-image: linear-gradient(180deg, #f0b743 6%, #ffb617 48%, #d08a1b 100%);
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+	}
+	/* Fill: the Figma gradient (cream → tan → gold), exact stops. */
+	.bonus-announcement--treasure .bonus-announcement-text-fill--reward {
+		background-image: linear-gradient(180deg, #fbeccd 0%, #d4b777 56.7%, #d18a16 81.67%);
+	}
+	/* THE FIX for the cut-off "!" and "Y": `background-clip: text` only paints the gradient within each
+	   span's own box, but the `-webkit-text-stroke` ink of the FIRST and LAST glyphs extends BEYOND that
+	   box — so their outer outline had no gradient behind it and vanished. Horizontal padding widens each
+	   span's background box past the glyphs so the gradient reaches the stroke overflow. Applied to BOTH
+	   spans (stroke + fill) equally so they stay registered on top of each other. */
+	.bonus-announcement--treasure .bonus-announcement-headline > *,
+	.bonus-announcement--treasure .bonus-announcement-reward > * {
+		/* Vertical padding too (not just inline): the line-height is < 1em, so tall glyphs like "!" poke
+		   ABOVE the line box and the gradient didn't reach their tops either — this widens the background
+		   box on all sides. */
+		padding: 0.16em 0.18em;
+	}
+
+	/* Each title row (CONGRATULATIONS + YOU HAVE WON) carries the SAME warm-yellow glow as the win value
+	   (a soft halo hugging the glyphs), one per row — via the fill span's --announcement-glow-shadow. */
+	.bonus-announcement--treasure .bonus-announcement-headline {
+		/* Low min (overrides --win's 44px) so "CONGRATULATIONS!" keeps shrinking with the viewport and
+		   never overflows/clips on narrow or high-DPI screens — 7.2vw keeps it on one line at any width.
+		   Unchanged on normal/wide screens where 7.2vw is already above the min. */
+		font-size: clamp(22px, 7.2vw, 100px);
+		/* Wider gap between characters (overrides the base 0.02em). */
+		letter-spacing: 0.08em;
+		/* Kept modest so the fill gradient (the letter body) dominates and the outline is just a rim. */
+		--announcement-stroke-width: 0.08em;
+		--announcement-glow-shadow:
+			0 0 0.42em rgba(255, 196, 62, 0.75), 0 0 0.95em rgba(255, 178, 44, 0.45);
+		--announcement-highlight-shadow: 0 0.05em 0.08em rgba(0, 0, 0, 0.3);
+	}
+	/* CONGRATULATIONS outline: a gradient instead of a flat colour. `-webkit-text-stroke-color` can't take
+	   a gradient directly, so the stroke span's glyph+stroke geometry is widened with a TRANSPARENT stroke
+	   (which still counts for `background-clip: text`'s mask) and painted via the gradient background —
+	   only the rim beyond the fill span's edge is visible, reading as a gradient outline. The outline is
+	   a DARKER golden-brown than the fill so the fill reads distinctly on top (they'd blend otherwise). */
+	.bonus-announcement--treasure .bonus-announcement-headline .bonus-announcement-text-stroke {
+		-webkit-text-stroke-color: transparent;
+		background-image: linear-gradient(180deg, #bd8018 6%, #9a6011 48%, #6e430b 100%);
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+	}
+	.bonus-announcement--treasure .bonus-announcement-text-fill--headline {
+		//background-image: linear-gradient(180deg, #f5b936 0%, #ebad26 57%, #d18a16 82%);
+	}
+
+	/* The win value in the AustereBlackCapsSSK face: white glyphs with a golden-brown outline, a black
+	   drop shadow and a warm yellow glow (per the reference). Two overlaid spans — a stroke layer that
+	   carries the outline + glow + shadow, and a white fill on top. Pops in just after the headline/reward. */
+	.congrats-value {
+		position: relative;
+		z-index: 2;
+		display: inline-grid;
+		justify-items: center;
+		margin-top: clamp(6px, 2.2vh, 26px);
+		font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
+		font-size: clamp(56px, 7.6vw, 144px);
+		line-height: 1.1;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0;
+		transform: scale(0.4);
+	}
+	.congrats-value--in {
+		animation: bonus-announcement-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.24s forwards;
+	}
+	.congrats-value-stroke,
+	.congrats-value-fill {
+		grid-area: 1 / 1;
+		/* trailing letter-spacing pushes the glyphs left of centre — pad the start to re-centre. */
+		padding-left: 0.06em;
+	}
+	.congrats-value-stroke {
+		color: transparent;
+		-webkit-text-stroke: 0.09em #6d460f;
+		paint-order: stroke fill;
+		text-shadow:
+			0 0.05em 0 #6d460f,
+			0.015em 0.09em 0.04em rgba(0, 0, 0, 0.6),
+			0 0 0.42em rgba(255, 196, 62, 0.75),
+			0 0 0.95em rgba(255, 178, 44, 0.45);
+	}
+	.congrats-value-fill {
+		color: #e9e4e4;
+	}
+	/* Treasure table: rises up from the bottom as the message pops in, then holds. It hangs BELOW the
+	   announcement's bottom edge (translateY 103%), so while the whole screen is still sliding down that
+	   overhang would sweep across the view — keep it opacity:0 until the slide finishes (`--in` fires at
+	   ANNOUNCEMENT_SLIDE_MS), at which point it's off the bottom edge and rises cleanly into place. */
+	.congrats-treasure {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		width: 100%;
+		z-index: 1;
+		pointer-events: none;
+		opacity: 0;
+		transform: translateY(103%);
+		transition: transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	.congrats-treasure--in {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	.congrats-treasure-img {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.congrats-sparkles {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+	/* Star sparkles twinkle in place over the hoard / the value (positions + size set inline). */
+	.congrats-sparkle {
+		position: absolute;
+		height: auto;
+		transform: translate(-50%, -50%) scale(0.2);
+		opacity: 0;
+		will-change: transform, opacity;
+		filter: drop-shadow(0 0 0.25em rgba(255, 255, 255, 0.55));
+		animation-name: congrats-sparkle-twinkle;
+		animation-timing-function: ease-in-out;
+		animation-iteration-count: infinite;
+		animation-play-state: paused;
+	}
+	.congrats-sparkles--on .congrats-sparkle {
+		animation-play-state: running;
+	}
+	@keyframes congrats-sparkle-twinkle {
+		0% {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
+		}
+		50% {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1) rotate(30deg);
+		}
+		100% {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.2) rotate(60deg);
+		}
+	}
+
+	/* Mobile / portrait treasure-win sizing. */
+	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-main {
+		margin-top: clamp(30px, 12vh, 120px);
+	}
+	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-headline {
+		/* Dialed back from the desktop 0.08em — at mobile's 10vw font-size + `white-space: nowrap`,
+		   the full tracking pushed "CONGRATULATIONS!" past its box and got clipped (the "!" vanished off
+		   the right edge). Still wider than the pre-treasure 0.02em default. */
+		letter-spacing: 0.03em;
+	}
+	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-reward {
+		font-size: 6vw;
+		/* Same reasoning as the headline above — dialed back from the desktop 0.12em so it can't overflow. */
+		letter-spacing: 0.05em;
+	}
+	.bonus-announcement--mobile .congrats-value {
+		font-size: 13vw;
 	}
 </style>

@@ -83,12 +83,13 @@
 	const betPerBallLabel = $derived(
 		stateUrlDerived.social() ? 'Play per ball' : context.i18nDerived.t('Bet per ball'),
 	);
+	// Left-side read-only field showing the current total wager (bet-per-ball × ball-per-drop, or the
+	// hovered Autobet run cost). "Win bet" is the design label; Social Mode avoids the restricted "Bet".
+	const winBetLabel = $derived(stateUrlDerived.social() ? 'Total play' : 'Win bet');
 	// Total bet shown in the plaque under PLAY (and the mobile total cards): the single-drop total
 	// normally, or — while an Autobet count option is hovered — the whole run's cost (per-drop × rounds).
 	const displayTotalBet = $derived(
-		hoveredAutoRounds != null
-			? props.totalBetAmount * hoveredAutoRounds
-			: props.totalBetAmount,
+		hoveredAutoRounds != null ? props.totalBetAmount * hoveredAutoRounds : props.totalBetAmount,
 	);
 	// Belt-and-braces reset: the panel can close from many paths (click-outside, other-panel-open,
 	// autobet stop, select, …), not just mouse-out. Whenever the panel is not open, the hover preview
@@ -532,6 +533,17 @@
 	/>
 {/snippet}
 
+<!-- Mobile top-row cards (Bet / Ball per drop / Bet per ball) use a dedicated frame asset, distinct
+     from the shared desktop/mobile-popup frame above. -->
+{#snippet mobileTopCardFrame()}
+	<img
+		class="bp-field-frame"
+		src={staticUrl('img/betting-component-frame-mobile.png')}
+		alt=""
+		aria-hidden="true"
+	/>
+{/snippet}
+
 <!-- The desktop main action button is one round plaque across every state (play / loading / autobet /
      bonus count); only what sits on top of it changes. -->
 {#snippet mainButtonBase()}
@@ -547,21 +559,93 @@
 	/>
 {/snippet}
 
+<!-- Bet-per-ball stat field. Rendered in the RIGHT group normally (next to Ball per drop), but moved
+     into the LEFT group during a bonus round (to the left of Autobet) — hence a shared snippet. -->
+{#snippet betPerBallField()}
+	<div class="bp-field bp-field--bet bp-field--select bp-field--bet-controls bp-bet-presets-wrap">
+		{@render bettingFieldFrame()}
+		<span class="bp-field-label">{betPerBallLabel}</span>
+		<div class="bp-bet-input-wrap">
+			<button
+				type="button"
+				class="bp-stepper-btn bp-stepper-btn--decrease"
+				disabled={isBetAmountStepDisabled(-1)}
+				aria-label="Decrease bet per ball"
+				onclick={() => adjustBetAmountStep(-1)}
+			>
+				<img
+					src={staticUrl('img/betting-component-input-decrease.png')}
+					alt=""
+					aria-hidden="true"
+				/>
+			</button>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="bp-bet-input-mid"
+				class:bp-bet-input-mid--disabled={wagerControlsLocked}
+				role="button"
+				tabindex={wagerControlsLocked ? -1 : 0}
+				aria-disabled={wagerControlsLocked}
+				aria-label="Open bet per ball presets"
+				onmousedown={(e) => e.preventDefault()}
+				onclick={onBetPerBallPanelTrigger}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ')
+						onBetPerBallPanelTrigger(e as unknown as MouseEvent);
+				}}
+			>
+				<span class="bp-select-display" aria-live="polite">
+					{formatCompactAmount(props.betAmount)}
+				</span>
+			</div>
+			<button
+				type="button"
+				class="bp-stepper-btn bp-stepper-btn--increase"
+				disabled={isBetAmountStepDisabled(1)}
+				aria-label="Increase bet per ball"
+				onclick={() => adjustBetAmountStep(1)}
+			>
+				<img
+					src={staticUrl('img/betting-component-input-increase.png')}
+					alt=""
+					aria-hidden="true"
+				/>
+			</button>
+		</div>
+		{#if betPresetOpen}
+			<div class="bp-bet-presets-panel">
+				{#each availableBetPresets as preset}
+					<button
+						type="button"
+						class="bp-bet-presets-option"
+						class:bp-bet-presets-option--active={props.betAmount === preset}
+						disabled={wagerControlsLocked}
+						onclick={() => selectBetPerBallOption(preset)}
+					>
+						{formatCompactAmount(preset)}
+					</button>
+				{/each}
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
 {#if props.mobile}
 	<div class="mobile-hud">
 		<div class="mobile-top-row">
 			<div class="mobile-top-card">
-				{@render bettingFieldFrame()}
+				{@render mobileTopCardFrame()}
 				<span class="mobile-top-card-label">{betLabel}</span>
 				<span class="mobile-top-card-value">{formatMoney(displayTotalBet)}</span>
 			</div>
 			<div class="mobile-top-card">
-				{@render bettingFieldFrame()}
+				{@render mobileTopCardFrame()}
 				<span class="mobile-top-card-label">{context.i18nDerived.t('Ball per drop')}</span>
 				<span class="mobile-top-card-value">{ballPerDropDisplay}</span>
 			</div>
 			<div class="mobile-top-card">
-				{@render bettingFieldFrame()}
+				{@render mobileTopCardFrame()}
 				<span class="mobile-top-card-label">{betPerBallLabel}</span>
 				<span class="mobile-top-card-value">{formatCompactAmount(props.betAmount)}</span>
 			</div>
@@ -639,6 +723,7 @@
 				<button
 					type="button"
 					class="mobile-icon-btn mobile-icon-btn--coins"
+					class:mobile-icon-btn--on={mobileBetPopupOpen}
 					aria-expanded={mobileBetPopupOpen}
 					aria-label="Open bet settings"
 					onclick={toggleMobileBetPopup}
@@ -803,75 +888,25 @@
 		<div class="bottom-panel-form">
 			<div class="bottom-panel-chrome">
 				<div class="bottom-panel-row">
-					<!-- Layout follows the reference art: Bet per ball | Auto | PLAY (with bet-total pill) |
-					     Fast | Ball per drop. Balance sits in the upper-left BalanceCard; the Bet-total and
-					     Win stat fields were removed (the bet total now shows in the pill under PLAY). -->
-					<div
-						class="bp-field bp-field--bet bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
-					>
-						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{betPerBallLabel}</span>
-						<div class="bp-bet-input-wrap">
-							<button
-								type="button"
-								class="bp-stepper-btn bp-stepper-btn--decrease"
-								disabled={isBetAmountStepDisabled(-1)}
-								aria-label="Decrease bet per ball"
-								onclick={() => adjustBetAmountStep(-1)}
-							>
-								<img
-									src={staticUrl('img/betting-component-input-decrease.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-							</button>
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<div
-								class="bp-bet-input-mid"
-								class:bp-bet-input-mid--disabled={wagerControlsLocked}
-								role="button"
-								tabindex={wagerControlsLocked ? -1 : 0}
-								aria-disabled={wagerControlsLocked}
-								aria-label="Open bet per ball presets"
-								onmousedown={(e) => e.preventDefault()}
-								onclick={onBetPerBallPanelTrigger}
-								onkeydown={(e) => {
-									if (e.key === 'Enter' || e.key === ' ')
-										onBetPerBallPanelTrigger(e as unknown as MouseEvent);
-								}}
-							>
-								<span class="bp-select-display" aria-live="polite">
-									{formatCompactAmount(props.betAmount)}
+					<!-- Layout follows the reference art: [Balance | Win bet] on the left, the Auto | PLAY |
+					     Fast cluster centred, and [Bet per ball | Ball per drop] on the right. Balance itself
+					     sits in the standalone BalanceCard (to the left of the Win-bet field); the total-bet
+					     pill that used to hang under PLAY is gone — the total now shows in the Win-bet field. -->
+					<div class="bp-side-group bp-side-group--left">
+						{#if stateGame.bonusRoundActive}
+							<!-- During a bonus round the Win-bet total has no meaning (free balls), so Bet per
+							     ball takes the left slot instead — to the left of Autobet — and Ball per drop
+							     stands alone on the right. -->
+							{@render betPerBallField()}
+						{:else}
+							<!-- Win bet: read-only total wager (bet-per-ball × ball-per-drop, or a hovered
+							     Autobet run cost). No steppers — display only. -->
+							<div class="bp-field bp-field--win-bet" aria-label="Total bet">
+								{@render bettingFieldFrame()}
+								<span class="bp-field-label">{winBetLabel}</span>
+								<span class="bp-select-display bp-win-bet-value" aria-live="polite">
+									{formatMoney(displayTotalBet)}
 								</span>
-							</div>
-							<button
-								type="button"
-								class="bp-stepper-btn bp-stepper-btn--increase"
-								disabled={isBetAmountStepDisabled(1)}
-								aria-label="Increase bet per ball"
-								onclick={() => adjustBetAmountStep(1)}
-							>
-								<img
-									src={staticUrl('img/betting-component-input-increase.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-							</button>
-						</div>
-						{#if betPresetOpen}
-							<div class="bp-bet-presets-panel">
-								{#each availableBetPresets as preset}
-									<button
-										type="button"
-										class="bp-bet-presets-option"
-										class:bp-bet-presets-option--active={props.betAmount === preset}
-										disabled={wagerControlsLocked}
-										onclick={() => selectBetPerBallOption(preset)}
-									>
-										{formatCompactAmount(preset)}
-									</button>
-								{/each}
 							</div>
 						{/if}
 					</div>
@@ -1003,56 +1038,50 @@
 								<img src={staticUrl('img/fast-game-btn.png')} alt="" aria-hidden="true" />
 							</button>
 						</div>
-
-						<!-- Total bet (bet-per-ball × ball-per-drop) on a plaque tucked under the PLAY button.
-						     A sibling of the buttons (absolutely positioned), so it never shifts the
-						     Auto | PLAY | Fast row that BalanceCard's position is solved against. -->
-						<div class="bp-play-total" aria-label="Total bet">
-							<img
-								class="bp-play-total-bg"
-								src={staticUrl('img/empty_play_balance.png')}
-								alt=""
-								aria-hidden="true"
-							/>
-							<span class="bp-play-total-value" aria-live="polite">
-								{formatMoney(displayTotalBet)}
-							</span>
-						</div>
 					</div>
 
-					<div class="bp-field bp-field--select bp-field--bet-controls">
-						{@render bettingFieldFrame()}
-						<span class="bp-field-label">{context.i18nDerived.t('Ball per drop')}</span>
-						<div class="bp-bet-input-wrap">
-							<button
-								type="button"
-								class="bp-stepper-btn bp-stepper-btn--decrease"
-								disabled={isBallPerDropStepDisabled(-1)}
-								aria-label="Decrease ball per drop"
-								onclick={() => adjustBallPerDrop(-1)}
-							>
-								<img
-									src={staticUrl('img/betting-component-input-decrease.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-							</button>
-							<div class="bp-bet-input-mid">
-								<span class="bp-select-display" aria-live="polite">{ballPerDropDisplay}</span>
+					<!-- Right group: Bet per ball (nearest the centre) then Ball per drop, mirroring the
+					     Balance | Win-bet pair on the left. During a bonus round Bet per ball moves to the
+					     LEFT group, leaving Ball per drop alone here. -->
+					<div class="bp-side-group bp-side-group--right">
+						{#if !stateGame.bonusRoundActive}
+							{@render betPerBallField()}
+						{/if}
+
+						<div class="bp-field bp-field--select bp-field--bet-controls">
+							{@render bettingFieldFrame()}
+							<span class="bp-field-label">{context.i18nDerived.t('Ball per drop')}</span>
+							<div class="bp-bet-input-wrap">
+								<button
+									type="button"
+									class="bp-stepper-btn bp-stepper-btn--decrease"
+									disabled={isBallPerDropStepDisabled(-1)}
+									aria-label="Decrease ball per drop"
+									onclick={() => adjustBallPerDrop(-1)}
+								>
+									<img
+										src={staticUrl('img/betting-component-input-decrease.png')}
+										alt=""
+										aria-hidden="true"
+									/>
+								</button>
+								<div class="bp-bet-input-mid">
+									<span class="bp-select-display" aria-live="polite">{ballPerDropDisplay}</span>
+								</div>
+								<button
+									type="button"
+									class="bp-stepper-btn bp-stepper-btn--increase"
+									disabled={isBallPerDropStepDisabled(1)}
+									aria-label="Increase ball per drop"
+									onclick={() => adjustBallPerDrop(1)}
+								>
+									<img
+										src={staticUrl('img/betting-component-input-increase.png')}
+										alt=""
+										aria-hidden="true"
+									/>
+								</button>
 							</div>
-							<button
-								type="button"
-								class="bp-stepper-btn bp-stepper-btn--increase"
-								disabled={isBallPerDropStepDisabled(1)}
-								aria-label="Increase ball per drop"
-								onclick={() => adjustBallPerDrop(1)}
-							>
-								<img
-									src={staticUrl('img/betting-component-input-increase.png')}
-									alt=""
-									aria-hidden="true"
-								/>
-							</button>
 						</div>
 					</div>
 				</div>

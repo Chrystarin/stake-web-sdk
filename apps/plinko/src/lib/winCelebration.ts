@@ -48,6 +48,9 @@ export const WIN_COIN_ART = 'img/win_popup/coin.png';
 /** Digit-glyph art for the counter (silver 3D numerals 0–9). */
 export const winDigitArt = (digit: string): string => `img/win_popup/${digit}.png`;
 
+/** Decimal-point glyph art, matched to the digit style (silver 3D dot). */
+export const WIN_DOT_ART = 'img/win_popup/dot.png';
+
 /**
  * Sequence timing (ms), all measured from the moment the overlay mounts. The overlay owns its own
  * lifecycle end-to-end: reveal → count-up → hold → merge → fade, then it clears `showWinPopup`.

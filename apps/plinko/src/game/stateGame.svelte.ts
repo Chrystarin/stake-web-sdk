@@ -236,7 +236,7 @@ export const stateGame = $state({
 	resultRate: 0,
 	resultAmount: 0,
 	soundEnabled: true,
-	musicEnabled: false,
+	musicEnabled: true,
 });
 
 export const meterController = createMeterController(stateGame);

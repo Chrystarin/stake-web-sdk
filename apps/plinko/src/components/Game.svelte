@@ -12,11 +12,7 @@
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
-	import {
-		canAffordPlinkoWager,
-		plinkoWagerAmount,
-		snapStakeToBetLevels,
-	} from '../game/plinkoBet';
+	import { canAffordPlinkoWager, plinkoWagerAmount, snapStakeToBetLevels } from '../game/plinkoBet';
 	import {
 		buyBonusModeName,
 		syncPlinkoBetModeFromUi,
@@ -69,7 +65,7 @@
 	import { isPlinkoOffline } from '../game/plinkoConnection';
 
 	import {
-		displayCurrency,
+		currencySign,
 		isPortraitGameLayout,
 		WIN_FRACTION_DIGITS,
 		formatWinAmount,
@@ -770,10 +766,10 @@
 	{#if stateGame.bonusEndAnnouncementOpen}
 		<BonusRoulette
 			mode="message"
-			messageTitle="WIN"
-			messageValue="{formatWinAmount(stateGame.bonusEndWinAmount)} {displayCurrency(
-				stateBet.currency,
-			)}"
+			treasureWin
+			messageTitle="CONGRATULATIONS!"
+			messageValue="YOU HAVE WON"
+			winValue={formatWinAmount(stateGame.bonusEndWinAmount, currencySign(stateBet.currency))}
 			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
 			autoDismiss={isReplay}
 			onClosed={onBonusEndAnnouncementClosed}
@@ -783,8 +779,10 @@
 	{#if devBonusCongratulationsPreviewOpen}
 		<BonusRoulette
 			mode="message"
+			treasureWin
 			messageTitle="CONGRATULATIONS!"
-			messageValue="YOU WON 50 DROPS"
+			messageValue="YOU HAVE WON"
+			winValue={formatWinAmount(1733, currencySign(stateBet.currency))}
 			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
 			onClosed={() => {
 				devBonusCongratulationsPreviewOpen = false;

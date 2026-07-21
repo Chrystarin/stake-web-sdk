@@ -48,6 +48,9 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/free_bonus_roulette_v2/wheel_segment_highlight.png',
 	'img/announcement-message-background.png',
 	'img/announcement-message-background-mobile.png',
+	// Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen (see BonusRoulette treasureWin variant).
+	'img/congratulations_screen/treasure_table.png',
+	'img/congratulations_screen/sparkle.png',
 
 	// Betting panel (desktop + mobile)
 	'img/betting-component-frame.png',
@@ -111,6 +114,7 @@ const FONT_SPECS: readonly string[] = [
 	"1rem 'PotatoSans'",
 	"1rem 'Perpetua'",
 	"400 1rem 'Righteous'",
+	"400 1rem 'AustereBlackCapsSSK'",
 ];
 
 /** Load + decode a single image. Always resolves — a missing asset must never block the loader. */

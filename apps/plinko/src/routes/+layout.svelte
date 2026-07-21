@@ -1,5 +1,4 @@
 <script lang="ts">
-
 	import { type Snippet } from 'svelte';
 
 	import { GlobalStyle } from 'components-ui-html';
@@ -16,28 +15,16 @@
 
 	import { staticUrl } from '../lib/staticUrl';
 
-
-
 	import messagesMap from '../i18n/messagesMap';
-
-
 
 	type Props = { children: Snippet };
 
-
-
 	const props: Props = $props();
 
-
-
 	setContext();
-
 </script>
 
-
-
 <svelte:head>
-
 	{@html `<style>
 
 @font-face{font-family:'Instrument Sans';src:url(${JSON.stringify(staticUrl('fonts/Instrument_Sans/static/InstrumentSans-Regular.ttf'))}) format('truetype');font-weight:400;}
@@ -66,47 +53,29 @@
 
 @font-face{font-family:'Righteous';src:url(${JSON.stringify(staticUrl('fonts/Righteous/Righteous-Regular.ttf'))}) format('truetype');font-weight:400;font-style:normal;}
 
+@font-face{font-family:'AustereBlackCapsSSK';src:url(${JSON.stringify(staticUrl('fonts/AustereBlackCapsSSK-Regular.ttf'))}) format('truetype');font-weight:400;font-style:normal;}
+
 </style>`}
-
 </svelte:head>
-
-
 
 <div class="plinko-app-shell">
 	<div class="plinko-app-shell-content">
-
 		<GlobalStyle>
-
 			<PlinkoAuthenticate>
-
 				<LoadI18n {messagesMap}>
-
 					<Game />
-
 				</LoadI18n>
-
 			</PlinkoAuthenticate>
-
 		</GlobalStyle>
-
-
 
 		<LoaderCasinoTvLogo />
 
-
-
 		{@render props.children()}
-
 	</div>
-
 </div>
 
-
-
 <style>
-
 	.plinko-app-shell {
-
 		position: relative;
 
 		min-height: 100vh;
@@ -116,13 +85,9 @@
 		overflow: hidden;
 
 		isolation: isolate;
-
 	}
 
-
-
 	.plinko-app-shell-content {
-
 		position: relative;
 
 		z-index: 1;
@@ -130,8 +95,5 @@
 		min-height: 100vh;
 
 		min-height: 100dvh;
-
 	}
-
 </style>
-

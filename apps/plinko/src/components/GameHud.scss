@@ -14,9 +14,8 @@
 .game-bottom-panel {
 	position: absolute;
 	left: 50%;
-	/* Lifted 0.75vw off the viewport bottom so the scaled-down PLAY button clears the panel's inner
-	   padding by enough to fit the total-bet plaque BELOW it (see .bp-play-total). Without the lift,
-	   the pill would extend past the viewport's bottom edge and be clipped. */
+	/* Lifted 0.75vw off the viewport bottom so the scaled-down panel clears the viewport's bottom edge
+	   (also gives the BalanceCard, solved against this panel's geometry, its breathing room). */
 	bottom: 0.75vw;
 	/* Two transforms combined into one declaration (they don't stack across multiple `transform` rules
 	   — the later one wins). translateX(-50%) still handles the horizontal centring; scale(0.9) shrinks
@@ -126,9 +125,7 @@
 	   padding on each side. Derived rather than set directly because the gutters are square (tied to
 	   --bp-field-height) and must NOT grow with width — so every width change lands in the label/value
 	   area, and the steppers keep hugging the frame edges. */
-	--bp-field-base-width: calc(
-		var(--bp-field-plaque-width) - 2 * (var(--bp-field-height) + 0.2vw)
-	);
+	--bp-field-base-width: calc(var(--bp-field-plaque-width) - 2 * (var(--bp-field-height) + 0.2vw));
 
 	display: flex;
 	flex-direction: row;
@@ -172,12 +169,35 @@
 	}
 }
 
-/* The two remaining stat fields sit at the row edges: Bet per ball (left) and Ball per drop
-   (right), flanking the centered control cluster. */
-.bottom-panel-row > .bp-field:first-child {
+/* Left / right groups flank the centered control cluster. Both are `flex: 1 1 0` so they take equal
+   width regardless of how many fields each holds — which keeps the centre cluster (and therefore the
+   PLAY button) locked on the viewport's centre line, the invariant BalanceCard.svelte's `left` is
+   solved against. The left group holds the Win-bet field (flush right, so it lands exactly where the
+   old Bet-per-ball field sat — Balance sits to ITS left); the right group holds Bet per ball then Ball
+   per drop (flush left). Row gap = --bp-column-gap, so each group's inner edge sits one gap off the
+   cluster, matching the old single-field spacing. */
+.bp-side-group {
+	flex: 1 1 0;
+	min-width: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: var(--bp-column-gap);
+}
+
+.bp-side-group--left {
+	/* Win-bet hugs the cluster: its right edge lands where the old Bet-per-ball right edge was. */
+	justify-content: flex-end;
+}
+
+.bp-side-group--right {
+	justify-content: flex-start;
+}
+
+.bp-side-group--right > .bp-field:first-child {
 	--bp-field-scale: var(--bp-width-bet-per-ball);
 }
-.bottom-panel-row > .bp-field:last-child {
+.bp-side-group--right > .bp-field:last-child {
 	--bp-field-scale: var(--bp-width-ball-per-drop);
 }
 
@@ -236,6 +256,41 @@
 
 .coin-fly-target--bump {
 	animation: coin-fly-target-bump 260ms ease-out;
+}
+
+/* Win bet — a read-only display field on the left (label over the total-wager value). Borrows the
+   same plaque frame + typography as the stat fields, but has no steppers, so the label/value block
+   spans the full width and centres. Its vertical rhythm mirrors .bp-field--bet-controls (same top/
+   bottom rise off the plaque centre) so its label + value line up with Bet per ball / Ball per drop
+   across the row. */
+.bp-field--win-bet {
+	grid-template-rows: minmax(0, auto) minmax(0, auto);
+	overflow: hidden;
+	/* Match the stat fields' PLAQUE width exactly: same content width (--bp-field-base-width, set on
+	   .bp-field) plus the same horizontal gutter the bet-controls fields reserve for their steppers
+	   (var(--bp-field-height) + 0.2vw each side). Without this the win-bet plaque is only base-width +
+	   the default 0.35vw padding, so it reads noticeably narrower than Bet per ball / Ball per drop.
+	   Top/bottom keep the shared label-rise so its label/value line up with the stat fields across the
+	   row. */
+	padding: calc(0.35vw - var(--bp-field-label-rise)) calc(var(--bp-field-height) + 0.2vw)
+		calc(0.35vw + var(--bp-field-label-rise));
+
+	> .bp-field-label {
+		grid-column: 1;
+		grid-row: 1;
+		text-align: center;
+		align-self: end;
+		width: 100%;
+	}
+
+	> .bp-win-bet-value {
+		grid-column: 1;
+		grid-row: 2;
+		align-self: start;
+		justify-content: center;
+		text-align: center;
+		width: 100%;
+	}
 }
 
 .bp-field--bet-total {
@@ -433,7 +488,9 @@
 	align-items: stretch;
 	padding: 0;
 	cursor: pointer;
-	transition: transform 0.12s ease, opacity 0.12s ease;
+	transition:
+		transform 0.12s ease,
+		opacity 0.12s ease;
 	box-sizing: border-box;
 
 	img {
@@ -464,9 +521,11 @@
 
 .bp-bet-presets-panel {
 	position: absolute;
-	/* Bet per ball sits at the row's left edge now — open the panel aligned to that edge so its
-	   27vw width can't spill off the left of the viewport. */
-	left: 0;
+	/* Bet per ball now sits in the RIGHT group (just right of the PLAY cluster) — open the panel
+	   aligned to the field's right edge so its 27vw width opens leftward, toward the centre, and can't
+	   spill off the right of the viewport. */
+	right: 0;
+	left: auto;
 	bottom: calc(100% + 0.75vw);
 	transform: none;
 	width: 27.46vw;
@@ -570,71 +629,16 @@
 		0 0 0.62vw rgba(255, 155, 73, 0.24);
 }
 
-/* Auto | PLAY | Fast, centered between the two edge fields (reference art). */
+/* Auto | PLAY | Fast, centered between the two side groups (reference art). `flex: 0 0 auto` keeps it
+   at its intrinsic width while the flex:1 side groups split the remaining space equally, so this
+   cluster stays on the viewport's centre line — the invariant BalanceCard.svelte solves against. */
 .bp-center-cluster {
-	/* Positioning context for the total-bet plaque below, which hangs off the PLAY button. Safe: the
-	   Auto | PLAY | Fast children are static flex items (their own absolute panels anchor to their own
-	   `position: relative` wraps), so this only affects the plaque. */
-	position: relative;
 	flex: 0 0 auto;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
 	gap: clamp(0.6vw, 0.9vw, 1.4vw);
-}
-
-/* Total bet (bet-per-ball × ball-per-drop) on a small plaque tucked under the round PLAY button.
-   ⚠️ The bottom panel sits on the viewport's bottom edge (see .game-bottom-panel) and .game-root is
-   `overflow: hidden`, so there is NO room to drop this fully below the disc — it would be clipped.
-   Instead it hangs off the button's lower rim, sitting mostly below the green disc with a slight tuck.
-   Absolutely positioned so it takes NO space in the Auto | PLAY | Fast row: that row's geometry is
-   baked into BalanceCard.svelte's `left`/`bottom`, so its layout must not change. Centred on the
-   cluster, which is symmetric (Auto and Fast share --bp-side-btn-width), so cluster centre = PLAY
-   centre. `bottom`/`height` are the two knobs for how far it hangs — kept clear of the viewport
-   bottom (~0.65vw below the button) so it is never cut off. */
-.bp-play-total {
-	position: absolute;
-	left: 50%;
-	/* Sits FULLY BELOW the round PLAY disc: with pill height 1.4vw, `bottom: -1.4vw` puts the pill's
-	   TOP exactly at the button's bottom edge — no more disc-overlap. Depends on the 10% panel-scale
-	   + the panel's 0.75vw lift off the viewport bottom (see .game-bottom-panel); together they carve
-	   out just enough room for the pill without it clipping past the viewport. */
-	bottom: -1.4vw;
-	transform: translateX(-50%);
-	z-index: 5;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 6vw;
-	height: 1.4vw;
-	padding: 0 0.7vw;
-	box-sizing: border-box;
-	font-family: 'Poppins', 'Instrument Sans', sans-serif;
-	font-weight: 500;
-	font-synthesis: none;
-	font-size: 0.9vw;
-	line-height: 1;
-	letter-spacing: -0.01em;
-	color: #efeadd;
-	white-space: nowrap;
-	pointer-events: none;
-}
-
-.bp-play-total-bg {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: fill;
-	display: block;
-	pointer-events: none;
-	z-index: 0;
-}
-
-.bp-play-total-value {
-	position: relative;
-	z-index: 1;
 }
 
 .bp-btn-play {
@@ -683,7 +687,10 @@
 	   scale 1.059 → 1 and brightness 1.296 → 1 between two frames, with `transition: scale/filter` set
 	   and doing nothing). Amplitude is the only part that can be transitioned. */
 	animation: bp-play-pulse 1.6s ease-in-out infinite paused;
-	transition: transform 0.12s ease, --bp-play-pulse-amt 0.32s ease, opacity 0.12s ease;
+	transition:
+		transform 0.12s ease,
+		--bp-play-pulse-amt 0.32s ease,
+		opacity 0.12s ease;
 	/* Hold-to-drop (bonus free balls): keep a long press a press — no scroll-steal (it would fire
 	   pointercancel and cut the stream), no selection, no iOS long-press callout. */
 	touch-action: none;
@@ -852,7 +859,9 @@
 	line-height: 1;
 	z-index: 4;
 	pointer-events: none;
-	text-shadow: 0 0.08vw 0.28vw rgba(0, 0, 0, 0.9), 0 0 0.5vw rgba(0, 0, 0, 0.75);
+	text-shadow:
+		0 0.08vw 0.28vw rgba(0, 0, 0, 0.9),
+		0 0 0.5vw rgba(0, 0, 0, 0.75);
 }
 
 .bp-auto-wrap {
@@ -881,7 +890,10 @@
 	align-items: center;
 	justify-content: center;
 	filter: drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
-	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
+	transition:
+		transform 0.12s ease,
+		filter 0.12s ease,
+		opacity 0.12s ease;
 	// Off = low opacity (default state).
 	opacity: 0.6;
 
@@ -943,7 +955,10 @@
 	align-items: center;
 	justify-content: center;
 	cursor: pointer;
-	transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
+	transition:
+		transform 0.12s ease,
+		filter 0.12s ease,
+		opacity 0.12s ease;
 	// Off = low opacity (default state).
 	opacity: 0.6;
 
@@ -1124,7 +1139,8 @@
 	// large screens and to still fit on very narrow (≤320px) phones.
 	font-size: clamp(5.15px, 12.2cqi, 13.8px);
 	font-weight: 800;
-	color: #f6be3a;
+	// Match the desktop stat-field label colour (grey), not the mobile gold.
+	color: #a9a1a1;
 	line-height: 1;
 	letter-spacing: -0.02em;
 	text-transform: uppercase;
@@ -1141,7 +1157,8 @@
 	font-size: clamp(11px, 2.38vw, 15px);
 	font-weight: 400;
 	line-height: 1;
-	color: #ffffff;
+	// Match the desktop stat-field value colour (off-white), not pure white.
+	color: #f2f4f6;
 	max-width: 100%;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1188,7 +1205,10 @@
 	justify-content: center;
 	min-width: 0;
 	margin: 0 auto;
-	transition: transform 0.12s ease, opacity 0.12s ease, filter 0.12s ease;
+	transition:
+		transform 0.12s ease,
+		opacity 0.12s ease,
+		filter 0.12s ease;
 
 	img {
 		width: 100%;
@@ -1242,6 +1262,11 @@
 /* Autobet / fast game: off = low opacity, on = full opacity. */
 .mobile-icon-btn--autobet,
 .mobile-icon-btn--fast {
+	opacity: 0.6;
+}
+
+/* Coins / bet-settings toggle: muted to match the other secondary icon buttons. */
+.mobile-icon-btn--coins {
 	opacity: 0.6;
 }
 
