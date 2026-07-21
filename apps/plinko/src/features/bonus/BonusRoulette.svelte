@@ -769,6 +769,7 @@
 			type="button"
 			class="bonus-announcement"
 			class:bonus-announcement--win={props.mode === 'message'}
+			class:bonus-announcement--roulette={props.mode !== 'message'}
 			class:bonus-announcement--treasure={props.treasureWin}
 			class:bonus-announcement--mobile={portrait}
 			class:bonus-announcement--bg-visible={announcementBgVisible}
@@ -1224,10 +1225,17 @@
 		   shadow is wanted. Layered ON TOP of the existing per-row text-shadows; colours/fills untouched. */
 		--congrats-text-shadow: drop-shadow(0.034em 0.068em 0 #000000);
 	}
+	/* Pre-bonus (roulette) congrats screen: give its "CONGRATULATIONS!" headline the SAME text treatment
+	   as the post-bonus treasure screen (gradient outline, warm-gold glow, hard black drop shadow). Only
+	   the headline is matched — the reward row + layout stay as the roulette screen's own. */
+	.bonus-announcement--roulette {
+		--congrats-text-shadow: drop-shadow(0.034em 0.068em 0 #000000);
+	}
 	.bonus-announcement--treasure .bonus-announcement-headline,
 	.bonus-announcement--treasure .bonus-announcement-reward,
 	.bonus-announcement--treasure .congrats-value,
-	.bonus-announcement--treasure .bonus-announcement-hint {
+	.bonus-announcement--treasure .bonus-announcement-hint,
+	.bonus-announcement--roulette .bonus-announcement-headline {
 		filter: var(--congrats-text-shadow);
 	}
 	.bonus-announcement--treasure .bonus-announcement-main {
@@ -1281,7 +1289,8 @@
 	   span's background box past the glyphs so the gradient reaches the stroke overflow. Applied to BOTH
 	   spans (stroke + fill) equally so they stay registered on top of each other. */
 	.bonus-announcement--treasure .bonus-announcement-headline > *,
-	.bonus-announcement--treasure .bonus-announcement-reward > * {
+	.bonus-announcement--treasure .bonus-announcement-reward > *,
+	.bonus-announcement--roulette .bonus-announcement-headline > * {
 		/* Vertical padding too (not just inline): the line-height is < 1em, so tall glyphs like "!" poke
 		   ABOVE the line box and the gradient didn't reach their tops either — this widens the background
 		   box on all sides. */
@@ -1290,7 +1299,8 @@
 
 	/* Each title row (CONGRATULATIONS + YOU HAVE WON) carries the SAME warm-yellow glow as the win value
 	   (a soft halo hugging the glyphs), one per row — via the fill span's --announcement-glow-shadow. */
-	.bonus-announcement--treasure .bonus-announcement-headline {
+	.bonus-announcement--treasure .bonus-announcement-headline,
+	.bonus-announcement--roulette .bonus-announcement-headline {
 		/* Low min (overrides --win's 44px) so "CONGRATULATIONS!" keeps shrinking with the viewport and
 		   never overflows/clips on narrow or high-DPI screens — 7.2vw keeps it on one line at any width.
 		   Unchanged on normal/wide screens where 7.2vw is already above the min. */
@@ -1308,7 +1318,8 @@
 	   (which still counts for `background-clip: text`'s mask) and painted via the gradient background —
 	   only the rim beyond the fill span's edge is visible, reading as a gradient outline. The outline is
 	   a DARKER golden-brown than the fill so the fill reads distinctly on top (they'd blend otherwise). */
-	.bonus-announcement--treasure .bonus-announcement-headline .bonus-announcement-text-stroke {
+	.bonus-announcement--treasure .bonus-announcement-headline .bonus-announcement-text-stroke,
+	.bonus-announcement--roulette .bonus-announcement-headline .bonus-announcement-text-stroke {
 		-webkit-text-stroke-color: transparent;
 		background-image: linear-gradient(180deg, #bd8018 6%, #9a6011 48%, #6e430b 100%);
 		background-clip: text;
@@ -1423,7 +1434,8 @@
 	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-main {
 		margin-top: clamp(30px, 12vh, 120px);
 	}
-	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-headline {
+	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-headline,
+	.bonus-announcement--roulette.bonus-announcement--mobile .bonus-announcement-headline {
 		/* Dialed back from the desktop 0.08em — at mobile's 10vw font-size + `white-space: nowrap`,
 		   the full tracking pushed "CONGRATULATIONS!" past its box and got clipped (the "!" vanished off
 		   the right edge). Still wider than the pre-treasure 0.02em default. */
