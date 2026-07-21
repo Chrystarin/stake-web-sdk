@@ -463,12 +463,13 @@
 		height: calc(var(--wc-banner-text-h) * 2.04);
 	}
 	/* Massive scaled 20% below the normalized base (0.976); Captain scaled 30% above its prior size
-	   (2.366) — per-tier size requests layered on top of the shared cross-tier normalization above. */
+	   (2.366), then bumped a further 15% (2.7209) — per-tier size requests layered on top of the
+	   shared cross-tier normalization above. */
 	.wc-banner[data-tier='massive'] {
 		height: calc(var(--wc-banner-text-h) * 0.976);
 	}
 	.wc-banner[data-tier='captain'] {
-		height: calc(var(--wc-banner-text-h) * 2.366);
+		height: calc(var(--wc-banner-text-h) * 2.7209);
 	}
 	@keyframes wc-banner-pop {
 		0% {

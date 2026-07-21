@@ -1,9 +1,22 @@
 <script lang="ts">
+	import { eventEmitter } from '../game/eventEmitter';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { isPortraitGameLayout } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	const portrait = isPortraitGameLayout();
+
+	// Fire the level-up chime on the rising edge of the overlay opening, so the sound lands the
+	// moment the card pops. The sprite window (see EnableSound) trims the file's leading silence so
+	// there's no dead air before it's heard.
+	let wasOpen = false;
+	$effect(() => {
+		const open = stateGame.bonusLevelUpOverlayOpen;
+		if (open && !wasOpen) {
+			eventEmitter.broadcast({ type: 'soundOnce', name: 'bonusLevelUp' });
+		}
+		wasOpen = open;
+	});
 
 	const levelTitle = $derived(`LEVEL ${stateGame.bonusLevelUpLevel}`);
 	const rewardValue = $derived(`+${stateGame.bonusLevelUpAddedBalls}`);

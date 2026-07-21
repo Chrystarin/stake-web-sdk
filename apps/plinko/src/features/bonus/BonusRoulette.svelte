@@ -1059,7 +1059,7 @@
 		padding: 0 clamp(1rem, 4vw, 2rem);
 		box-sizing: border-box;
 		font-family: 'Perpetua', serif;
-		font-size: clamp(16px, 1.6vw, 26px);
+		font-size: clamp(16px, 2.6vw, 26px);
 		line-height: 1.1;
 		letter-spacing: 0.03em;
 		color: #f0ddaa;
@@ -1225,8 +1225,8 @@
 		margin-top: clamp(44px, 22vh, 150px);
 		gap: clamp(8px, 2vh, 22px);
 	}
-	/* "YOU HAVE WON" subheading: cream fill + gold gradient outline (the fill starts light enough that it
-	   reads distinctly on top of the gold rim), smaller than the CONGRATULATIONS headline (overrides --win). */
+	/* "YOU HAVE WON" subheading: bright Figma cream→gold fill + a warm dark-gold OUTLINE (the reference
+	   look), smaller than the CONGRATULATIONS headline (overrides --win). */
 	.bonus-announcement--treasure .bonus-announcement-reward {
 		/* Low min so the text keeps shrinking with the viewport instead of pinning at a min size and
 		   overflowing on narrow/high-DPI screens — the 4.7vw scaling keeps it on one line at any width. */
@@ -1235,23 +1235,33 @@
 		   characters. Line-height ~0.945 (121/128) still matches the spec. */
 		letter-spacing: 0.12em;
 		line-height: 0.945;
-		--announcement-stroke-width: 0.13em;
-		/* Same warm-yellow glow as the win value (soft halo hugging the glyphs) + a soft dark drop. */
-		--announcement-glow-shadow:
-			0 0 0.42em rgba(255, 196, 62, 0.75), 0 0 0.95em rgba(255, 178, 44, 0.45);
-		--announcement-highlight-shadow: 0 0.045em 0.04em rgba(0, 0, 0, 0.32);
+		/* Thinner than the old 0.13em so the outline reads as a rim, not a colour wash. */
+		--announcement-stroke-width: 0.1em;
 	}
-	/* Gradient outline via the transparent-stroke + background-clip trick (see the headline for the how). */
+	/* Gradient OUTLINE (transparent-stroke + background-clip trick, same as the headline). The colour is a
+	   warm DARK gold (#c8912a→#6e440c) — deliberately darker than the cream fill so the fill reads bright on
+	   top. The old build used a BRIGHT saturated gold here (#f0b743→#d08a1b) at 0.13em, which sat too close
+	   to the fill in lightness and washed the whole word muddy/orange — that (plus a heavy warm glow), not
+	   the text-shadow, was what made it look dark. */
 	.bonus-announcement--treasure .bonus-announcement-reward .bonus-announcement-text-stroke {
 		-webkit-text-stroke-color: transparent;
-		background-image: linear-gradient(180deg, #f0b743 6%, #ffb617 48%, #d08a1b 100%);
+		background-image: linear-gradient(180deg, #c8912a 4%, #a06818 50%, #6e440c 100%);
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 	}
-	/* Fill: the Figma gradient (cream → tan → gold), exact stops. */
+	/* Fill: bright warm cream → gold, matched to the reference art. The literal Figma stops
+	   (#fbeccd / #d4b777 56.7% / #d18a16 81.67%) rendered too dull — the #d4b777 midtone reads as a grey
+	   khaki. Brightened + warmed the midtone and kept the cream holding down ~60% of the glyph so it reads
+	   bright-golden like the reference, not tan. text-shadow = the SAME warm-yellow glow as the CONGRATULATIONS
+	   headline + win value (so all three rows share one halo), then a subtle dark drop for the raised depth.
+	   The dark OUTLINE (above) keeps the glow from muddying the bright fill the way the old bright-gold rim did. */
 	.bonus-announcement--treasure .bonus-announcement-text-fill--reward {
-		background-image: linear-gradient(180deg, #fbeccd 0%, #d4b777 56.7%, #d18a16 81.67%);
+		background-image: linear-gradient(180deg, #fdf2d8 0%, #f2d492 62%, #e2aa2c 90%);
+		text-shadow:
+			0 0 0.42em rgba(255, 196, 62, 0.75),
+			0 0 0.95em rgba(255, 178, 44, 0.45),
+			0 0.05em 0.055em rgba(0, 0, 0, 0.2);
 	}
 	/* THE FIX for the cut-off "!" and "Y": `background-clip: text` only paints the gradient within each
 	   span's own box, but the `-webkit-text-stroke` ink of the FIRST and LAST glyphs extends BEYOND that

@@ -32,6 +32,8 @@
 		// Bonus congratulations screen slide SFX (see sprite windows below).
 		doorClose: staticUrl('sound/door_close.ogg'),
 		doorOpen: staticUrl('sound/door_open.ogg'),
+		// Bonus level-up chime (leading silence trimmed via sprite below).
+		bonusLevelUp: staticUrl('sound/bonus_level_up.mp3'),
 	};
 
 	// Per-sound load options (default: full file at volume 1). The coin-shuffle bed is sliced into two
@@ -50,6 +52,10 @@
 		coinShuffleMulti: { sprite: [2000, 2000] },
 		doorClose: { sprite: [2790, 2260] },
 		doorOpen: { sprite: [3200, 900] },
+		// The clip has ~3.17s of leading silence before the chime (onset measured via Web Audio at
+		// 3.170s). The window starts a hair before onset (3150ms) so the attack isn't clipped and runs
+		// to the end of the file (~6.34s) — so it plays on the sound immediately, no dead air.
+		bonusLevelUp: { sprite: [3150, 3200] },
 	};
 
 	onMount(() => {

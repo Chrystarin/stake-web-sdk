@@ -29,7 +29,11 @@ export type SoundEffectName =
 	// opening-door creak as it slides back up. Both are sprite windows of their source clip
 	// (see EnableSound). See BonusRoulette.
 	| 'doorClose'
-	| 'doorOpen';
+	| 'doorOpen'
+	// Bonus level-up overlay: a chime played the instant the LEVEL x / +free-balls card pops. The
+	// source file has ~3.17s of leading silence, so it's loaded as a sprite window that starts at the
+	// onset (see EnableSound) — the sound fires immediately with no dead air.
+	| 'bonusLevelUp';
 
 /** A [startMs, durationMs] slice of the source file to play instead of the whole thing. */
 export type SoundSprite = [startMs: number, durationMs: number];
