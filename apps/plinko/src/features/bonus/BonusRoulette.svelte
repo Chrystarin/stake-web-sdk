@@ -1217,6 +1217,18 @@
 	/* Content sits in the upper half so the treasure table can rise into the lower half beneath it. */
 	.bonus-announcement--treasure {
 		justify-content: flex-start;
+		/* Hard black drop shadow sitting BENEATH the congratulations text (the reference look). From the
+		   Figma spec's `drop-shadow(5.09502px 10.19px 0 #000)`, converted to em (÷150, the design's
+		   CONGRATULATIONS face) so the offset scales with every row's own font-size and stays responsive.
+		   The spec's warm-gold glow + soft black layers are intentionally dropped — only this beneath-text
+		   shadow is wanted. Layered ON TOP of the existing per-row text-shadows; colours/fills untouched. */
+		--congrats-text-shadow: drop-shadow(0.034em 0.068em 0 #000000);
+	}
+	.bonus-announcement--treasure .bonus-announcement-headline,
+	.bonus-announcement--treasure .bonus-announcement-reward,
+	.bonus-announcement--treasure .congrats-value,
+	.bonus-announcement--treasure .bonus-announcement-hint {
+		filter: var(--congrats-text-shadow);
 	}
 	.bonus-announcement--treasure .bonus-announcement-main {
 		position: relative;
