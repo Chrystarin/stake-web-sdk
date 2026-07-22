@@ -1052,6 +1052,13 @@ export function recordFreeSpinWinHistory(multiplier: number) {
  * next bet until the RGS round is fully closed — otherwise the next `BET` collides with the
  * still-active round and is dropped, soft-locking the game. `isPlaying()` is idle in dev-local
  * play (the actor is bypassed), so flag checks still cover that path.
+ *
+ * Also holds while the full-screen win celebration (`showWinPopup`) is still playing. The next
+ * drop's `plinkoDrop` handler clears `showWinPopup`, so without this the next auto-bet would tear
+ * the banner + payout count-up down mid-animation. This is what was breaking in Fast Mode: the
+ * compressed drop settles the round almost immediately, so the ~WIN_CELEBRATION_TOTAL_MS reveal
+ * never got to finish before the next ball dropped. (In normal speed the slower drop happened to
+ * mask it.) Gating here lets the presentation play out; the celebration auto-dismisses itself.
  */
 function isAutoBetRoundBusy(): boolean {
 	return (
@@ -1062,6 +1069,7 @@ function isAutoBetRoundBusy(): boolean {
 		stateGame.freeSpinRouletteOpen ||
 		stateGame.bonusRouletteOpen ||
 		stateGame.rouletteFlowInProgress ||
+		stateGame.showWinPopup ||
 		stateXstateDerived.isPlaying()
 	);
 }

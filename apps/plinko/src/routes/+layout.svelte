@@ -80,7 +80,10 @@
 
 		min-height: 100vh;
 
-		min-height: 100dvh;
+		/* Match `.game-root`'s `svh` switch (Game.svelte) — keeps this shell's min-height from tracking
+		   the mobile browser chrome (which `dvh` does), so it can't drift out of sync with the inner
+		   game root during an address-bar show/hide triggered mid-touch. */
+		min-height: 100svh;
 
 		overflow: hidden;
 
@@ -94,6 +97,6 @@
 
 		min-height: 100vh;
 
-		min-height: 100dvh;
+		min-height: 100svh;
 	}
 </style>

@@ -454,9 +454,18 @@
 		max-width: 92vw;
 		z-index: 3;
 		transform: translate(-50%, -50%) scale(1);
-		opacity: 1;
+		/* Hidden until `entered` — the pop is gated below so the banner comes in TOGETHER with the
+		   backdrop-dim + rays (all behind the double-rAF guard). Without this the banner played on mount,
+		   2+ frames ahead of the rest, popping onto the still-bright board (the pre-reveal "flash"). */
+		opacity: 0;
 		filter: drop-shadow(0 0.4vh 0.6vh rgba(0, 0, 0, 0.55));
 		transition: opacity 0.6s ease;
+	}
+	/* Enter: only once the hidden start state has painted (`.entered`, set via raf2) do we run the pop.
+	   `backwards` fill (NOT forwards) so after the pop it settles to this rule's opacity:1 and the exit
+	   `opacity:0` transition can still take over. */
+	.wc-overlay.entered .wc-banner {
+		opacity: 1;
 		animation: wc-banner-pop 0.72s ease-out backwards;
 	}
 	.wc-banner[data-tier='epic'] {

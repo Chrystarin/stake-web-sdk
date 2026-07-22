@@ -815,7 +815,15 @@
 
 		height: 100vh;
 
-		height: 100dvh;
+		/* `svh` (small viewport height), NOT `dvh`: `dvh` tracks the mobile browser chrome live, so a
+		   touch/hold on the bottom-anchored Play button (bonus hold-to-drop, autobet holds, etc.) can
+		   make the browser re-show its address bar mid-interaction and shrink `100dvh` — which shrinks
+		   `.game-root`, which shrinks `.game-content`, which the portrait fit-scale below (see
+		   `--portrait-fit-scale`) reads straight off `.game-area`'s leftover flex height. That transform
+		   is shared by the board, bonus meter and bonus-level bars, so the whole game visibly shrinks
+		   for no in-app reason. `svh` is the browser-chrome-MAXIMIZED viewport size — it never changes
+		   during a touch/scroll gesture, so the layout stays put through any hold. */
+		height: 100svh;
 
 		display: flex;
 

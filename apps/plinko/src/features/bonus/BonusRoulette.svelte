@@ -262,7 +262,8 @@
 		{ length: ANNOUNCEMENT_COIN_COUNT },
 		(_, i) => {
 			// Slow fall so the rotation reads as a gentle tumble rather than a spin.
-			const durationS = 5.5 + Math.random() * 3;
+			// 20% faster, then another 20% faster on top: divided by 1.2 twice (1.44 total).
+			const durationS = (5.5 + Math.random() * 3) / 1.44;
 			return {
 				id: i,
 				img: ANNOUNCEMENT_COIN_IMAGES[i % ANNOUNCEMENT_COIN_IMAGES.length],

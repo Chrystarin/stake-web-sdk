@@ -676,10 +676,18 @@
 	/* brightness BEFORE drop-shadow on purpose: filters apply in order, and drop-shadow is generated from
 	   the alpha of whatever it receives. Brightening first leaves the shadow the colour it was declared;
 	   the reverse order would wash the shadow out as the pulse brightens the button. */
-	filter: brightness(1) drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
+	filter: brightness(calc(1 + var(--bp-play-active-boost) * 0.35))
+		drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
 	/* How much of the hover pulse to apply, 0..1. Transitioning THIS — rather than adding/removing the
 	   animation — is what lets the button ease back to rest on mouse-out; see the pulse block below. */
 	--bp-play-pulse-amt: 0;
+	/* How much of the press brightness bump to apply, 0..1 — see the `:active` rule below. Kept OUT of
+	   `transform`/`scale` on purpose: during bonus hold-to-drop the button stays pressed for the whole
+	   streamed hold, and a press-driven scale/transform change there fights the hover pulse's own
+	   `scale` every single ball drop, reading as a stutter that keeps interrupting the breathing motion.
+	   A brightness-only press state layers on top of the pulse (see the keyframes below) instead of
+	   competing with it, so held presses just look brighter without touching the pulse's rhythm. */
+	--bp-play-active-boost: 0;
 	/* The pulse is permanently attached but PAUSED, so an idle HUD ticks nothing. Hover starts its clock
 	   and fades the amplitude in; leaving stops the clock and fades the amplitude back out.
 	   ⚠️ Do NOT "simplify" this to `&:hover { animation: … }`. Removing an animation does NOT fire a
@@ -690,6 +698,7 @@
 	transition:
 		transform 0.12s ease,
 		--bp-play-pulse-amt 0.32s ease,
+		--bp-play-active-boost 0.12s ease,
 		opacity 0.12s ease;
 	/* Hold-to-drop (bonus free balls): keep a long press a press — no scroll-steal (it would fire
 	   pointercancel and cut the stream), no selection, no iOS long-press callout. */
@@ -704,8 +713,12 @@
 		animation-play-state: running;
 	}
 
+	/* Press feedback: brighten, don't shrink — a scale change here would fight the hover pulse's own
+	   `scale` and stutter the breathing motion on every held bonus ball-drop. See --bp-play-active-boost
+	   above for why this is a custom property rather than a `filter` set directly here (the pulse
+	   keyframes always win over a plain declaration, so the boost has to be read INSIDE them). */
 	&:active:not(:disabled):not(.bp-btn-play--soft-disabled) {
-		transform: scale(0.98);
+		--bp-play-active-boost: 1;
 	}
 
 	&:disabled,
@@ -812,6 +825,14 @@
 	initial-value: 0;
 }
 
+/* Registered for the same reason as --bp-play-pulse-amt above — lets the press brightness bump
+   TRANSITION in/out instead of snapping. See --bp-play-active-boost on .bp-btn-play. */
+@property --bp-play-active-boost {
+	syntax: '<number>';
+	inherits: false;
+	initial-value: 0;
+}
+
 /* Hover pulse: the plaque breathes bigger/smaller while brightening and settling back.
 
    Every animated value is scaled by --bp-play-pulse-amt, so at amplitude 0 BOTH keyframes collapse to
@@ -819,11 +840,11 @@
    paused, it overrides the base `filter`), and it can be frozen at ANY phase — off-hover it still
    resolves to rest, because there is nothing left to interpolate between.
 
-   ⚠️ Animates the standalone `scale` property, NOT `transform: scale()`. A CSS animation outranks any
-   normal declaration, so a transform-based pulse would silently swallow
-   `.bp-btn-play:active { transform: scale(0.98) }` — and since a mouse press is ALWAYS preceded by
-   hover, that would kill the press feedback outright, exactly when it matters. `scale` composes with
-   `transform` instead of replacing it, so the press still reads through the pulse (0.98 × the pulse).
+   ⚠️ Animates the standalone `scale` property, NOT `transform: scale()` — a CSS animation outranks any
+   normal declaration, so a transform-based pulse would silently swallow any `:active` transform. That is
+   also why the press state (--bp-play-active-boost) feeds brightness only, never scale/transform: this
+   button is held for whole bonus hold-to-drop streams, and a press-driven scale would otherwise fight
+   the pulse's own `scale` on every ball drop and read as a stutter in the breathing motion.
 
    The drop-shadow is deliberately identical in both keyframes: it plays no part in the pulse, and
    holding it constant means one less value that has to cancel out at amplitude 0. */
@@ -831,11 +852,12 @@
 	0%,
 	100% {
 		scale: 1;
-		filter: brightness(1) drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
+		filter: brightness(calc(1 + var(--bp-play-active-boost) * 0.35))
+			drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
 	}
 	50% {
 		scale: calc(1 + 0.06 * var(--bp-play-pulse-amt));
-		filter: brightness(calc(1 + 0.3 * var(--bp-play-pulse-amt)))
+		filter: brightness(calc(1 + 0.3 * var(--bp-play-pulse-amt) + var(--bp-play-active-boost) * 0.35))
 			drop-shadow(0 0.25vw 0.38vw rgba(0, 0, 0, 0.35));
 	}
 }
@@ -1239,6 +1261,18 @@
 	touch-action: none;
 	user-select: none;
 	-webkit-touch-callout: none;
+
+	/* Press feedback is a BRIGHTNESS bump, not a scale change — override, don't compose with, the
+	   generic `.mobile-icon-btn:active` rule above. `transform` isn't additive, so a scale-down there
+	   would REPLACE this button's own 1.75× base scale instead of shrinking off it, collapsing the
+	   button to near half size on every press. That's most visible during bonus hold-to-drop, where the
+	   button stays pressed for the whole streamed hold (each ball drop reading as a stutter) rather than
+	   a quick tap. Keep the base scale fixed and just brighten while held — same treatment as the
+	   desktop button's --bp-play-active-boost. */
+	&:active:not(:disabled):not(.mobile-icon-btn--soft-disabled) {
+		transform: scale(1.75);
+		filter: brightness(1.35);
+	}
 }
 
 // Keep the play button fully opaque while loading so the spinner reads clearly.
