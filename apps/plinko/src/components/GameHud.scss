@@ -1455,14 +1455,19 @@
 }
 
 .mobile-bet-popup-row {
+	/* Row height == the field component's height. The +/- steppers are sized to nearly fill it,
+	   leaving only --popup-step-margin of air top and bottom, and the side columns are made square to
+	   that height so each button stays a circle centred in its column. */
+	--popup-row-h: clamp(52px, 11.7vw, 70px);
+	--popup-step-margin: clamp(6px, 1.5vw, 10px);
+	--popup-step-size: calc(var(--popup-row-h) - 2 * var(--popup-step-margin));
 	position: relative;
 	display: grid;
-	grid-template-columns: clamp(48px, 12vw, 72px) minmax(0, 1fr) clamp(48px, 12vw, 72px);
-	align-items: stretch;
+	grid-template-columns: var(--popup-row-h) minmax(0, 1fr) var(--popup-row-h);
+	align-items: center;
 	gap: 0;
-	min-height: clamp(52px, 11.7vw, 70px);
-	/* Side buttons flush to frame — vertical inset only */
-	padding: clamp(6px, 1.4vw, 10px) 0;
+	min-height: var(--popup-row-h);
+	padding: 0;
 	overflow: visible;
 
 	> :not(.bp-field-frame) {
@@ -1476,25 +1481,29 @@
 	grid-template-columns: minmax(0, 1fr);
 }
 
+/* Stepper (+/-) buttons: SQUARE and sized to sit inside the frame's inner cavity, centred in their
+   grid column — mirroring the desktop steppers (see `.bp-stepper-btn`). They used to stretch to the
+   full column width and `object-fit: cover`-crop the artwork, which oversized the icon and clipped its
+   bevel; a square box with `contain` scales the whole button down so it fits the panel. */
 .mobile-bet-popup-step {
-	width: 100%;
-	height: 100%;
-	min-height: clamp(40px, 9.45vw, 56px);
+	width: var(--popup-step-size);
+	height: var(--popup-step-size);
+	min-height: 0;
+	margin: 0 auto;
 	border: none;
-	border-radius: clamp(10px, 2.2vw, 14px);
 	background: transparent;
 	padding: 0;
 	display: inline-flex;
-	align-items: stretch;
+	align-items: center;
 	justify-content: center;
 	cursor: pointer;
-	align-self: stretch;
+	align-self: center;
 
 	img {
 		width: 100%;
 		height: 100%;
 		display: block;
-		object-fit: cover;
+		object-fit: contain;
 		object-position: center;
 		pointer-events: none;
 	}
@@ -1516,10 +1525,13 @@
 	height: 100%;
 }
 
+/* Label / value borrow the desktop stat-field typography (see `.bp-field-label` /
+   `.bp-select-display`): grey uppercase label at weight 600, off-white value at weight 400 — NOT the
+   old mobile gold-on-white treatment. */
 .mobile-bet-popup-label {
-	color: #f6be3a;
+	color: #a9a1a1;
 	font-size: clamp(15px, 4.07vw, 24px);
-	font-weight: 800;
+	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
 	text-transform: uppercase;
@@ -1530,7 +1542,7 @@
 
 .mobile-bet-popup-value {
 	margin-top: 0;
-	color: #ffffff;
+	color: #f2f4f6;
 	font-size: clamp(15px, 4.11vw, 25px);
 	font-weight: 400;
 	letter-spacing: -0.02em;
@@ -1601,13 +1613,14 @@
 	white-space: nowrap;
 }
 
-/* Gold coin to the right of the mobile balance figure — the on-win coin-burst target. Scoped under
-   `.mobile-corner-info` so it beats the generic `.mobile-corner-info img` sizing/margin rule. */
+/* Gold coin LEADING the mobile balance figure (it replaced the wallet icon) — also the on-win
+   coin-burst target that winning coins merge into. Scoped under `.mobile-corner-info` so it beats the
+   generic `.mobile-corner-info img` sizing/margin rule. */
 .mobile-corner-info .mobile-balance-coin {
 	width: auto;
-	height: clamp(16px, 3.9vw, 22px);
-	margin-left: clamp(4px, 1.1vw, 8px);
-	margin-right: 0;
+	height: clamp(18px, 4.3vw, 24px);
+	margin-left: 0;
+	margin-right: clamp(4px, 1.1vw, 8px);
 	object-fit: contain;
 	flex-shrink: 0;
 	filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));

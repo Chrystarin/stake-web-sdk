@@ -858,8 +858,8 @@
 				<span class="mobile-corner-value">{formatWin(displayWinAmount)}</span>
 			</div>
 			<div class="mobile-corner-info mobile-corner-info--right">
-				<img src={staticUrl('img/wallet-ico.png')} alt="" aria-hidden="true" />
-				<span class="mobile-corner-value">{formatMoney(displayBalance)}</span>
+				<!-- The balance's leading icon IS the coin now (the wallet is gone), and it doubles as the
+				     on-win coin-burst target — winning coins merge into it. -->
 				<img
 					class="mobile-balance-coin coin-fly-target"
 					data-coin-fly-target="balance"
@@ -867,6 +867,7 @@
 					alt=""
 					aria-hidden="true"
 				/>
+				<span class="mobile-corner-value">{formatMoney(displayBalance)}</span>
 			</div>
 		</div>
 	</div>
