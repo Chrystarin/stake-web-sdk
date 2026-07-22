@@ -55,3 +55,23 @@ export function frameImagePoint(ratioX: number, ratioY: number): FramePoint | un
 	const paintedTop = rect.top;
 	return { x: paintedLeft + ratioX * paintedW, y: paintedTop + ratioY * paintedH };
 }
+
+/**
+ * Painted width (client px) of the frame art in its current layout, or `undefined` if it isn't laid out
+ * yet. Same letterboxing maths as `frameImagePoint`; used to size art relative to the board so it stays
+ * proportional at any viewport size / orientation.
+ */
+export function framePaintedWidth(): number | undefined {
+	if (typeof document === 'undefined') return undefined;
+	const img = document.querySelector<HTMLImageElement>('.game-area-frame');
+	if (!img) return undefined;
+	const rect = img.getBoundingClientRect();
+	if (rect.width <= 0 || rect.height <= 0) return undefined;
+	const natW = img.naturalWidth || FRAME_NATURAL_W;
+	const natH = img.naturalHeight || FRAME_NATURAL_H;
+	const cover = getComputedStyle(img).objectFit === 'cover';
+	const scale = cover
+		? Math.max(rect.width / natW, rect.height / natH)
+		: Math.min(rect.width / natW, rect.height / natH);
+	return natW * scale;
+}

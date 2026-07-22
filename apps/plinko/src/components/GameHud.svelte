@@ -83,9 +83,10 @@
 	const betPerBallLabel = $derived(
 		stateUrlDerived.social() ? 'Play per ball' : context.i18nDerived.t('Bet per ball'),
 	);
-	// Left-side read-only field showing the current total wager (bet-per-ball × ball-per-drop, or the
-	// hovered Autobet run cost). "Win bet" is the design label; Social Mode avoids the restricted "Bet".
-	const winBetLabel = $derived(stateUrlDerived.social() ? 'Total play' : 'Win bet');
+	// Left-side read-only field showing the round's LIVE win total: it accumulates in real time as each
+	// ball lands (`stateGame.winAmount`, via `addSettledWinAmount`) and resets to 0 when a new round
+	// starts (blanked at bet time). Labelled "Win" — Social Mode doesn't restrict that word.
+	const winFieldLabel = $derived(context.i18nDerived.t('Win'));
 	// Total bet shown in the plaque under PLAY (and the mobile total cards): the single-drop total
 	// normally, or — while an Autobet count option is hovered — the whole run's cost (per-drop × rounds).
 	const displayTotalBet = $derived(
@@ -888,10 +889,10 @@
 		<div class="bottom-panel-form">
 			<div class="bottom-panel-chrome">
 				<div class="bottom-panel-row">
-					<!-- Layout follows the reference art: [Balance | Win bet] on the left, the Auto | PLAY |
+					<!-- Layout follows the reference art: [Balance | Win] on the left, the Auto | PLAY |
 					     Fast cluster centred, and [Bet per ball | Ball per drop] on the right. Balance itself
-					     sits in the standalone BalanceCard (to the left of the Win-bet field); the total-bet
-					     pill that used to hang under PLAY is gone — the total now shows in the Win-bet field. -->
+					     sits in the standalone BalanceCard (to the left of the Win field); the Win field shows
+					     the round's live win total, and the total BET shows in the pill under PLAY. -->
 					<div class="bp-side-group bp-side-group--left">
 						{#if stateGame.bonusRoundActive}
 							<!-- During a bonus round the Win-bet total has no meaning (free balls), so Bet per
@@ -899,13 +900,14 @@
 							     stands alone on the right. -->
 							{@render betPerBallField()}
 						{:else}
-							<!-- Win bet: read-only total wager (bet-per-ball × ball-per-drop, or a hovered
-							     Autobet run cost). No steppers — display only. -->
-							<div class="bp-field bp-field--win-bet" aria-label="Total bet">
+							<!-- Win: read-only display of the round's LIVE win total. It accumulates in real time
+							     as each ball lands (`stateGame.winAmount`, via `addSettledWinAmount`) and resets to
+							     0 when a new round starts (blanked at bet time). No steppers — display only. -->
+							<div class="bp-field bp-field--win-bet" aria-label="Round win">
 								{@render bettingFieldFrame()}
-								<span class="bp-field-label">{winBetLabel}</span>
+								<span class="bp-field-label">{winFieldLabel}</span>
 								<span class="bp-select-display bp-win-bet-value" aria-live="polite">
-									{formatMoney(displayTotalBet)}
+									{formatWin(displayWinAmount)}
 								</span>
 							</div>
 						{/if}
@@ -1037,6 +1039,22 @@
 							>
 								<img src={staticUrl('img/fast-game-btn.png')} alt="" aria-hidden="true" />
 							</button>
+						</div>
+
+						<!-- Total bet (bet-per-ball × ball-per-drop, or a hovered Autobet run cost) on a plaque
+						     tucked under the round PLAY button. A sibling of the buttons (absolutely positioned),
+						     so it never shifts the Auto | PLAY | Fast row that BalanceCard's position is solved
+						     against. Centred on the cluster, which is symmetric, so cluster centre = PLAY centre. -->
+						<div class="bp-play-total" aria-label="Total bet">
+							<img
+								class="bp-play-total-bg"
+								src={staticUrl('img/empty_play_balance.png')}
+								alt=""
+								aria-hidden="true"
+							/>
+							<span class="bp-play-total-value" aria-live="polite">
+								{formatMoney(displayTotalBet)}
+							</span>
 						</div>
 					</div>
 

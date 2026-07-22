@@ -373,11 +373,14 @@ export const playBet = async (bet: Bet) => {
 	stateGame.pendingDropWinAmount = 0;
 	stateGame.baseRoundDropWinAmount = 0;
 	// Blank the Win field at bet time so every new drop starts from €0.00. The value is re-shown
-	// only when the ball lands (`onBallLanded` reveals each ball's stashed win). This applies in
-	// rapid 1-ball mode too: pressing Bet must clear the previous ball's win immediately rather than
-	// leaving it on screen while the freshly dropped ball is still falling. The pending win lives in
-	// `outcomeLandCredit` (a WeakMap keyed on the outcome), so this reset never drops it.
-	stateGame.winAmount = 0;
+	// only when the ball lands (`onBallLanded` reveals each ball's stashed win). The pending win lives
+	// in `outcomeLandCredit` (a WeakMap keyed on the outcome), so this reset never drops it.
+	// EXCEPTION — rapid 1-ball mode: do NOT clear here. The Win field keeps showing the previous ball's
+	// win while the freshly dropped ball is still falling, and is overwritten only when the next ball
+	// lands in a slot (`onBallLanded` sets `winAmount` to that ball's win, or 0 for a losing slot).
+	if (!isRapidSingleBallMode()) {
+		stateGame.winAmount = 0;
+	}
 	stateGame.deferWinPopupForFreeSpin = false;
 	// Per-round feature flags MUST reset each bet, otherwise `syncSpinMeterAfterBet` /
 	// `syncBonusMeterAfterBet` keep treating every later bet as "feature consumed" and wipe the

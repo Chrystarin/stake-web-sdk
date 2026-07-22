@@ -14,8 +14,10 @@
 .game-bottom-panel {
 	position: absolute;
 	left: 50%;
-	/* Lifted 0.75vw off the viewport bottom so the scaled-down panel clears the viewport's bottom edge
-	   (also gives the BalanceCard, solved against this panel's geometry, its breathing room). */
+	/* Lifted 0.75vw off the viewport bottom so the scaled-down PLAY button clears the panel's inner
+	   padding by enough to fit the total-bet pill BELOW it (see .bp-play-total). Without the lift, the
+	   pill would extend past the viewport's bottom edge and be clipped. (Also gives the BalanceCard,
+	   solved against this panel's geometry, its breathing room.) */
 	bottom: 0.75vw;
 	/* Two transforms combined into one declaration (they don't stack across multiple `transform` rules
 	   — the later one wins). translateX(-50%) still handles the horizontal centring; scale(0.9) shrinks
@@ -633,12 +635,66 @@
    at its intrinsic width while the flex:1 side groups split the remaining space equally, so this
    cluster stays on the viewport's centre line — the invariant BalanceCard.svelte solves against. */
 .bp-center-cluster {
+	/* Positioning context for the total-bet plaque below, which hangs off the PLAY button. Safe: the
+	   Auto | PLAY | Fast children are static flex items (their own absolute panels anchor to their own
+	   `position: relative` wraps), so this only affects the plaque. */
+	position: relative;
 	flex: 0 0 auto;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
 	gap: clamp(0.6vw, 0.9vw, 1.4vw);
+}
+
+/* Total bet (bet-per-ball × ball-per-drop) on a small plaque tucked under the round PLAY button.
+   ⚠️ The bottom panel sits on the viewport's bottom edge (see .game-bottom-panel) and .game-root is
+   `overflow: hidden`, so there is NO room to drop this fully below the disc — it would be clipped.
+   Absolutely positioned so it takes NO space in the Auto | PLAY | Fast row: that row's geometry is
+   baked into BalanceCard.svelte's `left`/`bottom`, so its layout must not change. Centred on the
+   cluster, which is symmetric (Auto and Fast share --bp-side-btn-width), so cluster centre = PLAY
+   centre. Sits FULLY BELOW the round PLAY disc: with pill height 1.4vw, `bottom: -1.4vw` puts the
+   pill's TOP exactly at the button's bottom edge — no disc-overlap. Depends on the 10% panel-scale +
+   the panel's 0.75vw lift off the viewport bottom (see .game-bottom-panel); together they carve out
+   just enough room for the pill without it clipping past the viewport. */
+.bp-play-total {
+	position: absolute;
+	left: 50%;
+	bottom: -1.4vw;
+	transform: translateX(-50%);
+	z-index: 5;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 6vw;
+	height: 1.4vw;
+	padding: 0 0.7vw;
+	box-sizing: border-box;
+	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	font-weight: 500;
+	font-synthesis: none;
+	font-size: 0.9vw;
+	line-height: 1;
+	letter-spacing: -0.01em;
+	color: #efeadd;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.bp-play-total-bg {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: fill;
+	display: block;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.bp-play-total-value {
+	position: relative;
+	z-index: 1;
 }
 
 .bp-btn-play {

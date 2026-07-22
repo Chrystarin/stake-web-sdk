@@ -31,10 +31,19 @@ export type HistoryEntry = {
 	chips: HistoryChip[];
 };
 export type InfoModalTab = 'rules' | 'fair' | 'history' | 'howToPlay';
-/** One entry in the 1-ball rapid win-toast stack (newest first, capped to 3). `instant` marks a toast
- * force-dropped by the 3-cap so it's removed WITHOUT the fade (only a natural time-up dismissal fades),
- * which keeps at most 3 visible even when drops bunch up faster than the fade. */
-export type RapidWinToast = { id: number; amount: number; instant: boolean };
+/** One entry in the 1-ball rapid win-sparkle set (newest first, capped to 3). Each is a small shine-ray
+ * burst with the win value + tier label printed over it, that pops in at the skull's mouth, floats
+ * slowly upward across its lifetime, then shrinks + fades away. `multiplier` sizes the sparkle (bigger
+ * win → bigger burst) and picks the tier banner. `stackIndex` is the sparkle's slot in the vertical
+ * stack: 0 = newest, at the mouth; 1 = one above; 2 = two above. New pushes increment every existing
+ * sparkle's stackIndex so the newest always sits at the mouth and older ones slide upward — this is
+ * what keeps the sparkles from overlapping when several wins land in quick succession. */
+export type RapidWinSparkle = {
+	id: number;
+	amount: number;
+	multiplier: number;
+	stackIndex: number;
+};
 export type MsgBoxConfig = {
 	text: string;
 	confirmText?: string;
@@ -163,9 +172,10 @@ export const stateGame = $state({
 	balanceWinHold: null as number | null,
 	balanceWinReleaseTick: 0,
 	balanceCountUpValue: null as number | null,
-	/** 1-ball rapid tier: stacking win toasts (newest first, max 3). Managed by the gameOrchestrator
-	 * toast helpers (`pushRapidWinToast` / `clearRapidWinToasts`); rendered in Game.svelte. */
-	rapidWinToasts: [] as RapidWinToast[],
+	/** 1-ball rapid tier: small win sparkles scattered around the skull + hat (newest first, max 3).
+	 * Managed by the gameOrchestrator helpers (`pushRapidWinSparkle` / `clearRapidWinSparkles`); rendered
+	 * by RapidWinSparkles.svelte. */
+	rapidWinSparkles: [] as RapidWinSparkle[],
 	/** Landed free-spin segment multiplier applied to the round win (e.g. 5 for `5X`). */
 	freeSpinWinMultiplier: 0,
 	/** Base drop win snapshotted when the free-spin wheel opens (before applying segment multiplier). */

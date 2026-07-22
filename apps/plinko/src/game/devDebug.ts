@@ -1,7 +1,12 @@
 import { stateBet } from 'state-shared';
 
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
-import { isBetControlsLocked, isDropBatchPending, isGameOngoing } from './gameOrchestrator';
+import {
+	isBetControlsLocked,
+	isDropBatchPending,
+	isGameOngoing,
+	pushRapidWinSparkle,
+} from './gameOrchestrator';
 import { forceUnlockBettingControls } from './meterFlow';
 import { stateGame } from './stateGame.svelte';
 
@@ -48,6 +53,7 @@ export function installPlinkoDevDebug() {
 		plinkoPlayMeta?: () => Record<string, unknown>;
 		plinkoForceUnlock?: () => PlinkoLockDebugSnapshot;
 		plinkoTestWin?: (amount?: number, multiplier?: number, balls?: number) => void;
+		plinkoTestRapidSparkle?: (amount?: number, multiplier?: number, count?: number) => void;
 	};
 
 	w.plinkoPlayMeta = buildPlinkoPlayPayloadPreview;
@@ -75,5 +81,15 @@ export function installPlinkoDevDebug() {
 		setTimeout(() => {
 			stateBet.balanceAmount += amount;
 		}, 60);
+	};
+
+	// Dev-only: pop the small 1-ball rapid win sparkles on demand (switches to 1-ball first) — e.g.
+	// `plinkoTestRapidSparkle(12.34, 15, 3)` fires 3 sparkles sized for a 15× win. `multiplier` sizes the
+	// burst (1× small / 2× mid / 10× big); `count` (max 3 shown) exercises the cap + random scatter.
+	w.plinkoTestRapidSparkle = (amount = 12.34, multiplier = 5, count = 3) => {
+		stateGame.ballPerDrop = 1;
+		for (let i = 0; i < count; i++) {
+			setTimeout(() => pushRapidWinSparkle(amount, multiplier), i * 220);
+		}
 	};
 }

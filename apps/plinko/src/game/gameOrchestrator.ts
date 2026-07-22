@@ -843,46 +843,55 @@ function maybeReleaseRapidBalanceShadow() {
 	stateGame.rapidBalanceShadow = null;
 }
 
-/** 1-ball rapid tier: each paying drop shows a "Win | value" toast that pops in, then slides down as
- * newer ones stack on top (newest first), fading out after its TTL. Capped to 3; a mode switch clears
- * them via `clearRapidWinToasts`. The stack + animations live in Game.svelte. */
-const RAPID_WIN_TOAST_MAX = 3;
-const RAPID_WIN_TOAST_TTL_MS = 2600;
-let rapidWinToastSeq = 0;
-const rapidWinToastTimers = new Map<number, ReturnType<typeof setTimeout>>();
+/** 1-ball rapid tier: each paying drop pops a small shine-ray sparkle with the win value + tier label
+ * printed over it, at the skull's mouth. It floats slowly upward across its lifetime then shrinks +
+ * fades away. Capped to 3; a mode switch clears them via `clearRapidWinSparkles`. The art + animations
+ * live in RapidWinSparkles.svelte. */
+const RAPID_WIN_SPARKLE_MAX = 3;
+const RAPID_WIN_SPARKLE_TTL_MS = 1500;
+let rapidWinSparkleSeq = 0;
+const rapidWinSparkleTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
-function forgetRapidWinToastTimer(id: number) {
-	const timer = rapidWinToastTimers.get(id);
+function forgetRapidWinSparkleTimer(id: number) {
+	const timer = rapidWinSparkleTimers.get(id);
 	if (timer) clearTimeout(timer);
-	rapidWinToastTimers.delete(id);
+	rapidWinSparkleTimers.delete(id);
 }
 
-function dismissRapidWinToast(id: number) {
-	forgetRapidWinToastTimer(id);
-	stateGame.rapidWinToasts = stateGame.rapidWinToasts.filter((toast) => toast.id !== id);
+function dismissRapidWinSparkle(id: number) {
+	forgetRapidWinSparkleTimer(id);
+	const removed = stateGame.rapidWinSparkles.find((s) => s.id === id);
+	const removedIdx = removed?.stackIndex ?? -1;
+	// Drop the dismissed sparkle and slide every sparkle that was ABOVE it down by one slot — so an
+	// older (higher) sparkle disappearing pulls the newer stack down, and no gaps open up between slots.
+	stateGame.rapidWinSparkles = stateGame.rapidWinSparkles
+		.filter((s) => s.id !== id)
+		.map((s) => (removedIdx >= 0 && s.stackIndex > removedIdx ? { ...s, stackIndex: s.stackIndex - 1 } : s));
 }
 
-export function pushRapidWinToast(amount: number) {
-	const id = ++rapidWinToastSeq;
-	let next = [{ id, amount, instant: false }, ...stateGame.rapidWinToasts];
-	// Cap the stack at 3. The oldest (tail) entries are force-dropped: flag them `instant` so they
-	// leave WITHOUT the fade (else, when drops bunch up faster than the 260ms fade, the fading ones
-	// pile up past 3 on screen), and cancel their pending time-up timers.
-	if (next.length > RAPID_WIN_TOAST_MAX) {
-		next.slice(RAPID_WIN_TOAST_MAX).forEach((toast) => {
-			toast.instant = true;
-			forgetRapidWinToastTimer(toast.id);
-		});
-		next = next.slice(0, RAPID_WIN_TOAST_MAX);
+export function pushRapidWinSparkle(amount: number, multiplier: number) {
+	const id = ++rapidWinSparkleSeq;
+	const mult = Number(multiplier) || 0;
+	// Newest always sits at the mouth (slot 0); every existing sparkle's stackIndex increments so the
+	// column stays tightly packed newest-at-bottom / oldest-at-top. This is what keeps them from
+	// overlapping when several wins land in quick succession.
+	const bumped = stateGame.rapidWinSparkles.map((s) => ({ ...s, stackIndex: s.stackIndex + 1 }));
+	const sparkle = { id, amount, multiplier: mult, stackIndex: 0 };
+	let next = [sparkle, ...bumped];
+	// Cap at 3. The oldest (tail) entries are dropped — they still play their shrink+fade (the keyed
+	// each in RapidWinSparkles animates any removed sparkle) — and we cancel their pending time-up timers.
+	if (next.length > RAPID_WIN_SPARKLE_MAX) {
+		next.slice(RAPID_WIN_SPARKLE_MAX).forEach((s) => forgetRapidWinSparkleTimer(s.id));
+		next = next.slice(0, RAPID_WIN_SPARKLE_MAX);
 	}
-	stateGame.rapidWinToasts = next;
-	rapidWinToastTimers.set(id, setTimeout(() => dismissRapidWinToast(id), RAPID_WIN_TOAST_TTL_MS));
+	stateGame.rapidWinSparkles = next;
+	rapidWinSparkleTimers.set(id, setTimeout(() => dismissRapidWinSparkle(id), RAPID_WIN_SPARKLE_TTL_MS));
 }
 
-export function clearRapidWinToasts() {
-	rapidWinToastTimers.forEach((timer) => clearTimeout(timer));
-	rapidWinToastTimers.clear();
-	if (stateGame.rapidWinToasts.length > 0) stateGame.rapidWinToasts = [];
+export function clearRapidWinSparkles() {
+	rapidWinSparkleTimers.forEach((timer) => clearTimeout(timer));
+	rapidWinSparkleTimers.clear();
+	if (stateGame.rapidWinSparkles.length > 0) stateGame.rapidWinSparkles = [];
 }
 
 /** 1-ball rapid tier: how many coins the small on-land burst throws, scaled by the landed multiplier
@@ -940,10 +949,10 @@ export function onBallLanded(
 		if (stateGame.rapidBalanceShadow !== null) {
 			stateGame.rapidBalanceShadow += landCredit.win;
 		}
-		// Rapid 1-ball tier shows each paying drop as a stacking "Win | value" toast (max 3), revealed
-		// as the ball lands rather than on the settling click — see the toast stack in Game.svelte.
+		// Rapid 1-ball tier pops a small win sparkle (max 3) around the skull + hat, revealed as the
+		// ball lands rather than on the settling click — see RapidWinSparkles.svelte.
 		if (landCredit.win > 0) {
-			pushRapidWinToast(landCredit.win);
+			pushRapidWinSparkle(landCredit.win, landCredit.multiplier);
 				// Also throw a SMALL coin burst (1-3 coins, scaled by the landed multiplier) into the
 				// balance coin — the 1-ball equivalent of the multi-ball win fountain. CoinFountain
 				// watches `rapidCoinBurstTick`.
