@@ -1225,9 +1225,9 @@
 		   shadow is wanted. Layered ON TOP of the existing per-row text-shadows; colours/fills untouched. */
 		--congrats-text-shadow: drop-shadow(0.034em 0.068em 0 #000000);
 	}
-	/* Pre-bonus (roulette) congrats screen: give its "CONGRATULATIONS!" headline the SAME text treatment
-	   as the post-bonus treasure screen (gradient outline, warm-gold glow, hard black drop shadow). Only
-	   the headline is matched — the reward row + layout stay as the roulette screen's own. */
+	/* Pre-bonus (roulette) congrats screen: give its "CONGRATULATIONS!" headline and "YOU WON N DROPS"
+	   reward row the SAME text treatment as the post-bonus treasure screen (gradient outline, warm-gold
+	   glow, hard black drop shadow). Only the text is matched — the roulette screen's layout stays its own. */
 	.bonus-announcement--roulette {
 		--congrats-text-shadow: drop-shadow(0.034em 0.068em 0 #000000);
 	}
@@ -1235,7 +1235,8 @@
 	.bonus-announcement--treasure .bonus-announcement-reward,
 	.bonus-announcement--treasure .congrats-value,
 	.bonus-announcement--treasure .bonus-announcement-hint,
-	.bonus-announcement--roulette .bonus-announcement-headline {
+	.bonus-announcement--roulette .bonus-announcement-headline,
+	.bonus-announcement--roulette .bonus-announcement-reward {
 		filter: var(--congrats-text-shadow);
 	}
 	.bonus-announcement--treasure .bonus-announcement-main {
@@ -1247,7 +1248,8 @@
 	}
 	/* "YOU HAVE WON" subheading: bright Figma cream→gold fill + a warm dark-gold OUTLINE (the reference
 	   look), smaller than the CONGRATULATIONS headline (overrides --win). */
-	.bonus-announcement--treasure .bonus-announcement-reward {
+	.bonus-announcement--treasure .bonus-announcement-reward,
+	.bonus-announcement--roulette .bonus-announcement-reward {
 		/* Low min so the text keeps shrinking with the viewport instead of pinning at a min size and
 		   overflowing on narrow/high-DPI screens — the 4.7vw scaling keeps it on one line at any width. */
 		font-size: clamp(16px, 4.7vw, 68px);
@@ -1263,7 +1265,8 @@
 	   top. The old build used a BRIGHT saturated gold here (#f0b743→#d08a1b) at 0.13em, which sat too close
 	   to the fill in lightness and washed the whole word muddy/orange — that (plus a heavy warm glow), not
 	   the text-shadow, was what made it look dark. */
-	.bonus-announcement--treasure .bonus-announcement-reward .bonus-announcement-text-stroke {
+	.bonus-announcement--treasure .bonus-announcement-reward .bonus-announcement-text-stroke,
+	.bonus-announcement--roulette .bonus-announcement-reward .bonus-announcement-text-stroke {
 		-webkit-text-stroke-color: transparent;
 		background-image: linear-gradient(180deg, #c8912a 4%, #a06818 50%, #6e440c 100%);
 		background-clip: text;
@@ -1276,7 +1279,8 @@
 	   bright-golden like the reference, not tan. text-shadow = the SAME warm-yellow glow as the CONGRATULATIONS
 	   headline + win value (so all three rows share one halo), then a subtle dark drop for the raised depth.
 	   The dark OUTLINE (above) keeps the glow from muddying the bright fill the way the old bright-gold rim did. */
-	.bonus-announcement--treasure .bonus-announcement-text-fill--reward {
+	.bonus-announcement--treasure .bonus-announcement-text-fill--reward,
+	.bonus-announcement--roulette .bonus-announcement-text-fill--reward {
 		background-image: linear-gradient(180deg, #fdf2d8 0%, #f2d492 62%, #e2aa2c 90%);
 		text-shadow:
 			0 0 0.42em rgba(255, 196, 62, 0.75),
@@ -1290,7 +1294,8 @@
 	   spans (stroke + fill) equally so they stay registered on top of each other. */
 	.bonus-announcement--treasure .bonus-announcement-headline > *,
 	.bonus-announcement--treasure .bonus-announcement-reward > *,
-	.bonus-announcement--roulette .bonus-announcement-headline > * {
+	.bonus-announcement--roulette .bonus-announcement-headline > *,
+	.bonus-announcement--roulette .bonus-announcement-reward > * {
 		/* Vertical padding too (not just inline): the line-height is < 1em, so tall glyphs like "!" poke
 		   ABOVE the line box and the gradient didn't reach their tops either — this widens the background
 		   box on all sides. */
@@ -1441,7 +1446,8 @@
 		   the right edge). Still wider than the pre-treasure 0.02em default. */
 		letter-spacing: 0.03em;
 	}
-	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-reward {
+	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-reward,
+	.bonus-announcement--roulette.bonus-announcement--mobile .bonus-announcement-reward {
 		font-size: 6vw;
 		/* Same reasoning as the headline above — dialed back from the desktop 0.12em so it can't overflow. */
 		letter-spacing: 0.05em;
