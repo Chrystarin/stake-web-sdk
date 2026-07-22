@@ -1245,7 +1245,15 @@
 }
 
 .mobile-top-card--free-spin {
-	height: 22vw;
+	// Hug the meter's own aspect ratio instead of a fixed 22vw box. The free-spin art (≈2.234:1)
+	// is wider than the old 1.59:1 card, so a fit-to-width contain left ~15% dead vertical space
+	// above/below and the meter sat smaller-in-its-frame than the desktop meter (whose 2.5:1 box
+	// the art nearly fills). Letting the card hug the art ratio removes that padding so the meter
+	// fills its frame edge-to-edge, matching desktop. The card now hugs the meter, so the top row
+	// tightens to the meter's height (still the tallest cell) and the shorter Bet / Ball-per-drop
+	// cards centre against it.
+	height: auto;
+	align-self: center;
 	padding: 0;
 	background: transparent;
 	overflow: hidden;
@@ -1253,7 +1261,9 @@
 
 .mobile-top-card--free-spin .mobile-free-spin-meter {
 	width: 100%;
-	height: 100%;
+	height: auto;
+	// Native free-spin-base.png ratio (306 × 137) → zero letterbox padding inside the canvas.
+	aspect-ratio: 306 / 137;
 	min-height: 0;
 }
 
