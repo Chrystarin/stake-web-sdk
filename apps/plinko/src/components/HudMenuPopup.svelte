@@ -29,7 +29,7 @@
 			const target = event.target as Element | null;
 			if (!target) return;
 			if (menuEl?.contains(target)) return;
-			if (target.closest('.top-hud-btn--menu, .mobile-icon-btn--menu')) return;
+			if (target.closest('.top-hud-btn--menu, .mobile-menu-trigger')) return;
 			props.onClose?.();
 		}
 
@@ -175,7 +175,8 @@
 	.hud-menu-popup--mobile {
 		position: fixed;
 		top: clamp(72px, 18vw, 112px);
-		right: clamp(10px, 3vw, 18px);
+		/* Anchored left so it drops from the top-left menu button (mobile menu moved there). */
+		left: clamp(10px, 3vw, 18px);
 		width: max-content;
 		max-width: min(calc(100vw - 24px), 322px);
 		border-radius: 12px;

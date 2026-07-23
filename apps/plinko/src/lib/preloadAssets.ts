@@ -57,6 +57,9 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/betting-component-frame.png',
 	'img/betting-component-input-decrease.png',
 	'img/betting-component-input-increase.png',
+	// Containerless (bare glyph) stepper icons used by the mobile inline steppers.
+	'img/betting-component-input-decrease-containerless.png',
+	'img/betting-component-input-increase-containerless.png',
 	'img/play-btn.png',
 	'img/main_btn_empty.png',
 	'img/main_btn_play_icon.png',
@@ -64,15 +67,12 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/auto-bet-btn.png',
 	'img/auto-bet-stop-btn.png',
 	'img/fast-game-btn.png',
-	'img/mobile_popup_bet_modal_base.png',
 	'img/empty-btn.png',
-	'img/empty-btn-brown.png',
 	'img/loading_vector.png',
-	'img/play-btn-mobile.png',
 	'img/fast-game-btn-mobile.png',
 	'img/auto-bet-btn-mobile.png',
-	'img/coins-btn-mobile.png',
-	'img/menu-btn-mobile.png',
+	// Mobile menu button reuses the desktop menu asset (menu moved to the top-left corner).
+	'img/menu-btn.png',
 	'img/coin-ico.png',
 	'img/wallet-ico.png',
 	// NOTE: the balance coin's on-merge light burst is no longer an image — it's the `glow` + `sparkle`

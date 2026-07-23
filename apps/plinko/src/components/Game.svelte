@@ -568,7 +568,12 @@
 
 <BonusLevelUpOverlay />
 
-<main class="game-root" class:game-root--mobile={mobile} bind:this={gameRootEl}>
+<main
+	class="game-root"
+	class:game-root--mobile={mobile}
+	style:background-image={mobile ? staticCssUrl('img/BG_portrait.jpg') : null}
+	bind:this={gameRootEl}
+>
 	<div class="bg-layer">
 		<Background />
 	</div>
@@ -587,6 +592,19 @@
 		>
 			<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
 		</button>
+	{/if}
+
+	<!-- Mobile menu lives in the top-left corner (mirrors the desktop Menu, and opposite the mobile
+	     Buy-Bonus badge top-right). It's the sole mobile entry to the game menu (Rules / History /
+	     How-to-Play / sound + music), using the same asset as desktop. -->
+	{#if mobile}
+		<button
+			class="mobile-menu-trigger"
+			type="button"
+			style:background-image={staticCssUrl('img/menu-btn.png')}
+			onclick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
+			aria-label="Menu"
+		></button>
 	{/if}
 
 	{#if !mobile}
@@ -727,7 +745,6 @@
 					: isBetControlsLocked() || isGameOngoing() || stateGame.showWinPopup)}
 			bonusPlayDisabled={stateGame.isOffline || stateGame.bonusRouletteOpen}
 			{mobile}
-			onMenuClick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
 		/>
 	</div>
 
@@ -826,6 +843,17 @@
 		font-family: 'Instrument Sans', system-ui, sans-serif;
 
 		background: transparent;
+	}
+
+	/* Scene image painted directly on the mobile root, BEHIND the Pixi/Spine background layer (the
+	   background-image is set inline in the markup, mobile only). Last-resort backdrop: if that canvas
+	   ever leaves a transparent gap — e.g. a dark strip at the very top on a device/aspect/DPR where its
+	   fit doesn't reach the edge — the scene shows through here instead of the flat dark body colour.
+	   Where the canvas covers (the normal case) this is completely hidden, so it's a no-op safety net. */
+	.game-root--mobile {
+		background-repeat: no-repeat;
+		background-position: center bottom;
+		background-size: cover;
 	}
 
 	.game-root:not(.game-root--mobile) .bg-layer {
@@ -1011,6 +1039,26 @@
 		left: auto;
 		width: 62px;
 		height: 62px;
+	}
+
+	/* Mobile menu button — top-left, mirroring the mobile Buy-Bonus badge (top-right). Uses the
+	   desktop menu asset stretched to fill, like the desktop .top-hud-btn. Sized a touch smaller than
+	   Buy-Bonus since the menu art carries no transparent padding of its own. */
+	.mobile-menu-trigger {
+		position: absolute;
+		top: 10px;
+		left: 10px;
+		z-index: 25;
+		width: 52px;
+		height: 52px;
+		border: none;
+		background: center / 100% 100% no-repeat;
+		cursor: pointer;
+		transition: transform 0.12s ease;
+	}
+
+	.mobile-menu-trigger:active {
+		transform: scale(0.96);
 	}
 
 	/* Desktop — absolute inset uses almost full viewport (HUD/panel overlay) */

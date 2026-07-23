@@ -87,7 +87,14 @@ export const computeBackdropTransform = (
 	const textureWidth = texture.width;
 	if (!textureWidth) return { scale: 1, x: 0, y: 0 };
 
-	const scale = (viewportWidth / textureWidth) * backdrop.widthFillScale;
+	const widthScale = (viewportWidth / textureWidth) * backdrop.widthFillScale;
+	// Cover mode: also fill the viewport height so a bottom-anchored backdrop never leaves an empty
+	// strip at the top on tall viewports. On normal/short viewports widthScale already covers the
+	// height, so max() picks it and nothing changes.
+	const scale =
+		backdrop.coverHeight && texture.height
+			? Math.max(widthScale, viewportHeight / texture.height)
+			: widthScale;
 	const offsetX = backdrop.offsetXVw * viewportWidth;
 	const offsetY = backdrop.offsetYVh * viewportHeight;
 

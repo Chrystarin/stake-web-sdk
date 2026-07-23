@@ -61,7 +61,6 @@
 		playDisabled?: boolean;
 		bonusPlayDisabled?: boolean;
 		mobile?: boolean;
-		onMenuClick?: () => void;
 	};
 
 	const props: Props = $props();
@@ -69,7 +68,6 @@
 
 	let autoPanelOpen = $state(false);
 	let betPresetOpen = $state(false);
-	let mobileBetPopupOpen = $state(false);
 	// While the player hovers an Autobet count option, the total-bet displays preview what that whole
 	// run would cost (per-drop total × rounds) instead of the single-drop total. Cleared on mouse-out.
 	let hoveredAutoRounds = $state<number | null>(null);
@@ -82,6 +80,11 @@
 	);
 	const betPerBallLabel = $derived(
 		stateUrlDerived.social() ? 'Play per ball' : context.i18nDerived.t('Bet per ball'),
+	);
+	// Mobile TOTAL BET stat card wants the full "Total bet" wording (reference), not the bare "Bet"
+	// that the desktop field uses. Social Mode swaps "Bet" → "Play" here too.
+	const totalBetLabel = $derived(
+		stateUrlDerived.social() ? 'Total play' : context.i18nDerived.t('Total bet'),
 	);
 	// Left-side read-only field showing the round's LIVE win total: it accumulates in real time as each
 	// ball lands (`stateGame.winAmount`, via `addSettledWinAmount`) and resets to 0 when a new round
@@ -459,11 +462,6 @@
 		startBonusBallHoldDrop();
 	}
 
-	function toggleMobileBetPopup() {
-		mobileBetPopupOpen = !mobileBetPopupOpen;
-		if (mobileBetPopupOpen) autoPanelOpen = false;
-	}
-
 	function onMobileAutoButtonClick(event: MouseEvent) {
 		event.stopPropagation();
 		// Inert while a mid-Autobet bonus is terminating the run.
@@ -480,7 +478,6 @@
 			return;
 		}
 		if (controlsLocked) return;
-		mobileBetPopupOpen = false;
 		autoPanelOpen = !autoPanelOpen;
 	}
 
@@ -492,12 +489,6 @@
 		const onDocumentClick = (event: MouseEvent) => {
 			const target = event.target as HTMLElement | null;
 			if (!target) return;
-			// Close the mobile bet popup on any click outside the coins control. The wrap
-			// holds both the popup and its toggle button, so excluding it lets the button's
-			// own toggle handle open/close and keeps clicks inside the popup from closing it.
-			if (mobileBetPopupOpen && !target.closest('.mobile-coins-wrap')) {
-				mobileBetPopupOpen = false;
-			}
 			if (
 				target.closest('.bp-auto-wrap') ||
 				target.closest('.bp-autobet-panel') ||
@@ -634,48 +625,102 @@
 
 {#if props.mobile}
 	<div class="mobile-hud">
+		<!-- Free-spin meter on its own row above the bet fields, right-aligned (matches the reference).
+		     Permanently mounted; shown/hidden via `visibility` only (see `--hidden`). Never
+		     `{#if}`-unmount the Pixi/WebGL meter on a Ball-Per-Drop change — recreating its canvas flashes
+		     white for a frame on slower GPUs. The row reserves its height either way, so hiding the meter
+		     inside it has no layout effect. -->
+		<div class="mobile-meter-row">
+			<div
+				class="mobile-free-spin-meter"
+				class:mobile-free-spin-meter--hidden={stateGame.ballPerDrop === 1}
+			>
+				<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+			</div>
+		</div>
+
 		<div class="mobile-top-row">
-			<div class="mobile-top-card">
+			<!-- TOTAL BET — read-only display (no steppers), narrower than the two stepper fields. -->
+			<div class="mobile-top-card mobile-top-card--stat">
 				{@render mobileTopCardFrame()}
-				<span class="mobile-top-card-label">{betLabel}</span>
-				<span class="mobile-top-card-value">{formatMoney(displayTotalBet)}</span>
-			</div>
-			<div class="mobile-top-card">
-				{@render mobileTopCardFrame()}
-				<span class="mobile-top-card-label">{context.i18nDerived.t('Ball per drop')}</span>
-				<span class="mobile-top-card-value">{ballPerDropDisplay}</span>
-			</div>
-			<div class="mobile-top-card">
-				{@render mobileTopCardFrame()}
-				<span class="mobile-top-card-label">{betPerBallLabel}</span>
-				<span class="mobile-top-card-value">{formatCompactAmount(props.betAmount)}</span>
-			</div>
-			<!-- Keep the free-spin card container even on the 1-ball tier (where the meter is hidden): it
-			     reserves its grid column + the row's height, so Bet / Ball per drop / Bet per ball don't
-			     shift when the meter is hidden. Only the meter INSIDE is conditionally rendered. -->
-			<div class="mobile-top-card mobile-top-card--free-spin">
-				<!-- Permanently mounted; shown/hidden via `visibility` only (see `--hidden`). Never
-				     `{#if}`-unmount the Pixi/WebGL meter on a Ball-Per-Drop change — recreating its canvas
-				     flashes white for a frame on slower GPUs. The card already reserves this grid cell, so
-				     keeping the meter mounted inside it has no layout effect. -->
-				<div
-					class="mobile-free-spin-meter"
-					class:mobile-free-spin-meter--hidden={stateGame.ballPerDrop === 1}
-				>
-					<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+				<div class="mobile-top-card-mid">
+					<span class="mobile-top-card-label">{totalBetLabel}</span>
+					<span class="mobile-top-card-value">{formatMoney(displayTotalBet)}</span>
 				</div>
+			</div>
+
+			<!-- BET PER BALL — inline − / + steppers (the old chip popup is removed). -->
+			<div class="mobile-top-card mobile-top-card--stepper">
+				{@render mobileTopCardFrame()}
+				<button
+					type="button"
+					class="mobile-top-step mobile-top-step--decrease"
+					disabled={isBetAmountStepDisabled(-1)}
+					aria-label="Decrease bet per ball"
+					onclick={() => adjustBetAmountStep(-1)}
+				>
+					<img
+						src={staticUrl('img/betting-component-input-decrease-containerless.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+				</button>
+				<div class="mobile-top-card-mid">
+					<span class="mobile-top-card-label">{betPerBallLabel}</span>
+					<span class="mobile-top-card-value">{formatCompactAmount(props.betAmount)}</span>
+				</div>
+				<button
+					type="button"
+					class="mobile-top-step mobile-top-step--increase"
+					disabled={isBetAmountStepDisabled(1)}
+					aria-label="Increase bet per ball"
+					onclick={() => adjustBetAmountStep(1)}
+				>
+					<img
+						src={staticUrl('img/betting-component-input-increase-containerless.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+				</button>
+			</div>
+
+			<!-- BALLS PER DROP — inline − / + steppers. -->
+			<div class="mobile-top-card mobile-top-card--stepper">
+				{@render mobileTopCardFrame()}
+				<button
+					type="button"
+					class="mobile-top-step mobile-top-step--decrease"
+					disabled={isBallPerDropStepDisabled(-1)}
+					aria-label="Decrease ball per drop"
+					onclick={() => adjustBallPerDrop(-1)}
+				>
+					<img
+						src={staticUrl('img/betting-component-input-decrease-containerless.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+				</button>
+				<div class="mobile-top-card-mid">
+					<span class="mobile-top-card-label">{context.i18nDerived.t('Ball per drop')}</span>
+					<span class="mobile-top-card-value">{ballPerDropDisplay}</span>
+				</div>
+				<button
+					type="button"
+					class="mobile-top-step mobile-top-step--increase"
+					disabled={isBallPerDropStepDisabled(1)}
+					aria-label="Increase ball per drop"
+					onclick={() => adjustBallPerDrop(1)}
+				>
+					<img
+						src={staticUrl('img/betting-component-input-increase-containerless.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+				</button>
 			</div>
 		</div>
 
 		<div class="mobile-action-row">
-			<button
-				type="button"
-				class="mobile-icon-btn mobile-icon-btn--menu"
-				aria-label="Menu"
-				onclick={() => props.onMenuClick?.()}
-			>
-				<img src={staticUrl('img/menu-btn-mobile.png')} alt="" aria-hidden="true" />
-			</button>
 			<button
 				type="button"
 				class="mobile-icon-btn mobile-icon-btn--fast"
@@ -705,34 +750,24 @@
 				onpointercancel={onPlayPointerRelease}
 				onlostpointercapture={onPlayPointerRelease}
 			>
+				<!-- Play button now uses the desktop round plaque + icon (main_btn_empty.png +
+				     main_btn_play_icon.png) via the shared snippets, replacing play-btn-mobile.png. The
+				     plaque is drawn in every state; only the overlay (spinner / icon) changes. -->
+				{@render mainButtonBase()}
 				{#if showPlayLoading}
-					<img src={staticUrl('img/empty-btn-brown.png')} alt="" aria-hidden="true" />
 					<img
-						class="mobile-play-spinner"
+						class="bp-btn-play-spinner"
 						src={staticUrl('img/loading_vector.png')}
 						alt=""
 						aria-hidden="true"
 					/>
 				{:else}
-					<img src={staticUrl('img/play-btn-mobile.png')} alt="" aria-hidden="true" />
+					{@render mainButtonPlayIcon()}
 					{#if props.hasPendingBonusBalls}
 						<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
 					{/if}
 				{/if}
 			</button>
-			<div class="mobile-coins-wrap">
-				<button
-					type="button"
-					class="mobile-icon-btn mobile-icon-btn--coins"
-					class:mobile-icon-btn--on={mobileBetPopupOpen}
-					aria-expanded={mobileBetPopupOpen}
-					aria-label="Open bet settings"
-					onclick={toggleMobileBetPopup}
-				>
-					<img src={staticUrl('img/coins-btn-mobile.png')} alt="" aria-hidden="true" />
-				</button>
-				{@render mobileBetPopup()}
-			</div>
 			<div class="mobile-autobet-wrap">
 				<button
 					type="button"
@@ -765,92 +800,6 @@
 			</div>
 		</div>
 
-		{#snippet mobileBetPopup()}
-			{#if mobileBetPopupOpen}
-				<div class="mobile-bet-popup" role="dialog" aria-label="Bet settings">
-					<img
-						class="bp-field-frame mobile-bet-popup-base"
-						src={staticUrl('img/mobile_popup_bet_modal_base.png')}
-						alt=""
-						aria-hidden="true"
-					/>
-					<div class="mobile-bet-popup-row mobile-bet-popup-row--stat">
-						{@render bettingFieldFrame()}
-						<div class="mobile-bet-popup-mid">
-							<span class="mobile-bet-popup-label">{betLabel}</span>
-							<span class="mobile-bet-popup-value">{formatMoney(displayTotalBet)}</span>
-						</div>
-					</div>
-					<div class="mobile-bet-popup-row">
-						{@render bettingFieldFrame()}
-						<button
-							type="button"
-							class="mobile-bet-popup-step"
-							disabled={isBallPerDropStepDisabled(-1)}
-							aria-label="Decrease ball per drop"
-							onclick={() => adjustBallPerDrop(-1)}
-						>
-							<img
-								src={staticUrl('img/betting-component-input-decrease.png')}
-								alt=""
-								aria-hidden="true"
-							/>
-						</button>
-						<div class="mobile-bet-popup-mid">
-							<span class="mobile-bet-popup-label">{context.i18nDerived.t('Ball per drop')}</span>
-							<span class="mobile-bet-popup-value">{ballPerDropDisplay}</span>
-						</div>
-						<button
-							type="button"
-							class="mobile-bet-popup-step"
-							disabled={isBallPerDropStepDisabled(1)}
-							aria-label="Increase ball per drop"
-							onclick={() => adjustBallPerDrop(1)}
-						>
-							<img
-								src={staticUrl('img/betting-component-input-increase.png')}
-								alt=""
-								aria-hidden="true"
-							/>
-						</button>
-					</div>
-					<div class="mobile-bet-popup-row">
-						{@render bettingFieldFrame()}
-						<button
-							type="button"
-							class="mobile-bet-popup-step"
-							disabled={isBetAmountStepDisabled(-1)}
-							aria-label="Decrease bet per ball"
-							onclick={() => adjustBetAmountStep(-1)}
-						>
-							<img
-								src={staticUrl('img/betting-component-input-decrease.png')}
-								alt=""
-								aria-hidden="true"
-							/>
-						</button>
-						<div class="mobile-bet-popup-mid">
-							<span class="mobile-bet-popup-label">{betPerBallLabel}</span>
-							<span class="mobile-bet-popup-value">{formatCompactAmount(props.betAmount)}</span>
-						</div>
-						<button
-							type="button"
-							class="mobile-bet-popup-step"
-							disabled={isBetAmountStepDisabled(1)}
-							aria-label="Increase bet per ball"
-							onclick={() => adjustBetAmountStep(1)}
-						>
-							<img
-								src={staticUrl('img/betting-component-input-increase.png')}
-								alt=""
-								aria-hidden="true"
-							/>
-						</button>
-					</div>
-				</div>
-			{/if}
-		{/snippet}
-
 		<div class="mobile-bottom-corners">
 			<div class="mobile-corner-info mobile-corner-info--left">
 				<img src={staticUrl('img/coin-ico.png')} alt="" aria-hidden="true" />
@@ -858,16 +807,16 @@
 				<span class="mobile-corner-value">{formatWin(displayWinAmount)}</span>
 			</div>
 			<div class="mobile-corner-info mobile-corner-info--right">
-				<!-- The balance's leading icon IS the coin now (the wallet is gone), and it doubles as the
-				     on-win coin-burst target — winning coins merge into it. -->
+				<span class="mobile-corner-value">{formatMoney(displayBalance)}</span>
+				<!-- Wallet icon TRAILS the balance (right side). It still doubles as the on-win coin-burst
+				     target — winning coins merge into it (located via data-coin-fly-target). -->
 				<img
-					class="mobile-balance-coin coin-fly-target"
+					class="mobile-balance-wallet coin-fly-target"
 					data-coin-fly-target="balance"
-					src={staticUrl('img/coin_peg.png')}
+					src={staticUrl('img/wallet-ico.png')}
 					alt=""
 					aria-hidden="true"
 				/>
-				<span class="mobile-corner-value">{formatMoney(displayBalance)}</span>
 			</div>
 		</div>
 	</div>

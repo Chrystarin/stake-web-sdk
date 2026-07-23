@@ -1206,7 +1206,9 @@
 	display: flex;
 	flex-direction: column;
 	gap: 5vw;
-	padding: 0 3vw 15vw;
+	// Bottom padding reserves the space above the fixed Win/Balance black bar. Trimmed 15vw → 11.5vw so
+	// the action-button row sits closer to that bar (smaller gap).
+	padding: 0 3vw 11.5vw;
 	pointer-events: none;
 	--bp-label-value-gap: 0.11em;
 	--bp-mobile-component-gap: clamp(8px, 1.8vw, 13px);
@@ -1216,11 +1218,22 @@
 	}
 }
 
+// Free-spin meter now sits on its own row above the fields, right-aligned (reference layout).
+.mobile-meter-row {
+	display: flex;
+	justify-content: flex-end;
+	width: 100%;
+	// Pull the fields up toward the meter so they sit close beneath it, cancelling most of the
+	// .mobile-hud row gap for this pair only.
+	margin-bottom: -3vw;
+}
+
 .mobile-top-row {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2fr);
+	// All three fields (Total bet / Bet per ball / Balls per drop) share an equal width.
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: var(--bp-mobile-component-gap);
-	align-items: center;
+	align-items: stretch;
 	width: 100%;
 }
 
@@ -1246,11 +1259,12 @@
 }
 
 .mobile-top-card-label {
-	// Scale with the card width (cqi) so long labels like "BALLS PER DROP" shrink
-	// to fit instead of being clipped on narrow phones. Clamped to stay legible on
-	// large screens and to still fit on very narrow (≤320px) phones.
-	font-size: clamp(5.15px, 12.2cqi, 13.8px);
-	font-weight: 800;
+	// Fixed viewport-relative size (NOT cqi) so all three fields — Total bet / Bet per ball / Balls per
+	// drop — render the label at the SAME size. Sized to keep the longest ("Balls per drop") inside the
+	// narrower stepper cards.
+	font-size: clamp(8px, 2.4vw, 12px);
+	// Lighter than the previous 800 (user request).
+	font-weight: 600;
 	// Match the desktop stat-field label colour (grey), not the mobile gold.
 	color: #a9a1a1;
 	line-height: 1;
@@ -1278,45 +1292,89 @@
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
 }
 
-.mobile-top-card--free-spin {
-	// Hug the meter's own aspect ratio instead of a fixed 22vw box. The free-spin art (≈2.234:1)
-	// is wider than the old 1.59:1 card, so a fit-to-width contain left ~15% dead vertical space
-	// above/below and the meter sat smaller-in-its-frame than the desktop meter (whose 2.5:1 box
-	// the art nearly fills). Letting the card hug the art ratio removes that padding so the meter
-	// fills its frame edge-to-edge, matching desktop. The card now hugs the meter, so the top row
-	// tightens to the meter's height (still the tallest cell) and the shorter Bet / Ball-per-drop
-	// cards centre against it.
-	height: auto;
-	align-self: center;
-	padding: 0;
-	background: transparent;
-	overflow: hidden;
+// Label + value stack, centred inside each card.
+.mobile-top-card-mid {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
 }
 
-.mobile-top-card--free-spin .mobile-free-spin-meter {
+.mobile-top-card--stat .mobile-top-card-mid {
 	width: 100%;
+}
+
+// Stepper fields (Bet per ball / Balls per drop): − value + laid out in a row. Overrides the base
+// card's column layout.
+.mobile-top-card--stepper {
+	flex-direction: row;
+	justify-content: space-between;
+	gap: clamp(2px, 0.8vw, 5px);
+	// Small margin insetting the − / + steppers from the field's left/right edges.
+	padding-left: clamp(5px, 1.6vw, 10px);
+	padding-right: clamp(5px, 1.6vw, 10px);
+}
+
+.mobile-top-step {
+	flex: 0 0 auto;
+	// 20% smaller than before (was 15px / 4vw / 24px).
+	width: clamp(12px, 3.2vw, 19px);
+	height: clamp(12px, 3.2vw, 19px);
+	border: none;
+	background: transparent;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		display: block;
+		pointer-events: none;
+	}
+
+	&:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+}
+
+.mobile-free-spin-meter {
+	// Right-aligned. Native free-spin-base.png ratio (306 × 137) → no letterbox padding inside the
+	// canvas. Width is 15% smaller than the previous 120px/40%/196px.
+	width: clamp(102px, 34%, 167px);
 	height: auto;
-	// Native free-spin-base.png ratio (306 × 137) → zero letterbox padding inside the canvas.
 	aspect-ratio: 306 / 137;
 	min-height: 0;
 }
 
 // Hidden state for the always-mounted mobile free-spin meter (1-ball tier). `visibility` — not
-// `{#if}` — so the Pixi canvas is never destroyed/recreated on a Ball-Per-Drop toggle. The card
-// already reserves this grid cell, so hiding the meter inside it has no layout effect.
-.mobile-top-card--free-spin .mobile-free-spin-meter--hidden {
+// `{#if}` — so the Pixi canvas is never destroyed/recreated on a Ball-Per-Drop toggle. The row
+// still reserves its height, so hiding the meter has no layout effect.
+.mobile-free-spin-meter--hidden {
 	visibility: hidden;
 }
 
 .mobile-action-row {
-	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
-	gap: clamp(10px, 2.9vw, 21px);
+	// Flex (not a 3-col grid) so Fast + Autobet sit close to Play with a small, fixed gap instead of
+	// being centred in wide 1/3 columns. Button sizes are explicit (below) because a flex item's %
+	// width resolves against the whole row, not a column.
+	display: flex;
+	justify-content: center;
 	align-items: center;
+	gap: clamp(14px, 4.5vw, 28px);
 }
 
 .mobile-icon-btn {
-	width: 70%;
+	// Explicit size = the Fast/Autobet baseline; Play overrides larger below. Not a % (see
+	// .mobile-action-row). No `margin: 0 auto` — auto margins on a flex item would spread the buttons.
+	width: clamp(30px, 10.4vw, 46px);
 	aspect-ratio: 1 / 1;
 	border: none;
 	background: transparent;
@@ -1326,7 +1384,6 @@
 	align-items: center;
 	justify-content: center;
 	min-width: 0;
-	margin: 0 auto;
 	transition:
 		transform 0.12s ease,
 		opacity 0.12s ease,
@@ -1355,8 +1412,13 @@
 }
 
 .mobile-icon-btn--play {
-	transform: scale(1.75);
+	// Explicit size (~85px @375), overriding the base width. Explicit rather than a scale() so it lays
+	// out correctly as a flex item in the action row. (25% larger than the previous ~68px.)
+	width: clamp(65px, 22.6vw, 100px);
 	position: relative;
+	// Feeds the desktop plaque/spinner overlays reused here — main_btn_empty.png draws its disc 3.125%
+	// high, so the spinner raises onto the disc centre (see .bp-btn-play-spinner).
+	--bp-play-disc-rise: 3.125%;
 	/* See .bp-btn-play — hold-to-drop needs a long press to stay a press on touch. */
 	touch-action: none;
 	user-select: none;
@@ -1364,15 +1426,21 @@
 
 	/* Press feedback is a BRIGHTNESS bump, not a scale change — override, don't compose with, the
 	   generic `.mobile-icon-btn:active` rule above. `transform` isn't additive, so a scale-down there
-	   would REPLACE this button's own 1.75× base scale instead of shrinking off it, collapsing the
-	   button to near half size on every press. That's most visible during bonus hold-to-drop, where the
-	   button stays pressed for the whole streamed hold (each ball drop reading as a stutter) rather than
-	   a quick tap. Keep the base scale fixed and just brighten while held — same treatment as the
-	   desktop button's --bp-play-active-boost. */
+	   would REPLACE this button's own base scale instead of shrinking off it. Keep the base scale fixed
+	   and just brighten while held — same treatment as the desktop button's --bp-play-active-boost. */
 	&:active:not(:disabled):not(.mobile-icon-btn--soft-disabled) {
-		transform: scale(1.75);
+		// Brightness-only press. `transform: none` also cancels the base `.mobile-icon-btn:active`
+		// scale(0.97) so the button doesn't shrink (a scale here would stutter bonus hold-to-drop).
+		transform: none;
 		filter: brightness(1.35);
 	}
+}
+
+// The reused desktop play icon (bp-btn-play-icon) must keep its 39% width + optical nudge; the base
+// `.mobile-icon-btn img` rule would otherwise stretch it to fill the button.
+.mobile-icon-btn--play .bp-btn-play-icon {
+	width: 39%;
+	height: auto;
 }
 
 // Keep the play button fully opaque while loading so the spinner reads clearly.
@@ -1380,27 +1448,9 @@
 	opacity: 1;
 }
 
-.mobile-play-spinner {
-	position: absolute;
-	inset: 0;
-	margin: auto;
-	width: 42% !important;
-	height: auto !important;
-	aspect-ratio: 1;
-	transform-origin: center center;
-	animation: bp-play-spin 0.9s linear infinite;
-	pointer-events: none;
-	z-index: 3;
-}
-
-/* Autobet / fast game: off = low opacity, on = full opacity. */
+/* Autobet / fast game: off = low opacity, on = full opacity. They use the base .mobile-icon-btn size. */
 .mobile-icon-btn--autobet,
 .mobile-icon-btn--fast {
-	opacity: 0.6;
-}
-
-/* Coins / bet-settings toggle: muted to match the other secondary icon buttons. */
-.mobile-icon-btn--coins {
 	opacity: 0.6;
 }
 
@@ -1426,7 +1476,9 @@
 
 .mobile-autobet-wrap {
 	position: relative;
-	width: 100%;
+	// Hug the Autobet button (was 100%) so, as a flex item in .mobile-action-row, it doesn't stretch to
+	// fill the row and push Fast/Play out.
+	width: auto;
 	display: flex;
 	justify-content: center;
 }
@@ -1465,147 +1517,19 @@
 	}
 }
 
-.mobile-coins-wrap {
-	position: relative;
-	width: 100%;
-	display: flex;
-	justify-content: center;
-}
-
-.mobile-bet-popup {
-	position: fixed;
-	right: 2vw;
-	bottom: 28.5vw;
-	width: min(62vw, 360px);
-	z-index: 1100;
-	display: flex;
-	flex-direction: column;
-	gap: clamp(10px, 2.4vw, 16px);
-	padding: clamp(8px, 1.7vw, 12px);
-	pointer-events: auto;
-	/* Pin the popup 2vw from the viewport's right edge, sitting just above the controls.
-	   Scaling from the bottom-right keeps that right edge fixed as it shrinks. */
-	transform: scale(0.625);
-	transform-origin: bottom right;
-
-	> .bp-field-frame {
-		border-radius: clamp(10px, 2.2vw, 14px);
-	}
-
-	> :not(.bp-field-frame) {
-		position: relative;
-		z-index: 1;
-	}
-}
-
-.mobile-bet-popup-row {
-	/* Row height == the field component's height. The +/- steppers are sized to nearly fill it,
-	   leaving only --popup-step-margin of air top and bottom, and the side columns are made square to
-	   that height so each button stays a circle centred in its column. */
-	--popup-row-h: clamp(52px, 11.7vw, 70px);
-	--popup-step-margin: clamp(6px, 1.5vw, 10px);
-	--popup-step-size: calc(var(--popup-row-h) - 2 * var(--popup-step-margin));
-	position: relative;
-	display: grid;
-	grid-template-columns: var(--popup-row-h) minmax(0, 1fr) var(--popup-row-h);
-	align-items: center;
-	gap: 0;
-	min-height: var(--popup-row-h);
-	padding: 0;
-	overflow: visible;
-
-	> :not(.bp-field-frame) {
-		position: relative;
-		z-index: 1;
-	}
-}
-
-/* BET is a read-only total — no steppers, so the label/value span the full row width. */
-.mobile-bet-popup-row--stat {
-	grid-template-columns: minmax(0, 1fr);
-}
-
-/* Stepper (+/-) buttons: SQUARE and sized to sit inside the frame's inner cavity, centred in their
-   grid column — mirroring the desktop steppers (see `.bp-stepper-btn`). They used to stretch to the
-   full column width and `object-fit: cover`-crop the artwork, which oversized the icon and clipped its
-   bevel; a square box with `contain` scales the whole button down so it fits the panel. */
-.mobile-bet-popup-step {
-	width: var(--popup-step-size);
-	height: var(--popup-step-size);
-	min-height: 0;
-	margin: 0 auto;
-	border: none;
-	background: transparent;
-	padding: 0;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	align-self: center;
-
-	img {
-		width: 100%;
-		height: 100%;
-		display: block;
-		object-fit: contain;
-		object-position: center;
-		pointer-events: none;
-	}
-
-	&:disabled {
-		opacity: 0.45;
-		cursor: not-allowed;
-	}
-}
-
-.mobile-bet-popup-mid {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	/* Center the label + value block vertically (and horizontally) within the panel. */
-	justify-content: center;
-	gap: 0;
-	min-width: 0;
-	height: 100%;
-}
-
-/* Label / value borrow the desktop stat-field typography (see `.bp-field-label` /
-   `.bp-select-display`): grey uppercase label at weight 600, off-white value at weight 400 — NOT the
-   old mobile gold-on-white treatment. */
-.mobile-bet-popup-label {
-	color: #a9a1a1;
-	font-size: clamp(15px, 4.07vw, 24px);
-	font-weight: 600;
-	letter-spacing: -0.02em;
-	line-height: 1;
-	text-transform: uppercase;
-	text-align: center;
-	font-family: 'Poppins', 'Instrument Sans', sans-serif;
-	margin-bottom: var(--bp-label-value-gap);
-}
-
-.mobile-bet-popup-value {
-	margin-top: 0;
-	color: #f2f4f6;
-	font-size: clamp(15px, 4.11vw, 25px);
-	font-weight: 400;
-	letter-spacing: -0.02em;
-	line-height: 1;
-	text-align: center;
-	max-width: 100%;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	font-family: 'Poppins', 'Instrument Sans', sans-serif;
-}
 
 .mobile-bottom-corners {
 	position: fixed;
 	left: 0;
 	right: 0;
-	bottom: clamp(8px, 2.2vw, 16px);
-	padding: 0 clamp(10px, 3vw, 18px);
-	display: block;
+	// Flush to the bottom edge with a solid black bar behind Win (left) + Balance (right), per the
+	// reference. Flex space-between replaces the old absolutely-positioned corners.
+	bottom: 0;
+	padding: clamp(6px, 1.9vw, 12px) clamp(10px, 3vw, 18px);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	background: #000;
 	z-index: 20;
 	pointer-events: none;
 }
@@ -1628,16 +1552,10 @@
 	}
 }
 
-.mobile-corner-info--left {
-	position: absolute;
-	left: clamp(10px, 3vw, 18px);
-	bottom: 0;
-}
-
+/* Placed by the parent flex row's space-between now (was absolute left/right). */
+.mobile-corner-info--left,
 .mobile-corner-info--right {
-	position: absolute;
-	right: clamp(10px, 3vw, 18px);
-	bottom: 0;
+	position: static;
 }
 
 .mobile-corner-label {
@@ -1657,14 +1575,14 @@
 	white-space: nowrap;
 }
 
-/* Gold coin LEADING the mobile balance figure (it replaced the wallet icon) — also the on-win
-   coin-burst target that winning coins merge into. Scoped under `.mobile-corner-info` so it beats the
-   generic `.mobile-corner-info img` sizing/margin rule. */
-.mobile-corner-info .mobile-balance-coin {
+/* Wallet icon TRAILING the mobile balance figure (right side) — also the on-win coin-burst target that
+   winning coins merge into. Scoped under `.mobile-corner-info` so it beats the generic
+   `.mobile-corner-info img` sizing/margin rule; margin is on the LEFT since it trails the value. */
+.mobile-corner-info .mobile-balance-wallet {
 	width: auto;
 	height: clamp(18px, 4.3vw, 24px);
-	margin-left: 0;
-	margin-right: clamp(4px, 1.1vw, 8px);
+	margin-left: clamp(4px, 1.1vw, 8px);
+	margin-right: 0;
 	object-fit: contain;
 	flex-shrink: 0;
 	filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));

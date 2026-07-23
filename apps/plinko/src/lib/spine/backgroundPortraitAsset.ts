@@ -50,6 +50,8 @@ export const getBackgroundPortraitAsset = (): SpineAssetDef => ({
 		widthFillScale: PORTRAIT_BACKGROUND_IMAGE_WIDTH_FILL,
 		offsetXVw: PORTRAIT_BACKGROUND_IMAGE_OFFSET_X_VW,
 		offsetYVh: PORTRAIT_BACKGROUND_IMAGE_OFFSET_Y_VH,
+		// Cover the height too, so tall phones don't show an empty strip above the scene.
+		coverHeight: true,
 	},
 	skeletonScale: 0.5,
 });

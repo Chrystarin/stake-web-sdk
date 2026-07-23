@@ -10,6 +10,12 @@ export type SpineBackdropDef = {
 	offsetXVw: number;
 	/** Vertical nudge as viewport-height fraction (0.05 = 5vh). Positive = down. */
 	offsetYVh: number;
+	/**
+	 * Cover the viewport HEIGHT as well as the width (scale = max of the two fits) so a bottom-anchored
+	 * backdrop never leaves an empty strip at the top on tall viewports. A no-op on normal/short
+	 * viewports where the width fill already exceeds the height fill. Off by default.
+	 */
+	coverHeight?: boolean;
 };
 
 export type SpineAssetDef = {
