@@ -701,22 +701,32 @@
 	color: #efeadd;
 	white-space: nowrap;
 	pointer-events: none;
-}
-
-.bp-play-total-bg {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: fill;
-	display: block;
-	pointer-events: none;
-	z-index: 0;
+	/* Dark rounded pill with a thick gold rim, matching the other betting-panel fields'
+	   frame art (betting-component-frame.png: a #c27213 gold outline around a #221a15 fill).
+	   The rim is a gradient border — bright gold at the top, amber at the bottom — rendered
+	   with the padding-box/border-box double-background trick so the fully-rounded corners
+	   are preserved (border-image would square them off). The inset white highlight keeps the
+	   raised sheen. All widths scale with --bp-height-boost so the rim grows in step with PLAY. */
+	border: calc(0.1275vw * var(--bp-height-boost)) solid transparent;
+	border-radius: 999px;
+	background:
+		linear-gradient(#221a15, #221a15) padding-box,
+		linear-gradient(180deg, #d0851f, #8a520c) border-box;
+	box-shadow: inset 0 calc(0.19vw * var(--bp-height-boost)) 0
+		calc(-0.063vw * var(--bp-height-boost)) rgba(255, 255, 255, 0.25);
 }
 
 .bp-play-total-value {
 	position: relative;
 	z-index: 1;
+	/* Vertical centering. The flex parent centres the value's line box, but Poppins renders its
+	   glyphs high within a line-height:1 box (the box metrics report "centred" while the visible
+	   ink sits toward the top), so the digits look lifted. Nudge the value down to optically
+	   centre the visible numerals. em-based, so it holds at every pill size. */
+	display: flex;
+	align-items: center;
+	line-height: 1;
+	transform: translateY(0.18em);
 }
 
 .bp-btn-play {

@@ -117,13 +117,14 @@
 		position: absolute;
 
 		/* Size of the plaque.
-		   Width is this card's OWN, deliberately independent: it used to mirror --bp-field-plaque-width,
-		   but the betting fields were shrunk 10% and this card was kept at its size, so the two are no
-		   longer the same number. (It still borrows their chrome and typography — just not their width.)
+		   Width MATCHES the betting fields' rendered plaque exactly (--balance-field-width, itself the
+		   mirror of GameHud.scss --bp-field-plaque-width) so the left Balance | Win pair is a true mirror
+		   of the right Bet per ball | Ball per drop pair — same width both sides. (Historically this was
+		   kept 16.554vw, deliberately wider, when the fields shrank; that asymmetry is now removed.)
 		   Height DOES still match the fields: they are `content-box`, so their padding lands OUTSIDE the
 		   size they state — --bp-field-height (--bp-item-height 4.5vw × 0.7 = 3.15vw) + 0.35vw each side.
 		   `.balance-card` is `border-box`, so it states the total. */
-		--balance-card-width: 16.554vw;
+		--balance-card-width: var(--balance-field-width);
 		/* Mirrors the betting fields' RENDERED height so the Balance plaque matches them. The fields carry
 		   a desktop height bump (GameHud.scss `--bp-height-boost` 1.0925 = +15% then −5%): their content
 		   height went 3.15 → 3.506125vw, and with the same 2×0.35vw padding the plaque is 3.85 → 4.206125vw.
@@ -194,15 +195,13 @@
 		   on both sides. See the `left` calc below for how its adjacency to the (scaled) panel is preserved. */
 		transform: scale(0.9);
 		transform-origin: 50% 100%;
-		/* Clearance between this card's right edge and the Win-bet field's left edge — the knob for
-		   sliding the card away from the betting cluster. Growing this walks the card toward the
-		   viewport's left edge (it is the leftmost thing on the row). Pushed to 9vw so the Balance
-		   plaque sits hard against the left edge, roughly under the top-left Buy Bonus badge (~2.2vw
-		   margin), leaving a clean left-aligned Balance / Win-bet pair.
-		   NB: the +15% height boost widened the centre cluster, which shifted the Win-bet field ~1.1vw
-		   left, so the EFFECTIVE visual gap is now ~7.9vw. The card's own left margin is unchanged (still
-		   ~2.2vw, under Buy Bonus), which is the property that matters — so the gap knob is left at 9vw. */
-		--balance-card-gap: 9vw;
+		/* Clearance between this card's right edge and the Win-bet field's left edge. Tuned EMPIRICALLY
+		   (this term carries a ~0.7vw offset from the `left`-calc scale correction, so it is NOT a pure
+		   visual gap) so the measured Balance → Win gap equals the visual gap between the Bet per ball |
+		   Ball per drop pair on the right — making the left Balance | Win pair a true mirror of it. That
+		   right pair is spaced by GameHud.scss --bp-column-gap (1.1vw declared) at the panel's 0.9 scale
+		   = 0.99vw ≈ 14px @1416vw; 1.68vw here lands the Balance → Win gap on that same 14px. */
+		--balance-card-gap: 1.68vw;
 
 		/* The row centres a fixed group on the viewport, so the Bet-per-ball field's left edge is
 		   deterministic. With f = --balance-field-width, c = --balance-card-width, and the cluster =

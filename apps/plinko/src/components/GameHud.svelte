@@ -1047,12 +1047,6 @@
 						     so it never shifts the Auto | PLAY | Fast row that BalanceCard's position is solved
 						     against. Centred on the cluster, which is symmetric, so cluster centre = PLAY centre. -->
 						<div class="bp-play-total" aria-label="Total bet">
-							<img
-								class="bp-play-total-bg"
-								src={staticUrl('img/empty_play_balance.png')}
-								alt=""
-								aria-hidden="true"
-							/>
 							<span class="bp-play-total-value" aria-live="polite">
 								{formatMoney(displayTotalBet)}
 							</span>
