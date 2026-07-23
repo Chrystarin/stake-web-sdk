@@ -5,7 +5,12 @@ import { createPlayBookUtils, recordBookEvent, type BookEventHandlerMap } from '
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 import { eventEmitter } from './eventEmitter';
-import { plinkoBallsPerDrop, plinkoPlayAmount, plinkoStakePerBall } from './plinkoBet';
+import {
+	plinkoBallsPerDrop,
+	plinkoPlayAmount,
+	plinkoStakePerBall,
+	plinkoWagerAmount,
+} from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import {
 	beginRoundHistory,
@@ -312,7 +317,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		if (payoutMultiplier > 0) {
 			applyRgsRoundWinFromBookEventAmount(bookEvent.amount);
 			stateGame.winPopupMultiplier = payoutMultiplier;
-			if (!stateGame.showWinPopup) {
+			// Only celebrate a genuine profit. NOTE: `payoutMultiplier` is normalized to the PER-BALL
+			// stake (e.g. 8.1× on a 10-ball drop), NOT win ÷ total-bet — so it can't gate this. Compare
+			// the round's currency win (`winPopupAmount`, set by the call above) against the total amount
+			// wagered this drop (per-ball stake × balls). A sub-stake return skips the modal but still
+			// updates the HUD Win field.
+			const winCoversTotalBet = stateGame.winPopupAmount >= plinkoWagerAmount();
+			if (winCoversTotalBet && !stateGame.showWinPopup) {
 				// Pin the DISPLAYED balance at its pre-win value BEFORE this win is credited (the credit
 				// lands after playBet resolves). The WinCelebration holds it here, then counts it up once
 				// the coins have merged and the "+win" float has slid — so it never jumps ahead of the
@@ -320,6 +331,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 				stateGame.balanceWinHold = stateBet.balanceAmount;
 				stateGame.showWinPopup = true;
 				eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });
+			} else if (!winCoversTotalBet) {
+				// Sub-stake multi-ball win: no win modal, but the round still PAID — throw a small skull→
+				// balance coin burst so the credit still feels collected. (Rapid 1-ball already returned
+				// above with its own per-land bursts, so this only fires for 10/20/50-ball drops.)
+				stateGame.minorWinCoinBurstAmount = stateGame.winPopupAmount;
+				stateGame.minorWinCoinBurstTick++;
 			}
 		}
 		// Settle the round's My Bet History row to the authoritative total (base + bonus + free spin).

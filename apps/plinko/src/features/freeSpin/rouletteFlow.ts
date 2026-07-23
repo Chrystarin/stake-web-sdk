@@ -1,8 +1,6 @@
-import { stateBet } from 'state-shared';
-
 import { FREE_SPIN_SEGMENTS } from '../../game-logic/constants';
 import { eventEmitter } from '../../game/eventEmitter';
-import { plinkoStakePerBall } from '../../game/plinkoBet';
+import { plinkoStakePerBall, plinkoWagerAmount } from '../../game/plinkoBet';
 import { resetSpinMeterSession } from '../../game/plinkoSessionMeters';
 import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
@@ -84,11 +82,15 @@ export function applyFreeSpinWinOnLand(wheelSegmentLabel?: string) {
 	const baseWin = getFreeSpinBaseRoundWin();
 	const totalWin = applyRgsRoundWinFromBet(stateGame.activeRoundBet);
 	if (multiplier > 0 && totalWin > 0) recordFreeSpinWinHistory(multiplier);
+	// Only pop the win modal on a genuine profit: the round's currency win must at least cover the
+	// total amount wagered this drop (per-ball stake × balls). Compare currency-to-currency —
+	// `totalBetAmount` is the full drop debit, not the per-ball stake.
+	const winCoversBet = totalWin >= plinkoWagerAmount();
 	if (multiplier > 0 && baseWin > 0 && totalWin > 0) {
 		stateGame.pendingDropWinAmount = totalWin;
-		showFreeSpinPopup();
+		if (winCoversBet) showFreeSpinPopup();
 	}
-	if (stateGame.deferWinPopupForFreeSpin && stateBet.winBookEventAmount > 0) {
+	if (stateGame.deferWinPopupForFreeSpin && winCoversBet) {
 		stateGame.showWinPopup = true;
 		stateGame.deferWinPopupForFreeSpin = false;
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'win' });

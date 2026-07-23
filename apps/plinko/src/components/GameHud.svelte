@@ -85,8 +85,8 @@
 	);
 	// Left-side read-only field showing the round's LIVE win total: it accumulates in real time as each
 	// ball lands (`stateGame.winAmount`, via `addSettledWinAmount`) and resets to 0 when a new round
-	// starts (blanked at bet time). Labelled "Win Bet" — Social Mode doesn't restrict that word.
-	const winFieldLabel = $derived(context.i18nDerived.t('Win Bet'));
+	// starts (blanked at bet time). Labelled "Win" — Social Mode doesn't restrict that word.
+	const winFieldLabel = $derived(context.i18nDerived.t('Win'));
 	// Total bet shown in the plaque under PLAY (and the mobile total cards): the single-drop total
 	// normally, or — while an Autobet count option is hovered — the whole run's cost (per-drop × rounds).
 	const displayTotalBet = $derived(

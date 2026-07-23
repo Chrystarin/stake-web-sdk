@@ -159,6 +159,10 @@ export const stateGame = $state({
 	 * `rapidCoinBurstCount` carries how many coins to throw for that land (scaled by its multiplier). */
 	rapidCoinBurstTick: 0,
 	rapidCoinBurstCount: 1,
+	/** Multi-ball drop that PAID but below the total bet (so no win modal): bumped so CoinFountain still
+	 * throws a small skull→balance coin burst. `minorWinCoinBurstAmount` carries the round win to float. */
+	minorWinCoinBurstTick: 0,
+	minorWinCoinBurstAmount: 0,
 	/** Bumped when coins merge into the balance coin to float a "+<win>" text down from it (BalanceCard).
 	 * `balanceWinFloatAmount` is the win amount to show. */
 	balanceWinFloatTick: 0,

@@ -194,6 +194,19 @@
 			if (stateGame.ballPerDrop === 1) launchBurst(stateGame.rapidCoinBurstCount, stateGame.winAmount);
 		}
 	});
+
+	// Multi-ball drop that paid but stayed below the total bet: no win modal (so no WinCelebration coins),
+	// but the round still won something — throw a small skull→balance burst so the credit still lands with
+	// a few coins. `finalWin` bumps `minorWinCoinBurstTick` (see bookEventHandlerMap).
+	const MINOR_WIN_COIN_COUNT = 6;
+	let lastMinorTick = stateGame.minorWinCoinBurstTick;
+	$effect(() => {
+		const tick = stateGame.minorWinCoinBurstTick;
+		if (tick !== lastMinorTick) {
+			lastMinorTick = tick;
+			launchBurst(MINOR_WIN_COIN_COUNT, stateGame.minorWinCoinBurstAmount);
+		}
+	});
 </script>
 
 <div class="coin-fountain-host" bind:this={hostEl} aria-hidden="true"></div>
