@@ -124,7 +124,11 @@
 		   size they state — --bp-field-height (--bp-item-height 4.5vw × 0.7 = 3.15vw) + 0.35vw each side.
 		   `.balance-card` is `border-box`, so it states the total. */
 		--balance-card-width: 16.554vw;
-		--balance-card-height: calc(3.15vw + 2 * 0.35vw);
+		/* Mirrors the betting fields' RENDERED height so the Balance plaque matches them. The fields carry
+		   a desktop height bump (GameHud.scss `--bp-height-boost` 1.0925 = +15% then −5%): their content
+		   height went 3.15 → 3.506125vw, and with the same 2×0.35vw padding the plaque is 3.85 → 4.206125vw.
+		   This card is OUTSIDE that stylesheet, so the factor is baked in here by hand — keep in step. */
+		--balance-card-height: calc(3.506125vw + 2 * 0.35vw);
 
 		/* ⚠️ The frame art is NOT centred in its own canvas. betting-component-frame.png is 512×124, but
 		   the plaque BODY only occupies rows 0..109 — the bottom 14 are a soft shadow tail that fades to
@@ -158,8 +162,9 @@
 		   reference art, where the coin fills most of the plaque's inner height and clears the frame's
 		   bevel by a hair. Base fit was 2.8678vw (2.73125 × 1.05, ~74% of the 3.85vw card, AT the
 		   frame-recess ceiling); this is that value scaled to 81% (2.8678 × 0.9 × 0.9), so the coin
-		   sits well inside the bevel with plenty of air above and below. */
-		--balance-coin-size: 2.322918vw;
+		   sits well inside the bevel with plenty of air above and below. Then × the 1.0925 desktop height
+		   boost so the coin keeps filling the plaque: 2.322918 × 1.0925 = 2.537788vw. */
+		--balance-coin-size: 2.537788vw;
 
 		/* Coin's right edge to the plaque's right edge: the card's own right padding plus the coin's
 		   margin (the card is `space-between`, so the coin would otherwise sit hard against the frame).
@@ -173,26 +178,31 @@
 		   halo, it doesn't move it. */
 		--balance-coin-burst-size: 6.7725vw;
 
-		/* Row geometry (GameHud.scss): the panel is now scaled to 90% from its bottom-centre AND lifted
-		   0.75vw off the viewport bottom (see `.game-bottom-panel`), so the row-centre it used to be
-		   solved against has moved:
-		     new row centre = 0.75vw lift + 0.9 × 3.884vw = 0.75 + 3.4956 = 4.246vw above viewport bottom.
-		   This card is also scaled 90% (see `transform` below), so its visual height is 0.9 × 3.85 =
-		   3.465vw. Centring 3.465vw on 4.246vw puts its visual bottom edge at 4.246 − 1.733 = 2.514vw.
-		   Since the transform-origin is bottom-centre, the DECLARED `bottom` equals the visual bottom. */
-		bottom: 2.514vw;
+		/* Row geometry (GameHud.scss): the panel is scaled 90% from its bottom-centre and lifted 0.95vw
+		   off the viewport bottom (see `.game-bottom-panel`); the row centres on its tallest item, the
+		   PLAY button. At the current --bp-height-boost (1.0925) the row centre sits 4.714vw above the
+		   viewport bottom (measured at 16:9: 56.25vw viewport height − PLAY/row centre 51.536vw). This card
+		   is also scaled 90% (see `transform` below), so its visual height is 0.9 × 4.206125 = 3.785vw.
+		   Centring 3.785vw on 4.714vw puts its visual bottom edge at 4.714 − 1.8925 = 2.822vw. Since the
+		   transform-origin is bottom-centre, the DECLARED `bottom` equals the visual bottom.
+		   ⚠️ Re-solved empirically whenever the boost changes PLAY's height (and thus the row); keep in
+		   step with --bp-height-boost. */
+		bottom: 2.822vw;
 		/* Match the panel's 10% shrink from bottom-centre — same scale, same origin metric — so the
 		   card and the row read as one visual group. Scaling around the card's own bottom-centre keeps
 		   its horizontal centre anchored (declared centre-x is unchanged), and shrinks the box symmetrically
 		   on both sides. See the `left` calc below for how its adjacency to the (scaled) panel is preserved. */
 		transform: scale(0.9);
 		transform-origin: 50% 100%;
-		/* Clearance between this card's right edge and the Bet-per-ball field's left edge — the knob for
-		   sliding the card away from the betting cluster. Deliberately 4× the --bp-column-gap (1.1vw)
-		   that separates the row's own controls, so the card reads as a separate thing rather than as
-		   one more column in that group. Growing this walks the card toward the viewport's left edge
-		   (it is the leftmost thing on the row): at 4.4vw it still clears by 2.64vw. */
-		--balance-card-gap: 4.4vw;
+		/* Clearance between this card's right edge and the Win-bet field's left edge — the knob for
+		   sliding the card away from the betting cluster. Growing this walks the card toward the
+		   viewport's left edge (it is the leftmost thing on the row). Pushed to 9vw so the Balance
+		   plaque sits hard against the left edge, roughly under the top-left Buy Bonus badge (~2.2vw
+		   margin), leaving a clean left-aligned Balance / Win-bet pair.
+		   NB: the +15% height boost widened the centre cluster, which shifted the Win-bet field ~1.1vw
+		   left, so the EFFECTIVE visual gap is now ~7.9vw. The card's own left margin is unchanged (still
+		   ~2.2vw, under Buy Bonus), which is the property that matters — so the gap knob is left at 9vw. */
+		--balance-card-gap: 9vw;
 
 		/* The row centres a fixed group on the viewport, so the Bet-per-ball field's left edge is
 		   deterministic. With f = --balance-field-width, c = --balance-card-width, and the cluster =

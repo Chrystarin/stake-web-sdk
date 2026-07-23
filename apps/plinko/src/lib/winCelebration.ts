@@ -7,19 +7,24 @@
 export type WinTier = 'massive' | 'epic' | 'captain';
 
 /**
- * Tier boundaries on the TOTAL payout multiplier (round win ÷ total wager, = `winPopupMultiplier`).
- * A 10/20/50-ball drop's multiplier is the average across its balls, so these are deliberately low:
- * most wins land under `epic` (Massive Plunder), a strong round reaches `epic` (Epic Bounty), and a
- * bonus/near-wincap round reaches `captain` (Captain's Jackpot). Edit here to re-tune the tiering.
+ * Tier boundaries as a FRACTION of the MODE'S OWN max win (= `winPopupMultiplier ÷ modeMaxWin`, where
+ * `modeMaxWin` is that mode's `max_win` payout cap from `config.betModes`). The banner scales with how
+ * close the round got to the mode's ceiling, not to an absolute multiplier:
+ *   • Massive Plunder — up to 25% of max win
+ *   • Epic Bounty      — 26%–75% of max win
+ *   • Captain's Jackpot — 76% of max win and above
+ * Both `winPopupMultiplier` and `max_win` are the round-payout-÷-total-wager multiplier, so their ratio
+ * is a clean 0…1 fraction (a round can reach — but never exceed — its mode's cap). Edit here to re-tune.
  */
-export const WIN_TIER_MIN_MULTIPLIER = {
-	epic: 5,
-	captain: 25,
+export const WIN_TIER_MAX_WIN_FRACTION = {
+	epic: 0.26,
+	captain: 0.76,
 } as const;
 
-export function winTierForMultiplier(multiplier: number): WinTier {
-	if (multiplier >= WIN_TIER_MIN_MULTIPLIER.captain) return 'captain';
-	if (multiplier >= WIN_TIER_MIN_MULTIPLIER.epic) return 'epic';
+export function winTierForMultiplier(multiplier: number, modeMaxWin: number): WinTier {
+	const fraction = modeMaxWin > 0 ? multiplier / modeMaxWin : 0;
+	if (fraction >= WIN_TIER_MAX_WIN_FRACTION.captain) return 'captain';
+	if (fraction >= WIN_TIER_MAX_WIN_FRACTION.epic) return 'epic';
 	return 'massive';
 }
 

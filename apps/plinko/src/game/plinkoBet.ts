@@ -86,6 +86,17 @@ export function plinkoBetModeCost(): number {
 }
 
 /**
+ * Max win (payout-multiplier cap, = round win ÷ total wager ceiling) of the ACTIVE bet mode — the per-tier
+ * `max_win` from `config.betModes` (200/250/300/400 base; 260/290/330/480 buy). Drives the win-popup tier,
+ * which scales with how close the round got to THIS mode's ceiling. Falls back to the game-wide wincap.
+ */
+export function plinkoActiveModeMaxWin(): number {
+	const mode = plinkoActiveBetMode();
+	const modeConfig = config.betModes[mode as keyof typeof config.betModes];
+	return modeConfig?.max_win ?? PLINKO_WINCAP;
+}
+
+/**
  * Evenly sample up to `count` values from a sorted list, always keeping the first and last so the
  * offered min/max match the source min/max. Returns the list unchanged when it already has `count`
  * or fewer entries. De-dupes in case index rounding lands on the same value twice.

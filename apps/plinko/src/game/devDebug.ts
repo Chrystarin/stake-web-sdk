@@ -67,9 +67,11 @@ export function installPlinkoDevDebug() {
 	};
 
 	// Dev-only: fire the full-screen win celebration on demand (multi-ball tiers only) without having
-	// to actually win a round — e.g. `plinkoTestWin(1234.56, 30)` for an Epic Bounty. `multiplier`
-	// picks the tier (Massive < 5 ≤ Epic < 25 ≤ Captain) and scales the coin count.
-	w.plinkoTestWin = (amount = 1234.56, multiplier = 30, balls = 10) => {
+	// to actually win a round. `multiplier` picks the tier by its fraction of the balls-tier max win
+	// (Massive ≤25% ≤ Epic ≤75% < Captain) and scales the coin count — e.g. on the default 10-ball tier
+	// (max win 250×): `plinkoTestWin(1234.56, 120)` (48%) is Epic Bounty, `plinkoTestWin(9999, 220)` (88%)
+	// is Captain's Jackpot.
+	w.plinkoTestWin = (amount = 1234.56, multiplier = 120, balls = 10) => {
 		stateGame.ballPerDrop = balls <= 1 ? 10 : balls;
 		stateGame.winPopupAmount = amount;
 		stateGame.winPopupMultiplier = multiplier;

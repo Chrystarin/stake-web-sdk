@@ -258,12 +258,15 @@
 		driftPx: number;
 	};
 	const ANNOUNCEMENT_COIN_COUNT = 24;
+	// Mobile only: fall 50% slower (doubled duration = half the speed) on the pre-bonus congratulations
+	// screen's coin shower. Desktop is unchanged.
+	const ANNOUNCEMENT_COIN_SLOWDOWN = isPortraitGameLayout() ? 2 : 1;
 	const announcementCoins: AnnouncementCoin[] = Array.from(
 		{ length: ANNOUNCEMENT_COIN_COUNT },
 		(_, i) => {
 			// Slow fall so the rotation reads as a gentle tumble rather than a spin.
 			// 20% faster, then another 20% faster on top: divided by 1.2 twice (1.44 total).
-			const durationS = (5.5 + Math.random() * 3) / 1.44;
+			const durationS = ((5.5 + Math.random() * 3) / 1.44) * ANNOUNCEMENT_COIN_SLOWDOWN;
 			return {
 				id: i,
 				img: ANNOUNCEMENT_COIN_IMAGES[i % ANNOUNCEMENT_COIN_IMAGES.length],
@@ -286,7 +289,13 @@
 	// The bonus-end "CONGRATULATIONS! / YOU HAVE WON / $X" screen swaps the falling-coin shower for a
 	// treasure table that rises from the bottom, with white star sparkles twinkling over the hoard and the
 	// win value (matches the reference art + guide video). Positions are hand-placed over the art.
-	const TREASURE_ART = staticUrl('img/congratulations_screen/treasure_table.png');
+	// Mobile/portrait gets its own taller treasure art (the desktop one is very wide + short); desktop keeps
+	// the wide version. Picked here rather than in the template so it's decided once at mount.
+	const TREASURE_ART = staticUrl(
+		isPortraitGameLayout()
+			? 'img/congratulations_screen/treasure_table_mobile.png'
+			: 'img/congratulations_screen/treasure_table.png',
+	);
 	const SPARKLE_ART = staticUrl('img/congratulations_screen/sparkle.png');
 	type Sparkle = {
 		id: number;
@@ -303,7 +312,10 @@
 	//   y    — vertical position:   0 = top of the treasure, 100 = bottom (the floor)
 	//   size — sparkle width as a % of the treasure's width (bigger number = bigger star)
 	// Add or delete a line to add or remove a sparkle. The trailing comment just notes what each sits on.
-	const TREASURE_SPARKLE_POSITIONS: Array<{ x: number; y: number; size: number }> = [
+	// ⚠️ TWO independent sets: desktop and mobile use DIFFERENT treasure art (treasure_table.png is wide +
+	// short; treasure_table_mobile.png is taller), so the coins sit in different spots and each set is tuned
+	// to its own art. Editing one NEVER affects the other — the matching set is picked by orientation below.
+	const TREASURE_SPARKLE_POSITIONS_DESKTOP: Array<{ x: number; y: number; size: number }> = [
 		{ x: 13.4, y: 38.4, size: 6.4 }, // chest — front-left coins
 		{ x: 23.3, y: 29.4, size: 6.6 }, // chest — upper coins
 		{ x: 37.5, y: 55.9, size: 4.2 }, // floor coin right of the chest
@@ -314,6 +326,21 @@
 		{ x: 77.0, y: 67.9, size: 5.2 }, // coins left of the sack
 		{ x: 89.35, y: 65.7, size: 4.9 }, // bottom-right coins
 	];
+	// 📱 MOBILE (treasure_table_mobile.png) — EDIT THESE for the mobile screen only. Tuned to the taller art.
+	const TREASURE_SPARKLE_POSITIONS_MOBILE: Array<{ x: number; y: number; size: number }> = [
+		{ x: 27.0, y: 40.0, size: 6.0 }, // chest — upper coins
+		{ x: 31.5, y: 47.5, size: 6.4 }, // chest — main gold pile
+		{ x: 22.5, y: 53.5, size: 5.4 }, // chest — front-left coins
+		{ x: 39.0, y: 51.0, size: 4.6 }, // chest — right-edge coins
+		{ x: 57.0, y: 60.0, size: 5.2 }, // centre coin stacks
+		{ x: 49.0, y: 76.0, size: 4.6 }, // floor coins right of the chest
+		{ x: 82.0, y: 24.0, size: 4.8 }, // barrel-top coin
+		{ x: 64.0, y: 76.0, size: 5.6 }, // bottom-centre coin cluster
+		{ x: 85.0, y: 79.0, size: 4.8 }, // coins at the base right of the sack
+	];
+	const TREASURE_SPARKLE_POSITIONS = isPortraitGameLayout()
+		? TREASURE_SPARKLE_POSITIONS_MOBILE
+		: TREASURE_SPARKLE_POSITIONS_DESKTOP;
 	const treasureSparkles: Sparkle[] = TREASURE_SPARKLE_POSITIONS.map((p, i) => ({
 		id: i,
 		xPct: p.x,
@@ -1437,8 +1464,13 @@
 	}
 
 	/* Mobile / portrait treasure-win sizing. */
+	/* Mobile: centre the CONGRATULATIONS / YOU HAVE WON / $value block in the middle of the screen —
+	   overrides the treasure variant's `flex-start` + downward `margin-top` push (desktop keeps those). */
+	.bonus-announcement--treasure.bonus-announcement--mobile {
+		justify-content: center;
+	}
 	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-main {
-		margin-top: clamp(30px, 12vh, 120px);
+		margin-top: 0;
 	}
 	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-headline,
 	.bonus-announcement--roulette.bonus-announcement--mobile .bonus-announcement-headline {

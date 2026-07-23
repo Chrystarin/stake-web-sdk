@@ -14,11 +14,13 @@
 .game-bottom-panel {
 	position: absolute;
 	left: 50%;
-	/* Lifted 0.75vw off the viewport bottom so the scaled-down PLAY button clears the panel's inner
-	   padding by enough to fit the total-bet pill BELOW it (see .bp-play-total). Without the lift, the
-	   pill would extend past the viewport's bottom edge and be clipped. (Also gives the BalanceCard,
-	   solved against this panel's geometry, its breathing room.) */
-	bottom: 0.75vw;
+	/* Lifted off the viewport bottom so the PLAY button clears the panel's inner padding by enough to
+	   fit the total-bet pill BELOW it (see .bp-play-total). Without the lift, the pill would extend past
+	   the viewport's bottom edge and be clipped. Raised 0.75 → 0.95vw for the +15% desktop height boost:
+	   the taller PLAY + taller pill together pushed the pill ~2px past the clipped .game-root bottom, so
+	   the whole (now-bigger) bar gets a touch more clearance. (Also gives the BalanceCard, solved against
+	   this panel's geometry, its breathing room.) */
+	bottom: 0.95vw;
 	/* Two transforms combined into one declaration (they don't stack across multiple `transform` rules
 	   — the later one wins). translateX(-50%) still handles the horizontal centring; scale(0.9) shrinks
 	   the whole panel — and everything inside it (buttons, fields, meter, pill) — by 10%.
@@ -77,12 +79,22 @@
 
 .bottom-panel-row {
 	--bp-item-height: 4.5vw;
-	--bp-field-height: calc(var(--bp-item-height) * 0.7);
+	/* Desktop-only height multiplier applied to EVERY betting-panel component. One knob so the fields,
+	   the round Auto/PLAY/Fast buttons, and the total-bet pill all scale together — the buttons/pill
+	   read it via the cascade; BalanceCard.svelte (a sibling, outside this subtree) hardcodes the same
+	   factor and must be kept in step. Currently 1.0925 = the +15% bump (1.15) trimmed back 5% (×0.95),
+	   i.e. net +9.25% over the original plaque height. */
+	--bp-height-boost: 1.0925;
+	/* Field CONTENT height. The rendered field/plaque = this + 0.7vw of fixed vertical padding, so to
+	   grow the RENDERED height by --bp-height-boost with the padding held constant the content absorbs
+	   the whole delta: new = (old_content + 0.7) × boost − 0.7. At boost 1 this is exactly the old
+	   4.5 × 0.7 = 3.15vw; at 1.0925 it is 3.506125vw, making the plaque 3.85 → 4.206125vw (+9.25%). */
+	--bp-field-height: calc((var(--bp-item-height) * 0.7 + 0.7vw) * var(--bp-height-boost) - 0.7vw);
 
 	/* Rendered height of an edge field's PLAQUE — what you see, and what other things line up against.
 	   The fields are `content-box`, so --bp-field-height is only their CONTENT: the 0.35vw of padding
 	   on each side lands outside it. (--bp-field-label-rise shifts padding between top and bottom but
-	   cancels in the total, so it can't affect this.) = 3.85vw.
+	   cancels in the total, so it can't affect this.) = 3.85vw at boost 1, 4.206125vw at the 1.0925 boost.
 	   ⚠️ BalanceCard.svelte mirrors this to size its own plaque — keep in sync. */
 	--bp-field-plaque-height: calc(var(--bp-field-height) + 0.7vw);
 
@@ -270,17 +282,25 @@
 	overflow: hidden;
 	/* Match the stat fields' PLAQUE width exactly: same content width (--bp-field-base-width, set on
 	   .bp-field) plus the same horizontal gutter the bet-controls fields reserve for their steppers
-	   (var(--bp-field-height) + 0.2vw each side). Without this the win-bet plaque is only base-width +
-	   the default 0.35vw padding, so it reads noticeably narrower than Bet per ball / Ball per drop.
+	   (var(--bp-field-height) + 0.2vw each side = --bp-win-bet-h-pad total). Without this the win-bet
+	   plaque is only base-width + the default 0.35vw padding, so it reads noticeably narrower than Bet
+	   per ball / Ball per drop.
+	   The label/value are LEFT-aligned (not centred) with the same 1.2vw left inset as BalanceCard's
+	   plaque, so Win Bet reads like a twin of the Balance field. To keep the plaque WIDTH unchanged the
+	   left inset is stolen from the right gutter: left + right still sum to the full --bp-win-bet-h-pad,
+	   so only where the text sits moves, never the frame.
 	   Top/bottom keep the shared label-rise so its label/value line up with the stat fields across the
 	   row. */
-	padding: calc(0.35vw - var(--bp-field-label-rise)) calc(var(--bp-field-height) + 0.2vw)
-		calc(0.35vw + var(--bp-field-label-rise));
+	--bp-win-bet-h-pad: calc(2 * (var(--bp-field-height) + 0.2vw));
+	--bp-win-bet-text-inset: 1.2vw;
+	padding: calc(0.35vw - var(--bp-field-label-rise))
+		calc(var(--bp-win-bet-h-pad) - var(--bp-win-bet-text-inset))
+		calc(0.35vw + var(--bp-field-label-rise)) var(--bp-win-bet-text-inset);
 
 	> .bp-field-label {
 		grid-column: 1;
 		grid-row: 1;
-		text-align: center;
+		text-align: left;
 		align-self: end;
 		width: 100%;
 	}
@@ -289,8 +309,8 @@
 		grid-column: 1;
 		grid-row: 2;
 		align-self: start;
-		justify-content: center;
-		text-align: center;
+		justify-content: flex-start;
+		text-align: left;
 		width: 100%;
 	}
 }
@@ -660,20 +680,22 @@
 .bp-play-total {
 	position: absolute;
 	left: 50%;
-	bottom: -1.4vw;
+	/* Height and its drop below the disc scale with --bp-height-boost so the pill grows in step with
+	   PLAY; keeping bottom = −height preserves "pill TOP at the button's bottom edge" (see below). */
+	bottom: calc(-1.4vw * var(--bp-height-boost));
 	transform: translateX(-50%);
 	z-index: 5;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	min-width: 6vw;
-	height: 1.4vw;
+	height: calc(1.4vw * var(--bp-height-boost));
 	padding: 0 0.7vw;
 	box-sizing: border-box;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
 	font-weight: 500;
 	font-synthesis: none;
-	font-size: 0.9vw;
+	font-size: calc(0.9vw * var(--bp-height-boost));
 	line-height: 1;
 	letter-spacing: -0.01em;
 	color: #efeadd;
@@ -706,12 +728,14 @@
 	   box-centring alone reads low. Each overlay applies it in whatever unit it can (the % basis differs
 	   per element), so this is the shared source of truth rather than a directly-usable offset. */
 	--bp-play-disc-rise: 3.125%;
-	/* Round plaque from main_btn_empty.png (128×128). 6.46875vw = its native 1:1 (5.75vw) x 1.25 x 0.9.
+	/* Round plaque from main_btn_empty.png (128×128). 6.46875vw = its native 1:1 (5.75vw) x 1.25 x 0.9,
+	   then × --bp-height-boost so PLAY grows with the rest of the panel (aspect-locked, so its width
+	   carries the height bump). = 7.06611vw at boost 1.0925.
 	   ⚠️ Both dimensions are load-bearing for BalanceCard.svelte, which is a SIBLING of this panel and
 	   positions itself by calc against this cluster: the width feeds its `left` (via the cluster total)
 	   and the height feeds its `bottom` (the button is the row's tallest item, so it sets the row
 	   centre). Keep those in sync — the derivations are spelled out there. */
-	width: 6.46875vw;
+	width: calc(6.46875vw * var(--bp-height-boost));
 	aspect-ratio: 1 / 1;
 	min-width: 0;
 	height: auto;

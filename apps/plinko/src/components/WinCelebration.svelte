@@ -3,6 +3,7 @@
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 
 	import { stateGame } from '../game/stateGame.svelte';
+	import { plinkoActiveModeMaxWin } from '../game/plinkoBet';
 	import { eventEmitter } from '../game/eventEmitter';
 	import { frameImagePoint } from '../lib/frameArt';
 	import { isPortraitGameLayout } from '../lib/format';
@@ -163,7 +164,9 @@
 		exiting = false;
 		numberVisible = false;
 
-		tier = winTierForMultiplier(multiplier);
+		// Tier by how close the round got to THIS mode's max win (captured now — the active mode is still
+		// the one the round was played in; a buy-bonus mode isn't reverted until the round fully settles).
+		tier = winTierForMultiplier(multiplier, plinkoActiveModeMaxWin());
 		bannerSrc = staticUrl(WIN_TIER_BANNER[tier]);
 		coinCount = WIN_TIER_COIN_COUNT[tier];
 

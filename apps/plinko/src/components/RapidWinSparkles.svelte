@@ -5,6 +5,7 @@
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 
 	import { stateGame } from '../game/stateGame.svelte';
+	import { plinkoActiveModeMaxWin } from '../game/plinkoBet';
 	import { frameImagePoint, framePaintedWidth, SKULL_MOUTH_CAVITY } from '../lib/frameArt';
 	import { staticUrl } from '../lib/staticUrl';
 	import {
@@ -118,6 +119,8 @@
 			}
 		}
 
+		// Tier each sparkle by its ball multiplier as a fraction of THIS mode's max win (rapid = onedrop).
+		const modeMaxWin = plinkoActiveModeMaxWin();
 		return stateGame.rapidWinSparkles.map((s) => {
 			const p = mouth ?? {
 				x: (innerWidth.current ?? window.innerWidth) * 0.5,
@@ -130,7 +133,7 @@
 			for (const c of chars) units += c === ',' || c === '.' ? 0.42 : 0.72;
 			units = Math.max(units, 1);
 			const digitH = Math.max(12, Math.min(sizePx * 0.2, (sizePx * 1.15) / units));
-			const tier = winTierForMultiplier(s.multiplier);
+			const tier = winTierForMultiplier(s.multiplier, modeMaxWin);
 			const bannerH = sizePx * BANNER_BASE_H * BANNER_TIER_H[tier];
 			// Pull the number up by this banner's transparent bottom padding IN EXCESS of Massive's, so the
 			// label→value gap ends up identical across all three tiers (= Massive Plunder's gap).

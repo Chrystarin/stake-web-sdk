@@ -50,6 +50,7 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/announcement-message-background-mobile.png',
 	// Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen (see BonusRoulette treasureWin variant).
 	'img/congratulations_screen/treasure_table.png',
+	'img/congratulations_screen/treasure_table_mobile.png',
 	'img/congratulations_screen/sparkle.png',
 
 	// Betting panel (desktop + mobile)
