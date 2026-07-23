@@ -27,6 +27,17 @@
 	// How far a value floats upward across its lifetime, as a multiple of the glyph height.
 	const FLOAT_DIST_COEFF = 2.6;
 
+	// Backdrop shade — a soft dark-navy vignette dimmed over the skull mouth + head so the win value
+	// pops against it. It fades IN while any win value is on screen and OUT once none remain.
+	const SHADE_SRC = 'img/win_popup/backdrop_shade.png';
+	const SHADE_ASPECT = 4766 / 2989; // intrinsic w/h of the PNG
+	// Where the shade's centre sits on the frame art (fractions of the painted frame). Biased slightly
+	// below the skull's eyes so the vignette's opaque core covers the mouth + the floating values above it.
+	const SHADE_CENTER = { x: 0.5, y: 0.31 };
+	// Shade width as a fraction of the painted frame width. Centred on SHADE_CENTER via translate(-50%),
+	// so shrinking it keeps it anchored on the skull's mouth + head. 0.5 = half the earlier 1.0 size.
+	const SHADE_WIDTH_RATIO = 0.5;
+
 	// Format the win value: up to 4 decimals, but with trailing zeros stripped so 0.4000 → "0.4" and
 	// 0.1230 → "0.123" (and a whole number shows no decimals). `maximumFractionDigits` already drops
 	// trailing zeros; `minimumFractionDigits: 0` lets it fall all the way to an integer.
@@ -78,10 +89,32 @@
 		});
 	});
 
+	// Geometry for the backdrop shade, re-resolved on every layout change like the values above.
+	const shade = $derived.by(() => {
+		innerWidth.current;
+		innerHeight.current;
+		// `framePaintedWidth`/`frameImagePoint` aren't reactive, so — like `placed` — depend on the win
+		// set: this re-resolves the (by then laid-out) frame geometry whenever a win appears or clears,
+		// instead of being stuck on the fallback captured before the frame art was first laid out.
+		void stateGame.rapidWinSparkles.length;
+		const frameW = framePaintedWidth() ?? FALLBACK_FRAME_W;
+		const center = frameImagePoint(SHADE_CENTER.x, SHADE_CENTER.y) ?? {
+			x: (innerWidth.current ?? window.innerWidth) * SHADE_CENTER.x,
+			y: (innerHeight.current ?? window.innerHeight) * SHADE_CENTER.y,
+		};
+		const widthPx = frameW * SHADE_WIDTH_RATIO;
+		return { leftPx: center.x, topPx: center.y, widthPx, heightPx: widthPx / SHADE_ASPECT };
+	});
+	// The shade is visible whenever at least one win value is on screen; when the last one clears it
+	// fades back out (see the CSS opacity transition).
+	const shadeVisible = $derived(stateGame.rapidWinSparkles.length > 0);
+
 	onMount(() => {
 		// Preload the digit art so the first value never flashes an unloaded glyph.
 		new Image().src = staticUrl(WIN_DOT_ART);
 		for (let d = 0; d < 10; d++) new Image().src = staticUrl(winDigitArt(String(d)));
+		// Preload the shade so its first fade-in isn't blank.
+		new Image().src = staticUrl(SHADE_SRC);
 	});
 </script>
 
@@ -90,6 +123,16 @@
 	     state array still gets its full out:scale/fade — an {#if placed.length > 0} guard would tear the
 	     parent down before the child transition could play. -->
 	<div class="rws-overlay" aria-hidden="true">
+		<!-- Backdrop shade over the skull mouth + head, behind the values (first in DOM = painted under
+		     them). Permanently mounted; shown/hidden purely via the `--visible` opacity toggle so it can
+		     fade both in (first win) and out (last win cleared) without an {#if} tearing it out mid-fade. -->
+		<img
+			class="rws-shade"
+			class:rws-shade--visible={shadeVisible}
+			src={staticUrl(SHADE_SRC)}
+			alt=""
+			style="left:{shade.leftPx}px; top:{shade.topPx}px; width:{shade.widthPx}px; height:{shade.heightPx}px;"
+		/>
 		{#each placed as s (s.id)}
 			<!-- Anchor pinned at the skull's mouth. `.rws-stack` owns the vertical slot offset (newest at
 			     mouth, older ones slid upward, smooth transition when the index changes so a bumped value
@@ -135,6 +178,22 @@
 		z-index: 14000;
 		pointer-events: none;
 		overflow: hidden;
+	}
+
+	/* Backdrop shade, centred on its anchor point over the skull head. Base state = hidden with the
+	   slower FADE-OUT duration; `--visible` flips to opaque with the quicker FADE-IN duration. */
+	.rws-shade {
+		position: absolute;
+		transform: translate(-50%, -50%);
+		opacity: 0;
+		transition: opacity 460ms ease;
+		pointer-events: none;
+		will-change: opacity;
+	}
+	.rws-shade--visible {
+		/* 30% more transparent than fully opaque so the skull reads through the shade. */
+		opacity: 0.7;
+		transition: opacity 240ms ease;
 	}
 
 	/* Fixed spawn point at the skull's mouth. No transform of its own; the float + centring live below. */
