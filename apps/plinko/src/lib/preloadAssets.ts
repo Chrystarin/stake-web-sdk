@@ -38,6 +38,7 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/bonus-bar-fill.png',
 	'img/bonus-bar-marker.png',
 	'img/bonus-level-base.png',
+	'img/bonus-level-base-background.png',
 	'img/bonus-level-up-base.png',
 	'img/bonus-roulette-background.png',
 	'img/bonus-roulette-background-mobile.png',

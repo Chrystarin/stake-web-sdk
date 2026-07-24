@@ -1,0 +1,117 @@
+{
+"skeleton": {
+	"hash": "G8YCi6vdlBM",
+	"spine": "4.3.23",
+	"x": -1455.1455,
+	"y": -19.09564,
+	"width": 2912.8906,
+	"height": 1642.5647,
+	"images": "../background/Spine/",
+	"audio": "C:/Users/TOCH/Desktop/PLINKO/RAW"
+},
+"bones": [
+	{ "name": "root" }
+],
+"slots": [
+	{ "name": "Rain", "bone": "root", "attachment": "rainFreeGame/" },
+	{ "name": "Rain4", "bone": "root", "attachment": "rainFreeGame/" },
+	{ "name": "Rain3", "bone": "root", "attachment": "rainFreeGame/" },
+	{ "name": "Rain2", "bone": "root", "attachment": "rainFreeGame/" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"Rain": {
+				"rainFreeGame/": {
+					"type": "mesh",
+					"uvs": [ 1, 1, 0.5, 1, 0, 1, 0, 0, 0.5, 0, 1, 0 ],
+					"triangles": [ 0, 1, 5, 1, 4, 5, 1, 2, 4, 2, 3, 4 ],
+					"vertices": [ 1455.1, -19.1, 719.92, -19.1, -15.26, -19.1, -15.26, 806.98, 719.92, 806.98, 1455.1, 806.98 ],
+					"hull": 6,
+					"sequence": { "count": 29, "start": 0, "digits": 1 },
+					"edges": [ 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 0 ],
+					"width": 550.0,
+					"height": 309.0
+				}
+			},
+			"Rain2": {
+				"rainFreeGame/": {
+					"type": "mesh",
+					"uvs": [ 1, 1, 0.5, 1, 0, 1, 0, 0, 0.5, 0, 1, 0 ],
+					"triangles": [ 0, 1, 5, 1, 4, 5, 1, 2, 4, 2, 3, 4 ],
+					"vertices": [ 48.46, 797.39, -686.72, 797.39, -1421.9, 797.39, -1421.9, 1623.47, -686.72, 1623.47, 48.46, 1623.47 ],
+					"hull": 6,
+					"sequence": { "count": 29, "start": 0, "digits": 1 },
+					"edges": [ 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 0 ],
+					"width": 550.0,
+					"height": 309.0
+				}
+			},
+			"Rain3": {
+				"rainFreeGame/": {
+					"type": "mesh",
+					"uvs": [ 1, 1, 0.5, 1, 0, 1, 0, 0, 0.5, 0, 1, 0 ],
+					"triangles": [ 0, 1, 5, 1, 4, 5, 1, 2, 4, 2, 3, 4 ],
+					"vertices": [ 1457.75, 796.01, 722.57, 796.01, -12.61, 796.01, -12.61, 1622.08, 722.57, 1622.08, 1457.75, 1622.08 ],
+					"hull": 6,
+					"sequence": { "count": 29, "start": 0, "digits": 1 },
+					"edges": [ 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 0 ],
+					"width": 550.0,
+					"height": 309.0
+				}
+			},
+			"Rain4": {
+				"rainFreeGame/": {
+					"type": "mesh",
+					"uvs": [ 1, 1, 0.5, 1, 0, 1, 0, 0, 0.5, 0, 1, 0 ],
+					"triangles": [ 0, 1, 5, 1, 4, 5, 1, 2, 4, 2, 3, 4 ],
+					"vertices": [ 15.21, 4.25, -719.97, 4.25, -1455.15, 4.25, -1455.15, 830.33, -719.97, 830.33, 15.21, 830.33 ],
+					"hull": 6,
+					"sequence": { "count": 29, "start": 0, "digits": 1 },
+					"edges": [ 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 0 ],
+					"width": 550.0,
+					"height": 309.0
+				}
+			}
+		}
+	}
+],
+"animations": {
+	"animation": {
+		"attachments": {
+			"default": {
+				"Rain": {
+					"rainFreeGame/": {
+						"sequence": [
+							{ "mode": "loop", "delay": 0.03333333 }
+						]
+					}
+				},
+				"Rain2": {
+					"rainFreeGame/": {
+						"sequence": [
+							{ "mode": "loop", "delay": 0.03333333 }
+						]
+					}
+				},
+				"Rain3": {
+					"rainFreeGame/": {
+						"sequence": [
+							{ "mode": "loop", "delay": 0.03333333 }
+						]
+					}
+				},
+				"Rain4": {
+					"rainFreeGame/": {
+						"sequence": [
+							{ "mode": "once", "delay": 0.03333333 },
+							{ "time": 0.9333333, "mode": "once", "index": 28 }
+						]
+					}
+				}
+			}
+		}
+	}
+}
+}

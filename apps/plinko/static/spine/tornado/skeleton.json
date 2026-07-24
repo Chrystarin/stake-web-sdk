@@ -1,0 +1,50 @@
+{
+"skeleton": {
+	"hash": "Jb2wgfcVp34",
+	"spine": "4.3.23",
+	"x": -200.93817,
+	"y": -113.43594,
+	"width": 394,
+	"height": 700,
+	"images": "../background/Spine/",
+	"audio": null
+},
+"bones": [
+	{ "name": "root" }
+],
+"slots": [
+	{ "name": "0", "bone": "root", "attachment": "tornadoFreeGame/" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"0": {
+				"tornadoFreeGame/": {
+					"x": -3.9381714,
+					"y": 236.56406,
+					"width": 394,
+					"height": 700,
+					"sequence": { "count": 31, "start": 0, "digits": 1 }
+				}
+			}
+		}
+	}
+],
+"animations": {
+	"animation": {
+		"attachments": {
+			"default": {
+				"0": {
+					"tornadoFreeGame/": {
+						"sequence": [
+							{ "mode": "once", "delay": 0.03333333 },
+							{ "time": 1.0333333, "mode": "once", "index": 30 }
+						]
+					}
+				}
+			}
+		}
+	}
+}
+}

@@ -1,4 +1,4 @@
-import { getBonusOverlays } from './bonusOverlayAssets';
+import { getBonusImageOverlays, getBonusOverlays } from './bonusOverlayAssets';
 import { staticAssetPath } from '../staticUrl';
 import type { SpineAssetDef } from './types';
 
@@ -8,6 +8,12 @@ const LANDSCAPE_BONUS_IMAGE = 'img/BG_landscape_FREEGAME.jpg';
 
 /** Ambient cloud slots in the base scene, hidden during bonus (replaced by the FG_CLOUD overlay). */
 const LANDSCAPE_CLOUD_SLOTS = ['cloud1', 'cloud2', 'cloud3', 'cloud5', 'cloud6', 'cloud7'];
+
+/**
+ * The base scene's moon and distant ship are hidden during bonus — the free game draws its own dimmed
+ * moon (`bonusImageOverlays`) and a dedicated ship spine (`bonusOverlays`) in their place.
+ */
+const LANDSCAPE_BONUS_HIDDEN_SLOTS = [...LANDSCAPE_CLOUD_SLOTS, 'moon', 'ship'];
 
 /**
  * Width fill multiplier for the landscape Spine background.
@@ -57,12 +63,8 @@ export const getBackgroundLandscapeAsset = (): SpineAssetDef => ({
 		offsetYVh: LANDSCAPE_BACKGROUND_IMAGE_OFFSET_Y_VH,
 	},
 	bonusBackdropSrc: staticAssetPath(LANDSCAPE_BONUS_IMAGE),
-	bonusHiddenSlots: LANDSCAPE_CLOUD_SLOTS,
-	// The distant ship is authored as the LAST (topmost) slot, above the waterfall. Lift it beneath the
-	// bonus overlays so the splash reads in front of it while the waterfall still covers the splash.
-	// The moon comes along because lifting the ship alone would drop it below the moon (slot 2) — the
-	// underlay preserves the skeleton's own draw order, so listing both keeps the ship over the moon.
-	bonusUnderlaySlots: ['moon', 'ship'],
-	bonusOverlays: getBonusOverlays(),
+	bonusHiddenSlots: LANDSCAPE_BONUS_HIDDEN_SLOTS,
+	bonusOverlays: getBonusOverlays('landscape'),
+	bonusImageOverlays: getBonusImageOverlays('landscape'),
 	skeletonScale: 0.5,
 });

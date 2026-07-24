@@ -1168,8 +1168,10 @@
 		--bonus-level-height-ratio: 0.238182;
 		--bonus-level-top-ratio: -0.055;
 		--bonus-level-left-ratio: 0.51;
-		/* Increase all bonus-level bars uniformly. */
-		--bonus-level-node-size-ratio: 2.5;
+		/* Bonus-level bar size / gap is tuned in BonusLevel.svelte
+		   (--bonus-level-node-size-ratio, alongside the backdrop knobs).
+		   Override it here on the mobile .bonus-level-track rule if mobile ever
+		   needs a different value from desktop. */
 		/* Bonus overlay image controls (desktop fallback). */
 		--bonus-overlay-scale: 1;
 		--bonus-overlay-offset-x: 0.3%;

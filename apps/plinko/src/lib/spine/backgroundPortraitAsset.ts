@@ -1,4 +1,4 @@
-import { getBonusOverlays } from './bonusOverlayAssets';
+import { getBonusImageOverlays, getBonusOverlays } from './bonusOverlayAssets';
 import { staticAssetPath } from '../staticUrl';
 import type { SpineAssetDef } from './types';
 
@@ -8,6 +8,13 @@ const PORTRAIT_BONUS_IMAGE = 'img/BG_portrait_FREEGAME.jpg';
 
 /** Ambient cloud slots in the base portrait scene, hidden during bonus (replaced by FG_CLOUD). */
 const PORTRAIT_CLOUD_SLOTS = ['cloud1', 'cloud2', 'cloud3', 'cloud5', 'cloud6', 'cloud7'];
+
+/**
+ * Hidden during bonus: the base ambient clouds plus the distant ship (replaced by the dedicated ship
+ * spine overlay). The portrait scene has no rendered moon of its own, so the free-game moon image is
+ * simply added on top. `moon` is listed harmlessly for parity with landscape.
+ */
+const PORTRAIT_BONUS_HIDDEN_SLOTS = [...PORTRAIT_CLOUD_SLOTS, 'moon', 'ship'];
 
 /**
  * Width fill multiplier for the portrait Spine background.
@@ -59,7 +66,8 @@ export const getBackgroundPortraitAsset = (): SpineAssetDef => ({
 		coverHeight: true,
 	},
 	bonusBackdropSrc: staticAssetPath(PORTRAIT_BONUS_IMAGE),
-	bonusHiddenSlots: PORTRAIT_CLOUD_SLOTS,
-	bonusOverlays: getBonusOverlays(),
+	bonusHiddenSlots: PORTRAIT_BONUS_HIDDEN_SLOTS,
+	bonusOverlays: getBonusOverlays('portrait'),
+	bonusImageOverlays: getBonusImageOverlays('portrait'),
 	skeletonScale: 0.5,
 });

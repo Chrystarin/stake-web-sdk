@@ -32,6 +32,12 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 			aria-label="Bonus level {label}"
 		></div>
 	{/each}
+	<img
+		class="bonus-level-base-bg"
+		src={staticUrl('img/bonus-level-base-background.png')}
+		alt=""
+		aria-hidden="true"
+	/>
 	<img class="bonus-level-base" src={staticUrl('img/bonus-level-base.png')} alt="" aria-hidden="true" />
 </div>
 
@@ -44,6 +50,37 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 		height: var(--bonus-level-track-height, 100%);
 		box-sizing: border-box;
 		--bonus-level-bar-scale: calc(var(--bonus-level-track-width, 100%) * 0.00193);
+
+		/* =====================================================================
+		   MANUAL TUNING KNOBS — change just these numbers to taste.
+		   ===================================================================== */
+
+		/* Size of the number bars → controls the GAP between them.
+		     2.5  = bars touch (no gap)
+		     2.3  = small, even gap (current)
+		     lower = smaller bars / bigger gaps
+		   Applies to BOTH desktop and mobile. */
+		--bonus-level-node-size-ratio: 2.15;
+
+		/* Brown backdrop (bonus-level-base-background.png) fine-tuning, so you can
+		   nudge/resize it to line up exactly with the gold frame:
+		     --bonus-level-bg-scale     1   = same box as the frame; >1 bigger, <1 smaller
+		     --bonus-level-bg-offset-x  0%  = move right (+) / left (-), as % of track width
+		     --bonus-level-bg-offset-y  0%  = move down  (+) / up   (-), as % of track height */
+		--bonus-level-bg-scale: 0.97;
+		--bonus-level-bg-offset-x: 0%;
+		--bonus-level-bg-offset-y: 2.5%;
+
+		/* Gold arch frame (bonus-level-base.png) scale / nudge — same idea as the backdrop:
+		     --bonus-level-base-scale     1   = default size; >1 bigger, <1 smaller
+		     --bonus-level-base-offset-x  0%  = move right (+) / left (-), as % of track width
+		     --bonus-level-base-offset-y  0%  = move down  (+) / up   (-), as % of track height
+		   ⚠️ Scaling/moving the frame does NOT move the number tiles (they are positioned to the
+		   track box, not to the frame). Large changes will desync the tiles from the arch —
+		   re-tune the per-tile positions below to match. */
+		--bonus-level-base-scale: 0.98;
+		--bonus-level-base-offset-x: 0%;
+		--bonus-level-base-offset-y: 0%;
 	}
 	.bonus-level-base {
 		position: absolute;
@@ -52,7 +89,30 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
+		transform: translate(
+				var(--bonus-level-base-offset-x, 0%),
+				var(--bonus-level-base-offset-y, 0%)
+			)
+			scale(var(--bonus-level-base-scale, 1));
+		transform-origin: center;
 		z-index: 2;
+	}
+	/* Filled backdrop that sits beneath the gold-arch frame AND the number bars — same box,
+	   size and position as .bonus-level-base, just painted behind everything (z-index 0). */
+	.bonus-level-base-bg {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		transform: translate(
+				var(--bonus-level-bg-offset-x, 0%),
+				var(--bonus-level-bg-offset-y, 0%)
+			)
+			scale(var(--bonus-level-bg-scale, 1));
+		transform-origin: center;
+		z-index: 0;
 	}
 	.bonus-level-node {
 		position: absolute;
@@ -66,7 +126,9 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 			var(--bonus-level-bar-scale) *
 			var(--bonus-level-node-size-ratio, 1)
 		);
-		transform: translate(-50%, -50%);
+		/* rotate() spins the tile around its own centre. Set --bonus-level-node-rot
+		   per tile below (e.g. 8deg = clockwise, -8deg = counter-clockwise). */
+		transform: translate(-50%, -50%) rotate(var(--bonus-level-node-rot, 0deg));
 		background-position: center;
 		background-repeat: no-repeat;
 		background-size: contain;
@@ -94,57 +156,68 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 		animation: bonus-level-node-pending-tint-blink 1.35s cubic-bezier(0.42, 0, 0.58, 1) infinite
 			alternate;
 	}
+	/* =====================================================================
+	   PER-TILE POSITION & SHAPE — one block per number tile (1 → 256).
+	   Adjust these to move/resize an individual tile:
+	     left  = horizontal position, % across the track width (0 = far left, 100 = far right)
+	     top   = vertical position, as a FRACTION of track height (0 = top, 1 = bottom)
+	     --bonus-level-node-width / -height = that tile's relative box (its native px size;
+	        scaled globally by --bonus-level-node-size-ratio above — change these two only to
+	        tweak ONE tile's size/aspect relative to the others).
+	     --bonus-level-node-rot = rotate that one tile around its centre, e.g. 8deg / -8deg
+	        (defaults to 0deg — add this line to any tile block below to angle it).
+	   ===================================================================== */
 	.bonus-level-node:nth-child(1) {
 		left: 11%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.6875);
+		top: calc(var(--bonus-level-track-height, 100%) * 0.705);
 		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 61;
 	}
 	.bonus-level-node:nth-child(2) {
 		left: 21%;
 		top: calc(var(--bonus-level-track-height, 100%) * 0.541667);
-		--bonus-level-node-width: 73;
+		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 72;
 	}
 	.bonus-level-node:nth-child(3) {
-		left: 28.5%;
+		left: 28.25%;
 		top: calc(var(--bonus-level-track-height, 100%) * 0.354167);
-		--bonus-level-node-width: 74;
+		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 71;
 	}
 	.bonus-level-node:nth-child(4) {
 		left: 37.5%;
 		top: calc(var(--bonus-level-track-height, 100%) * 0.233333);
-		--bonus-level-node-width: 70;
+		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 62;
 	}
 	.bonus-level-node:nth-child(5) {
 		left: 49%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.2);
-		--bonus-level-node-width: 68;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.19);
+		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 50;
 	}
 	.bonus-level-node:nth-child(6) {
-		left: 61%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.25);
-		--bonus-level-node-width: 72;
+		left: 60.75%;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.24);
+		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 63;
 	}
 	.bonus-level-node:nth-child(7) {
 		left: 70.5%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.375);
-		--bonus-level-node-width: 71;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.37);
+		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 66;
 	}
 	.bonus-level-node:nth-child(8) {
-		left: 78%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.541667);
-		--bonus-level-node-width: 75;
-		--bonus-level-node-height: 75;
+		left: 77.35%;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.55);
+		--bonus-level-node-width: 100;
+		--bonus-level-node-height: 68.95;
 	}
 	.bonus-level-node:nth-child(9) {
-		left: 89%;
-		top: calc(var(--bonus-level-track-height, 100%) * 0.71);
+		left: 88%;
+		top: calc(var(--bonus-level-track-height, 100%) * 0.7);
 		--bonus-level-node-width: 100;
 		--bonus-level-node-height: 62;
 	}

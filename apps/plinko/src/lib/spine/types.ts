@@ -41,6 +41,13 @@ export type SpineOverlayDef = {
 	/** Extra fine-tune nudge on top of the base transform, as a viewport-height fraction. */
 	offsetYVh?: number;
 	/**
+	 * Extra scale multiplier on top of the base fit scale (1 = the base scene's pixel scale). Lets an
+	 * overlay be drawn larger/smaller than its authored size — e.g. two copies of the tornado at
+	 * different sizes for depth. Applied around the layer's position, so it also shifts where the
+	 * content lands; pair with `offset{X,Y}Vw` to re-place it.
+	 */
+	scaleMul?: number;
+	/**
 	 * Flip the overlay horizontally and reflect it across the scene's centre, so an asset authored on
 	 * one side (e.g. the right-hand splash) also appears mirrored on the other. Uses the base fit
 	 * bounds' centre, so the reflection lands on the symmetric feature (the opposite waterfall).
@@ -69,6 +76,30 @@ export type SpineOverlayDef = {
 	 * fire one after the other instead of together.
 	 */
 	cycleStartDelaySeconds?: number;
+};
+
+/**
+ * A plain image (not a Spine) painted only while bonus mode is active — e.g. the free-game moon.
+ * Positioned in viewport-fraction coordinates (not the scene's world space), so it's trivial to place
+ * against the reference regardless of the base skeleton's fit transform. See
+ * `SpineBackgroundRenderer.applyImageOverlayFit`.
+ */
+export type SpineImageOverlayDef = {
+	id: string;
+	src: string;
+	/** Centre X as a viewport-width fraction (0.135 = 13.5% from the left). */
+	xVw: number;
+	/** Centre Y as a viewport-height fraction (0.1 = 10% from the top). */
+	yVh: number;
+	/** Rendered width as a fraction of the viewport width; height follows to preserve aspect ratio. */
+	widthVw: number;
+	/** Opacity 0..1. Defaults to 1. */
+	alpha?: number;
+	/**
+	 * Render under the base background spine instead of on top, so foreground scene elements (and the
+	 * on-top overlays like clouds/rain) occlude it — giving a distant sky element like the moon depth.
+	 */
+	behindBase?: boolean;
 };
 
 export type SpineAssetDef = {
@@ -110,17 +141,8 @@ export type SpineAssetDef = {
 	bonusHiddenSlots?: string[];
 	/** Spine layers painted on top only while bonus mode is active (see `SpineOverlayDef`). */
 	bonusOverlays?: SpineOverlayDef[];
-	/**
-	 * Base-skeleton slots "lifted" out of the base spine during bonus and re-drawn in a synced copy
-	 * placed BENEATH the bonus overlays, while the rest of the base scene stays above them.
-	 *
-	 * This exists because a separate overlay can only sit entirely below or entirely above the base
-	 * spine, yet the art needs the splash to be *in front of the distant ship* but *behind the
-	 * waterfall* — and `ship` is the LAST (topmost) slot of the landscape skeleton, above the
-	 * waterfall. Lifting `ship` into the underlay re-depths it as a true background element and makes
-	 * that ordering possible. The lifted slots are hidden on the main spine while bonus is active.
-	 */
-	bonusUnderlaySlots?: string[];
+	/** Plain-image layers painted only while bonus mode is active (see `SpineImageOverlayDef`). */
+	bonusImageOverlays?: SpineImageOverlayDef[];
 	/**
 	 * Content is authored above the skeleton root (y-up) rather than below it. Flips the vertical
 	 * fit term so the spine lands in the viewport instead of parking above it. Only affects the
