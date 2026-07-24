@@ -169,4 +169,13 @@ export type SpineAssetDef = {
 	 * (0.9 = leave a 10% margin). Defaults to 1 (touches the viewport width).
 	 */
 	portraitContainScale?: number;
+	/**
+	 * Clamp how far the animation may advance in a SINGLE frame after a stall, so a dropped frame
+	 * pauses-and-resumes instead of skipping ahead. Higher ⇒ smaller catch-up (60 ⇒ ≤16.7ms/tick = no
+	 * visible skip). Applied to the global `Ticker.shared` that drives spine `autoUpdate`, scoped to
+	 * this renderer's lifetime. Used by the intro splash, whose opening frames compete with the atlas
+	 * GPU upload + the game booting behind it; without it a 250ms stall jumps the logo ~100ms (Pixi's
+	 * default catch-up cap) — a visible frame-skip. Normal playback is unaffected (only stalls clamp).
+	 */
+	catchUpMinFps?: number;
 };

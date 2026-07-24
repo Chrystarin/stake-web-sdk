@@ -30,6 +30,11 @@ export const getCasinoTvLogoAsset = (): SpineAssetDef => ({
 	// sides. Contain it instead so the whole logo stays centered and visible, with a small margin.
 	containInPortrait: true,
 	portraitContainScale: 0.9,
+	// Keep the opening frames from skipping: the logo's first render competes with the atlas GPU
+	// upload and the game booting behind the splash, so a dropped frame would otherwise jump the
+	// animation ~100ms (Pixi's default catch-up cap). Clamp catch-up to one 60fps frame (≤16.7ms)
+	// so a stall pauses-and-resumes instead of skipping ahead.
+	catchUpMinFps: 60,
 });
 
 /** Backdrop image shown behind the intro spine (CSS background, cover). */

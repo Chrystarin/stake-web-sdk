@@ -10,8 +10,11 @@
 		CASINO_TV_LOGO_DURATION_MS,
 		getCasinoTvLogoAsset,
 	} from '../lib/spine/casinoTvLogoAsset';
-	import { preloadAllAssets } from '../lib/preloadAssets';
+	import { preloadCriticalAssets, preloadDeferredAssets } from '../lib/preloadAssets';
 	import { stateGame } from '../game/stateGame.svelte';
+
+	/** Fade-out duration of the splash overlay (ms). Kept in sync with the `fade` transition below. */
+	const FADE_OUT_MS = 400;
 
 	type Props = {
 		oncomplete?: () => void;
@@ -28,9 +31,12 @@
 
 	/**
 	 * Tear down the Pixi renderer and release the splash atlas (tens of MB of GPU textures) so it
-	 * doesn't linger for the whole session and slow down the game's ball rendering. Called the
-	 * moment the logo finishes — not deferred to the fade-out — so a backgrounded tab (which pauses
-	 * the fade transition) can't keep the heavy renderer alive indefinitely.
+	 * doesn't linger for the whole session and slow down the game's ball rendering.
+	 *
+	 * Deferred to just AFTER the fade-out (see `finishLoader`) so the logo fades out with the backdrop
+	 * instead of popping out the instant the canvas is destroyed. A fallback timer + the onMount
+	 * cleanup both call this, so a backgrounded tab (whose fade transition is paused) can't keep the
+	 * heavy renderer alive indefinitely — whichever path fires first wins (idempotent via `disposed`).
 	 */
 	function disposeRenderer() {
 		if (disposed) return;
@@ -58,27 +64,37 @@
 	}
 
 	function finishLoader() {
+		// Reveal the game immediately and start warming the heavy feature art in the background.
 		loading = false;
 		stateGame.introLoaderComplete = true;
-		disposeRenderer();
 		props.oncomplete?.();
+		void preloadDeferredAssets();
+		// Keep the logo canvas painted through the fade-out, then release it. Fallback timer only —
+		// the onMount cleanup also disposes, so a paused/backgrounded fade can't leak the renderer.
+		setTimeout(disposeRenderer, FADE_OUT_MS + 100);
 	}
 
 	onMount(() => {
 		renderer = new SpineBackgroundRenderer(host);
 
-		// Preload every game image + font in parallel with the intro spine, so the game is
-		// revealed fully cached and nothing (roulettes, overlays, fonts) pops in on first use.
-		// Always resolves (failures swallowed + internal timeout cap), so it can never trap the player.
-		const preloadPromise = preloadAllAssets();
+		// The first-view image/font preload is kicked off only AFTER the intro spine has loaded + started
+		// rendering — not at mount — so its ~50 parallel image requests + decodes don't compete with the
+		// spine's own atlas download/upload during the opening frames (which was skipping the animation).
+		// Heavy feature art is loaded later still (finishLoader → preloadDeferredAssets). Both always
+		// resolve (failures swallowed + timeout cap), so neither can trap the player on the splash.
+		let preloadPromise: Promise<void> | undefined;
+		const startPreload = () => (preloadPromise ??= preloadCriticalAssets());
 
 		void renderer
 			.init(getCasinoTvLogoAsset())
 			.then(async () => {
 				startHiddenDriver();
-				// Hold the splash until BOTH the logo has played its minimum duration AND all assets
-				// have finished preloading — whichever takes longer.
-				await Promise.all([waitForTimeout(CASINO_TV_LOGO_DURATION_MS), preloadPromise]);
+				// Let the logo paint a couple of clean opening frames, then begin the first-view preload.
+				await waitForTimeout(250);
+				const preload = startPreload();
+				// Hold the splash until BOTH the logo has played its minimum duration AND the first-view
+				// assets have finished preloading — whichever takes longer.
+				await Promise.all([waitForTimeout(CASINO_TV_LOGO_DURATION_MS - 250), preload]);
 				if (disposed) return;
 				finishLoader();
 			})
@@ -86,7 +102,7 @@
 				// Never let a spine failure trap the player on the splash screen — but still wait for
 				// assets (capped) so we don't reveal a half-loaded game.
 				console.error('[LoaderCasinoTvLogo] failed to render intro spine', error);
-				void preloadPromise.finally(() => {
+				void startPreload().finally(() => {
 					if (disposed) return;
 					finishLoader();
 				});
@@ -100,7 +116,7 @@
 	<div
 		class="casino-tv-logo-loader"
 		style="background-image: url({CASINO_TV_LOGO_BACKDROP});"
-		transition:fade
+		transition:fade={{ duration: FADE_OUT_MS }}
 	>
 		<div class="casino-tv-logo-stage" bind:this={host}></div>
 	</div>

@@ -5,7 +5,7 @@ import {
 	Spine,
 	type SkeletonData,
 } from '@esotericsoftware/spine-pixi-v8';
-import { Application, Assets, Sprite, type Texture } from 'pixi.js';
+import { Application, Assets, Sprite, type Texture, Ticker } from 'pixi.js';
 
 import { readSkeletonData } from './spineSkeletonData';
 import { createWorldBounds, updateWorldBounds } from './spineBounds';
@@ -111,6 +111,8 @@ export class SpineBackgroundRenderer {
 	 * as the object and reassigned onto the slot's pose directly (see `applyHiddenSlots`): spine 4.3
 	 * keeps the live attachment on `slot.pose`/`appliedPose`, not on the legacy `slot.attachment`. */
 	private hiddenSlotSetup = new Map<string, Attachment | null>();
+	/** Saved `Ticker.shared._maxElapsedMS` when this renderer clamped it (intro splash only), restored on destroy. */
+	private sharedTickerRestore?: { maxElapsedMS: number };
 
 	constructor(hostElement: HTMLElement) {
 		this.hostElement = hostElement;
@@ -135,6 +137,22 @@ export class SpineBackgroundRenderer {
 			// background's block canvas so the splash fills its host exactly.
 			app.canvas.style.display = 'block';
 			this.app = app;
+
+			// Clamp per-frame catch-up so a stall (atlas GPU upload, the game booting behind the splash)
+			// pauses-and-resumes the animation instead of skipping ahead. Spine's `autoUpdate` advances
+			// off the GLOBAL `Ticker.shared` (not this app's ticker), reading its clamped `deltaMS`, so the
+			// clamp lives there. `_maxElapsedMS` is the max ms the ticker reports per tick (default 100 ⇒ a
+			// stalled frame jumps the logo ~100ms = a visible skip); set it to one 60fps frame (16.7ms).
+			// We poke the field directly rather than via `Ticker.minFPS`, whose setter does
+			// `min(maxFPS, fps)` — with the default maxFPS of 0 that collapses to `Infinity`, and the same
+			// quirk makes the value un-restorable through the API (the default 100 is a raw field init, not
+			// settable). Saved + restored on destroy so the clamp only spans the splash; the only thing on
+			// the shared ticker meanwhile is spine autoUpdate (the intro logo + spines booting behind it).
+			if (asset.catchUpMinFps != null) {
+				const shared = Ticker.shared as unknown as { _maxElapsedMS: number };
+				this.sharedTickerRestore = { maxElapsedMS: shared._maxElapsedMS };
+				shared._maxElapsedMS = 1000 / asset.catchUpMinFps;
+			}
 
 			this.resizeObserver = new ResizeObserver(() => this.scheduleFitSpine());
 			this.resizeObserver.observe(this.hostElement);
@@ -182,6 +200,11 @@ export class SpineBackgroundRenderer {
 	 *   GPU memory) linger for the whole session and starve the game's ball renderer.
 	 */
 	destroy(options?: { releaseAssets?: boolean }): void {
+		if (this.sharedTickerRestore) {
+			(Ticker.shared as unknown as { _maxElapsedMS: number })._maxElapsedMS =
+				this.sharedTickerRestore.maxElapsedMS;
+			this.sharedTickerRestore = undefined;
+		}
 		cancelAnimationFrame(this.fitFrameId);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;

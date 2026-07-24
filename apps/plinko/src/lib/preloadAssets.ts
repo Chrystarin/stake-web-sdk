@@ -1,17 +1,19 @@
 import { staticUrl } from './staticUrl';
 
 /**
- * Every static image the game paints. These are preloaded while the intro loader is on
- * screen so nothing pops in on first use — in particular the free-spin / bonus roulettes
- * and overlays, which are rendered with plain `<img>` tags and would otherwise only start
- * downloading the moment the feature is triggered mid-game.
+ * Static images the game paints on (or immediately after) the FIRST render — the board, pegs,
+ * multiplier slots, the always-visible betting panel + HUD meters, and the small menu/modal icons.
+ * These are the only images the intro splash blocks on, so the game is revealed fully painted.
  *
- * Keep this in sync with the `staticUrl('img/…')` references across the components.
+ * Heavy, feature-gated art (bonus/free-spin roulettes, buy-bonus modal, congrats/announcement
+ * screens, the bonus board + level bars) is intentionally NOT here — see {@link DEFERRED_IMAGE_PATHS}.
+ * Blocking the splash on all of it made the loader hold ~34 MB of decodes, so on a slow first load
+ * the splash lingered (up to the timeout) on the finished, frozen logo. Keep this in sync with the
+ * `staticUrl('img/…')` references used by the base game + betting panel components.
  */
-const IMAGE_PATHS: readonly string[] = [
+const CRITICAL_IMAGE_PATHS: readonly string[] = [
 	// Board / play-area art (Pixi textures + CSS backgrounds)
 	'img/game_area_background.png',
-	'img/game_area_bonus.png',
 	'img/ball.svg',
 	'img/coin_peg.png',
 	'img/multiplier_slot_spin.png',
@@ -20,41 +22,19 @@ const IMAGE_PATHS: readonly string[] = [
 		(label) => `img/multiplier_slot_text_${label}.png`,
 	),
 
-	// Free-spin meter + roulette
+	// Free-spin meter (on screen from launch in the HUD)
 	'img/free-spin-base.png',
 	'img/free-spin-meter.png',
 	'img/free-spin-meter-wheel.png',
 	'img/free-spin-label.png',
-	// Free-spin wheel: rotating value disc + the top wedge's highlight + the rope dividers over it +
-	// static frame (ring/pointer/medallion) (see FreeSpinRoulette.svelte).
-	'img/bonus_roulette_v2/wheel_values.png',
-	'img/bonus_roulette_v2/wheel_base.png',
-	'img/bonus_roulette_v2/wheel_segment_highlight.png',
-	'img/bonus_roulette_v2/wheel_divider.png',
 	'img/free-spin-marker.png',
 
-	// Bonus meter + roulette + overlays
+	// Bonus meter bar (on screen from launch in the HUD)
 	'img/bonus-bar-base.png',
 	'img/bonus-bar-fill.png',
 	'img/bonus-bar-marker.png',
-	'img/bonus-level-base.png',
-	'img/bonus-level-base-background.png',
-	'img/bonus-level-up-base.png',
-	'img/bonus-roulette-background.png',
-	'img/bonus-roulette-background-mobile.png',
-	'img/bonus-roulette-label.png',
-	// Bonus wheel: rotating values disc + wedge highlight + static frame (see BonusRoulette.svelte).
-	'img/free_bonus_roulette_v2/wheel_values.png',
-	'img/free_bonus_roulette_v2/wheel_base.png',
-	'img/free_bonus_roulette_v2/wheel_segment_highlight.png',
-	'img/announcement-message-background.png',
-	'img/announcement-message-background-mobile.png',
-	// Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen (see BonusRoulette treasureWin variant).
-	'img/congratulations_screen/treasure_table.png',
-	'img/congratulations_screen/treasure_table_mobile.png',
-	'img/congratulations_screen/sparkle.png',
 
-	// Betting panel (desktop + mobile)
+	// Betting panel (desktop + mobile) — always visible
 	'img/betting-component-frame.png',
 	'img/betting-component-input-decrease.png',
 	'img/betting-component-input-increase.png',
@@ -78,25 +58,62 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/menu-btn-mobile.png',
 	'img/coin-ico.png',
 	'img/wallet-ico.png',
-	// NOTE: the balance coin's on-merge light burst is no longer an image — it's the `glow` + `sparkle`
-	// spine skeletons (see BalanceCoinGlowRenderer), loaded by that renderer on mount like the coin
-	// fountain's. `img/balance_coin_light.png` is now unused.
+	// The board's Buy Bonus button is visible from launch (desktop) — the modal art it opens is deferred.
+	'img/buy-bonus-btn.png',
 
-	// Menu + modal icons
+	// Menu + modal icons (a tap away from launch; tiny)
 	'img/hamburg_menu_ico_fair_settings.png',
 	'img/hamburg_menu_ico_game_rules.png',
 	'img/hamburg_menu_ico_history.png',
 	'img/hamburg_menu_ico_how_to_play.png',
 	'img/close_btn.png',
+];
 
-	// Buy Bonus — board button + modal card frame + per-tier feature art (keys mirror BUY_BONUS_TIERS)
-	// + the per-card "Activate" button background. Without these the button/logos/graphics pop in on
-	// first open (fresh-launch → click Buy Bonus). NOTE: `buy-bonus-btn.png` (hyphens) is the board
-	// button; `buy_bonus_button.png` (underscores) is the modal's Activate button — both are needed.
-	'img/buy-bonus-btn.png',
+/**
+ * Heavy, feature-gated art loaded in the BACKGROUND after the game is revealed — never on the
+ * splash's critical path. None of this is on screen at launch; the player bets several times (and
+ * fills a meter) before any of it is needed, which is ample time for a background fetch to finish,
+ * so nothing pops in on first use. Failures are swallowed; the worst case is a single on-demand
+ * fetch if the feature somehow fires before the background load reaches that asset.
+ *
+ * Ordered roughly by how soon each feature can trigger (free-spin roulette first → congrats last).
+ */
+const DEFERRED_IMAGE_PATHS: readonly string[] = [
+	// Bonus board background (swapped in only during the free game)
+	'img/game_area_bonus.png',
+
+	// Free-spin wheel: rotating value disc + top wedge highlight + rope dividers + frame.
+	'img/bonus_roulette_v2/wheel_values.png',
+	'img/bonus_roulette_v2/wheel_base.png',
+	'img/bonus_roulette_v2/wheel_segment_highlight.png',
+	'img/bonus_roulette_v2/wheel_divider.png',
+
+	// Bonus wheel: rotating values disc + wedge highlight + static frame.
+	'img/free_bonus_roulette_v2/wheel_values.png',
+	'img/free_bonus_roulette_v2/wheel_base.png',
+	'img/free_bonus_roulette_v2/wheel_segment_highlight.png',
+
+	// Roulette backdrops + label + in-bonus level bars
+	'img/bonus-roulette-background.png',
+	'img/bonus-roulette-background-mobile.png',
+	'img/bonus-roulette-label.png',
+	'img/bonus-level-base.png',
+	'img/bonus-level-base-background.png',
+	'img/bonus-level-up-base.png',
+
+	// Announcement banner (feature intro)
+	'img/announcement-message-background.png',
+	'img/announcement-message-background-mobile.png',
+
+	// Buy Bonus modal — card frame + Activate button + per-tier feature art (keys mirror BUY_BONUS_TIERS)
 	'img/buy_bonus_button.png',
 	'img/buy_bonus_panel.png',
 	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.png`),
+
+	// Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen (needed last)
+	'img/congratulations_screen/treasure_table.png',
+	'img/congratulations_screen/treasure_table_mobile.png',
+	'img/congratulations_screen/sparkle.png',
 ];
 
 /**
@@ -156,18 +173,19 @@ export type PreloadOptions = {
 };
 
 /**
- * Preload every image + font the game needs while the intro loader is on screen.
+ * Preload the FIRST-VIEW images + fonts while the intro loader is on screen — the small set the
+ * game paints on reveal (board, betting panel, HUD meters, fonts). Resolves once everything has
+ * *settled* (loaded or failed) so the loader can dismiss knowing the first frame is fully painted.
  *
- * Resolves once everything has *settled* (loaded or failed) so the caller can hide the loader
- * knowing nothing will pop in mid-game. It always resolves: individual failures are swallowed
- * and `timeoutMs` guarantees it can never hang the splash forever.
+ * It always resolves: individual failures are swallowed and `timeoutMs` guarantees it can never
+ * hang the splash forever. Heavy feature art is loaded separately by {@link preloadDeferredAssets}.
  */
-export function preloadAllAssets(options: PreloadOptions = {}): Promise<void> {
+export function preloadCriticalAssets(options: PreloadOptions = {}): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
 	const { timeoutMs = 15000 } = options;
 
 	const work = Promise.allSettled([
-		...IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
+		...CRITICAL_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
 		preloadFonts(),
 	]).then(() => undefined);
 
@@ -176,4 +194,16 @@ export function preloadAllAssets(options: PreloadOptions = {}): Promise<void> {
 	});
 
 	return Promise.race([work, timeout]);
+}
+
+/**
+ * Preload the heavy, feature-gated art ({@link DEFERRED_IMAGE_PATHS}) in the background. Kicked off
+ * fire-and-forget once the game is revealed, so it warms the cache well before any feature triggers
+ * without ever gating the splash. Always resolves; failures are swallowed.
+ */
+export function preloadDeferredAssets(): Promise<void> {
+	if (typeof window === 'undefined') return Promise.resolve();
+	return Promise.allSettled(
+		DEFERRED_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
+	).then(() => undefined);
 }
