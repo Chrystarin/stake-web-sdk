@@ -49,7 +49,7 @@
 	}
 </script>
 
-<div class="balance-card-root">
+<div class="balance-card-root" class:balance-card-root--bonus={stateGame.bonusRoundActive}>
 	<div class="balance-card" aria-label="Balance">
 		<img
 			class="balance-card-frame"
@@ -231,6 +231,14 @@
 		);
 		z-index: 22;
 		width: max-content;
+	}
+
+	/* Bonus round: the betting panel is nudged lower (GameHud.scss `.game-bottom-panel--bonus` drops its
+	   `bottom` from 0.95vw to -0.1vw, a 1.05vw descent). This card is a sibling positioned by its own
+	   `bottom`, so it drops the SAME 1.05vw to stay aligned with the row: 2.822 − 1.05 = 1.772vw.
+	   ⚠️ Keep the delta in step with `.game-bottom-panel--bonus`. */
+	.balance-card-root--bonus {
+		bottom: 1.772vw;
 	}
 
 	.balance-card {

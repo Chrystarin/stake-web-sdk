@@ -29,7 +29,7 @@ export class BonusMeterEngine {
   private fillTexture?: Texture;
   // --- Vector-fill tuning knobs (measured in fill-texture pixels; scaled to the rendered size) ---
   // Stroke thickness of the solid blue line and the blur radius of the cyan glow behind it.
-  private readonly fillStrokeWidthTexPx = 14;
+  private readonly fillStrokeWidthTexPx = 11;
   private readonly fillGlowBlurTexPx = 7.5;
   private fillAlphaData?: Uint8ClampedArray;
   private fillAlphaWidth = 0;

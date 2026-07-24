@@ -50,6 +50,14 @@
 	}
 }
 
+/* Bonus round: the bottom total-bet overlay is removed, so the panel gets nudged slightly lower to sit
+   closer to the bottom edge. The base lift is 0.95vw; dropping `bottom` by ~1vw lands it a hair below
+   where it normally sits. Only `bottom` is overridden — the translateX(-50%)/scale(0.9)/origin from the
+   base rule still apply. ⚠️ Tuning knob: make `bottom` more negative to sit lower, less to sit higher. */
+.game-bottom-panel--bonus {
+	bottom: -0.1vw;
+}
+
 .bp-free-spin-meter-wrap {
 	position: absolute;
 	/* Negative right nudges the meter outward (to the right) past the panel edge. */
@@ -984,7 +992,8 @@
 	left: 50%;
 	transform: translate(-50%, -50%);
 	color: #f0f6ff;
-	font-size: 1.12vw;
+	/* 100% bigger than the original 1.12vw so the free-balls count reads large on the desktop plaque. */
+	font-size: 2.24vw;
 	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
@@ -1491,6 +1500,12 @@
 	text-shadow: 0 0.08vw 0.2vw rgba(0, 0, 0, 0.55);
 	pointer-events: none;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+}
+
+/* Free-balls-remaining count on the mobile Play plaque during a bonus round: 100% bigger than the
+   shared badge size above (autobet count stays the shared size). */
+.hud-play-count-badge {
+	font-size: clamp(28px, 7.48vw, 44px);
 }
 
 .mobile-autobet-wrap {

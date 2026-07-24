@@ -761,11 +761,12 @@
 						alt=""
 						aria-hidden="true"
 					/>
+				{:else if props.hasPendingBonusBalls}
+					<!-- During a bonus round the mobile Play button matches desktop: the play icon is
+					     dropped and the plaque shows only the number of free balls left. -->
+					<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
 				{:else}
 					{@render mainButtonPlayIcon()}
-					{#if props.hasPendingBonusBalls}
-						<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
-					{/if}
 				{/if}
 			</button>
 			<div class="mobile-autobet-wrap">
@@ -821,7 +822,9 @@
 		</div>
 	</div>
 {:else}
-	<div class="game-bottom-panel">
+	<!-- During a bonus round the panel is nudged slightly LOWER (see `.game-bottom-panel--bonus`) since
+	     the bottom total-bet overlay is gone, leaving room below. -->
+	<div class="game-bottom-panel" class:game-bottom-panel--bonus={stateGame.bonusRoundActive}>
 		<!-- Free-spin meter is PERMANENTLY MOUNTED and only shown/hidden via `visibility` (see
 		     `--hidden`). Never `{#if}`-unmount it on a Ball-Per-Drop change: it's a Pixi/WebGL surface,
 		     and destroying + recreating its canvas on toggle makes the freshly-created (or torn-down)
@@ -844,23 +847,18 @@
 					     sits in the standalone BalanceCard (to the left of the Win field); the Win field shows
 					     the round's live win total, and the total BET shows in the pill under PLAY. -->
 					<div class="bp-side-group bp-side-group--left">
-						{#if stateGame.bonusRoundActive}
-							<!-- During a bonus round the Win-bet total has no meaning (free balls), so Bet per
-							     ball takes the left slot instead — to the left of Autobet — and Ball per drop
-							     stands alone on the right. -->
-							{@render betPerBallField()}
-						{:else}
-							<!-- Win: read-only display of the round's LIVE win total. It accumulates in real time
-							     as each ball lands (`stateGame.winAmount`, via `addSettledWinAmount`) and resets to
-							     0 when a new round starts (blanked at bet time). No steppers — display only. -->
-							<div class="bp-field bp-field--win-bet" aria-label="Round win">
-								{@render bettingFieldFrame()}
-								<span class="bp-field-label">{winFieldLabel}</span>
-								<span class="bp-select-display bp-win-bet-value" aria-live="polite">
-									{formatWin(displayWinAmount)}
-								</span>
-							</div>
-						{/if}
+						<!-- Win: read-only display of the round's LIVE win total. It accumulates in real time
+						     as each ball lands (`stateGame.winAmount`, via `addSettledWinAmount`) and resets to
+						     0 when a new round starts (blanked at bet time). No steppers — display only. Shown
+						     in both normal and bonus rounds so the desktop bonus HUD keeps the normal-mode
+						     layout (only the bottom total-bet overlay is dropped during bonus). -->
+						<div class="bp-field bp-field--win-bet" aria-label="Round win">
+							{@render bettingFieldFrame()}
+							<span class="bp-field-label">{winFieldLabel}</span>
+							<span class="bp-select-display bp-win-bet-value" aria-live="polite">
+								{formatWin(displayWinAmount)}
+							</span>
+						</div>
 					</div>
 
 					<!-- Center cluster mirrors the reference art around the play button: Auto | PLAY | Fast. -->
@@ -993,12 +991,10 @@
 					</div>
 
 					<!-- Right group: Bet per ball (nearest the centre) then Ball per drop, mirroring the
-					     Balance | Win-bet pair on the left. During a bonus round Bet per ball moves to the
-					     LEFT group, leaving Ball per drop alone here. -->
+					     Balance | Win-bet pair on the left. Kept identical in normal and bonus rounds so the
+					     desktop bonus HUD matches the normal-mode layout. -->
 					<div class="bp-side-group bp-side-group--right">
-						{#if !stateGame.bonusRoundActive}
-							{@render betPerBallField()}
-						{/if}
+						{@render betPerBallField()}
 
 						<div class="bp-field bp-field--select bp-field--bet-controls">
 							{@render bettingFieldFrame()}
@@ -1045,11 +1041,15 @@
 	     OVERLAY BAR flush to the very bottom edge of the game — a "Bet" label on the left and the total
 	     value on the right. Rendered as a SIBLING of `.game-bottom-panel` (not inside it) so it escapes
 	     that panel's `scale(0.9)`/centre transform: it is a child of `.game-content`, which is 100vw
-	     wide and `position: relative`, letting the bar span the full viewport and pin to the bottom. -->
-	<div class="bp-total-overlay" aria-label="Total bet">
-		<span class="bp-play-total-label">{betLabel}</span>
-		<span class="bp-play-total-value" aria-live="polite">
-			{formatMoney(displayTotalBet)}
-		</span>
-	</div>
+	     wide and `position: relative`, letting the bar span the full viewport and pin to the bottom.
+	     Hidden during a bonus round: drops are free balls, so a total-bet readout is meaningless there —
+	     the rest of the HUD keeps the normal-mode layout. -->
+	{#if !stateGame.bonusRoundActive}
+		<div class="bp-total-overlay" aria-label="Total bet">
+			<span class="bp-play-total-label">{betLabel}</span>
+			<span class="bp-play-total-value" aria-live="polite">
+				{formatMoney(displayTotalBet)}
+			</span>
+		</div>
+	{/if}
 {/if}
