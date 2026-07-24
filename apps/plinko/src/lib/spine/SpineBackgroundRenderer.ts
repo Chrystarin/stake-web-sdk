@@ -674,7 +674,9 @@ export class SpineBackgroundRenderer {
 	private applyOverlayFit(base: FitTransform, width: number, height: number): void {
 		for (const { def, spine } of this.overlays) {
 			const offsetX = (def.offsetXVw ?? 0) * width;
-			const offsetY = (def.offsetYVh ?? 0) * height;
+			// `offsetYScene` is in base-scene units (× base.scale) so it tracks the scene/water across
+			// aspect ratios; `offsetYVh` is a viewport-height fraction (drifts with aspect). Both supported.
+			const offsetY = (def.offsetYVh ?? 0) * height + (def.offsetYScene ?? 0) * base.scale;
 			const scale = base.scale * (def.scaleMul ?? 1);
 			// Mirroring reflects about the skeleton ROOT (world x=0) — `base.x` is exactly where world x=0
 			// lands, so negating scale.x reflects there with no extra term. `scaleMul` likewise scales the

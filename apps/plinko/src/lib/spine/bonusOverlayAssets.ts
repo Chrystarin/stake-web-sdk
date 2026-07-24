@@ -30,6 +30,61 @@ export type Orientation = 'landscape' | 'portrait';
 /** Must match the base background skeletons' `skeletonScale` so world coordinates align. */
 const OVERLAY_SKELETON_SCALE = 0.5;
 
+/*
+ * ════════════════════════════════════════════════════════════════════════════════════════════════
+ *  TUNING KNOBS — position & scale of the bonus-mode MOON, SHIP and TORNADO(es).
+ *
+ *  Landscape (desktop) and portrait (mobile) are configured INDEPENDENTLY in the two blocks below:
+ *  changing a value in one block never affects the other orientation.
+ *
+ *  SHIP & TORNADO (animated spines, placed relative to the moving scene):
+ *    • offsetXVw    — horizontal nudge, as a fraction of viewport WIDTH.  + = RIGHT, − = LEFT.
+ *    • offsetYScene — vertical nudge in SCENE units (stays locked to the water on any screen shape).
+ *                       − = UP, + = DOWN.   (Roughly 1 unit ≈ 1px on a ~1280px-wide desktop.)
+ *    • scaleMul     — size multiplier.  1 = original size, 0.8 = 80% (smaller), 1.25 = 125% (bigger).
+ *
+ *  MOON (a plain image, placed in viewport fractions — independent of the scene):
+ *    • xVw / yVh    — CENTRE position, as fractions of viewport width / height (0 = left/top … 1 = right/bottom).
+ *    • widthVw      — width as a fraction of viewport width (height follows automatically to keep aspect).
+ *    • alpha        — opacity, 0–1  (0.5 = 50%).
+ * ════════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/** Position + size of an animated spine overlay (ship, tornado). See the knob descriptions above. */
+type SpinePlacement = { offsetXVw: number; offsetYScene: number; scaleMul: number };
+/** Position + size of the moon image overlay. See the knob descriptions above. */
+type MoonPlacement = { xVw: number; yVh: number; widthVw: number; alpha: number };
+
+type OrientationTuning = {
+	moon: MoonPlacement;
+	ship: SpinePlacement;
+	/** The big right-hand tornado (shown in both orientations). */
+	tornadoRight: SpinePlacement;
+	/** The smaller left-hand tornado — LANDSCAPE ONLY (portrait renders just the right one). */
+	tornadoLeft?: SpinePlacement;
+};
+
+/* ▼▼▼ DESKTOP / LANDSCAPE — move & resize the moon, ship and tornadoes on desktop here. ▼▼▼ */
+const LANDSCAPE_TUNING: OrientationTuning = {
+	moon: { xVw: 0.12, yVh: 0.13, widthVw: 0.35, alpha: 0.5 },
+	ship: { offsetXVw: -0.2, offsetYScene: 20, scaleMul: 0.9 },
+	tornadoRight: { offsetXVw: 0.23, offsetYScene: -516, scaleMul: 1 },
+	tornadoLeft: { offsetXVw: -0.2, offsetYScene: -554, scaleMul: 0.62 },
+};
+
+/* ▼▼▼ MOBILE / PORTRAIT — move & resize the moon, ship and tornado on mobile here. ▼▼▼ */
+const PORTRAIT_TUNING: OrientationTuning = {
+	moon: { xVw: 0.175, yVh: 0.075, widthVw: 0.5, alpha: 0.5 },
+	ship: { offsetXVw: -0.07, offsetYScene: -50, scaleMul: 0.9 },
+	tornadoRight: { offsetXVw: 0.3, offsetYScene: -645, scaleMul: 0.7 },
+	// (no left tornado on mobile)
+};
+
+const TUNING: Record<Orientation, OrientationTuning> = {
+	landscape: LANDSCAPE_TUNING,
+	portrait: PORTRAIT_TUNING,
+};
+
 export const getBonusCloudOverlay = (): SpineOverlayDef => ({
 	id: 'fg_cloud',
 	format: 'json',
@@ -108,9 +163,9 @@ export const getBonusShipOverlay = (orientation: Orientation): SpineOverlayDef =
 	loop: true,
 	skeletonScale: OVERLAY_SKELETON_SCALE,
 	behindBase: true,
-	...(orientation === 'landscape'
-		? { offsetXVw: -0.24, offsetYVh: -0.12, scaleMul: 0.8 }
-		: { offsetXVw: -0.07, offsetYVh: -0.08, scaleMul: 1 }),
+	// Position/scale from the tuning block above. `offsetYScene` (not offsetYVh) keeps the ship's hull
+	// on the water horizon across viewport aspect ratios.
+	...TUNING[orientation].ship,
 });
 
 /**
@@ -124,13 +179,12 @@ export const getBonusTornadoOverlay = (
 	orientation: Orientation,
 	left = false,
 ): SpineOverlayDef => {
-	const place =
-		orientation === 'landscape'
-			? left
-				? { offsetXVw: -0.2, offsetYVh: -0.63, scaleMul: 0.62 }
-				: { offsetXVw: 0.19, offsetYVh: -0.61, scaleMul: 1 }
-			: // Portrait shows a single, smaller waterspout in the upper-right sky (no left copy).
-				{ offsetXVw: 0.28, offsetYVh: -0.82, scaleMul: 0.55 };
+	// Position/scale from the tuning block above. `offsetYScene` keeps the tornado's touchdown on the
+	// water horizon across viewport aspect ratios. `tornadoLeft` is landscape-only; fall back to the
+	// right-hand tuning if it's somehow missing.
+	const place = left
+		? (TUNING[orientation].tornadoLeft ?? TUNING[orientation].tornadoRight)
+		: TUNING[orientation].tornadoRight;
 	return {
 		id: left ? 'bonus_tornado_left' : 'bonus_tornado',
 		format: 'json',
@@ -186,11 +240,9 @@ export const getBonusRainOverlay = (orientation: Orientation): SpineOverlayDef =
 export const getBonusMoonOverlay = (orientation: Orientation): SpineImageOverlayDef => ({
 	id: 'bonus_moon',
 	src: staticAssetPath(MOON_IMAGE),
-	alpha: 0.5,
 	behindBase: true,
-	...(orientation === 'landscape'
-		? { xVw: 0.12, yVh: 0.13, widthVw: 0.2 }
-		: { xVw: 0.16, yVh: 0.13, widthVw: 0.3 }),
+	// Position/size/opacity from the tuning block above.
+	...TUNING[orientation].moon,
 });
 
 /**

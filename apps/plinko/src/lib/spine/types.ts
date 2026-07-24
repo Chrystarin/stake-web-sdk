@@ -41,6 +41,14 @@ export type SpineOverlayDef = {
 	/** Extra fine-tune nudge on top of the base transform, as a viewport-height fraction. */
 	offsetYVh?: number;
 	/**
+	 * Vertical nudge in BASE-SCENE units (multiplied by the base fit scale), positive = down. Because it
+	 * scales with the scene rather than the viewport height, an overlay placed with this stays locked to
+	 * a fixed scene feature (e.g. the water's horizon) across every viewport aspect ratio — unlike
+	 * `offsetYVh`, which drifts vertically when the aspect changes (the scene is width-filled +
+	 * bottom-anchored). Prefer this for anything that must "sit on the water" (ship, tornado touchdown).
+	 */
+	offsetYScene?: number;
+	/**
 	 * Extra scale multiplier on top of the base fit scale (1 = the base scene's pixel scale). Lets an
 	 * overlay be drawn larger/smaller than its authored size — e.g. two copies of the tornado at
 	 * different sizes for depth. Applied around the layer's position, so it also shifts where the
