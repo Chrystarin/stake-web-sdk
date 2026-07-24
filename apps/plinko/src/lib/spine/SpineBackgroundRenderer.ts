@@ -1,6 +1,8 @@
 import '@esotericsoftware/spine-pixi-v8';
 import {
+	type Attachment,
 	Physics,
+	type Slot,
 	Spine,
 	type SkeletonData,
 } from '@esotericsoftware/spine-pixi-v8';
@@ -8,13 +10,21 @@ import { Application, Assets, Sprite, type Texture } from 'pixi.js';
 
 import { readSkeletonData } from './spineSkeletonData';
 import { createWorldBounds, updateWorldBounds } from './spineBounds';
+import { RainLayer, RAIN_BEHIND_CONFIG, RAIN_OVER_CONFIG } from './rainLayer';
 import {
 	computeBackdropTransform,
 	computeFitTransform,
 	computeSpineOverlayTransform,
 	spineFitConfig,
+	type FitTransform,
 } from './spineFit';
-import type { SpineAssetDef } from './types';
+import type { SpineAssetDef, SpineOverlayDef } from './types';
+
+/** Structural subset shared by the base asset and bonus overlays — everything needed to load a spine. */
+type SpineLoadable = Pick<
+	SpineAssetDef,
+	'id' | 'format' | 'skeleton' | 'atlas' | 'images' | 'skeletonScale'
+>;
 
 const applySpineFit = (
 	spine: Spine,
@@ -25,7 +35,7 @@ const applySpineFit = (
 	backdropTransform?: ReturnType<typeof computeBackdropTransform>,
 	backdropDef?: NonNullable<SpineAssetDef['backdrop']>,
 	backdropTexture?: Texture,
-) => {
+): FitTransform => {
 	const transform =
 		backdropTransform && backdropDef && backdropTexture
 			? computeSpineOverlayTransform(
@@ -41,6 +51,7 @@ const applySpineFit = (
 
 	spine.scale.set(transform.scale);
 	spine.position.set(transform.x, transform.y);
+	return transform;
 };
 
 const applyBackdropFit = (
@@ -68,6 +79,33 @@ export class SpineBackgroundRenderer {
 	private fitFrameId = 0;
 	/** Pixi Assets cache keys this renderer registered, for optional release on destroy. */
 	private loadedAssetKeys = new Set<string>();
+	/** Bonus-mode (free game) layers: overlay spines + the swapped backdrop, loaded lazily.
+	 * `cycle` is present when the overlay plays on a duty cycle (see `SpineOverlayDef.cycleGapSeconds`). */
+	private overlays: {
+		def: SpineOverlayDef;
+		spine: Spine;
+		cycle?: { duration: number; gap: number; startDelay: number };
+	}[] = [];
+	/** Free-game rain, split either side of the base spine (behind vs. over the waterfall). */
+	private rainBehind?: RainLayer;
+	private rainOver?: RainLayer;
+	/** Synced copy of the base skeleton rendering only `bonusUnderlaySlots`, drawn beneath the overlays. */
+	private underlaySpine?: Spine;
+	private underlaySlots: string[] = [];
+	/** Resolved once: every slot the underlay copy must blank (i.e. all but the lifted ones). */
+	private underlayHiddenSlots: Slot[] = [];
+	/** Shared clock (seconds) driving the splash duty cycles + rain, advanced from the Pixi ticker. */
+	private bonusElapsed = 0;
+	private bonusTick?: () => void;
+	private baseBackdropTexture?: Texture;
+	private bonusBackdropTexture?: Texture;
+	private bonusActive = false;
+	/** Latched once the lazy bonus-asset load starts; awaited by `setBonusMode`. */
+	private bonusAssetsPromise?: Promise<void>;
+	/** Setup attachment object for each `bonusHiddenSlots` slot, so it can be restored on exit. Stored
+	 * as the object and reassigned onto the slot's pose directly (see `applyHiddenSlots`): spine 4.3
+	 * keeps the live attachment on `slot.pose`/`appliedPose`, not on the legacy `slot.attachment`. */
+	private hiddenSlotSetup = new Map<string, Attachment | null>();
 
 	constructor(hostElement: HTMLElement) {
 		this.hostElement = hostElement;
@@ -142,6 +180,21 @@ export class SpineBackgroundRenderer {
 		cancelAnimationFrame(this.fitFrameId);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
+		if (this.bonusTick) {
+			this.app?.ticker.remove(this.bonusTick);
+			this.bonusTick = undefined;
+		}
+		this.rainBehind?.destroy();
+		this.rainBehind = undefined;
+		this.rainOver?.destroy();
+		this.rainOver = undefined;
+		this.underlaySpine?.destroy({ children: true });
+		this.underlaySpine = undefined;
+		this.underlaySlots = [];
+		this.underlayHiddenSlots = [];
+		this.bonusElapsed = 0;
+		this.overlays.forEach(({ spine }) => spine.destroy({ children: true }));
+		this.overlays = [];
 		this.backdrop?.destroy();
 		this.backdrop = undefined;
 		this.spine?.destroy({ children: true });
@@ -149,6 +202,11 @@ export class SpineBackgroundRenderer {
 		this.app?.destroy(true, { children: true });
 		this.app = undefined;
 		this.currentAsset = undefined;
+		this.baseBackdropTexture = undefined;
+		this.bonusBackdropTexture = undefined;
+		this.bonusActive = false;
+		this.bonusAssetsPromise = undefined;
+		this.hiddenSlotSetup.clear();
 
 		if (options?.releaseAssets) {
 			this.releaseLoadedAssets();
@@ -163,7 +221,7 @@ export class SpineBackgroundRenderer {
 		void Promise.allSettled(keys.map((key) => Assets.unload(key))).catch(() => {});
 	}
 
-	private async loadSkeletonData(asset: SpineAssetDef): Promise<SkeletonData> {
+	private async loadSkeletonData(asset: SpineLoadable): Promise<SkeletonData> {
 		const cacheKey = `${asset.atlas}|${asset.skeleton}|${asset.skeletonScale ?? 1}`;
 		const cached = this.skeletonDataCache.get(cacheKey);
 		if (cached) return cached;
@@ -212,6 +270,7 @@ export class SpineBackgroundRenderer {
 		Assets.add({ alias, src: backdropDef.src });
 		this.loadedAssetKeys.add(alias);
 		const texture = await Assets.load(alias);
+		this.baseBackdropTexture = texture;
 		return Sprite.from(texture);
 	}
 
@@ -254,8 +313,282 @@ export class SpineBackgroundRenderer {
 		this.spine = spine;
 		this.currentAsset = asset;
 
+		this.captureSetupAttachments(spine, asset);
 		this.captureFitBounds(spine, asset);
 		this.fitSpine();
+
+		// Warm the bonus layers (FREEGAME backdrop + FG_CLOUD/FG_SPLASH overlays) in the background so
+		// entering the bonus round doesn't stutter on a first-time load. Fire-and-forget; failures are
+		// swallowed and simply mean the bonus overlays are absent (base scene still renders).
+		if (this.hasBonusAssets(asset)) {
+			void this.ensureBonusAssets().catch(() => {});
+		}
+	}
+
+	/** Remember each `bonusHiddenSlots` slot's setup attachment (the object) so it can be restored on
+	 * exit. Read from the live pose after construction; the cloud slots have no attachment timeline, so
+	 * this stays the correct attachment for the session. */
+	private captureSetupAttachments(spine: Spine, asset: SpineAssetDef): void {
+		this.hiddenSlotSetup.clear();
+		// Lifted slots are hidden on the main spine too — the underlay copy draws them instead.
+		const hidden = [...(asset.bonusHiddenSlots ?? []), ...(asset.bonusUnderlaySlots ?? [])];
+		for (const slotName of hidden) {
+			const slot = spine.skeleton.findSlot(slotName);
+			this.hiddenSlotSetup.set(slotName, slot?.pose.attachment ?? null);
+		}
+	}
+
+	private hasBonusAssets(asset: SpineAssetDef): boolean {
+		return Boolean(
+			asset.bonusBackdropSrc || asset.bonusOverlays?.length || asset.bonusUnderlaySlots?.length,
+		);
+	}
+
+	/** Idempotent lazy load of the bonus backdrop texture + overlay spines (hidden until activated). */
+	private ensureBonusAssets(): Promise<void> {
+		if (!this.bonusAssetsPromise) {
+			this.bonusAssetsPromise = this.loadBonusAssets();
+		}
+		return this.bonusAssetsPromise;
+	}
+
+	private async loadBonusAssets(): Promise<void> {
+		const app = this.app;
+		const asset = this.currentAsset;
+		if (!app || !asset) return;
+
+		const backdropPromise = asset.bonusBackdropSrc
+			? this.loadBonusBackdropTexture(asset.id, asset.bonusBackdropSrc)
+			: Promise.resolve(undefined);
+
+		const overlayDefs = asset.bonusOverlays ?? [];
+		const overlaysPromise = Promise.all(
+			overlayDefs.map(async (def) => {
+				const skeletonData = await this.loadSkeletonData(def);
+				const spine = new Spine({ skeletonData, autoUpdate: true });
+				spine.state.data.defaultMix = 0.2;
+				// Cycled overlays stay on a looping track (so the entry never completes/clears) but have
+				// their `trackTime` driven by hand from the ticker — see `advanceBonusCycles`.
+				spine.state.setAnimation(0, def.animation, def.cycleGapSeconds != null || (def.loop ?? true));
+				spine.visible = false;
+				spine.autoUpdate = false;
+
+				let cycle: { duration: number; gap: number; startDelay: number } | undefined;
+				if (def.cycleGapSeconds != null) {
+					const duration = skeletonData.findAnimation(def.animation)?.duration ?? 0;
+					if (duration > 0) {
+						cycle = {
+							duration,
+							gap: def.cycleGapSeconds,
+							startDelay: def.cycleStartDelaySeconds ?? 0,
+						};
+					}
+				}
+				return { def, spine, cycle };
+			}),
+		);
+
+		const [bonusTexture, overlays] = await Promise.all([backdropPromise, overlaysPromise]);
+		if (bonusTexture) this.bonusBackdropTexture = bonusTexture;
+
+		// The renderer may have been torn down (destroy) while these loaded — bail so we don't attach
+		// orphan children to a destroyed stage.
+		if (!this.app || !this.spine) {
+			overlays.forEach(({ spine }) => spine.destroy({ children: true }));
+			return;
+		}
+
+		const baseSpine = this.spine;
+
+		// Everything below is inserted at the base spine's index, so each insertion lands directly above
+		// the previous one: rainBehind → underlay(ship) → behindBase overlays → baseSpine.
+
+		// Rain BEHIND the waterfall: under the base spine (but above the backdrop sprite).
+		this.rainBehind = new RainLayer(RAIN_BEHIND_CONFIG);
+		app.stage.addChildAt(this.rainBehind.view, app.stage.getChildIndex(baseSpine));
+
+		// Slots lifted out of the base scene (the distant ship) — redrawn here so the bonus overlays,
+		// which sit just above, pass in FRONT of them while the rest of the base scene stays on top.
+		this.underlaySlots = asset.bonusUnderlaySlots ?? [];
+		if (this.underlaySlots.length) {
+			const underlay = new Spine({ skeletonData: await this.loadSkeletonData(asset), autoUpdate: false });
+			underlay.state.setAnimation(0, asset.animation, asset.loop ?? true);
+			underlay.visible = false;
+			this.underlaySpine = underlay;
+			const lifted = new Set(this.underlaySlots);
+			this.underlayHiddenSlots = underlay.skeleton.slots.filter(
+				(slot: Slot) => !lifted.has(slot.data.name),
+			);
+			app.stage.addChildAt(underlay, app.stage.getChildIndex(baseSpine));
+		}
+
+		// Most overlays paint on top of the base spine (topmost background layer, still behind the game
+		// board which is a separate canvas above this one). `behindBase` ones are inserted UNDER the base
+		// spine so the waterfalls/ship occlude them for depth.
+		overlays.forEach(({ def, spine }) => {
+			if (def.behindBase) {
+				app.stage.addChildAt(spine, app.stage.getChildIndex(baseSpine));
+			} else {
+				app.stage.addChild(spine);
+			}
+		});
+
+		// Rain OVER the waterfall: added last, so it passes in front of the whole background scene —
+		// still inside this canvas, hence always behind the plinko board.
+		this.rainOver = new RainLayer(RAIN_OVER_CONFIG);
+		app.stage.addChild(this.rainOver.view);
+
+		this.overlays = overlays;
+		this.startBonusTicker();
+		this.fitSpine();
+	}
+
+	/**
+	 * Drives the rain simulation and the splash duty cycles off the shared Pixi ticker, so both are
+	 * frame-rate independent and pause with the app.
+	 */
+	private startBonusTicker(): void {
+		const app = this.app;
+		if (!app || this.bonusTick) return;
+
+		const tick = () => {
+			if (!this.bonusActive) return;
+			try {
+				const { deltaTime, deltaMS } = app.ticker;
+				this.bonusElapsed += deltaMS / 1000;
+				this.rainBehind?.update(deltaTime);
+				this.rainOver?.update(deltaTime);
+				this.syncUnderlay();
+				this.advanceBonusCycles();
+			} catch (error) {
+				// An exception escaping a ticker listener aborts Pixi's rAF loop, which silently freezes
+				// the ENTIRE background (no repaint at all). Detach instead so the base scene keeps running.
+				console.error('[SpineBackgroundRenderer] bonus tick failed; disabling rain/splash cycle', error);
+				app.ticker.remove(tick);
+				this.bonusTick = undefined;
+			}
+		};
+		this.bonusTick = tick;
+		app.ticker.add(tick);
+	}
+
+	/**
+	 * Keeps the lifted-slot copy frame-locked to the base scene and restricted to just those slots, so
+	 * the ship animates identically to how it would inside the base spine — only at a lower depth.
+	 */
+	private syncUnderlay(): void {
+		const underlay = this.underlaySpine;
+		const base = this.spine;
+		if (!underlay || !base) return;
+
+		const baseEntry = base.state.getTrack(0);
+		const entry = underlay.state.getTrack(0);
+		if (baseEntry && entry) entry.trackTime = baseEntry.trackTime;
+		underlay.update(0);
+
+		// Blank every non-lifted slot, AFTER `update` so attachment timelines can't re-add them.
+		// ⚠️ Don't shrink `skeleton.drawOrder` to do this: the spine renderer walks `drawOrder` and
+		// `slots` in parallel, so a shorter array throws mid-render — which escapes the ticker and
+		// silently kills Pixi's rAF loop (the whole background stops repainting).
+		for (const slot of this.underlayHiddenSlots) {
+			slot.pose.attachment = null;
+			slot.appliedPose.attachment = null;
+		}
+	}
+
+	/**
+	 * Duty-cycled overlays (the two splashes) play their animation once, then hide for `gap` seconds
+	 * before replaying. `startDelay` staggers the pair so the left fires first and the right joins
+	 * partway through, instead of both bursting in unison.
+	 */
+	private advanceBonusCycles(): void {
+		for (const { spine, cycle } of this.overlays) {
+			if (!cycle) continue;
+			const period = cycle.duration + cycle.gap;
+			let t = (this.bonusElapsed - cycle.startDelay) % period;
+			if (t < 0) t += period;
+
+			const playing = t < cycle.duration;
+			spine.visible = playing;
+			if (!playing) continue;
+
+			// spine 4.3 exposes the live entry as `getTrack(i)` (there is no `getCurrent`).
+			const entry = spine.state.getTrack(0);
+			if (!entry) continue;
+			entry.trackTime = t;
+			// autoUpdate is off for cycled overlays: apply the pose we just seeked to.
+			spine.update(0);
+		}
+	}
+
+	private async loadBonusBackdropTexture(assetId: string, src: string): Promise<Texture> {
+		const alias = `${assetId}-bonus-backdrop`;
+		Assets.add({ alias, src });
+		this.loadedAssetKeys.add(alias);
+		return Assets.load(alias);
+	}
+
+	/**
+	 * Toggle bonus mode (free game): swap to the FREEGAME backdrop, hide the base ambient clouds, and
+	 * reveal the FG_CLOUD/FG_SPLASH overlays — or reverse all three when leaving. Safe to call before
+	 * the bonus assets finish loading; it awaits them.
+	 */
+	async setBonusMode(active: boolean): Promise<void> {
+		const asset = this.currentAsset;
+		if (!asset || !this.hasBonusAssets(asset)) return;
+
+		// Latch synchronously so the newest call wins: an in-flight older call bails after its await.
+		this.bonusActive = active;
+		await this.ensureBonusAssets();
+		if (!this.spine || this.bonusActive !== active) return;
+
+		this.applyBackdropTexture(active);
+		this.applyHiddenSlots(active);
+		this.applyOverlayVisibility(active);
+		this.fitSpine();
+	}
+
+	private applyBackdropTexture(bonus: boolean): void {
+		const backdrop = this.backdrop;
+		if (!backdrop) return;
+		const texture = bonus ? this.bonusBackdropTexture : this.baseBackdropTexture;
+		if (texture && backdrop.texture !== texture) {
+			backdrop.texture = texture;
+		}
+	}
+
+	private applyHiddenSlots(bonus: boolean): void {
+		const spine = this.spine;
+		if (!spine) return;
+		for (const [slotName, setupAttachment] of this.hiddenSlotSetup) {
+			const slot = spine.skeleton.findSlot(slotName);
+			if (!slot) continue;
+			// spine 4.3: set the unconstrained `pose` (source of truth) AND `appliedPose` (what renders)
+			// so the change takes effect on the current frame, not just after the next constraint pass.
+			const next = bonus ? null : setupAttachment;
+			slot.pose.attachment = next;
+			slot.appliedPose.attachment = next;
+		}
+	}
+
+	private applyOverlayVisibility(bonus: boolean): void {
+		for (const { spine, cycle } of this.overlays) {
+			if (cycle) {
+				// Duty-cycled: the ticker owns `visible`; just make sure it's off when leaving bonus and
+				// keep autoUpdate off so only the manual seek drives it.
+				spine.autoUpdate = false;
+				if (!bonus) spine.visible = false;
+				continue;
+			}
+			spine.visible = bonus;
+			spine.autoUpdate = bonus;
+		}
+
+		if (this.rainBehind) this.rainBehind.view.visible = bonus;
+		if (this.rainOver) this.rainOver.view.visible = bonus;
+		// The underlay only exists to re-depth lifted slots during bonus; outside bonus the main spine
+		// draws them again (their attachments are restored by `applyHiddenSlots`).
+		if (this.underlaySpine) this.underlaySpine.visible = bonus;
 	}
 
 	private scheduleFitSpine(): void {
@@ -293,7 +626,7 @@ export class SpineBackgroundRenderer {
 			applyBackdropFit(backdrop, width, height, backdropDef);
 		}
 
-		applySpineFit(
+		const baseTransform = applySpineFit(
 			spine,
 			width,
 			height,
@@ -303,5 +636,42 @@ export class SpineBackgroundRenderer {
 			backdropDef,
 			backdropTexture,
 		);
+
+		this.applyOverlayFit(baseTransform, width, height);
+		// The lifted-slot copy shares the base spine's exact transform — it's the same skeleton.
+		if (this.underlaySpine) {
+			this.underlaySpine.scale.set(baseTransform.scale);
+			this.underlaySpine.position.set(baseTransform.x, baseTransform.y);
+		}
+		// Rain covers the whole background viewport, independent of the spine's fit transform.
+		this.rainBehind?.resize(width, height);
+		this.rainOver?.resize(width, height);
+
+		// `captureFitBounds` (above, when bounds were empty) runs `setupPose`, which re-adds the cloud
+		// attachments — re-hide them so a resize mid-bonus doesn't flash the base clouds back in.
+		if (this.bonusActive) this.applyHiddenSlots(true);
+	}
+
+	/**
+	 * Place each bonus overlay by reusing the base spine's exact fit transform. The overlays were
+	 * authored in the same Spine scene / world coordinates as the base skeleton (and parsed at the same
+	 * skeleton scale), so an identical scale + position lands their content pixel-aligned with the base
+	 * scene. Per-overlay `offset{X,Y}` allow a small viewport-relative nudge for fine-tuning; `mirror`
+	 * flips the layer across the scene centre (for a left/right symmetric feature like the waterfalls).
+	 */
+	private applyOverlayFit(base: FitTransform, width: number, height: number): void {
+		for (const { def, spine } of this.overlays) {
+			const offsetX = (def.offsetXVw ?? 0) * width;
+			const offsetY = (def.offsetYVh ?? 0) * height;
+			// Mirroring reflects about the skeleton ROOT (world x=0) — `base.x` is exactly where world x=0
+			// lands, so negating scale.x reflects there with no extra term.
+			// ⚠️ Do NOT reflect about the fit-bounds centre: the landscape skeleton's box is lopsided
+			// (authored −1887..+1657, centre −57.6 world) while the scene is actually symmetric about
+			// ~world +8 (the midpoint of the two waterfall bones, −1169 / +1201). Using the box centre
+			// threw the mirrored layer ~144px too far left at a 1600px viewport. Any residual is dialled
+			// in per-overlay via `offsetXVw`.
+			spine.scale.set(def.mirror ? -base.scale : base.scale, base.scale);
+			spine.position.set(base.x + offsetX, base.y + offsetY);
+		}
 	}
 }

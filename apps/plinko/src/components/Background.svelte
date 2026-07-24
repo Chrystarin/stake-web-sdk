@@ -2,6 +2,7 @@
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 
 	import { isPortraitGameLayout } from '../lib/format';
+	import { stateGameDerived } from '../game/stateGame.svelte';
 	import { getBackgroundLandscapeAsset } from '../lib/spine/backgroundLandscapeAsset';
 	import { getBackgroundPortraitAsset } from '../lib/spine/backgroundPortraitAsset';
 	import { SpineBackgroundRenderer } from '../lib/spine/SpineBackgroundRenderer';
@@ -15,13 +16,19 @@
 		return isPortraitGameLayout();
 	});
 
+	/** Free game: swap the backdrop to the FREEGAME art, hide the base clouds, show the FG overlays.
+	 * Same signal that drives the bonus frame overlay (`container--bonus`) in Game.svelte. */
+	const bonus = $derived(stateGameDerived.isBonusBackgroundActive);
+
 	const backgroundAsset = $derived(
 		portrait ? getBackgroundPortraitAsset() : getBackgroundLandscapeAsset(),
 	);
 	/** Shown only while the Spine stack (backdrop + animation) is loading or failed. */
-	const fallbackImageSrc = $derived(
-		staticUrl(portrait ? 'img/BG_portrait.jpg' : 'img/BG_landscape.jpg'),
-	);
+	const fallbackImageSrc = $derived.by(() => {
+		const base = portrait ? 'img/BG_portrait.jpg' : 'img/BG_landscape.jpg';
+		const free = portrait ? 'img/BG_portrait_FREEGAME.jpg' : 'img/BG_landscape_FREEGAME.jpg';
+		return staticUrl(bonus ? free : base);
+	});
 
 	let canvasHost = $state<HTMLElement | undefined>();
 	let spineReady = $state(false);
@@ -65,6 +72,14 @@
 			spineReady = false;
 			spineFailed = false;
 		};
+	});
+
+	// Drive bonus-mode layers once the spine is live. Re-runs on `bonus` toggle and whenever a re-mount
+	// (orientation change) flips `spineReady` back to true, so the current mode is always re-applied.
+	$effect(() => {
+		const active = bonus;
+		if (!spineReady) return;
+		void renderer?.setBonusMode(active);
 	});
 </script>
 

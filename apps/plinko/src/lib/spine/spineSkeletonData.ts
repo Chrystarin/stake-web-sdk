@@ -9,7 +9,7 @@ import {
 import type { SpineAssetDef } from './types';
 
 export const readSkeletonData = (
-	asset: SpineAssetDef,
+	asset: Pick<SpineAssetDef, 'format' | 'skeletonScale'>,
 	atlas: unknown,
 	skeletonSource: unknown,
 ): SkeletonData => {

@@ -1,0 +1,12 @@
+skeleton.png
+size:1498,1328
+filter:Linear,Linear
+pma:true
+cloudFreeGame/cloud1_fg
+bounds:2,955,1215,371
+cloudFreeGame/cloud2_fg
+bounds:2,2,1273,497
+cloudFreeGame/cloud3_fg
+bounds:2,2,1273,497
+cloudFreeGame/cloud4_fg
+bounds:2,501,1494,452

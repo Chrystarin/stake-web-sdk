@@ -1,0 +1,66 @@
+{
+"skeleton": {
+	"hash": "VfCvZZYrvjM",
+	"spine": "4.3.23",
+	"x": 231.41187,
+	"y": 522.9151,
+	"width": 1218.749,
+	"height": 945.0565,
+	"images": "../background/Spine/",
+	"audio": "C:/Users/TOCH/Desktop/PLINKO/RAW"
+},
+"bones": [
+	{ "name": "root" }
+],
+"slots": [
+	{ "name": "SPLASH WATER", "bone": "root", "attachment": "waterSplash/" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"SPLASH WATER": {
+				"waterSplash/": {
+					"type": "mesh",
+					"uvs": [ 1, 1, 0.5, 1, 0, 1, 0, 0, 0.5, 0, 1, 0 ],
+					"triangles": [ 0, 1, 5, 1, 4, 5, 1, 2, 4, 2, 3, 4 ],
+					"vertices": [ 1450.16, 522.92, 840.79, 522.92, 231.41, 522.92, 231.41, 1467.97, 840.79, 1467.97, 1450.16, 1467.97 ],
+					"hull": 6,
+					"sequence": { "count": 70, "start": 0, "digits": 1 },
+					"edges": [ 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 0 ],
+					"width": 521.0,
+					"height": 404.0
+				}
+			}
+		}
+	}
+],
+"animations": {
+	"animation": {
+		"slots": {
+			"SPLASH WATER": {
+				"attachment": [
+					{ "name": "waterSplash/" }
+				]
+			}
+		},
+		"attachments": {
+			"default": {
+				"SPLASH WATER": {
+					"waterSplash/": {
+						"deform": [
+							{
+								"vertices": [ 137.1377, -9.826782, -6.103516E-5, -9.826782, -137.13776, -9.826782, -137.13776, 202.8551, -6.103516E-5, 202.8551, 137.1377, 202.8551 ]
+							}
+						],
+						"sequence": [
+							{ "mode": "once", "delay": 0.03333333 },
+							{ "time": 2.166667, "mode": "once" }
+						]
+					}
+				}
+			}
+		}
+	}
+}
+}

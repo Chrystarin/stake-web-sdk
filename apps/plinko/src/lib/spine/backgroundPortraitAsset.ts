@@ -1,8 +1,13 @@
+import { getBonusOverlays } from './bonusOverlayAssets';
 import { staticAssetPath } from '../staticUrl';
 import type { SpineAssetDef } from './types';
 
 const SPINE_BASE = 'spine/background_portrait';
 const PORTRAIT_IMAGE = 'img/BG_portrait.jpg';
+const PORTRAIT_BONUS_IMAGE = 'img/BG_portrait_FREEGAME.jpg';
+
+/** Ambient cloud slots in the base portrait scene, hidden during bonus (replaced by FG_CLOUD). */
+const PORTRAIT_CLOUD_SLOTS = ['cloud1', 'cloud2', 'cloud3', 'cloud5', 'cloud6', 'cloud7'];
 
 /**
  * Width fill multiplier for the portrait Spine background.
@@ -53,5 +58,8 @@ export const getBackgroundPortraitAsset = (): SpineAssetDef => ({
 		// Cover the height too, so tall phones don't show an empty strip above the scene.
 		coverHeight: true,
 	},
+	bonusBackdropSrc: staticAssetPath(PORTRAIT_BONUS_IMAGE),
+	bonusHiddenSlots: PORTRAIT_CLOUD_SLOTS,
+	bonusOverlays: getBonusOverlays(),
 	skeletonScale: 0.5,
 });

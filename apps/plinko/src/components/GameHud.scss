@@ -1,5 +1,16 @@
 /* Desktop bottom panel — ported from legacy Angular game.desktop.component.scss (One-Eyed Willy's Plinko) */
 
+/* Every HUD graphic is decorative art on a control, never something the player drags. Kills the
+   native image-drag at the source for the controls that stay clickable during an Autobet run (the
+   Autobet toggle, which doubles as Stop, and Fast) — natively `disabled` controls already swallow the
+   mousedown, so this makes the live ones behave the same. Firefox ignores `-webkit-user-drag`; the
+   window-level `dragstart` guard in Game.svelte is what covers it there. */
+.game-bottom-panel img,
+.mobile-hud img {
+	-webkit-user-drag: none;
+	user-select: none;
+}
+
 .bp-field-frame {
 	position: absolute;
 	inset: 0;

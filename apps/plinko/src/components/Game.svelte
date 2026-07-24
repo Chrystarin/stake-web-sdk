@@ -528,6 +528,16 @@
 	});
 </script>
 
+<!-- Nothing in the game is a draggable object — every icon is decorative `<img>` art sitting on a
+     button, and `<img>` is a native drag source by default. A press-and-drag on any control that is
+     NOT natively `disabled` (the Autobet toggle and Fast button, both deliberately kept live during
+     an Autobet run — see GameHud) therefore starts an HTML5 image drag and trails a translucent ghost
+     of the PNG across the board. Natively `disabled` controls (bet/ball steppers, Buy Bonus) swallow
+     the mousedown, so they never did this — hence the inconsistency QA sees during Auto Play.
+     Cancelling `dragstart` at the window covers every browser (Firefox ignores `-webkit-user-drag`)
+     and every layer, including the modals rendered outside `.game-root`. -->
+<svelte:window ondragstart={(event) => event.preventDefault()} />
+
 <EnableGameActor />
 
 <SuppressButtonFocusRing />
@@ -571,7 +581,13 @@
 <main
 	class="game-root"
 	class:game-root--mobile={mobile}
-	style:background-image={mobile ? staticCssUrl('img/BG_portrait.jpg') : null}
+	style:background-image={mobile
+		? staticCssUrl(
+				stateGameDerived.isBonusBackgroundActive
+					? 'img/BG_portrait_FREEGAME.jpg'
+					: 'img/BG_portrait.jpg',
+			)
+		: null}
 	bind:this={gameRootEl}
 >
 	<div class="bg-layer">
