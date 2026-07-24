@@ -25,16 +25,15 @@
 .game-bottom-panel {
 	position: absolute;
 	left: 50%;
-	/* Lifted off the viewport bottom so the PLAY button clears the panel's inner padding by enough to
-	   fit the total-bet pill BELOW it (see .bp-play-total). Without the lift, the pill would extend past
-	   the viewport's bottom edge and be clipped. Raised 0.75 → 0.95vw for the +15% desktop height boost:
-	   the taller PLAY + taller pill together pushed the pill ~2px past the clipped .game-root bottom, so
-	   the whole (now-bigger) bar gets a touch more clearance. (Also gives the BalanceCard, solved against
-	   this panel's geometry, its breathing room.) */
+	/* Lifted off the viewport bottom by 0.95vw. Historically this also carved out room for the total-bet
+	   pill that used to sit BELOW the PLAY button; that readout is now a full-width overlay bar OUTSIDE
+	   this panel (see .bp-total-overlay), but the lift is retained: BalanceCard.svelte is solved against
+	   this panel's geometry and relies on the 0.95vw clearance, and it leaves the round buttons a hair of
+	   breathing room above the bottom edge. */
 	bottom: 0.95vw;
 	/* Two transforms combined into one declaration (they don't stack across multiple `transform` rules
 	   — the later one wins). translateX(-50%) still handles the horizontal centring; scale(0.9) shrinks
-	   the whole panel — and everything inside it (buttons, fields, meter, pill) — by 10%.
+	   the whole panel — and everything inside it (buttons, fields, meter) — by 10%.
 	   `transform-origin: 50% 100%` scales from the panel's own bottom-centre, so the panel stays
 	   centred on the viewport and anchored at its bottom edge; only the top edge moves inward. */
 	transform: translateX(-50%) scale(0.9);
@@ -678,53 +677,61 @@
 	gap: clamp(0.6vw, 0.9vw, 1.4vw);
 }
 
-/* Total bet (bet-per-ball × ball-per-drop) on a small plaque tucked under the round PLAY button.
-   ⚠️ The bottom panel sits on the viewport's bottom edge (see .game-bottom-panel) and .game-root is
-   `overflow: hidden`, so there is NO room to drop this fully below the disc — it would be clipped.
-   Absolutely positioned so it takes NO space in the Auto | PLAY | Fast row: that row's geometry is
-   baked into BalanceCard.svelte's `left`/`bottom`, so its layout must not change. Centred on the
-   cluster, which is symmetric (Auto and Fast share --bp-side-btn-width), so cluster centre = PLAY
-   centre. Sits FULLY BELOW the round PLAY disc: with pill height 1.4vw, `bottom: -1.4vw` puts the
-   pill's TOP exactly at the button's bottom edge — no disc-overlap. Depends on the 10% panel-scale +
-   the panel's 0.75vw lift off the viewport bottom (see .game-bottom-panel); together they carve out
-   just enough room for the pill without it clipping past the viewport. */
-.bp-play-total {
+/* Total bet (bet-per-ball × ball-per-drop) on a FULL-WIDTH flat dark OVERLAY BAR flush to the very
+   bottom edge of the game — a muted "Bet" label on the left and the total value on the right. This
+   bar is the container for the readout (it replaced the old gold-rimmed pill).
+   Rendered as a SIBLING of `.game-bottom-panel`, so it escapes that panel's `scale(0.9)`/centre
+   transform: it is a child of `.game-content` (100vw wide, `position: relative`), which lets it
+   span the FULL viewport width and pin to the bottom edge with left/right/bottom: 0. No outline.
+   Height is tuned to the empty band BELOW the betting controls: the panel is lifted ~0.95vw off the
+   bottom and PLAY (the tallest control) ends ~1.53vw above the viewport bottom, so a ~1.7vw-tall bar
+   only laps the very bottom of the round buttons — dead PNG space (the disc art sits 3.125% high,
+   see .bp-btn-play) — and never touches the edge fields (which end far higher). z-index sits above
+   the panel so the readout is never occluded by the PLAY disc it centres under. */
+.bp-total-overlay {
 	position: absolute;
-	left: 50%;
-	/* Height and its drop below the disc scale with --bp-height-boost so the pill grows in step with
-	   PLAY; keeping bottom = −height preserves "pill TOP at the button's bottom edge" (see below). */
-	bottom: calc(-1.4vw * var(--bp-height-boost));
-	transform: translateX(-50%);
-	z-index: 5;
-	display: inline-flex;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	width: 100%;
+	z-index: 30;
+	display: flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 6vw;
-	height: calc(1.4vw * var(--bp-height-boost));
-	padding: 0 0.7vw;
+	/* Gap between the "Bet" label and the value. */
+	gap: 0.7vw;
+	height: 1.7vw;
+	padding: 0 1.2vw;
 	box-sizing: border-box;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
 	font-weight: 500;
 	font-synthesis: none;
-	font-size: calc(0.9vw * var(--bp-height-boost));
+	font-size: 0.95vw;
 	line-height: 1;
 	letter-spacing: -0.01em;
 	color: #efeadd;
 	white-space: nowrap;
 	pointer-events: none;
-	/* Dark rounded pill with a thick gold rim, matching the other betting-panel fields'
-	   frame art (betting-component-frame.png: a #c27213 gold outline around a #221a15 fill).
-	   The rim is a gradient border — bright gold at the top, amber at the bottom — rendered
-	   with the padding-box/border-box double-background trick so the fully-rounded corners
-	   are preserved (border-image would square them off). The inset white highlight keeps the
-	   raised sheen. All widths scale with --bp-height-boost so the rim grows in step with PLAY. */
-	border: calc(0.1275vw * var(--bp-height-boost)) solid transparent;
-	border-radius: 999px;
-	background:
-		linear-gradient(#221a15, #221a15) padding-box,
-		linear-gradient(180deg, #d0851f, #8a520c) border-box;
-	box-shadow: inset 0 calc(0.19vw * var(--bp-height-boost)) 0
-		calc(-0.063vw * var(--bp-height-boost)) rgba(255, 255, 255, 0.25);
+	/* Flat, edge-to-edge dark scrim. No border/outline — just a near-black fill and a soft upward
+	   shadow so the strip lifts off the ship-deck/water behind it. Square (full-bleed to the corners). */
+	background: rgba(8, 6, 4, 0.86);
+	box-shadow: 0 -0.15vw 0.5vw rgba(0, 0, 0, 0.4);
+}
+
+/* "Bet" label, sitting to the LEFT of the value inside the bar. Muted + uppercase to match the other
+   betting-panel field labels (.bp-field-label), but sized down so it sits inline on one line. */
+.bp-play-total-label {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	line-height: 1;
+	font-weight: 600;
+	font-size: 0.82em;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	color: #a9a1a1;
+	transform: translateY(0.14em);
 }
 
 .bp-play-total-value {
@@ -733,11 +740,12 @@
 	/* Vertical centering. The flex parent centres the value's line box, but Poppins renders its
 	   glyphs high within a line-height:1 box (the box metrics report "centred" while the visible
 	   ink sits toward the top), so the digits look lifted. Nudge the value down to optically
-	   centre the visible numerals. em-based, so it holds at every pill size. */
+	   centre the visible numerals. em-based, so it holds at every bar size. */
 	display: flex;
 	align-items: center;
 	line-height: 1;
-	transform: translateY(0.18em);
+	font-weight: 600;
+	transform: translateY(0.14em);
 }
 
 .bp-btn-play {
@@ -1533,14 +1541,15 @@
 	position: fixed;
 	left: 0;
 	right: 0;
-	// Flush to the bottom edge with a solid black bar behind Win (left) + Balance (right), per the
-	// reference. Flex space-between replaces the old absolutely-positioned corners.
+	// Flush to the bottom edge, Win (left) + Balance (right) in the same corners as before. The solid
+	// black bar behind them has been removed (transparent) so the game background shows through; the
+	// text keeps its drop-shadow (see `.mobile-corner-info`) to stay legible over the artwork.
 	bottom: 0;
 	padding: clamp(6px, 1.9vw, 12px) clamp(10px, 3vw, 18px);
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	background: #000;
+	background: transparent;
 	z-index: 20;
 	pointer-events: none;
 }
@@ -1569,16 +1578,29 @@
 	position: static;
 }
 
+/* Win (coin) icon on the left — larger than the generic corner-icon size above. Scoped to the
+   left corner so the wallet icon on the right keeps its own sizing. The coin art's opaque pixels are
+   biased upward in the PNG (top-pad 3px vs bottom-pad 9px of the 45px source), so flex-centering the
+   BOX leaves the visible coin floating ~high; translateY nudges its visible centre onto the text. */
+.mobile-corner-info--left img {
+	width: clamp(25.92px, 6.19vw, 34.56px);
+	height: clamp(25.92px, 6.19vw, 34.56px);
+	transform: translateY(3%);
+}
+
 .mobile-corner-label {
-	font-size: clamp(12px, 2.75vw, 15px);
-	font-weight: 700;
+	// Matched to the bet-panel value size (`.mobile-top-card-value`) so Win/Balance read at the same
+	// scale as the top-row fields rather than towering over them.
+	font-size: clamp(11px, 2.38vw, 15px);
+	font-weight: 300;
 	line-height: 1;
 	margin-right: var(--bp-label-value-gap);
 }
 
 .mobile-corner-value {
-	font-size: clamp(14px, 3.17vw, 19px);
-	font-weight: 400;
+	// Same scale as the bet-panel value (see label note above).
+	font-size: clamp(11px, 2.38vw, 15px);
+	font-weight: 300;
 	line-height: 1;
 	min-width: 0;
 	overflow: hidden;
@@ -1592,7 +1614,10 @@
 .mobile-corner-info .mobile-balance-wallet {
 	width: auto;
 	height: clamp(18px, 4.3vw, 24px);
-	margin-left: clamp(4px, 1.1vw, 8px);
+	// Match the VISUAL text-to-icon gap of the Win side. The Win coin art has ~12% transparent padding
+	// on its right edge, so equal margins look unequal against the edge-to-edge wallet. Add that padding
+	// back: base margin (same clamp as the coin's margin-right) + 12.2% of the coin's display size.
+	margin-left: calc(clamp(4px, 1.1vw, 8px) + clamp(3.17px, 0.76vw, 4.23px));
 	margin-right: 0;
 	object-fit: contain;
 	flex-shrink: 0;

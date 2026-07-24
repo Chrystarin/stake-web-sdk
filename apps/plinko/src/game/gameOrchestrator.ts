@@ -253,6 +253,7 @@ export function startAuthoritativeBonusRound(
 	outcomes: PlinkoBallOutcome[],
 	level: number,
 	ballsPlayed = 0,
+	levelupPegs = 0,
 ) {
 	const played = Math.max(0, Math.floor(ballsPlayed || 0));
 	// Seed the persisted-progress counter so continued play keeps saving the cumulative count
@@ -260,6 +261,9 @@ export function startAuthoritativeBonusRound(
 	roundBonusBallsPlayed = played;
 	stateGame.authoritativeBonusOutcomes = normalizeBonusOutcomes(outcomes);
 	stateGame.authoritativeBonusOutcomeIndex = played;
+	// Size the energy bar to THIS (entry) level's escalating threshold (0 = keep the `bonusMeter` event's
+	// flat max, for legacy books).
+	if (levelupPegs > 0) stateGame.bonusMeterMax = levelupPegs;
 	const remaining = Math.max(0, Math.floor(freeBalls || 0) - played);
 	if (level > 0) {
 		stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level);
@@ -272,11 +276,12 @@ export function startAuthoritativeBonusRound(
 	stateGame.bonusBallsRemaining = remaining;
 }
 
-/** Queue a book-authored bonus level-up (played after the current level's balls finish). */
+/** Queue a book-authored bonus level-up (combined into the pool the instant the energy bar fills). */
 export function enqueueAuthoritativeBonusLevel(
 	freeBalls: number,
 	outcomes: PlinkoBallOutcome[],
 	level: number,
+	levelupPegs = 0,
 ) {
 	stateGame.authoritativeBonusLevelQueue = [
 		...stateGame.authoritativeBonusLevelQueue,
@@ -284,6 +289,8 @@ export function enqueueAuthoritativeBonusLevel(
 			freeBalls: Math.max(0, Math.floor(freeBalls || 0)),
 			outcomes: normalizeBonusOutcomes(outcomes),
 			level: Math.max(1, Math.floor(level || 1)),
+			// Pegs to leave the level this batch belongs to (escalating) — sizes the bar once combined in.
+			levelupPegs: Math.max(0, Math.floor(levelupPegs || 0)),
 		},
 	];
 }
@@ -339,6 +346,7 @@ async function applyAuthoritativeBonusLevel(level: {
 	freeBalls: number;
 	outcomes: PlinkoBallOutcome[];
 	level: number;
+	levelupPegs?: number;
 }) {
 	await waitForDropBatchCompletion();
 	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
@@ -353,12 +361,67 @@ async function applyAuthoritativeBonusLevel(level: {
 	stateGame.authoritativeBonusOutcomes = level.outcomes;
 	stateGame.authoritativeBonusOutcomeIndex = 0;
 	awardBonusBalls(level.freeBalls);
+	// Re-size the bar to the new level's escalating threshold (mirrors the mid-drop combine path).
+	if (level.levelupPegs && level.levelupPegs > 0) stateGame.bonusMeterMax = level.levelupPegs;
 	// DRAIN on the next frame so the full bar is rendered first, then the new level's bar visibly
 	// re-fills from empty as its balls drop. Draining synchronously here would snap the bar from full to
 	// empty within the same update and hide the completed state the level-up celebrates.
 	requestAnimationFrame(() => {
 		if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
 	});
+}
+
+/**
+ * COMBINE-ON-METER-FULL: the instant the in-bonus energy bar fills (mid-drop), level up RIGHT AWAY and
+ * pour the newly-awarded free balls into the balls still waiting to drop — instead of holding the bar
+ * full and waiting for the current level's balls to deplete before awarding the next level.
+ *
+ * The new level's outcomes are APPENDED to the END of the live authoritative stream (never replacing it,
+ * and the read index keeps advancing), so the balls already dropped stay consumed and every remaining +
+ * newly-awarded ball still lands on its exact book-authored pocket. Because every book ball is still
+ * dropped, the settled `finalWin` is byte-for-byte unchanged → EV-exact, RTP untouched.
+ *
+ * Anchored to the book's `authoritativeBonusLevelQueue` (fully populated up-front from the `bonusRound`
+ * events, before any bonus ball drops), so the client can never award more/fewer levels than the book
+ * authored: this is a no-op once the queue is exhausted or the ladder top is reached. Returns true if a
+ * level was combined in.
+ */
+export function combineNextBonusLevelNow(): boolean {
+	if (!stateGame.bonusRoundActive) return false;
+	if (stateGame.bonusLevelProgress >= BONUS_LEVEL_LABELS.length) return false;
+	const next = stateGame.authoritativeBonusLevelQueue[0];
+	if (!next) return false;
+	// The level we're LEAVING (its balls just filled the energy bar) — its book-authored free spin, if
+	// any, fires at this level-up moment (below).
+	const leavingLevel = stateGame.bonusLevelProgress;
+	stateGame.authoritativeBonusLevelQueue = stateGame.authoritativeBonusLevelQueue.slice(1);
+	stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, next.level);
+	// Merge the new level's outcomes onto the END of the live stream — the remaining current-level balls
+	// and these new ones now drop as ONE combined pool (the read index is untouched, so nothing replays).
+	stateGame.authoritativeBonusOutcomes = [
+		...stateGame.authoritativeBonusOutcomes,
+		...next.outcomes,
+	];
+	// Celebrate the level-up NOW (the bar is already visibly full at this trigger instant, so — unlike the
+	// depletion path — there is no fill-animation to wait on before revealing the +N reward).
+	showBonusLevelUpOverlay(next.level, next.freeBalls);
+	// Pour the awarded free balls into the still-remaining pool (this is the "combine").
+	awardBonusBalls(next.freeBalls);
+	// Re-size the energy bar to the NEW level's escalating threshold (higher levels need more pegs), then
+	// drain on the next frame so the completed (full) bar renders first and the new, taller bar visibly
+	// re-fills from empty as the combined balls keep dropping.
+	if (next.levelupPegs && next.levelupPegs > 0) stateGame.bonusMeterMax = next.levelupPegs;
+	requestAnimationFrame(() => {
+		if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
+	});
+	// Fire the completed level's in-bonus free spin at THIS level-up moment (the wheel opens once the
+	// in-flight balls land — via the roulette flow's pipeline-idle wait — so it naturally follows the
+	// level-up card, then pauses the drop until it closes). Book-anchored: fires a queued `freeSpinTrigger`
+	// tagged for the level we just left. Any not fired here (the top level's, or one skipped because a
+	// wheel was already open) are fired by the depletion catch-all in `settleBonusRoundWhenFinished`.
+	// TIMING-ONLY — the same book free spins still each fire exactly once, so RTP is unchanged.
+	fireBonusFreeSpinForLevel(leavingLevel);
+	return true;
 }
 
 export function takeAuthoritativeBonusOutcome(): PlinkoBallOutcome | undefined {
@@ -659,6 +722,23 @@ function beginInBonusFreeSpin(entry: {
 function fireBonusFreeSpinForReachedLevel(): boolean {
 	const queue = stateGame.pendingBonusFreeSpins;
 	const index = queue.findIndex((fs) => fs.level <= stateGame.bonusLevelProgress);
+	if (index < 0) return false;
+	const entry = queue[index];
+	stateGame.pendingBonusFreeSpins = [...queue.slice(0, index), ...queue.slice(index + 1)];
+	beginInBonusFreeSpin(entry);
+	return true;
+}
+
+/**
+ * Fire the in-bonus free spin queued for a level we've completed (`fs.level <= level`) — called at the
+ * combine-level-up moment so each level's free spin fires as that level levels up, not batched at the
+ * end. No-op while a wheel is already open (the combine's own re-entrancy / an in-flight-ball level-up):
+ * the still-queued spin is picked up by the next combine or the depletion catch-all, so it's never lost.
+ */
+function fireBonusFreeSpinForLevel(level: number): boolean {
+	if (stateGame.rouletteFlowInProgress) return false;
+	const queue = stateGame.pendingBonusFreeSpins;
+	const index = queue.findIndex((fs) => fs.level <= level);
 	if (index < 0) return false;
 	const entry = queue[index];
 	stateGame.pendingBonusFreeSpins = [...queue.slice(0, index), ...queue.slice(index + 1)];

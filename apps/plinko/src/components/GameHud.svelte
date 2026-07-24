@@ -990,16 +990,6 @@
 								<img src={staticUrl('img/fast-game-btn.png')} alt="" aria-hidden="true" />
 							</button>
 						</div>
-
-						<!-- Total bet (bet-per-ball × ball-per-drop, or a hovered Autobet run cost) on a plaque
-						     tucked under the round PLAY button. A sibling of the buttons (absolutely positioned),
-						     so it never shifts the Auto | PLAY | Fast row that BalanceCard's position is solved
-						     against. Centred on the cluster, which is symmetric, so cluster centre = PLAY centre. -->
-						<div class="bp-play-total" aria-label="Total bet">
-							<span class="bp-play-total-value" aria-live="polite">
-								{formatMoney(displayTotalBet)}
-							</span>
-						</div>
 					</div>
 
 					<!-- Right group: Bet per ball (nearest the centre) then Ball per drop, mirroring the
@@ -1049,5 +1039,17 @@
 				</div>
 			</div>
 		</div>
+	</div>
+
+	<!-- Total bet (bet-per-ball × ball-per-drop, or a hovered Autobet run cost) on a full-width dark
+	     OVERLAY BAR flush to the very bottom edge of the game — a "Bet" label on the left and the total
+	     value on the right. Rendered as a SIBLING of `.game-bottom-panel` (not inside it) so it escapes
+	     that panel's `scale(0.9)`/centre transform: it is a child of `.game-content`, which is 100vw
+	     wide and `position: relative`, letting the bar span the full viewport and pin to the bottom. -->
+	<div class="bp-total-overlay" aria-label="Total bet">
+		<span class="bp-play-total-label">{betLabel}</span>
+		<span class="bp-play-total-value" aria-live="polite">
+			{formatMoney(displayTotalBet)}
+		</span>
 	</div>
 {/if}

@@ -275,9 +275,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		const level = Math.max(1, Math.floor(bookEvent.level ?? 1));
 		const freeBalls = Math.max(0, Math.floor(bookEvent.freeBalls ?? outcomes.length));
 		const ballsPlayed = Math.max(0, Math.floor(bookEvent.ballsPlayed ?? 0));
+		// Escalating per-level energy-bar threshold (pegs to leave THIS level). 0 = legacy book → keep the
+		// flat meter max from the `bonusMeter` event.
+		const levelupPegs = Math.max(0, Math.floor(bookEvent.levelupPegs ?? 0));
 		if (!stateGame.bonusRoundActive) {
 			// No preceding wheel award (e.g. resume) — start the round and award balls.
-			startAuthoritativeBonusRound(freeBalls, outcomes, level, ballsPlayed);
+			startAuthoritativeBonusRound(freeBalls, outcomes, level, ballsPlayed, levelupPegs);
 			return;
 		}
 		if (level <= stateGame.bonusLevelProgress) {
@@ -286,7 +289,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 			return;
 		}
 		// True level-up: play after the current level's balls finish (book-driven, no RNG).
-		enqueueAuthoritativeBonusLevel(freeBalls, outcomes, level);
+		enqueueAuthoritativeBonusLevel(freeBalls, outcomes, level, levelupPegs);
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
 		// Rapid 1-ball mode reveals the win on ball-land (see `finalWin`), so don't apply a partial win

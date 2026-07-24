@@ -1,4 +1,4 @@
-import { BlurFilter, Graphics } from 'pixi.js';
+import { Graphics } from 'pixi.js';
 
 /**
  * Free-game rain, drawn as a Pixi layer inside the background stage.
@@ -22,7 +22,12 @@ export type RainLayerConfig = {
 	width: number;
 	/** Layer opacity. */
 	alpha: number;
-	/** Gaussian blur strength (0/undefined = none) — softens distant rain. */
+	/**
+	 * Soft-edge strength (0/undefined = crisp streaks). Formerly a per-frame full-screen `BlurFilter`;
+	 * now it sizes a cheap, wider "halo" stroke drawn under each streak (see `update`), which fakes the
+	 * same soft falloff as ordinary batched line geometry — no render-to-texture blur pass. Larger =
+	 * softer/more distant.
+	 */
 	blur?: number;
 	color?: number;
 	/** Upper bound on drop count, guarding very large viewports. */
@@ -69,13 +74,21 @@ export class RainLayer {
 	private drops: Drop[] = [];
 	private width = 0;
 	private height = 0;
+	/** Width of the faint "halo" stroke that fakes the old blur's soft edge (0 = crisp, no halo). */
+	private readonly haloWidth: number;
+	/** Halo opacity, relative to the layer alpha — kept well under the core so it reads as a soft glow. */
+	private static readonly HALO_ALPHA = 0.4;
 
 	constructor(private readonly config: RainLayerConfig) {
 		this.view.alpha = config.alpha;
 		this.view.visible = false;
-		if (config.blur) {
-			this.view.filters = [new BlurFilter({ strength: config.blur })];
-		}
+		// Replaces the old `this.view.filters = [new BlurFilter(...)]`. A full-screen blur filter cost a
+		// render-to-texture pass EVERY frame on this background app, starving the separate ball app of GPU
+		// budget during the bonus round. The soft edge is now baked as a wider, faint halo stroke under
+		// each streak (see `update`) — pure batched geometry, no filter. Halo spans the core width plus
+		// ~2× the former blur radius, so a larger `blur` still reads as softer/more distant.
+		const blur = config.blur ?? 0;
+		this.haloWidth = blur > 0 ? config.width + blur * 2 : 0;
 	}
 
 	resize(width: number, height: number): void {
@@ -113,19 +126,36 @@ export class RainLayer {
 		g.clear();
 		if (!this.drops.length) return;
 
-		for (const drop of this.drops) {
-			g.moveTo(drop.x, drop.y);
-			g.lineTo(drop.x + drop.len * RAIN_WIND, drop.y + drop.len);
+		const color = this.config.color ?? 0xcde2ff;
 
+		// Two batched strokes over the same streaks replace the removed full-screen blur filter: a wider,
+		// faint HALO drawn first, then the thin crisp CORE on top. The halo fakes the blur's soft falloff
+		// with ordinary line geometry (a couple of draw calls), instead of a per-frame render-to-texture
+		// blur pass — far cheaper on the GPU the balls compete for. `haloWidth === 0` ⇒ crisp, no halo.
+		if (this.haloWidth > 0) {
+			this.traceStreaks(g);
+			g.stroke({ width: this.haloWidth, color, alpha: RainLayer.HALO_ALPHA });
+		}
+		this.traceStreaks(g);
+		g.stroke({ width: this.config.width, color, alpha: 1 });
+
+		// Advance every drop for the next frame (recycling any that fell past the bottom edge). Done after
+		// tracing so both strokes share the exact same streak positions.
+		for (const drop of this.drops) {
 			drop.y += drop.speed * deltaFrames;
 			drop.x += drop.speed * RAIN_WIND * deltaFrames;
 			if (drop.y - drop.len > this.height) {
 				Object.assign(drop, this.spawn());
 			}
 		}
+	}
 
-		// Single stroke for every streak in the layer — one batched draw call.
-		g.stroke({ width: this.config.width, color: this.config.color ?? 0xcde2ff, alpha: 1 });
+	/** Lay down the line path for every streak (shared by the halo and core stroke passes). */
+	private traceStreaks(g: Graphics): void {
+		for (const drop of this.drops) {
+			g.moveTo(drop.x, drop.y);
+			g.lineTo(drop.x + drop.len * RAIN_WIND, drop.y + drop.len);
+		}
 	}
 
 	destroy(): void {

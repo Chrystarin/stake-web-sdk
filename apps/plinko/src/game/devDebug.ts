@@ -20,6 +20,16 @@ export type PlinkoLockDebugSnapshot = {
 	isDropBatchPending: boolean;
 	isGameOngoing: boolean;
 	bonusBallsRemaining: number;
+	// In-bonus level / energy-meter diagnostics (verify the combine-on-meter-full level-up).
+	bonusRoundActive: boolean;
+	bonusLevelProgress: number;
+	bonusMeterValue: number;
+	bonusMeterMax: number;
+	bonusLevelQueueLength: number;
+	bonusOutcomesTotal: number;
+	bonusOutcomesIndex: number;
+	bonusLevelUpOverlayOpen: boolean;
+	winAmount: number;
 	freeSpinRouletteOpen: boolean;
 	bonusRouletteOpen: boolean;
 	rouletteFlowInProgress: boolean;
@@ -38,6 +48,15 @@ export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
 		isDropBatchPending: isDropBatchPending(),
 		isGameOngoing: isGameOngoing(),
 		bonusBallsRemaining: stateGame.bonusBallsRemaining,
+		bonusRoundActive: stateGame.bonusRoundActive,
+		bonusLevelProgress: stateGame.bonusLevelProgress,
+		bonusMeterValue: stateGame.bonusMeterValue,
+		bonusMeterMax: stateGame.bonusMeterMax,
+		bonusLevelQueueLength: stateGame.authoritativeBonusLevelQueue.length,
+		bonusOutcomesTotal: stateGame.authoritativeBonusOutcomes.length,
+		bonusOutcomesIndex: stateGame.authoritativeBonusOutcomeIndex,
+		bonusLevelUpOverlayOpen: stateGame.bonusLevelUpOverlayOpen,
+		winAmount: stateGame.winAmount,
 		freeSpinRouletteOpen: stateGame.freeSpinRouletteOpen,
 		bonusRouletteOpen: stateGame.bonusRouletteOpen,
 		rouletteFlowInProgress: stateGame.rouletteFlowInProgress,

@@ -40,8 +40,13 @@ const SPLASH_OFFSET_Y_VH = -0.06;
  */
 const SPLASH_LEFT_OFFSET_X_VW = 0.011;
 
-/** Pause between splashes, so each waterfall bursts intermittently rather than looping continuously. */
-const SPLASH_GAP_SECONDS = 2.2;
+/**
+ * Pause between splashes, so each waterfall bursts intermittently rather than looping continuously.
+ * Randomized in this range and re-rolled after every play, so the bursts feel irregular rather than
+ * metronomic.
+ */
+const SPLASH_GAP_MIN_SECONDS = 5;
+const SPLASH_GAP_MAX_SECONDS = 7;
 /**
  * The LEFT splash fires first; the RIGHT one follows 0.5s later. (Left is the mirrored copy, hence
  * the `mirror ? 0 : …`.)
@@ -68,7 +73,8 @@ export const getBonusSplashOverlay = (mirror = false): SpineOverlayDef => ({
 	mirror,
 	offsetYVh: SPLASH_OFFSET_Y_VH,
 	offsetXVw: mirror ? SPLASH_LEFT_OFFSET_X_VW : 0,
-	cycleGapSeconds: SPLASH_GAP_SECONDS,
+	cycleGapMinSeconds: SPLASH_GAP_MIN_SECONDS,
+	cycleGapMaxSeconds: SPLASH_GAP_MAX_SECONDS,
 	cycleStartDelaySeconds: mirror ? 0 : SPLASH_RIGHT_DELAY_SECONDS,
 	// Under the base scene, so the waterfall, flags and dock all cover the splash. The distant ship is
 	// lifted into the underlay copy (`bonusUnderlaySlots`) so it still passes BEHIND the splash.

@@ -71,8 +71,10 @@ const IMAGE_PATHS: readonly string[] = [
 	'img/loading_vector.png',
 	'img/fast-game-btn-mobile.png',
 	'img/auto-bet-btn-mobile.png',
-	// Mobile menu button reuses the desktop menu asset (menu moved to the top-left corner).
+	// Desktop menu button (top-hud). Mobile uses its own asset below.
 	'img/menu-btn.png',
+	// Mobile menu button — dedicated mobile art, top-left corner.
+	'img/menu-btn-mobile.png',
 	'img/coin-ico.png',
 	'img/wallet-ico.png',
 	// NOTE: the balance coin's on-merge light burst is no longer an image — it's the `glow` + `sparkle`

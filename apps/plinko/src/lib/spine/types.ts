@@ -58,6 +58,13 @@ export type SpineOverlayDef = {
 	 */
 	cycleGapSeconds?: number;
 	/**
+	 * Randomized duty-cycle gap: instead of a fixed `cycleGapSeconds`, re-roll a fresh gap uniformly in
+	 * `[cycleGapMinSeconds, cycleGapMaxSeconds]` after every play, so replays feel irregular rather than
+	 * metronomic. When set, these take precedence over `cycleGapSeconds`. Both must be provided together.
+	 */
+	cycleGapMinSeconds?: number;
+	cycleGapMaxSeconds?: number;
+	/**
 	 * Stagger for the duty cycle, in seconds after the un-delayed copy starts. Lets a mirrored pair
 	 * fire one after the other instead of together.
 	 */

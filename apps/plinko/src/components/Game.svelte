@@ -617,7 +617,7 @@
 		<button
 			class="mobile-menu-trigger"
 			type="button"
-			style:background-image={staticCssUrl('img/menu-btn.png')}
+			style:background-image={staticCssUrl('img/menu-btn-mobile.png')}
 			onclick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
 			aria-label="Menu"
 		></button>
@@ -1058,8 +1058,8 @@
 	}
 
 	/* Mobile menu button — top-left, mirroring the mobile Buy-Bonus badge (top-right). Uses the
-	   desktop menu asset stretched to fill, like the desktop .top-hud-btn. Sized a touch smaller than
-	   Buy-Bonus since the menu art carries no transparent padding of its own. */
+	   dedicated square mobile menu art (circular hamburger), kept `contain` so the circle isn't
+	   distorted. */
 	.mobile-menu-trigger {
 		position: absolute;
 		top: 10px;
@@ -1068,7 +1068,7 @@
 		width: 52px;
 		height: 52px;
 		border: none;
-		background: center / 100% 100% no-repeat;
+		background: center / contain no-repeat;
 		cursor: pointer;
 		transition: transform 0.12s ease;
 	}

@@ -68,6 +68,9 @@ const applyBackdropFit = (
 };
 
 export class SpineBackgroundRenderer {
+	/** Frame-rate cap applied to this (background) app while the bonus round is active, to leave the
+	 * separate ball-rendering app enough main-thread + GPU budget to stay smooth. See `applyBonusFrameRate`. */
+	private static readonly BONUS_BACKGROUND_MAX_FPS = 30;
 	private hostElement: HTMLElement;
 	private app?: Application;
 	private spine?: Spine;
@@ -84,7 +87,17 @@ export class SpineBackgroundRenderer {
 	private overlays: {
 		def: SpineOverlayDef;
 		spine: Spine;
-		cycle?: { duration: number; gap: number; startDelay: number };
+		cycle?: {
+			duration: number;
+			/** Gap re-rolled uniformly in [gapMin, gapMax] after each play (equal ⇒ fixed gap). */
+			gapMin: number;
+			gapMax: number;
+			startDelay: number;
+			/** Elapsed clock (s) at which the current play began; advances one period at a time. */
+			cycleStart: number;
+			/** The gap chosen for the current period, in seconds. */
+			currentGap: number;
+		};
 	}[] = [];
 	/** Free-game rain, split either side of the base spine (behind vs. over the waterfall). */
 	private rainBehind?: RainLayer;
@@ -367,20 +380,28 @@ export class SpineBackgroundRenderer {
 				const skeletonData = await this.loadSkeletonData(def);
 				const spine = new Spine({ skeletonData, autoUpdate: true });
 				spine.state.data.defaultMix = 0.2;
+				const isCycled = def.cycleGapMinSeconds != null || def.cycleGapSeconds != null;
 				// Cycled overlays stay on a looping track (so the entry never completes/clears) but have
 				// their `trackTime` driven by hand from the ticker — see `advanceBonusCycles`.
-				spine.state.setAnimation(0, def.animation, def.cycleGapSeconds != null || (def.loop ?? true));
+				spine.state.setAnimation(0, def.animation, isCycled || (def.loop ?? true));
 				spine.visible = false;
 				spine.autoUpdate = false;
 
-				let cycle: { duration: number; gap: number; startDelay: number } | undefined;
-				if (def.cycleGapSeconds != null) {
+				let cycle: (typeof this.overlays)[number]['cycle'];
+				if (isCycled) {
 					const duration = skeletonData.findAnimation(def.animation)?.duration ?? 0;
 					if (duration > 0) {
+						// Randomized gap wins when a min/max pair is given; otherwise fall back to the fixed gap.
+						const gapMin = def.cycleGapMinSeconds ?? def.cycleGapSeconds ?? 0;
+						const gapMax = def.cycleGapMaxSeconds ?? def.cycleGapSeconds ?? gapMin;
+						const startDelay = def.cycleStartDelaySeconds ?? 0;
 						cycle = {
 							duration,
-							gap: def.cycleGapSeconds,
-							startDelay: def.cycleStartDelaySeconds ?? 0,
+							gapMin,
+							gapMax,
+							startDelay,
+							cycleStart: startDelay,
+							currentGap: gapMin + Math.random() * (gapMax - gapMin),
 						};
 					}
 				}
@@ -504,11 +525,18 @@ export class SpineBackgroundRenderer {
 	private advanceBonusCycles(): void {
 		for (const { spine, cycle } of this.overlays) {
 			if (!cycle) continue;
-			const period = cycle.duration + cycle.gap;
-			let t = (this.bonusElapsed - cycle.startDelay) % period;
-			if (t < 0) t += period;
 
-			const playing = t < cycle.duration;
+			// Advance one period at a time, re-rolling the gap after each play so replays aren't
+			// metronomic. A `while` (not `if`) catches up if the ticker dropped several periods' worth
+			// of frames at once.
+			while (this.bonusElapsed >= cycle.cycleStart + cycle.duration + cycle.currentGap) {
+				cycle.cycleStart += cycle.duration + cycle.currentGap;
+				cycle.currentGap = cycle.gapMin + Math.random() * (cycle.gapMax - cycle.gapMin);
+			}
+
+			const t = this.bonusElapsed - cycle.cycleStart;
+			// Before the first play (during `startDelay`) or inside the post-play gap, stay hidden.
+			const playing = t >= 0 && t < cycle.duration;
 			spine.visible = playing;
 			if (!playing) continue;
 
@@ -539,6 +567,9 @@ export class SpineBackgroundRenderer {
 
 		// Latch synchronously so the newest call wins: an in-flight older call bails after its await.
 		this.bonusActive = active;
+		// Throttle the background straight away (before the asset await) so the balls get their frame
+		// budget back the instant the bonus round begins, not once the overlays finish loading.
+		this.applyBonusFrameRate(active);
 		await this.ensureBonusAssets();
 		if (!this.spine || this.bonusActive !== active) return;
 
@@ -546,6 +577,28 @@ export class SpineBackgroundRenderer {
 		this.applyHiddenSlots(active);
 		this.applyOverlayVisibility(active);
 		this.fitSpine();
+	}
+
+	/**
+	 * Cap the BACKGROUND app's frame rate while the bonus round is active, then restore it on exit.
+	 *
+	 * The bonus scene layers heavy per-frame work onto this renderer — two full-viewport rain layers
+	 * (each behind a Gaussian blur filter, which forces a full-screen render-to-texture pass every
+	 * frame), the duty-cycled splash overlays, and a synced *duplicate* of the base skeleton drawn at a
+	 * lower depth for the ship. This app runs on its OWN dedicated ticker, but it still competes for the
+	 * single main thread and the GPU with the SEPARATE Pixi app that renders the balls, so at 60fps it
+	 * starves the ball drop of frame budget and the balls visibly stutter (base game has none of this
+	 * work, which is why it stays smooth).
+	 *
+	 * Halving the background's frame rate hands roughly half that budget back to the ball app; the
+	 * ambient rain/waterfall/splashes look identical at 30fps because every layer is delta-time driven
+	 * (rain uses the ticker `deltaTime`, the spines `deltaMS`), so motion speed is unchanged — there are
+	 * simply fewer repaints of the out-of-focus background. `maxFPS = 0` removes the cap for the base game.
+	 */
+	private applyBonusFrameRate(active: boolean): void {
+		const ticker = this.app?.ticker;
+		if (!ticker) return;
+		ticker.maxFPS = active ? SpineBackgroundRenderer.BONUS_BACKGROUND_MAX_FPS : 0;
 	}
 
 	private applyBackdropTexture(bonus: boolean): void {

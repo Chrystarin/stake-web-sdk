@@ -1,6 +1,7 @@
 import {
 	awardBonusBalls,
 	clearBonusMeterDrainTimer,
+	combineNextBonusLevelNow,
 	isSingleBallMode,
 	onBonusMeterFilledDuringRound,
 	scheduleBonusMeterDrainDuringRoll,
@@ -123,16 +124,19 @@ export function onCoinPegHit(ballId: number) {
 
 	if (stateGame.authoritativeMeterFlow) {
 		if (stateGame.bonusRoundActive) {
-			// IN-BONUS energy meter: fill smoothly from the bonus balls' coin-peg hits. On reaching max,
-			// HOLD at max (do NOT reset) so the bar reads "ready to level up" and the next-level node
-			// blinks (`bonusPendingLevelHighlight`). The actual level-up + meter drain happens once the
-			// current level's balls finish dropping (`applyAuthoritativeBonusLevel` resets it to 0). Max =
-			// the level-up threshold (set by the single in-bonus `bonusMeter` event). The level number +
-			// extra balls stay server-authoritative (book `bonusRound` events); this only drives the
-			// visual fill so "bar fills → blink → balls finish → level up" reads correctly.
+			// IN-BONUS energy meter: fill smoothly from the bonus balls' coin-peg hits. The instant it
+			// reaches max, LEVEL UP RIGHT AWAY — `combineNextBonusLevelNow` pops the next book-authored
+			// level, pours its free balls into the still-remaining pool (they drop combined, not as a
+			// separate wave after depletion) and drains the bar so it re-fills for the next level. Max =
+			// the level-up threshold (set by the single in-bonus `bonusMeter` event). The level count +
+			// award stay server-authoritative (book `bonusRound` events feed the level queue); this only
+			// drives WHEN the combine fires. No-op once the book's levels are exhausted / at the ladder
+			// top, so the bar simply holds full there (the depletion path in `settleBonusRoundWhenFinished`
+			// remains a safety net for any level not combined in-drop).
 			const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 1;
 			if (stateGame.bonusMeterValue < max) {
 				stateGame.bonusMeterValue = Math.min(max, stateGame.bonusMeterValue + 1);
+				if (stateGame.bonusMeterValue >= max) combineNextBonusLevelNow();
 			}
 		} else {
 			// TRIGGER drop: provisional fill toward the per-tier max (authoritative `bonusMeter` events

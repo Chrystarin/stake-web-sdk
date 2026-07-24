@@ -74,6 +74,10 @@ type BookEventBonusRound = {
 	level: number;
 	/** Balls already played when resuming a stateful round. */
 	ballsPlayed?: number;
+	/** Coin-peg hits needed to LEAVE this level (escalating per-level threshold); the client sizes the
+	 * in-bonus energy bar / fires the combine-level-up at this value. Absent on legacy books → the meter
+	 * event's flat max is used. */
+	levelupPegs?: number;
 };
 
 type BookEventSetTotalWin = {

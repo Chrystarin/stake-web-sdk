@@ -129,14 +129,13 @@ export function bonusLevelBalls(level: number): number {
 	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
 }
 
-/** Bonus roulette ABSOLUTE free-ball awards — values baked into
- * `img/free_bonus_roulette_v2/wheel_values.png` (9 segments, clockwise from the top pointer; index 0 =
- * top = 100, then 90, 80, 70, 60, 50, 40, 30, 20). Mirror of stake-math-sdk
- * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT.
- * ⚠️ Only `BonusRoulette.svelte` maps index → angle, and it matches segments onto art wedges BY VALUE
- * (`ART_SLOT_FREE_BALLS`) rather than assuming `index * 40°` — so reordering here stays honest, but the
- * VALUES must keep matching the art. */
-export const BONUS_WHEEL_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20] as const;
+/** Bonus roulette ABSOLUTE entry free-ball awards (9 segments, avg 50). Mirror of stake-math-sdk
+ * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT. LOWERED from 20..100 (avg 60) to 10..90 (avg
+ * 50) so every tier stays RTP-balanced after the escalating per-level level-up ~doubled the bonus EV.
+ * ⚠️ ART: the baked wheel PNG still shows 20..100 and must be REGENERATED to 90..10; `BonusRoulette.svelte`
+ * `ART_SLOT_FREE_BALLS` (kept in sync below) maps the book award VALUE → wedge, so the payout is always
+ * correct, but the wheel VISUAL is off until the PNG is redone. */
+export const BONUS_WHEEL_FREE_BALLS = [90, 80, 70, 60, 50, 40, 30, 20, 10] as const;
 
 /** Bonus-wheel free-ball values. ABSOLUTE, independent of the balls-per-drop tier. Mirror of
  * math `bonus_wheel_free_balls`. */
