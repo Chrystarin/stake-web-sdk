@@ -1,4 +1,4 @@
-import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, Assets, BlurFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { BONUS_METER_FILL_SPEED_PER_SECOND } from '../../game-logic/constants';
 import { staticUrl } from '../../lib/staticUrl';
 
@@ -19,10 +19,18 @@ export class BonusMeterEngine {
   private progressAnimRafId: number | null = null;
   private lastProgressAnimTs: number | null = null;
   private readonly meterScene = new Container();
-  private readonly meterMask = new Graphics();
+  // Vector fill: a solid #04AEF6 stroke ridden along the arch centerline, with a blurred #00E6FF
+  // glow layer behind it (mirrors the design's `border: 14px solid #04AEF6` +
+  // `box-shadow: 0 0 7.5px #00E6FF`). Replaces the old masked fill-PNG sprite.
+  private readonly fillGlow = new Graphics();
+  private readonly fillStroke = new Graphics();
+  private glowFilter?: BlurFilter;
   private baseSprite?: Sprite;
-  private meterSprite?: Sprite;
   private fillTexture?: Texture;
+  // --- Vector-fill tuning knobs (measured in fill-texture pixels; scaled to the rendered size) ---
+  // Stroke thickness of the solid blue line and the blur radius of the cyan glow behind it.
+  private readonly fillStrokeWidthTexPx = 14;
+  private readonly fillGlowBlurTexPx = 7.5;
   private fillAlphaData?: Uint8ClampedArray;
   private fillAlphaWidth = 0;
   private fillAlphaHeight = 0;
@@ -111,15 +119,19 @@ export class BonusMeterEngine {
     this.baseSprite = new Sprite(baseTexture);
     this.baseSprite.anchor.set(0, 0);
 
-    this.meterSprite = new Sprite(meterTexture);
-    this.meterSprite.anchor.set(0, 0);
-    this.meterSprite.mask = this.meterMask;
+    // The fill PNG is no longer drawn — it is kept only as the geometry source. Its alpha gives us
+    // the arch centerline that the vector stroke and the marker both ride.
     this.fillTexture = meterTexture;
     this.cacheFillAlphaData(meterTexture);
 
+    // Glow sits behind the solid stroke and is softened by a blur, standing in for the CSS
+    // box-shadow. Blur radius is set per-resize once we know the render scale.
+    this.glowFilter = new BlurFilter({ strength: 4 });
+    this.fillGlow.filters = [this.glowFilter];
+
     this.meterScene.addChild(this.baseSprite);
-    this.meterScene.addChild(this.meterMask);
-    this.meterScene.addChild(this.meterSprite);
+    this.meterScene.addChild(this.fillGlow);
+    this.meterScene.addChild(this.fillStroke);
     app.stage.addChild(this.meterScene);
 
     this.resizeObserver = new ResizeObserver(() => this.scheduleResize());
@@ -140,7 +152,7 @@ export class BonusMeterEngine {
   }
 
   private resizeToHost(): void {
-    if (!this.app || !this.baseSprite || !this.meterSprite) return;
+    if (!this.app || !this.baseSprite) return;
     // Use layout dimensions (offsetWidth/offsetHeight), not getBoundingClientRect, so that
     // PixiJS world coordinates are in the same CSS-pixel space as the HTML marker overlay.
     // getBoundingClientRect returns post-transform visual pixels; when an ancestor has a CSS
@@ -172,9 +184,11 @@ export class BonusMeterEngine {
     this.meterOffsetYPx = offsetY;
     this.meterNativeWidth = scaledBaseWidth;
     this.meterNativeHeight = scaledBaseHeight;
-    this.meterSprite.position.set(offsetX, offsetY);
-    this.meterSprite.width = scaledBaseWidth;
-    this.meterSprite.height = scaledBaseHeight;
+    // Scale the glow blur from fill-texture space into rendered pixels so the halo keeps the same
+    // visual weight at every meter size.
+    if (this.glowFilter) {
+      this.glowFilter.strength = Math.max(1, this.fillGlowBlurTexPx * this.texToWorldScale());
+    }
     // Sized to cover the fill's glow halo at the tip (the bright core plus its soft bloom),
     // so the leading edge sits under the dot rather than peeking out around it.
     this.markerSizePx = Math.max(8, scaledBaseHeight * 0.72);
@@ -187,19 +201,31 @@ export class BonusMeterEngine {
   }
 
   private updateMeterFill(): void {
-    if (!this.meterSprite) return;
+    if (!this.baseSprite) return;
     const clampedProgress = Math.max(0, Math.min(1, this.displayedProgress));
-    this.meterMask.clear();
     const centerX = this.meterOffsetXPx + this.meterNativeWidth / 2;
     const centerY = this.meterOffsetYPx + this.meterNativeHeight;
     const radius = this.meterNativeWidth / 2;
     const startAngle = Math.PI;
     const endAngle = startAngle + Math.PI * clampedProgress;
-    if (clampedProgress > 0) {
-      this.meterMask.moveTo(centerX, centerY);
-      this.meterMask.arc(centerX, centerY, radius, startAngle, endAngle);
-      this.meterMask.lineTo(centerX, centerY);
-      this.meterMask.fill(0xffffff);
+
+    // Draw the filled portion as a solid vector stroke that rides the arch centerline up to the
+    // current progress angle, with a blurred cyan copy behind it for the glow. This replaces the
+    // masked fill-PNG: `border: 14px solid #04AEF6` + `box-shadow: 0 0 7.5px #00E6FF`.
+    this.fillStroke.clear();
+    this.fillGlow.clear();
+    const path = this.getFillPolylineWorld(endAngle);
+    if (clampedProgress > 0 && path.length >= 2) {
+      const strokeWidth = Math.max(1, this.fillStrokeWidthTexPx * this.texToWorldScale());
+      const trace = (g: Graphics) => {
+        g.moveTo(path[0].x, path[0].y);
+        for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
+      };
+      // Glow first (behind), then the solid core on top.
+      trace(this.fillGlow);
+      this.fillGlow.stroke({ width: strokeWidth, color: 0x00e6ff, cap: 'round', join: 'round' });
+      trace(this.fillStroke);
+      this.fillStroke.stroke({ width: strokeWidth, color: 0x04aef6, cap: 'round', join: 'round' });
     }
 
     // Marker follows the current fill endpoint along the top arc.
@@ -379,6 +405,50 @@ export class BonusMeterEngine {
       prevY = wy;
     }
     return null;
+  }
+
+  /**
+   * The arch centerline in world space, from the start tip up to the point at `angle`, with the
+   * leading end interpolated so it lands exactly where the marker sits. The vector fill stroke is
+   * drawn along this polyline, so filled length and marker stay locked together across the sweep.
+   */
+  private getFillPolylineWorld(angle: number): Array<{ x: number; y: number }> {
+    const line = this.fillCenterlineLocal;
+    if (!line || line.length < 2) return [];
+    const worldCx = this.meterOffsetXPx + this.meterNativeWidth / 2;
+    const worldCy = this.meterOffsetYPx + this.meterNativeHeight;
+    const points: Array<{ x: number; y: number }> = [];
+    let prevAngle: number | null = null;
+    let prevX = 0;
+    let prevY = 0;
+    for (const point of line) {
+      const wx = this.toWorldX(point.x);
+      const wy = this.toWorldY(point.y);
+      // Same [π, 2π] remap as getCenterlineTipWorld so angles rise monotonically along the arch.
+      let a = Math.atan2(wy - worldCy, wx - worldCx);
+      if (a < 0) a += Math.PI * 2;
+      if (a <= angle) {
+        points.push({ x: wx, y: wy });
+      } else {
+        if (prevAngle !== null) {
+          const span = a - prevAngle;
+          const t = Math.abs(span) < 1e-6 ? 0 : (angle - prevAngle) / span;
+          points.push({ x: prevX + (wx - prevX) * t, y: prevY + (wy - prevY) * t });
+        }
+        break;
+      }
+      prevAngle = a;
+      prevX = wx;
+      prevY = wy;
+    }
+    return points;
+  }
+
+  /** Fill-texture pixels → rendered world pixels. The fill art is stretched to the base's scaled
+   *  box, so this is the width ratio between them. Used to size the stroke and glow responsively. */
+  private texToWorldScale(): number {
+    const texW = this.fillTexture?.width || 1;
+    return this.meterNativeWidth / texW;
   }
 
   private toWorldX(localX: number): number {

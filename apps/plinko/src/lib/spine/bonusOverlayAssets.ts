@@ -62,6 +62,10 @@ type OrientationTuning = {
 	tornadoRight: SpinePlacement;
 	/** The smaller left-hand tornado — LANDSCAPE ONLY (portrait renders just the right one). */
 	tornadoLeft?: SpinePlacement;
+	/** Water-splash burst at the RIGHT-hand waterfall. */
+	splashRight: SpinePlacement;
+	/** Water-splash burst at the LEFT-hand waterfall (a mirrored copy of the right one). */
+	splashLeft: SpinePlacement;
 };
 
 /* ▼▼▼ DESKTOP / LANDSCAPE — move & resize the moon, ship and tornadoes on desktop here. ▼▼▼ */
@@ -70,14 +74,20 @@ const LANDSCAPE_TUNING: OrientationTuning = {
 	ship: { offsetXVw: -0.2, offsetYScene: 20, scaleMul: 0.9 },
 	tornadoRight: { offsetXVw: 0.23, offsetYScene: -516, scaleMul: 1 },
 	tornadoLeft: { offsetXVw: -0.2, offsetYScene: -554, scaleMul: 0.62 },
+	splashRight: { offsetXVw: 0, offsetYScene: -55, scaleMul: 1 },
+	splashLeft: { offsetXVw: 0.011, offsetYScene: -55, scaleMul: 1 },
 };
 
 /* ▼▼▼ MOBILE / PORTRAIT — move & resize the moon, ship and tornado on mobile here. ▼▼▼ */
 const PORTRAIT_TUNING: OrientationTuning = {
-	moon: { xVw: 0.175, yVh: 0.075, widthVw: 0.5, alpha: 0.5 },
+	moon: { xVw: 0.175, yVh: 0.05, widthVw: 0.5, alpha: 0.5 },
 	ship: { offsetXVw: -0.07, offsetYScene: -50, scaleMul: 0.9 },
 	tornadoRight: { offsetXVw: 0.3, offsetYScene: -645, scaleMul: 0.7 },
 	// (no left tornado on mobile)
+	// The FG_SPLASH is authored at the landscape waterfalls; in portrait the board fills the frame, so
+	// the two splashes are separated to the lower-left / lower-right sea and scaled down to stay visible.
+	splashRight: { offsetXVw: -0.1, offsetYScene: -400, scaleMul: 0.5 },
+	splashLeft: { offsetXVw: 0.1, offsetYScene: -400, scaleMul: 0.5 },
 };
 
 const TUNING: Record<Orientation, OrientationTuning> = {
@@ -98,15 +108,6 @@ export const getBonusCloudOverlay = (): SpineOverlayDef => ({
 	skeletonScale: OVERLAY_SKELETON_SCALE,
 });
 
-/** Raise both splashes so more of them peeks out above the waterfall lip (negative = up). */
-const SPLASH_OFFSET_Y_VH = -0.06;
-/**
- * Residual nudge for the mirrored (left) splash. The mirror reflects about the skeleton root (world
- * x=0), but the scene is symmetric about ~world +8 — the midpoint of the two waterfall bones (−1169 /
- * +1201). `2 × 8 × scale / viewportWidth ≈ 0.011vw` puts the left splash exactly opposite the right one.
- */
-const SPLASH_LEFT_OFFSET_X_VW = 0.011;
-
 /**
  * Pause between splashes, so each waterfall bursts intermittently rather than looping continuously.
  * Randomized in this range and re-rolled after every play, so the bursts feel irregular rather than
@@ -122,9 +123,13 @@ const SPLASH_RIGHT_DELAY_SECONDS = 0.5;
 
 /**
  * The FG_SPLASH asset authors a single splash at the RIGHT-hand waterfall. `mirror` produces a second
- * instance flipped across the scene centre so the LEFT waterfall gets a matching splash.
+ * instance flipped across the scene centre so the LEFT waterfall gets a matching splash. Position/scale
+ * come from the tuning block above (`splashRight` / `splashLeft`, per orientation).
  */
-export const getBonusSplashOverlay = (mirror = false): SpineOverlayDef => ({
+export const getBonusSplashOverlay = (
+	orientation: Orientation,
+	mirror = false,
+): SpineOverlayDef => ({
 	id: mirror ? 'fg_splash_left' : 'fg_splash',
 	format: 'json',
 	skeleton: staticAssetPath(`${SPLASH_BASE}/skeleton.json`),
@@ -138,8 +143,7 @@ export const getBonusSplashOverlay = (mirror = false): SpineOverlayDef => ({
 	loop: true,
 	skeletonScale: OVERLAY_SKELETON_SCALE,
 	mirror,
-	offsetYVh: SPLASH_OFFSET_Y_VH,
-	offsetXVw: mirror ? SPLASH_LEFT_OFFSET_X_VW : 0,
+	...(mirror ? TUNING[orientation].splashLeft : TUNING[orientation].splashRight),
 	cycleGapMinSeconds: SPLASH_GAP_MIN_SECONDS,
 	cycleGapMaxSeconds: SPLASH_GAP_MAX_SECONDS,
 	cycleStartDelaySeconds: mirror ? 0 : SPLASH_RIGHT_DELAY_SECONDS,
@@ -252,8 +256,8 @@ export const getBonusMoonOverlay = (orientation: Orientation): SpineImageOverlay
  */
 export const getBonusOverlays = (orientation: Orientation): SpineOverlayDef[] => [
 	getBonusShipOverlay(orientation),
-	getBonusSplashOverlay(false),
-	getBonusSplashOverlay(true),
+	getBonusSplashOverlay(orientation, false),
+	getBonusSplashOverlay(orientation, true),
 	getBonusCloudOverlay(),
 	getBonusTornadoOverlay(orientation, false),
 	// Landscape shows a second, smaller tornado on the left; portrait has only the right-hand one.
