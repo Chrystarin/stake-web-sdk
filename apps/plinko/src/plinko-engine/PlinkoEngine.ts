@@ -234,9 +234,21 @@ export class PlinkoEngine {
   private readonly multiplierTextTextures: Partial<Record<string, Sprite['texture']>> = {};
   /** Image-based slot labels (parallel to `slotLabels`); a slot uses the sprite OR the text, not both. */
   private slotLabelSprites: (Sprite | undefined)[] = [];
-  /** Label image files (loaded once, matched to slots by `slot.labelText`). `0.4` is awaited from the
-   * designer (the `1.4` asset showed a wrong value); until it exists the `0.4` slots fall back to text. */
-  private static readonly MULTIPLIER_TEXT_LABELS = ['0.2', '0.4', '1.5', '5', '20', '50', '100'] as const;
+  /** Label image files (loaded once, matched to slots by `slot.labelText`). A label without an asset
+   * falls back to a Pixi Text. `0.1` / `0.3` are the feature-free 1-ball board's own pockets (centre +
+   * the two either side — see `ONE_BALL_BOARD_SLOT_MULTIPLIERS`); they share the same uniform scale and
+   * placement as every other label, and being no wider than `100` they don't shrink the others. */
+  private static readonly MULTIPLIER_TEXT_LABELS = [
+    '0.1',
+    '0.2',
+    '0.3',
+    '0.4',
+    '1.5',
+    '5',
+    '20',
+    '50',
+    '100'
+  ] as const;
   /** Label image height as a fraction of the slot body height (drives the shared scale). */
   private static readonly SLOT_TEXT_HEIGHT_RATIO = 0.72;
   /** Cap the (widest) label to this fraction of the slot width — applied uniformly to all labels. */
@@ -245,6 +257,14 @@ export class PlinkoEngine {
   private static readonly SLOT_TEXT_X_RATIO = 0.4625;
   /** Vertical center of the label within the slot body (0.5 = dead center of `y..y+h`). */
   private static readonly SLOT_TEXT_Y_RATIO = 0.7;
+  /** 1-BALL TIER ONLY — the centre pocket is a paying slot there (`0.1`) rather than the SPIN card, and
+   * it sits on the wider centre tile: print it 25% larger than the shared label scale and dead-centre it
+   * vertically in the slot body (the 0.7 ratio above is tuned for the narrow tiles). */
+  private static readonly ONE_BALL_CENTER_LABEL_SCALE = 1.25;
+  /** 0.61, not 0.5: the PAINTED centre tile (the glow spine's wide card) does not sit centred inside the
+   * slot body — measured at 1920×1080 it spans 0.61 of `y..y+h` at its middle, so this ratio puts the
+   * label's ink on the card's optical centre. Resolution-independent (both are fractions of the body). */
+  private static readonly ONE_BALL_CENTER_LABEL_Y_RATIO = 0.61;
   /** Single scale applied to EVERY label image so they all match (computed per layout). */
   private uniformLabelScale = 1;
   private readonly pendingDropTimeouts = new Set<ReturnType<typeof setTimeout>>();
@@ -1679,11 +1699,11 @@ export class PlinkoEngine {
         originalY: bottomY,
         width: slotWidth,
         coefficient,
+        // The centre pocket normally shows the spine's "SPIN" glyph (empty label). On the feature-free
+        // 1-ball tier it is an ordinary paying pocket, so print its own board value there.
         labelText:
-          i === middleIndex
-            ? this.rapidSingleBall
-              ? '0'
-              : ''
+          i === middleIndex && !this.rapidSingleBall
+            ? ''
             : String(formatCoefficientLabel(coefficient)),
         centerX: slotX + slotWidth / 2,
         color: this.getSlotColor(coefficient),
@@ -3196,11 +3216,23 @@ export class PlinkoEngine {
 
       const labelSprite = this.slotLabelSprites[idx];
       if (labelSprite) {
+        // The 1-ball tier's centre pocket prints a real value (`0.1`) on the wider centre tile: bigger
+        // and vertically centred. Every other label keeps the shared scale + placement.
+        const oneBallCenter = this.rapidSingleBall && this.isSpinSlotIndex(idx);
+        const labelScale = oneBallCenter ? PlinkoEngine.ONE_BALL_CENTER_LABEL_SCALE : 1;
         // Same scale for every label (computed once in `computeUniformLabelScale`), centered in the slot.
-        labelSprite.scale.set(this.uniformLabelScale * textScale);
+        labelSprite.scale.set(this.uniformLabelScale * textScale * labelScale);
+        // `SLOT_TEXT_X_RATIO` is a small leftward nudge off the slot's midpoint. Derive it from the
+        // REFERENCE slot width so it stays the same number of PIXELS on every label — the centre pocket
+        // is wider than the rest, and scaling the nudge by its own width visibly pulled its label
+        // (the 1-ball board's `0.1`) off centre. Identical to `x + w * RATIO` on the normal slots.
+        const nudge = (this.slots[0]?.width ?? w) * (PlinkoEngine.SLOT_TEXT_X_RATIO - 0.5);
+        const yRatio = oneBallCenter
+          ? PlinkoEngine.ONE_BALL_CENTER_LABEL_Y_RATIO
+          : PlinkoEngine.SLOT_TEXT_Y_RATIO;
         labelSprite.position.set(
-          Math.round(x + w * PlinkoEngine.SLOT_TEXT_X_RATIO),
-          Math.round(y + h * PlinkoEngine.SLOT_TEXT_Y_RATIO)
+          Math.round(x + w / 2 + nudge),
+          Math.round(y + h * yRatio)
         );
       }
     }

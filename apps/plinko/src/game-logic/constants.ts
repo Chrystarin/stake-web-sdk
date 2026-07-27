@@ -12,10 +12,13 @@ export const BONUS_METER_COSMETIC_MAX = 20;
  * `stake-math-sdk/games/crimson_plinko/plinko_data.BONUS_METER_TIER`. The meter ALWAYS starts EMPTY
  * (startRatio 0 on every tier — no per-tier head start) and fires the bonus in-drop when this drop's
  * coin-pegs fill it to `max`. So `max` IS the hits-to-fill, scaled per tier (more balls ⇒ higher bar).
- * The 1-ball tier is ABSENT — one ball can't fill the meter, so its (cosmetic) meter never fires and its
- * bonus comes from the math quota instead. */
+ * The 1-ball tier is ABSENT — one ball can't fill the meter, AND that tier has no bonus at all (the math
+ * publishes no bonus stratum for `onedrop`), so its (cosmetic) meter can never fire.
+ * ⚠️ 10-ball `max` RAISED 6 → 7 when the entry wheel went back to 20..100 (avg 60) so the award matches
+ * the painted art: at max 6 that tier's natural fire rate alone lands it on 96.198%, above TARGET_RTP
+ * with a zero quota and no lever left. Keep in step with math `BONUS_METER_TIER`. */
 export const BONUS_METER_TIER: Record<number, { max: number; startRatio: number }> = {
-	10: { max: 6, startRatio: 0 },
+	10: { max: 7, startRatio: 0 },
 	20: { max: 9, startRatio: 0 },
 	50: { max: 17, startRatio: 0 },
 };
@@ -76,6 +79,23 @@ export function coefficientsForRowCount(sets: number[][], rowCount: number): num
 	return sets[rowTierIndex(rowCount)] ?? [];
 }
 
+/**
+ * Slot multipliers for a row count on the board a balls-per-drop TIER plays. Tiers listed in
+ * `config.coefficientSetsByBalls` (currently only the feature-free 1-ball tier, whose center pocket
+ * pays instead of feeding a free-spin meter it doesn't have) use their own table; every other tier
+ * falls back to the shared `config.coefficientSets`. Mirror of math `coefficients_for(row, balls)`.
+ */
+export function coefficientsForTier(
+	sets: number[][],
+	setsByBalls: Record<string, number[][]> | undefined,
+	rowCount: number,
+	ballsPerDrop: number,
+): number[] {
+	const tier = String(Math.max(1, Math.floor(ballsPerDrop || 1)));
+	const override = setsByBalls?.[tier];
+	return coefficientsForRowCount(override?.length ? override : sets, rowCount);
+}
+
 /** Auto-bet round count options. */
 export const AUTO_BET_OPTIONS = [5, 10, 15, 20, 25, 50, 75, 100] as const;
 
@@ -129,13 +149,15 @@ export function bonusLevelBalls(level: number): number {
 	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
 }
 
-/** Bonus roulette ABSOLUTE entry free-ball awards (9 segments, avg 50). Mirror of stake-math-sdk
- * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT. LOWERED from 20..100 (avg 60) to 10..90 (avg
- * 50) so every tier stays RTP-balanced after the escalating per-level level-up ~doubled the bonus EV.
- * ⚠️ ART: the baked wheel PNG still shows 20..100 and must be REGENERATED to 90..10; `BonusRoulette.svelte`
- * `ART_SLOT_FREE_BALLS` (kept in sync below) maps the book award VALUE → wedge, so the payout is always
- * correct, but the wheel VISUAL is off until the PNG is redone. */
-export const BONUS_WHEEL_FREE_BALLS = [90, 80, 70, 60, 50, 40, 30, 20, 10] as const;
+/** Bonus roulette ABSOLUTE entry free-ball awards (9 segments, avg 60). Mirror of stake-math-sdk
+ * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT.
+ * ⚠️ THE ART IS THE SOURCE OF TRUTH: these are exactly the numbers painted on `wheel_values.png`, in
+ * wedge order (index 0 = the wedge under the pointer = 100, then clockwise). The player must be awarded
+ * the number they watched the wheel land on, so DO NOT change this list without repainting the art —
+ * a 2026-07-24 change to 10..90 left the art at 20..100 and every spin paid 10 less than it showed
+ * (QA 2026-07-27: "landed on 80, won 70"). `BonusRoulette.svelte` `ART_SLOT_FREE_BALLS` must stay in
+ * this same wedge order. The avg-60 entry is paid for by the 10-ball BONUS_METER_TIER max 6 → 7. */
+export const BONUS_WHEEL_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20] as const;
 
 /** Bonus-wheel free-ball values. ABSOLUTE, independent of the balls-per-drop tier. Mirror of
  * math `bonus_wheel_free_balls`. */

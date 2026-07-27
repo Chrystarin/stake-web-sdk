@@ -7,6 +7,8 @@ import {
 	scheduleBonusMeterDrainDuringRoll,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
+import { coefficientsForTier } from '../game-logic/constants';
+import config from './config';
 import { seedBonusMeterForCurrentTier, seedSpinMeterForCurrentTier } from './plinkoSessionMeters';
 import { meterController } from './stateGame.svelte';
 import { stateGame } from './stateGame.svelte';
@@ -241,6 +243,18 @@ export function onBonusRouletteFinished(wheelFreeBallCount?: number) {
 }
 
 export function syncBallPerDropTier() {
+	// The BOARD is per-tier (the feature-free 1-ball tier pays its center pocket instead of using it as
+	// the 0× spin pocket), so re-seed the displayed coefficients on switch. Without this the board would
+	// keep showing the previous tier's slot values until the next book arrived. Skipped mid-bonus (the
+	// bonus plays out on the tier that triggered it).
+	if (!stateGame.bonusRoundActive) {
+		stateGame.coefficients = coefficientsForTier(
+			config.coefficientSets as number[][],
+			config.coefficientSetsByBalls,
+			stateGame.rowCount,
+			stateGame.ballPerDrop,
+		);
+	}
 	// Free-spin meter is PER-DROP: always re-seed the HUD to the selected tier's start + max so the
 	// meter UI matches the new balls-per-drop tier immediately on switch (independent of the
 	// server-authoritative bonus-meter flow).

@@ -1,7 +1,7 @@
 import { stateUrlDerived } from 'state-shared';
 
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
-import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
+import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-logic/spinSlot';
 import { plinkoBallsPerDrop, plinkoStakePerBall } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
 import { hasActiveRgsSession } from './plinkoSessionMeters';
@@ -16,13 +16,17 @@ function scaleOutcomesForUi(
 	coefficients: readonly number[],
 	stakePerBall: number,
 	bookStake: number,
+	spinPocketActive: boolean,
 ): PlinkoBallOutcome[] {
 	const stakeScale = bookStake > 0 ? stakePerBall / bookStake : 1;
 	const slotCount = coefficients.length;
 	return resizePlinkoDropOutcomes(source, uiBalls).map((outcome) => {
+		// `hitSpinSlot` means "this ball fed the free-spin meter" — never true on a tier without one
+		// (1-ball), where the center is an ordinary paying pocket.
 		const hitSpinSlot =
-			outcome.hitSpinSlot ??
-			(slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount));
+			spinPocketActive &&
+			(outcome.hitSpinSlot ??
+				(slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount)));
 		const normalized = {
 			...outcome,
 			amount: outcome.amount * stakeScale,
@@ -30,8 +34,10 @@ function scaleOutcomesForUi(
 			hitBonusPeg: outcome.hitBonusPeg ?? false,
 		};
 		return {
+			// The board decides the payout: the shared board's center IS 0, and the 1-ball board pays
+			// its center — so no `hitSpinSlot` special case is needed here.
 			...normalized,
-			multiplier: hitSpinSlot ? 0 : resolveOutcomeMultiplier(normalized, coefficients),
+			multiplier: resolveOutcomeMultiplier(normalized, coefficients),
 		};
 	});
 }
@@ -58,8 +64,10 @@ export function alignBookForPlayback(bet: Bet): Bet {
 	const bookBalls = Math.max(1, drop.ballsPerDrop ?? drop.outcomes?.length ?? 1);
 	const stakePerBall = plinkoStakePerBall();
 	const bookStake = drop.stakePerBall > 0 ? drop.stakePerBall : 1;
+	// Playback re-tiers the book to the UI's balls-per-drop, so the board (and whether the center is the
+	// spin pocket) follows `uiBalls`, not the book's original tier.
 	const coefficients = drop.coefficients?.length
-		? alignCoefficientSet(drop.coefficients)
+		? alignCoefficientSet(drop.coefficients, uiBalls)
 		: [];
 
 	const originalOutcomeCount = drop.outcomes?.length ?? 0;
@@ -69,6 +77,7 @@ export function alignBookForPlayback(bet: Bet): Bet {
 		coefficients,
 		stakePerBall,
 		bookStake,
+		spinPocketActiveForBallsPerDrop(uiBalls),
 	);
 
 	const downsized = playedOutcomes.length < originalOutcomeCount || bookBalls !== uiBalls;

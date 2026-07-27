@@ -25,11 +25,13 @@
 .game-bottom-panel {
 	position: absolute;
 	left: 50%;
-	/* Lifted off the viewport bottom by 0.95vw. Historically this also carved out room for the total-bet
-	   pill that used to sit BELOW the PLAY button; that readout is now a full-width overlay bar OUTSIDE
-	   this panel (see .bp-total-overlay), but the lift is retained: BalanceCard.svelte is solved against
-	   this panel's geometry and relies on the 0.95vw clearance, and it leaves the round buttons a hair of
-	   breathing room above the bottom edge. */
+	/* Lifted off the viewport bottom by 0.95vw. This originally carved out room for the total-bet pill
+	   that used to sit BELOW the PLAY button; that readout is now a full-width overlay bar OUTSIDE this
+	   panel (see .bp-total-overlay) which is tall enough to sit BEHIND the whole row, so the lift is no
+	   longer load-bearing for it — it just sets how high the row rides within the scrim.
+	   ⚠️ BalanceCard.svelte is a SIBLING solved against this panel's geometry, not a child: its own
+	   `bottom` (2.822vw) is derived from this lift. Any change here must be mirrored there by the same
+	   delta or the balance plaque drifts off the row centre. */
 	bottom: 0.95vw;
 	/* Two transforms combined into one declaration (they don't stack across multiple `transform` rules
 	   — the later one wins). translateX(-50%) still handles the horizontal centring; scale(0.9) shrinks
@@ -51,9 +53,10 @@
 }
 
 /* Bonus round: the bottom total-bet overlay is removed, so the panel gets nudged slightly lower to sit
-   closer to the bottom edge. The base lift is 0.95vw; dropping `bottom` by ~1vw lands it a hair below
-   where it normally sits. Only `bottom` is overridden — the translateX(-50%)/scale(0.9)/origin from the
-   base rule still apply. ⚠️ Tuning knob: make `bottom` more negative to sit lower, less to sit higher. */
+   closer to the bottom edge. The base lift is 0.95vw; dropping `bottom` to -0.1vw (a 1.05vw descent)
+   lands it a hair below where it normally sits. Only `bottom` is overridden — the
+   translateX(-50%)/scale(0.9)/origin from the base rule still apply.
+   ⚠️ Tuning knob: make `bottom` more negative to sit lower, less to sit higher. */
 .game-bottom-panel--bonus {
 	bottom: -0.1vw;
 }
@@ -123,8 +126,14 @@
 	   Setting the width to plaque × 88/68 therefore paints them exactly --bp-field-plaque-height tall,
 	   flush with the edge fields' frames (both are centred on the row, so matching heights = matching
 	   top and bottom edges). Do NOT "fix" this by setting a height — `contain` ignores it.
-	   ⚠️ This feeds the centre cluster's total width, which BalanceCard.svelte bakes into its `left`. */
-	--bp-side-btn-width: calc(var(--bp-field-plaque-height) * 88 / 68);
+	   The trailing × 0.945 is a deliberate trim (−10%, then +5% back = 0.9 × 1.05): the discs now paint
+	   a touch SHORTER than the edge fields rather than flush with them. Drop or retune that factor to
+	   go back to matching heights.
+	   ⚠️ This feeds the centre cluster's total width, which BalanceCard.svelte bakes into its `left`.
+	   The trim narrows each button by 0.2994vw (5.4432 → 5.1438vw), so the centred group loses
+	   0.5988vw and each edge field slides 0.2994vw inward — 0.2694vw once the panel's scale(0.9) is
+	   applied. BalanceCard's `left` constant was raised by that 0.2694vw to keep hugging the field. */
+	--bp-side-btn-width: calc(var(--bp-field-plaque-height) * 88 / 68 * 0.945);
 	/* Small gap between each edge field and the centered control cluster (reference art). */
 	--bp-column-gap: clamp(0.8vw, 1.1vw, 1.6vw);
 	--bp-label-value-gap: 0.11em;
@@ -682,7 +691,7 @@
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
-	gap: clamp(0.6vw, 0.9vw, 1.4vw);
+	gap: clamp(0.6vw, 0.9vw, 124vw);
 }
 
 /* Total bet (bet-per-ball × ball-per-drop) on a FULL-WIDTH flat dark OVERLAY BAR flush to the very
@@ -691,60 +700,102 @@
    Rendered as a SIBLING of `.game-bottom-panel`, so it escapes that panel's `scale(0.9)`/centre
    transform: it is a child of `.game-content` (100vw wide, `position: relative`), which lets it
    span the FULL viewport width and pin to the bottom edge with left/right/bottom: 0. No outline.
-   Height is tuned to the empty band BELOW the betting controls: the panel is lifted ~0.95vw off the
-   bottom and PLAY (the tallest control) ends ~1.53vw above the viewport bottom, so a ~1.7vw-tall bar
-   only laps the very bottom of the round buttons — dead PNG space (the disc art sits 3.125% high,
-   see .bp-btn-play) — and never touches the edge fields (which end far higher). z-index sits above
-   the panel so the readout is never occluded by the PLAY disc it centres under. */
+   The bar is TALLER than the empty band below the betting controls, so its top deliberately rides up
+   INTO the control row. That is fine because z-index (10) puts it BENEATH `.game-bottom-panel`
+   (z-index 20): the buttons and fields draw over the scrim, and the faded top edge just tints the
+   water behind them. ⚠️ The readout itself is NOT protected by that stacking — it centres directly
+   under the PLAY disc, so the text is pinned to the BOTTOM of the bar (align-items: flex-end +
+   bottom padding) instead of being centred in it. Extra height therefore grows upward only, into the
+   fade, and never slides the glyphs up behind the disc. */
 .bp-total-overlay {
 	position: absolute;
 	left: 0;
 	right: 0;
 	bottom: 0;
 	width: 100%;
-	z-index: 30;
+	/* Above the game backdrop (0), below the betting panel (20) — see the note above. */
+	z-index: 10;
 	display: flex;
-	align-items: center;
+	align-items: flex-end;
 	justify-content: center;
 	/* Gap between the "Bet" label and the value. */
 	gap: 0.7vw;
-	height: 1.7vw;
-	padding: 0 1.2vw;
+	height: 2.5vw;
+	/* Pins the readout to the bottom of the bar, so growing the bar moves the scrim's top edge and
+	   nothing else. This IS the vertical-position knob for the "Bet"/value line: smaller = lower.
+	   6.1px at 1920w leaves a 4px gap under the glyphs. ⚠️ That is not the same as the padding: the
+	   label/value are translated DOWN 0.14em (2.1px) for optical centring, and that transform shifts
+	   the painted glyphs but not the layout box — so the visible gap is always 2.1px less than the
+	   padding. Don't go below ~0.26vw or the descenders start touching the viewport edge. */
+	padding: 0 1.2vw 0.6vw;
 	box-sizing: border-box;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
-	font-weight: 500;
+	/* Inherited only by anything in the bar that does NOT set its own weight — which today is nothing,
+	   since both spans declare theirs. Kept in step with them so it isn't misleading. (It read
+	   `font-weight: 0` for a while, which is invalid CSS and was silently dropped.) */
+	font-weight: 300;
 	font-synthesis: none;
-	font-size: 0.95vw;
+	font-size: 1vw;
 	line-height: 1;
 	letter-spacing: -0.01em;
 	color: #efeadd;
 	white-space: nowrap;
 	pointer-events: none;
-	/* Flat, edge-to-edge dark scrim. No border/outline — just a near-black fill and a soft upward
-	   shadow so the strip lifts off the ship-deck/water behind it. Square (full-bleed to the corners). */
-	background: rgba(8, 6, 4, 0.6);
-	box-shadow: 0 -0.15vw 0.5vw rgba(0, 0, 0, 0.4);
+	/* The scrim itself lives on ::before, NOT here — see below. This element only lays out the text. */
+	background: none;
 }
 
-/* "Bet" label, sitting to the LEFT of the value inside the bar. Muted + uppercase to match the other
-   betting-panel field labels (.bp-field-label), but sized down so it sits inline on one line. */
+/* Edge-to-edge dark scrim, on a pseudo-element so the frosted blur and the top-edge fade apply to the
+   BACKDROP ONLY and never touch the label/value (both of which sit at z-index 1 above this).
+   ⚠️ `filter: blur()` on the bar itself would smear the text — `backdrop-filter` blurs what shows
+   THROUGH it instead, which is what gives the glassy look.
+   The top edge dissolves into the ship deck/water rather than ending on a hard line: the mask ramps
+   the whole layer (fill AND blur together, so the frost fades out with the tint) from fully
+   transparent at the top edge to full strength partway down.
+   ⚠️ The ramp MUST finish above the text. With the bar at 6vw and the text pinned to the bottom, the
+   label/value line box starts 96px down a 115px bar at 1920w = 84%, so the mask reaches full opacity at
+   78%: every glyph then sits on the solid part of the scrim and none of it is dimmed by the fade. If
+   the bar's height or the text's bottom padding changes, re-derive that 78%.
+   No box-shadow — an upward halo would re-draw the hard edge the fade is there to remove. */
+.bp-total-overlay::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	background: rgba(3, 4, 19, 0.61);
+	backdrop-filter: blur(6.2px);
+	-webkit-backdrop-filter: blur(6.2px);
+	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.8) 20%, #000 100%);
+	// -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.6) 43%, #000 %);
+}
+
+/* "Bet" label, sitting to the LEFT of the value inside the bar. Uppercase to match the other
+   betting-panel field labels (.bp-field-label), but sized down so it sits inline on one line — and a
+   step brighter than those labels' #a9a1a1, since this readout sits on the scrim rather than inside a
+   field frame. Keep in sync with .bp-play-total-value below.
+   ⚠️ THIS is the weight knob for the readout, not `.bp-total-overlay`'s `font-weight` — the two spans
+   declare their own, so the parent's value never reaches the glyphs. Change both or neither.
+   ⚠️ Poppins only renders a weight that `+layout.svelte` registers an @font-face for, and
+   `font-synthesis: none` on the parent forbids faking the rest. 300 = Poppins-Light; 200 is also
+   registered now. Anything else below 400 silently snaps to the nearest real face. */
 .bp-play-total-label {
 	position: relative;
 	z-index: 1;
 	display: flex;
 	align-items: center;
 	line-height: 1;
-	font-weight: 600;
-	font-size: 0.82em;
+	font-weight: 300;
+	font-size: 0.925em;
 	text-transform: uppercase;
 	letter-spacing: 0.02em;
-	color: #a9a1a1;
+	color: #d9d9d9;
 	transform: translateY(0.14em);
 }
 
 /* The value is typeset IDENTICALLY to the "Bet" label on its left — same weight, em-size, casing,
-   tracking and muted colour — so the pair reads as one continuous line rather than a label plus a
-   louder readout. Keep these four declarations in sync with .bp-play-total-label above. */
+   tracking and colour — so the pair reads as one continuous line rather than a label plus a louder
+   readout. Keep these four declarations in sync with .bp-play-total-label above. */
 .bp-play-total-value {
 	position: relative;
 	z-index: 1;
@@ -755,11 +806,11 @@
 	display: flex;
 	align-items: center;
 	line-height: 1;
-	font-weight: 600;
-	font-size: 0.82em;
+	font-weight: 300;
+	font-size: 0.925em;
 	text-transform: uppercase;
 	letter-spacing: 0.02em;
-	color: #a9a1a1;
+	color: #d9d9d9;
 	transform: translateY(0.14em);
 }
 

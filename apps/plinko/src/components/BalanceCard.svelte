@@ -182,12 +182,13 @@
 		/* Row geometry (GameHud.scss): the panel is scaled 90% from its bottom-centre and lifted 0.95vw
 		   off the viewport bottom (see `.game-bottom-panel`); the row centres on its tallest item, the
 		   PLAY button. At the current --bp-height-boost (1.0925) the row centre sits 4.714vw above the
-		   viewport bottom (measured at 16:9: 56.25vw viewport height − PLAY/row centre 51.536vw). This card
-		   is also scaled 90% (see `transform` below), so its visual height is 0.9 × 4.206125 = 3.785vw.
-		   Centring 3.785vw on 4.714vw puts its visual bottom edge at 4.714 − 1.8925 = 2.822vw. Since the
-		   transform-origin is bottom-centre, the DECLARED `bottom` equals the visual bottom.
-		   ⚠️ Re-solved empirically whenever the boost changes PLAY's height (and thus the row); keep in
-		   step with --bp-height-boost. */
+		   viewport bottom (measured at 16:9: 56.25vw viewport height − PLAY/row centre 51.536vw). This
+		   card is also scaled 90% (see `transform` below), so its visual height is 0.9 × 4.206125 =
+		   3.785vw. Centring 3.785vw on 4.714vw puts its visual bottom edge at 4.714 − 1.8925 = 2.822vw.
+		   Since the transform-origin is bottom-centre, the DECLARED `bottom` equals the visual bottom.
+		   ⚠️ This tracks `.game-bottom-panel`'s `bottom` 1:1 — lower the panel by Δ and this must drop by
+		   the same Δ. Also re-solved empirically whenever the boost changes PLAY's height (and thus the
+		   row); keep in step with --bp-height-boost. */
 		bottom: 2.822vw;
 		/* Match the panel's 10% shrink from bottom-centre — same scale, same origin metric — so the
 		   card and the row read as one visual group. Scaling around the card's own bottom-centre keeps
@@ -224,9 +225,16 @@
 		   "visual right of card is `--balance-card-gap` left of visual bet-per-ball left" and solving
 		   for the constant that replaces 39.783 gives 43.275vw (a +3.492vw nudge on the constant only,
 		   the same solve as before with 0.9-scaled panel geometry). Everything else in the calc still
-		   works — --balance-card-gap, f, c stay in their declared vw's; visual adjacency is what matters. */
+		   works — --balance-card-gap, f, c stay in their declared vw's; visual adjacency is what matters.
+
+		   Autobet/Fast trim. Those two discs carry a × 0.945 factor on --bp-side-btn-width in
+		   GameHud.scss (−10%, then +5% back), narrowing the cluster by 2 × 0.2994 = 0.5988vw, so the
+		   leftmost field's declared left edge moved 0.2994vw INWARD — 0.2694vw after the panel's 0.9
+		   scale. The constant absorbs that (43.275 → 43.5444vw) so the card keeps hugging the field
+		   instead of leaving a ~5px hole. Any further resize of Autobet/Fast/PLAY must repeat this:
+		   half the cluster's width change, times 0.9. */
 		left: calc(
-			43.275vw - var(--balance-card-gap) - var(--balance-field-width) -
+			43.5444vw - var(--balance-card-gap) - var(--balance-field-width) -
 				var(--balance-card-width)
 		);
 		z-index: 22;
@@ -236,6 +244,7 @@
 	/* Bonus round: the betting panel is nudged lower (GameHud.scss `.game-bottom-panel--bonus` drops its
 	   `bottom` from 0.95vw to -0.1vw, a 1.05vw descent). This card is a sibling positioned by its own
 	   `bottom`, so it drops the SAME 1.05vw to stay aligned with the row: 2.822 − 1.05 = 1.772vw.
+	   (Invariant under moving the base row: both ends of the subtraction shift together.)
 	   ⚠️ Keep the delta in step with `.game-bottom-panel--bonus`. */
 	.balance-card-root--bonus {
 		bottom: 1.772vw;

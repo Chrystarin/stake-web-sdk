@@ -5,7 +5,7 @@
 
 	import { stateBet, stateUrlDerived } from 'state-shared';
 
-	import { coefficientsForRowCount, SIM_SPEED } from '../game-logic/constants';
+	import { coefficientsForTier, SIM_SPEED } from '../game-logic/constants';
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
@@ -162,7 +162,14 @@
 	let gameRootEl = $state<HTMLElement | undefined>(undefined);
 
 	const coefficients = $derived.by(() =>
-		coefficientsForRowCount(config.coefficientSets as number[][], stateGame.rowCount),
+		// Per-TIER board: the feature-free 1-ball tier has its own table (paying center pocket), so this
+		// re-derives when the player switches balls-per-drop.
+		coefficientsForTier(
+			config.coefficientSets as number[][],
+			config.coefficientSetsByBalls,
+			stateGame.rowCount,
+			stateGame.ballPerDrop,
+		),
 	);
 
 	const boardCoefficients = $derived(

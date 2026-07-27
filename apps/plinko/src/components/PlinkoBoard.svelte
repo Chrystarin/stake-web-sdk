@@ -9,7 +9,7 @@
 		takeAuthoritativeBonusOutcome,
 	} from '../game/gameOrchestrator';
 	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
-	import { coefficientsForRowCount, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
+	import { coefficientsForTier, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
 	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
 	import { frameImagePoint, SKULL_MOUTH_CAVITY, SKULL_MOUTH_CAVITY_HALF_W } from '../lib/frameArt';
 	import config from '../game/config';
@@ -64,7 +64,12 @@
 		const coeffs =
 			props.coefficients.length > 0
 				? props.coefficients
-				: coefficientsForRowCount(config.coefficientSets as number[][], stateGame.rowCount);
+				: coefficientsForTier(
+						config.coefficientSets as number[][],
+						config.coefficientSetsByBalls,
+						stateGame.rowCount,
+						stateGame.ballPerDrop,
+					);
 
 		// Visual pyramid uses a fixed row count (decoupled from the math rowCount); the ball is
 		// choreographed to its server slot index regardless of peg rows.

@@ -67,6 +67,29 @@ export type SpineOverlayDef = {
 	 */
 	behindBase?: boolean;
 	/**
+	 * Draw this overlay INSIDE the base skeleton's own draw order, at the named base slot's position,
+	 * rather than as a whole layer above (`behindBase: false`) or below (`behindBase: true`) the base
+	 * spine. Use it when a layer has to land BETWEEN base-scene elements — e.g. the ship must paint over
+	 * the sea plane but still sit under the waterfall, dock and fog, which are all slots of one skeleton.
+	 *
+	 * Overlays sharing a `baseSlot` are wrapped in one container in `bonusOverlays` order, so their
+	 * relative z-order is preserved (ship under splashes). Takes precedence over `behindBase`, which is
+	 * still honoured as the fallback when the slot is missing from the skeleton.
+	 *
+	 * ⚠️ The anchor slot's bone transform and slot alpha are applied to whatever is attached to it (see
+	 * `Spine.addSlotObject`). `applyOverlayFit` cancels the bone transform so the overlay still lands on
+	 * the base fit transform, but it does so once per fit — so the anchor must be a slot whose bone does
+	 * NOT animate and which has no colour timeline, or the overlay will drift and pulse with it.
+	 */
+	baseSlot?: string;
+	/**
+	 * While bonus mode is active, move `baseSlot` to sit directly AFTER this slot in the base
+	 * skeleton's draw order (restored on exit). Lets an overlay land at a depth the skeleton doesn't
+	 * otherwise offer — the anchor only has to be a slot that is safe to attach to (static bone, no
+	 * colour timeline, art that may be hidden), not one that already sits at the right depth.
+	 */
+	baseSlotAfter?: string;
+	/**
 	 * Play the animation on a duty cycle instead of looping back-to-back: run it once, then hide the
 	 * layer for `cycleGapSeconds` before replaying. Driven manually from the ticker (the overlay's
 	 * `autoUpdate` is turned off), so the phase is exact and frame-rate independent.
@@ -84,6 +107,15 @@ export type SpineOverlayDef = {
 	 * fire one after the other instead of together.
 	 */
 	cycleStartDelaySeconds?: number;
+	/**
+	 * Run this overlay's duty cycle off a schedule SHARED with every other overlay naming the same
+	 * group, instead of its own. Only then does `cycleStartDelaySeconds` mean anything lasting: with
+	 * per-overlay schedules each member re-rolls its own random gap after every play, so a staggered
+	 * pair drifts apart within a few cycles and eventually bursts in unison (or out of order). Members
+	 * share one gap roll and one period; each still plays at its own `cycleStartDelaySeconds` offset.
+	 * Defaults to the overlay's own `id` — i.e. a private schedule.
+	 */
+	cycleGroup?: string;
 };
 
 /**

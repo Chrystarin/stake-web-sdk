@@ -174,7 +174,8 @@
 							<p>
 								The bottom of the board features a row of colored multiplier slots (from low in the
 								center to high on the edges); the dead-center pocket is the SPIN (0×) slot, which
-								pays nothing but fills the Free Spin meter.
+								pays nothing but fills the Free Spin meter. On the 1 Ball per Drop tier there are no
+								bonus features, so that pocket is an ordinary paying slot (0.1×) instead.
 							</p>
 							<ul>
 								<li>
@@ -183,8 +184,9 @@
 								</li>
 								<li>
 									<strong>High-value slots</strong> (outer edges, orange through pink/magenta) = huge
-									multipliers (up to 100× per ball, with bonus rounds reaching your tier's max payout
-									— from 200× on a single ball up to 400× with more balls per drop).
+									multipliers (up to 100× per ball). The 1 Ball per Drop tier has no bonus features,
+									so 100× is also its maximum payout; from 10 balls up, bonus rounds reach your
+									tier's max payout of 250× to 400×.
 								</li>
 							</ul>
 							<p>
@@ -326,8 +328,9 @@
 								ball.
 							</li>
 							<li>
-								With the bonus features in play, a round can reach your tier's maximum payout — from
-								200× on a single-ball drop up to 400× when dropping more balls.
+								With the bonus features in play, a round can reach your tier's maximum payout — 250×
+								at 10 balls per drop, up to 400× at 50. The 1 Ball per Drop tier has no bonus
+								features, so its maximum payout is the board's top pocket, 100×.
 							</li>
 						</ul>
 
@@ -343,7 +346,8 @@
 							<li>
 								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus meter.
 								When it fills, a wheel awards a batch of free balls that drop automatically at no extra
-								cost. Strong bonus rounds can level up and award even more balls.
+								cost. Strong bonus rounds can level up and award even more balls. (Not available on the
+								single-ball drop.)
 							</li>
 							<li>
 								<strong>Buy Bonus</strong> — Skip the wait and trigger the bonus instantly. Tap the Buy

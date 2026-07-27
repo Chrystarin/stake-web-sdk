@@ -102,7 +102,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		// `authoritativeMeterFlow` is set once per round in `playBet` from the book contents.
 		stateGame.rowCount = bookEvent.rowCount;
 		if (bookEvent.coefficients?.length) {
-			stateGame.coefficients = alignCoefficientSet(bookEvent.coefficients);
+			// Align onto the board the BOOK's tier plays — the feature-free 1-ball tier has its own
+			// table (paying center pocket), so aligning it to the shared board would zero that pocket.
+			stateGame.coefficients = alignCoefficientSet(
+				bookEvent.coefficients,
+				bookEvent.ballsPerDrop ?? plinkoBallsPerDrop(),
+			);
 		}
 		if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
 			stateGame.spinMeterBaseMax = bookEvent.spinMeterMax;

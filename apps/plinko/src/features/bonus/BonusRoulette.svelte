@@ -170,11 +170,12 @@
 	 * not rely on index === slot.) If the art is re-exported with the values in a different order, fix
 	 * this array — it is the single source of truth for art order.
 	 * ⚠️ 50 and 20 are both green and differ only in brightness — a hue-only check would merge them.
-	 * ⚠️ ENTRY VALUES LOWERED to 90..10 (avg 50) for RTP balance after the escalating level-up. Positions
-	 * (0 = top, clockwise) are UNCHANGED — only the value labels shift down one, so the baked wheel PNG
-	 * MUST be REGENERATED to 90..10 to match. The landing maps the book award VALUE → wedge via
-	 * `indexOf`, so payouts are always correct; the wheel VISUAL is off by one wedge until the PNG is redone. */
-	const ART_SLOT_FREE_BALLS = [90, 80, 70, 60, 50, 40, 30, 20, 10];
+	 * ⚠️ This list must equal `BONUS_WHEEL_FREE_BALLS` (same values, same wedge order) — the art is the
+	 * source of truth for BOTH. When they diverged (values lowered to 10..90 on 2026-07-24, art left at
+	 * 20..100), `artSlot()` still mapped award → wedge by VALUE, so the payout stayed correct but the
+	 * wheel stopped on a wedge painted 10 higher than it paid (QA 2026-07-27: "landed on 80, won 70").
+	 * With the two lists equal, index === slot and every wedge pays exactly what it shows. */
+	const ART_SLOT_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20];
 
 	/** Geometry of each wedge's ROPE-FREE INTERIOR, by ART SLOT (0 = the wedge the art parks under the
 	 * pointer = 100, then clockwise).

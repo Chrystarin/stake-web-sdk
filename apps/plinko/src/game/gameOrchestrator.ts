@@ -11,7 +11,7 @@ import {
 	SIM_SPEED,
 	bonusLevelBalls,
 } from '../game-logic/constants';
-import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
+import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatCoefficientLabel, formatHistoryDate, formatHistoryMultiplier } from '../lib/format';
 import { meterController } from './stateGame.svelte';
@@ -235,11 +235,15 @@ function normalizeBonusOutcomes(outcomes: PlinkoBallOutcome[]): PlinkoBallOutcom
 	// book stake while the credited `finalWin` is at the player stake, causing a big mismatch.
 	const bookStake = stateGame.lastBookStakePerBall > 0 ? stateGame.lastBookStakePerBall : 1;
 	const stakeScale = bookStake > 0 ? plinkoStakePerBall() / bookStake : 1;
+	// A tier without a free-spin meter (1-ball) has no spin pocket to flag — its center just pays.
+	const spinPocketActive = spinPocketActiveForBallsPerDrop(plinkoBallsPerDrop());
 	return (outcomes ?? []).map((outcome) => ({
 		...outcome,
 		amount: outcome.amount * stakeScale,
 		hitSpinSlot:
-			outcome.hitSpinSlot ?? (slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount)),
+			spinPocketActive &&
+			(outcome.hitSpinSlot ??
+				(slotCount > 0 && isSpinSlotRateIndex(outcome.rateIndex, slotCount))),
 	}));
 }
 
@@ -991,12 +995,16 @@ export function onBallLanded(
 ) {
 	const pending = takeExpectedOutcome(ballId);
 	const slotCount = stateGame.coefficients.length;
-	const isSpinSlot = pending
-		? stateGame.authoritativeMeterFlow
-			? pending.hitSpinSlot === true
-			: (pending.hitSpinSlot ??
-				(slotCount > 0 && isSpinSlotRateIndex(pending.rateIndex, slotCount)))
-		: _isSpinSlotFromEngine;
+	// No free-spin meter on this tier (1-ball) ⇒ no spin pocket: the center is an ordinary paying slot.
+	const spinPocketActive = spinPocketActiveForBallsPerDrop(plinkoBallsPerDrop());
+	const isSpinSlot =
+		spinPocketActive &&
+		(pending
+			? stateGame.authoritativeMeterFlow
+				? pending.hitSpinSlot === true
+				: (pending.hitSpinSlot ??
+					(slotCount > 0 && isSpinSlotRateIndex(pending.rateIndex, slotCount)))
+			: _isSpinSlotFromEngine);
 
 	// Server bonus peg: credit when the ball hits the peg (path emit) or on land as failsafe.
 	if (pending?.hitBonusPeg === true) {

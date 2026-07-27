@@ -125,6 +125,10 @@ const FONT_SPECS: readonly string[] = [
 	"400 1rem 'Instrument Sans'",
 	"600 1rem 'Instrument Sans'",
 	"700 1rem 'Instrument Sans'",
+	// 300 (Light) is used by the total-bet readout, which is on screen from the first frame — without
+	// it here the "Bet $x.xx" line renders in Regular until the face loads, then visibly thins out.
+	// 200 (ExtraLight) is declared in +layout.svelte but nothing uses it yet, so it stays unloaded.
+	"300 1rem 'Poppins'",
 	"400 1rem 'Poppins'",
 	"500 1rem 'Poppins'",
 	"600 1rem 'Poppins'",

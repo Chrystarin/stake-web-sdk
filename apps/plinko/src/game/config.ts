@@ -1,4 +1,7 @@
-import { BOARD_SLOT_MULTIPLIERS } from '../game-logic/boardMultipliers';
+import {
+	BOARD_SLOT_MULTIPLIERS,
+	ONE_BALL_BOARD_SLOT_MULTIPLIERS,
+} from '../game-logic/boardMultipliers';
 
 /** One row-tier table (15 slots) repeated for row counts 8–20. */
 const tierTable = (coefficients: number[]): number[][] =>
@@ -20,12 +23,14 @@ export default {
 		// max_win is PER-TIER (mirror of math plinko_data.WINCAP_BY_BALLS): each tier's advertised max
 		// win must be achievable in that tier's own books (Stake: max win hits >= 1/20,000,000). The
 		// folded bonus's organic ceiling rises with ball count, so the caps ascend 200/250/300/400.
+		// onedrop is FEATURE-FREE (no bonus, no free spin — see `isSingleBallMode`), so it plays its own
+		// board: RTP is that board's EV (0.954) and the advertised max win is its top pocket, 100×.
 		onedrop: {
 			cost: 1.0,
 			feature: true,
 			buyBonus: false,
-			rtp: 0.957,
-			max_win: 200.0,
+			rtp: 0.954,
+			max_win: 100.0,
 		},
 		tendrop: {
 			cost: 10.0,
@@ -59,6 +64,12 @@ export default {
 	},
 	/** [rowTierIndex 0..12] → slot multipliers (matches stake-math-sdk plinko_data.COEFFICIENT_SETS). */
 	coefficientSets: tierTable(DEFAULT_SLOT_MULTIPLIERS) as number[][],
+	/** Per-balls-per-drop board override (math `COEFFICIENT_SETS_BY_BALLS` / FE `coefficientSetsByBalls`).
+	 * Only the feature-free 1-ball tier differs: its center pocket pays instead of feeding a free-spin
+	 * meter that tier doesn't have. Every other tier uses `coefficientSets`. */
+	coefficientSetsByBalls: {
+		'1': tierTable([...ONE_BALL_BOARD_SLOT_MULTIPLIERS]),
+	} as Record<string, number[][]>,
 	/** Default meter maxima (overridden by `plinkoDrop.spinMeterMax` / `bonusMeterMax` from math). */
 	spinMeterMax: 10,
 	bonusMeterMax: 20,
