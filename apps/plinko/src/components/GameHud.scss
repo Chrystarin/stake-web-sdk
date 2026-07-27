@@ -722,7 +722,7 @@
 	pointer-events: none;
 	/* Flat, edge-to-edge dark scrim. No border/outline — just a near-black fill and a soft upward
 	   shadow so the strip lifts off the ship-deck/water behind it. Square (full-bleed to the corners). */
-	background: rgba(8, 6, 4, 0.86);
+	background: rgba(8, 6, 4, 0.6);
 	box-shadow: 0 -0.15vw 0.5vw rgba(0, 0, 0, 0.4);
 }
 
@@ -742,6 +742,9 @@
 	transform: translateY(0.14em);
 }
 
+/* The value is typeset IDENTICALLY to the "Bet" label on its left — same weight, em-size, casing,
+   tracking and muted colour — so the pair reads as one continuous line rather than a label plus a
+   louder readout. Keep these four declarations in sync with .bp-play-total-label above. */
 .bp-play-total-value {
 	position: relative;
 	z-index: 1;
@@ -753,6 +756,10 @@
 	align-items: center;
 	line-height: 1;
 	font-weight: 600;
+	font-size: 0.82em;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	color: #a9a1a1;
 	transform: translateY(0.14em);
 }
 

@@ -2,10 +2,11 @@ import '@esotericsoftware/spine-pixi-v8';
 import {
 	type Attachment,
 	Physics,
+	type Slot,
 	Spine,
 	type SkeletonData,
 } from '@esotericsoftware/spine-pixi-v8';
-import { Application, Assets, Sprite, type Texture, Ticker } from 'pixi.js';
+import { Application, Assets, Container, Matrix, Sprite, type Texture, Ticker } from 'pixi.js';
 
 import { readSkeletonData } from './spineSkeletonData';
 import { createWorldBounds, updateWorldBounds } from './spineBounds';
@@ -87,18 +88,36 @@ export class SpineBackgroundRenderer {
 		spine: Spine;
 		cycle?: {
 			duration: number;
-			/** Gap re-rolled uniformly in [gapMin, gapMax] after each play (equal ⇒ fixed gap). */
-			gapMin: number;
-			gapMax: number;
+			/** Offset from the group's period start at which THIS overlay plays. */
 			startDelay: number;
-			/** Elapsed clock (s) at which the current play began; advances one period at a time. */
-			cycleStart: number;
-			/** The gap chosen for the current period, in seconds. */
-			currentGap: number;
+			/** Key into `bonusCycleGroups` — the schedule this overlay plays on. */
+			group: string;
 		};
 	}[] = [];
+	/**
+	 * Duty-cycle schedules, keyed by `SpineOverlayDef.cycleGroup`. Kept per GROUP rather than per
+	 * overlay so a staggered pair keeps its stagger: members share one period and one gap roll, so the
+	 * offset between them never drifts (see `SpineOverlayDef.cycleGroup`).
+	 */
+	private bonusCycleGroups = new Map<
+		string,
+		{
+			/** Period start on the bonus clock (s); advances one period at a time. */
+			cycleStart: number;
+			/** Group start → last member finishing, i.e. max(startDelay + duration) over members. */
+			span: number;
+			/** Gap re-rolled uniformly in [gapMin, gapMax] after each period (equal ⇒ fixed gap). */
+			gapMin: number;
+			gapMax: number;
+			currentGap: number;
+		}
+	>();
 	/** Bonus-mode plain-image layers (e.g. the free-game moon), positioned in viewport fractions. */
 	private imageOverlays: { def: SpineImageOverlayDef; sprite: Sprite }[] = [];
+	/** Wrapper container per `SpineOverlayDef.baseSlot`, attached into the base skeleton's draw order. */
+	private slotAnchors = new Map<string, Container>();
+	/** `baseSlot` → `baseSlotAfter`: where each anchor slot is moved to while bonus mode is active. */
+	private slotAnchorOrder = new Map<string, string>();
 	/** Shared clock (seconds) driving the splash duty cycles, advanced from the Pixi ticker. */
 	private bonusElapsed = 0;
 	private bonusTick?: () => void;
@@ -215,6 +234,10 @@ export class SpineBackgroundRenderer {
 		this.bonusElapsed = 0;
 		this.overlays.forEach(({ spine }) => spine.destroy({ children: true }));
 		this.overlays = [];
+		// The wrappers themselves are children of the base spine, destroyed with it below.
+		this.slotAnchors.clear();
+		this.slotAnchorOrder.clear();
+		this.bonusCycleGroups.clear();
 		this.imageOverlays.forEach(({ sprite }) => sprite.destroy());
 		this.imageOverlays = [];
 		this.backdrop?.destroy();
@@ -404,14 +427,21 @@ export class SpineBackgroundRenderer {
 						const gapMin = def.cycleGapMinSeconds ?? def.cycleGapSeconds ?? 0;
 						const gapMax = def.cycleGapMaxSeconds ?? def.cycleGapSeconds ?? gapMin;
 						const startDelay = def.cycleStartDelaySeconds ?? 0;
-						cycle = {
-							duration,
+						// Overlays without an explicit group get a private one, so they behave as before.
+						const group = def.cycleGroup ?? def.id;
+						cycle = { duration, startDelay, group };
+
+						// The group's period must cover its LAST member's play, else an overlay whose
+						// `startDelay` runs past the period start would be cut off by the next one.
+						const existing = this.bonusCycleGroups.get(group);
+						const span = Math.max(existing?.span ?? 0, startDelay + duration);
+						this.bonusCycleGroups.set(group, {
+							cycleStart: 0,
+							span,
 							gapMin,
 							gapMax,
-							startDelay,
-							cycleStart: startDelay,
-							currentGap: gapMin + Math.random() * (gapMax - gapMin),
-						};
+							currentGap: existing?.currentGap ?? gapMin + Math.random() * (gapMax - gapMin),
+						});
 					}
 				}
 				return { def, spine, cycle };
@@ -445,8 +475,9 @@ export class SpineBackgroundRenderer {
 
 		// `behindBase` layers are inserted at the base spine's index, so each new one lands directly under
 		// the base spine (and above the previously inserted behind-layer). On-top layers are appended, so
-		// each lands above the last. The bonus asset arrays are ordered so the stack reads, bottom→top:
-		// backdrop → moon → ship → splashes → tornadoes → baseSpine → clouds → rain.
+		// each lands above the last. `baseSlot` layers go INSIDE the base skeleton's draw order instead.
+		// The bonus asset arrays are ordered so the stack reads, bottom→top:
+		// backdrop → moon → [base scene … sea → ship → splashes → waterfall/dock/fog] → clouds → tornadoes → rain.
 
 		const addBehindBase = (child: Parameters<typeof app.stage.addChild>[0]) =>
 			app.stage.addChildAt(child, app.stage.getChildIndex(baseSpine));
@@ -457,13 +488,40 @@ export class SpineBackgroundRenderer {
 			else app.stage.addChild(sprite);
 		});
 
+		// Overlays anchored into the base skeleton (`baseSlot`) share one wrapper container per slot, in
+		// bonus-overlay order, so their relative z-order survives the move (ship under splashes).
+		const anchors = new Map<string, Container>();
+
 		// Most overlays paint on top of the base spine (topmost background layer, still behind the game
 		// board which is a separate canvas above this one). `behindBase` ones are inserted UNDER the base
 		// spine so the waterfalls/dock occlude them for depth.
 		overlays.forEach(({ def, spine }) => {
+			if (def.baseSlot && baseSpine.skeleton.findSlot(def.baseSlot)) {
+				let wrapper = anchors.get(def.baseSlot);
+				if (!wrapper) {
+					wrapper = new Container();
+					anchors.set(def.baseSlot, wrapper);
+				}
+				wrapper.addChild(spine);
+				if (def.baseSlotAfter) this.slotAnchorOrder.set(def.baseSlot, def.baseSlotAfter);
+				return;
+			}
+			if (def.baseSlot) {
+				console.warn(
+					`[SpineBackgroundRenderer] base slot "${def.baseSlot}" not in the skeleton; ` +
+						`falling back to ${def.behindBase ? 'behind' : 'above'} the base scene for ${def.id}`,
+				);
+			}
 			if (def.behindBase) addBehindBase(spine);
 			else app.stage.addChild(spine);
 		});
+
+		for (const [slotName, wrapper] of anchors) {
+			// `addSlotObject` reparents the wrapper onto the base spine and draws it at that slot's place
+			// in the skeleton's draw order. `applyOverlayFit` then undoes the slot bone's transform.
+			baseSpine.addSlotObject(slotName, wrapper);
+			this.slotAnchors.set(slotName, wrapper);
+		}
 
 		this.overlays = overlays;
 		this.imageOverlays = imageOverlays;
@@ -511,23 +569,28 @@ export class SpineBackgroundRenderer {
 
 	/**
 	 * Duty-cycled overlays (the two splashes) play their animation once, then hide for `gap` seconds
-	 * before replaying. `startDelay` staggers the pair so the left fires first and the right joins
-	 * partway through, instead of both bursting in unison.
+	 * before replaying. Members of a `cycleGroup` share one period, each playing at its own
+	 * `startDelay` into it — so the left splash always leads the right by exactly that offset, every
+	 * burst, rather than the two drifting into each other over time.
 	 */
 	private advanceBonusCycles(): void {
+		// Advance each group one period at a time, re-rolling the gap after each so replays aren't
+		// metronomic. A `while` (not `if`) catches up if the ticker dropped several periods' worth of
+		// frames at once.
+		for (const group of this.bonusCycleGroups.values()) {
+			while (this.bonusElapsed >= group.cycleStart + group.span + group.currentGap) {
+				group.cycleStart += group.span + group.currentGap;
+				group.currentGap = group.gapMin + Math.random() * (group.gapMax - group.gapMin);
+			}
+		}
+
 		for (const { spine, cycle } of this.overlays) {
 			if (!cycle) continue;
+			const group = this.bonusCycleGroups.get(cycle.group);
+			if (!group) continue;
 
-			// Advance one period at a time, re-rolling the gap after each play so replays aren't
-			// metronomic. A `while` (not `if`) catches up if the ticker dropped several periods' worth
-			// of frames at once.
-			while (this.bonusElapsed >= cycle.cycleStart + cycle.duration + cycle.currentGap) {
-				cycle.cycleStart += cycle.duration + cycle.currentGap;
-				cycle.currentGap = cycle.gapMin + Math.random() * (cycle.gapMax - cycle.gapMin);
-			}
-
-			const t = this.bonusElapsed - cycle.cycleStart;
-			// Before the first play (during `startDelay`) or inside the post-play gap, stay hidden.
+			const t = this.bonusElapsed - (group.cycleStart + cycle.startDelay);
+			// Before this member's turn in the period, or after its play, stay hidden.
 			const playing = t >= 0 && t < cycle.duration;
 			spine.visible = playing;
 			if (!playing) continue;
@@ -567,6 +630,7 @@ export class SpineBackgroundRenderer {
 
 		this.applyBackdropTexture(active);
 		this.applyHiddenSlots(active);
+		this.applyAnchorDrawOrder(active);
 		this.applyOverlayVisibility(active);
 		this.fitSpine();
 	}
@@ -611,6 +675,47 @@ export class SpineBackgroundRenderer {
 			const next = bonus ? null : setupAttachment;
 			slot.pose.attachment = next;
 			slot.appliedPose.attachment = next;
+		}
+	}
+
+	/**
+	 * Slot-anchored overlays (`baseSlot`) draw at their anchor slot's place in the base skeleton's draw
+	 * order — but the slot that is SAFE to anchor to (static bone, no colour timeline, art that's hidden
+	 * during bonus) is rarely the slot at the depth we want. `baseSlotAfter` closes that gap: while
+	 * bonus is active the anchor slot is spliced in directly after the named slot, and on exit the
+	 * skeleton's setup order is restored.
+	 *
+	 * Safe here because neither background animation has a draw-order timeline — nothing else writes
+	 * this list. `appliedPose` is the SAME array as `pose` unless a constraint splits them (spine's
+	 * `DrawOrder.unconstrained`), hence the identity check before moving it twice.
+	 */
+	private applyAnchorDrawOrder(bonus: boolean): void {
+		const skeleton = this.spine?.skeleton;
+		if (!skeleton || this.slotAnchorOrder.size === 0) return;
+
+		if (!bonus) {
+			skeleton.drawOrder.setupPose();
+			return;
+		}
+
+		for (const [anchorName, afterName] of this.slotAnchorOrder) {
+			const anchor = skeleton.findSlot(anchorName);
+			const after = skeleton.findSlot(afterName);
+			if (!anchor || !after) {
+				console.warn(
+					`[SpineBackgroundRenderer] cannot re-order "${anchorName}" after "${afterName}" — slot missing`,
+				);
+				continue;
+			}
+			const move = (order: Slot[]) => {
+				const from = order.indexOf(anchor);
+				if (from < 0) return;
+				order.splice(from, 1);
+				order.splice(order.indexOf(after) + 1, 0, anchor);
+			};
+			const { pose, appliedPose } = skeleton.drawOrder;
+			move(pose);
+			if (appliedPose !== pose) move(appliedPose);
 		}
 	}
 
@@ -683,7 +788,10 @@ export class SpineBackgroundRenderer {
 
 		// `captureFitBounds` (above, when bounds were empty) runs `setupPose`, which re-adds the cloud
 		// attachments — re-hide them so a resize mid-bonus doesn't flash the base clouds back in.
-		if (this.bonusActive) this.applyHiddenSlots(true);
+		if (this.bonusActive) {
+			this.applyHiddenSlots(true);
+			this.applyAnchorDrawOrder(true);
+		}
 	}
 
 	/**
@@ -695,6 +803,14 @@ export class SpineBackgroundRenderer {
 	 * it); `mirror` flips the layer across the scene centre (for a symmetric feature like the waterfalls).
 	 */
 	private applyOverlayFit(base: FitTransform, width: number, height: number): void {
+		// World transform of each `baseSlot` wrapper, so an anchored overlay's local transform can be
+		// derived from the same world placement every other overlay gets. Computed once per fit.
+		const anchorWorld = new Map<string, Matrix>();
+		for (const slotName of this.slotAnchors.keys()) {
+			const matrix = this.slotAnchorWorldTransform(slotName, base);
+			if (matrix) anchorWorld.set(slotName, matrix);
+		}
+
 		for (const { def, spine } of this.overlays) {
 			const offsetX = (def.offsetXVw ?? 0) * width;
 			// `offsetYScene` is in base-scene units (× base.scale) so it tracks the scene/water across
@@ -709,9 +825,36 @@ export class SpineBackgroundRenderer {
 			// ~world +8 (the midpoint of the two waterfall bones, −1169 / +1201). Using the box centre
 			// threw the mirrored layer ~144px too far left at a 1600px viewport. Any residual is dialled
 			// in per-overlay via `offsetXVw`.
-			spine.scale.set(def.mirror ? -scale : scale, scale);
-			spine.position.set(base.x + offsetX, base.y + offsetY);
+			const scaleX = def.mirror ? -scale : scale;
+			const x = base.x + offsetX;
+			const y = base.y + offsetY;
+
+			// Anchored overlays hang off a base slot, so `spine.position/scale` are relative to that slot's
+			// bone rather than the stage. Re-express the same world placement in the wrapper's space.
+			const parent = def.baseSlot ? anchorWorld.get(def.baseSlot) : undefined;
+			if (parent) {
+				const world = new Matrix(scaleX, 0, 0, scale, x, y);
+				spine.setFromMatrix(parent.clone().invert().append(world));
+				continue;
+			}
+
+			spine.scale.set(scaleX, scale);
+			spine.position.set(x, y);
 		}
+	}
+
+	/**
+	 * World transform of a `baseSlot` wrapper: the base spine's own fit transform combined with the
+	 * anchor slot's bone matrix, built exactly the way `Spine.updateSlotObject` builds it (note the
+	 * negated `b`/`d` — spine's y axis points up, Pixi's down). Anything attached to the slot inherits
+	 * this, so `applyOverlayFit` divides it back out.
+	 */
+	private slotAnchorWorldTransform(slotName: string, base: FitTransform): Matrix | undefined {
+		const bone = this.spine?.skeleton.findSlot(slotName)?.bone.appliedPose;
+		if (!bone) return undefined;
+		return new Matrix(base.scale, 0, 0, base.scale, base.x, base.y).append(
+			new Matrix(bone.a, bone.c, -bone.b, -bone.d, bone.worldX, bone.worldY),
+		);
 	}
 
 	/**

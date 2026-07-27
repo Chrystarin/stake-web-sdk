@@ -10,11 +10,16 @@ import type { SpineImageOverlayDef, SpineOverlayDef } from './types';
  *
  * Layers, from farthest to nearest:
  *  - moon  (image overlay, 50% opacity, behind the scene)   — `getBonusMoonOverlay`
- *  - ship  (spine, behind the scene so the dock/waterfall occlude it) — `getBonusShipOverlay`
- *  - splash×2 (spine, behind the scene at the two waterfalls) — `getBonusSplashOverlay`
- *  - tornado×2 (spine, behind the scene: a big one right, a smaller one left) — `getBonusTornadoOverlay`
+ *  - ship  (spine, INSIDE the base scene just above the sea) — `getBonusShipOverlay`
+ *  - splash×2 (spine, inside the base scene, over the ship)  — `getBonusSplashOverlay`
+ *  - tornado×2 (spine, above the scene: a big one right, a smaller one left) — `getBonusTornadoOverlay`
  *  - cloud (spine, drifting storm clouds on top)             — `getBonusCloudOverlay`
  *  - rain  (spine, on top — landscape/portrait specific)     — `getBonusRainOverlay`
+ *
+ * The ship and splashes are anchored into the BASE skeleton's draw order (`baseSlot`) rather than
+ * layered under the base spine as a whole: they have to paint over the sea plane while the waterfall,
+ * dock, fog and the base scene's own splashes still occlude them — and those are all slots of the one
+ * base skeleton, so no amount of stage ordering can put a layer between them.
  */
 
 const CLOUD_BASE = 'spine/FG_CLOUD';
@@ -71,7 +76,7 @@ type OrientationTuning = {
 /* ▼▼▼ DESKTOP / LANDSCAPE — move & resize the moon, ship and tornadoes on desktop here. ▼▼▼ */
 const LANDSCAPE_TUNING: OrientationTuning = {
 	moon: { xVw: 0.12, yVh: 0.13, widthVw: 0.35, alpha: 0.5 },
-	ship: { offsetXVw: -0.2, offsetYScene: 20, scaleMul: 0.9 },
+	ship: { offsetXVw: -0.2, offsetYScene: 100, scaleMul: 1 },
 	tornadoRight: { offsetXVw: 0.23, offsetYScene: -516, scaleMul: 1 },
 	tornadoLeft: { offsetXVw: -0.2, offsetYScene: -554, scaleMul: 0.62 },
 	splashRight: { offsetXVw: 0, offsetYScene: -55, scaleMul: 1 },
@@ -93,6 +98,28 @@ const PORTRAIT_TUNING: OrientationTuning = {
 const TUNING: Record<Orientation, OrientationTuning> = {
 	landscape: LANDSCAPE_TUNING,
 	portrait: PORTRAIT_TUNING,
+};
+
+/**
+ * Where the ship and the splashes are drawn inside the base scene: the `moon` slot, moved during bonus
+ * to sit directly after the sea plane (see `SpineOverlayDef.baseSlot` / `baseSlotAfter`).
+ *
+ * The depth wanted is "one step above the sea, below everything else the scene draws" — but no slot at
+ * that depth can be anchored to: an anchor lends its bone transform AND its slot alpha to whatever is
+ * attached, and every slot between the sea and the waterfall pulses alpha (the clouds swing 0x00↔0xff,
+ * the water band 0x51↔0x8b). `moon` can: static `root` bone, no colour timeline, and its art is already
+ * hidden for the whole bonus round (`bonusHiddenSlots`), so relocating it is invisible. Neither
+ * background animation has a draw-order timeline, so nothing fights the move; the setup order is
+ * restored when bonus ends.
+ */
+const ANCHOR_SLOT: Record<Orientation, string> = {
+	landscape: 'moon',
+	portrait: 'moon',
+};
+/** The sea plane the anchor is parked directly above — note the capital O in the portrait scene. */
+const SEA_SLOT: Record<Orientation, string> = {
+	landscape: 'ocean',
+	portrait: 'Ocean',
 };
 
 export const getBonusCloudOverlay = (): SpineOverlayDef => ({
@@ -117,9 +144,12 @@ const SPLASH_GAP_MIN_SECONDS = 5;
 const SPLASH_GAP_MAX_SECONDS = 7;
 /**
  * The LEFT splash fires first; the RIGHT one follows 0.5s later. (Left is the mirrored copy, hence
- * the `mirror ? 0 : …`.)
+ * the `mirror ? 0 : …`.) The two never burst together: they share one duty cycle (`cycleGroup`), so
+ * the offset is a property of the schedule rather than a head start that decays.
  */
 const SPLASH_RIGHT_DELAY_SECONDS = 0.5;
+/** Shared duty-cycle schedule for the mirrored splash pair — see `SpineOverlayDef.cycleGroup`. */
+const SPLASH_CYCLE_GROUP = 'fg_splash_pair';
 
 /**
  * The FG_SPLASH asset authors a single splash at the RIGHT-hand waterfall. `mirror` produces a second
@@ -147,13 +177,22 @@ export const getBonusSplashOverlay = (
 	cycleGapMinSeconds: SPLASH_GAP_MIN_SECONDS,
 	cycleGapMaxSeconds: SPLASH_GAP_MAX_SECONDS,
 	cycleStartDelaySeconds: mirror ? 0 : SPLASH_RIGHT_DELAY_SECONDS,
-	// Under the base scene, so the waterfall, flags and dock all cover the splash.
+	// Both copies run off ONE schedule, so the half-second stagger holds for every burst instead of
+	// drifting apart (and occasionally colliding) as each side re-rolls its own random gap.
+	cycleGroup: SPLASH_CYCLE_GROUP,
+	// Same anchor as the ship, and later in `getBonusOverlays`, so the splash paints OVER the ship while
+	// everything the base scene draws above the sea — the waterfalls, its own splashes, the flags, the
+	// dock, the lamps and the fog — still covers it.
+	baseSlot: ANCHOR_SLOT[orientation],
+	baseSlotAfter: SEA_SLOT[orientation],
 	behindBase: true,
 });
 
 /**
- * The distant sailing ship, authored in the portrait scene's coordinate frame. It sits behind the base
- * scene so the dock and waterfall occlude it. Per-orientation nudges align it with the reference.
+ * The distant sailing ship, authored in the portrait scene's coordinate frame. It is drawn inside the
+ * base scene just above the sea plane, so the water no longer washes over the hull, while the dock,
+ * waterfall, fog and the splashes above it still occlude it. Per-orientation nudges align it with the
+ * reference.
  */
 export const getBonusShipOverlay = (orientation: Orientation): SpineOverlayDef => ({
 	id: 'bonus_ship',
@@ -166,6 +205,10 @@ export const getBonusShipOverlay = (orientation: Orientation): SpineOverlayDef =
 	animation: 'animation',
 	loop: true,
 	skeletonScale: OVERLAY_SKELETON_SCALE,
+	// Above the sea, under everything else the base scene draws (`behindBase` is only the fallback if
+	// the anchor slot is ever renamed out of the skeleton).
+	baseSlot: ANCHOR_SLOT[orientation],
+	baseSlotAfter: SEA_SLOT[orientation],
 	behindBase: true,
 	// Position/scale from the tuning block above. `offsetYScene` (not offsetYVh) keeps the ship's hull
 	// on the water horizon across viewport aspect ratios.
@@ -253,9 +296,10 @@ export const getBonusMoonOverlay = (orientation: Orientation): SpineImageOverlay
 });
 
 /**
- * Spine overlays in z-order (earlier = further back). `behindBase` layers (ship, splashes) go under the
- * base scene; the rest paint on top of it — clouds first, then the tornadoes (so the funnels read
- * against the cloudy sky), then rain in front of everything.
+ * Spine overlays in z-order (earlier = further back). The ship and splashes are drawn inside the base
+ * scene at `ANCHOR_SLOT` — sharing one anchor, so this array's order is what keeps the ship under
+ * the splashes. The rest paint on top of the whole base scene — clouds first, then the tornadoes (so
+ * the funnels read against the cloudy sky), then rain in front of everything.
  */
 export const getBonusOverlays = (orientation: Orientation): SpineOverlayDef[] => [
 	getBonusShipOverlay(orientation),
