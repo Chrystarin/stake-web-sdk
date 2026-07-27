@@ -34,6 +34,9 @@
 		autoDismiss?: boolean;
 		onFinished?: (result: BonusRouletteResult) => void;
 		onResultReady?: (result: BonusRouletteResult) => void;
+		/** Fired the moment this screen has finished sliding down and hides the whole game. Anything that
+		 * re-dresses the game for (or out of) bonus mode belongs here, so the player never sees it happen. */
+		onCovered?: () => void;
 		onClosed?: () => void;
 	};
 
@@ -365,6 +368,8 @@
 	let announcementBgVisible = $state(false);
 	let announcementTextVisible = $state(false);
 	let announcementCoinsVisible = $state(false);
+	/** True once the congratulations screen has finished sliding down and hides the whole game. */
+	let announcementCoversScreen = false;
 	let wonFreeBalls = $state(0);
 	// Bound to the rotating wheel container (was the single wheel <img>). Drives the settle transitionend
 	// and is read each frame to know which wedge is under the top marker.
@@ -522,6 +527,13 @@
 	function cleanup() {
 		timers.forEach(clearTimeout);
 		stopHighlightTracking();
+		// The screen is gone; from here `bonusRoundActive` carries the bonus state on its own.
+		stateGame.bonusEntryCongratsActive = false;
+		// Safety net: the award is normally handed over at full cover (`emitResultReady`), and again by
+		// `onFinished` on dismiss. If this overlay is torn down between the two (a force-unlock mid-slide),
+		// hand it over here so a landed wheel can never lose its free balls — the cosmetic cost of the
+		// switch showing is irrelevant once the screen has been ripped away anyway.
+		emitResultReady();
 	}
 
 	$effect(() => {
@@ -665,12 +677,27 @@
 	 * with the CSS below. */
 	const ANNOUNCEMENT_TEXT_POP_MS = 720;
 
+	/**
+	 * Hand the result to the game — this is what starts BONUS MODE (`awardBonusBalls` → `bonusRoundActive`,
+	 * which swaps the background art, the game-area frame, the level arch and the whole bottom HUD).
+	 *
+	 * Called ONLY once the congratulations screen has finished sliding down and fully covers the view, so
+	 * the player never watches the game re-dress itself: they see the wheel land, the screen close over
+	 * everything, and the bonus game already in place when it lifts. (Fired at most once; the wheel's
+	 * `onFinished` still awards the balls as a fallback if this component is torn down early.)
+	 */
+	function emitResultReady() {
+		if (!pendingResult || resultReadyEmitted) return;
+		resultReadyEmitted = true;
+		props.onResultReady?.(pendingResult);
+	}
+
 	function startAnnouncementSequence() {
 		announcementVisible = true;
-		if (pendingResult && !resultReadyEmitted) {
-			resultReadyEmitted = true;
-			props.onResultReady?.(pendingResult);
-		}
+		// Entry congratulations screen (not the bonus-END message): flag it so the closing-door slam it
+		// schedules below is recognised as the bonus-entry one by the music swap, which can no longer read
+		// `bonusRoundActive` (that only flips 240ms later, at full cover).
+		if (props.mode !== 'message') stateGame.bonusEntryCongratsActive = true;
 		// Kick the slide-down. The announcement mounts at translateY(-100%) and animates to 0 when the
 		// `--bg-visible` class lands. The browser only runs the CSS transform transition if it has
 		// PAINTED the off-screen start state first — a single rAF can toggle the class before that first
@@ -682,7 +709,16 @@
 				// The slide-down starts on THIS frame, so measure the sound + text off it. Land the
 				// closing-door slam as the screen finishes covering the view.
 				scheduleDoorCloseForSlide(ANNOUNCEMENT_SLIDE_MS);
-				timers.push(setTimeout(() => (announcementTextVisible = true), ANNOUNCEMENT_SLIDE_MS));
+				timers.push(
+					setTimeout(() => {
+						// The screen now covers the whole view: reveal the message AND flip the game into bonus
+						// mode on the same frame, hidden behind it.
+						announcementCoversScreen = true;
+						announcementTextVisible = true;
+						emitResultReady();
+						props.onCovered?.();
+					}, ANNOUNCEMENT_SLIDE_MS),
+				);
 				timers.push(
 					setTimeout(
 						() => (announcementCoinsVisible = true),
@@ -698,6 +734,10 @@
 
 	function onAnnouncementClick() {
 		if (!announcementVisible) return;
+		// Ignore presses while the screen is still sliding down — its "press anywhere" hint isn't even up
+		// yet, and dismissing here would slide the view back open on a game that hasn't switched to bonus
+		// mode (that switch happens at full cover, below), putting the change back in front of the player.
+		if (!announcementCoversScreen) return;
 		announcementTextVisible = false;
 		announcementCoinsVisible = false;
 		// The screen slides back up to reveal the game — play the opening-door creak to match.

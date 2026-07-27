@@ -774,6 +774,10 @@ function fireRemainingBonusFreeSpin(): boolean {
 
 export async function settleBonusRoundWhenFinished() {
 	if (stateGame.bonusRoundSettlementInProgress) return;
+	// The round already ended and its total-win screen is up. The bonus state is only torn down when that
+	// screen covers the view, so `bonusRoundActive` is still true meanwhile — without this guard a late
+	// re-entry (e.g. a trailing `onBallLanded`) would fall through and re-run the end branch.
+	if (stateGame.bonusEndAnnouncementOpen) return;
 	stateGame.bonusRoundSettlementInProgress = true;
 	try {
 		await waitForDropBatchCompletion();
@@ -800,7 +804,11 @@ export async function settleBonusRoundWhenFinished() {
 			// Bonus play is finished: fold its total into the round's single history row (the "N Bonus"
 			// chip + the running round win) before the bonus state resets.
 			refreshRoundHistoryEntry();
-			resetBonusRoundVisualState();
+			// Open the total-win treasure screen, but DON'T tear the bonus look down yet: that screen
+			// slides down over a second, and resetting here made the game visibly revert to the base art
+			// (background, level arch, HUD) in front of the player while it was still on its way. The
+			// reset now runs from `onBonusEndAnnouncementCovered`, once the screen hides the whole view —
+			// the mirror image of how the ENTRY congratulations screen switches bonus mode ON.
 			stateGame.bonusEndAnnouncementOpen = true;
 		}
 	} finally {
@@ -829,7 +837,16 @@ export function resetBonusRoundVisualState() {
 	stateGame.authoritativeBonusLevelQueue = [];
 }
 
+/** The bonus-end treasure screen now hides the whole view — drop the bonus look behind it. */
+export function onBonusEndAnnouncementCovered() {
+	resetBonusRoundVisualState();
+}
+
 export function onBonusEndAnnouncementClosed() {
+	// Safety net: the reset normally runs at full cover (above). If that screen was ever torn down before
+	// it got there, run it here so the game can't be left dressed as a bonus round with no bonus left.
+	// `resetBonusRoundVisualState` is idempotent, so the normal path just re-applies the same values.
+	resetBonusRoundVisualState();
 	stateGame.bonusEndAnnouncementOpen = false;
 }
 

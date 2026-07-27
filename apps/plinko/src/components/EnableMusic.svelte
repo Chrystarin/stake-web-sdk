@@ -140,13 +140,15 @@
 	let bonusMusicOn = $state(false);
 
 	// The `doorClose` cue fires for three slides: the bonus wheel's backdrop drop, the entry
-	// congratulations screen, and the bonus-END treasure screen. `bonusRoundActive` is only true for the
-	// ENTRY congratulations one (it's set as that screen appears, and cleared before the end screen), so
-	// gating on it uniquely picks out the "you won the bonus" door-close — exactly when to swap to bonus
-	// music.
+	// congratulations screen, and the bonus-END treasure screen. `bonusEntryCongratsActive` is true only
+	// while that ENTRY screen is on screen, so gating on it uniquely picks out the "you won the bonus"
+	// door-close — exactly when to swap to bonus music.
+	// ⚠️ This can gate on NEITHER side of `bonusRoundActive` any more: bonus mode is switched ON one beat
+	// AFTER this slam (when the entry screen fully covers the view) and OFF one beat after the END
+	// screen's own slam — so that flag now reads `false` on the slide we want and `true` on one we don't.
 	context.eventEmitter.subscribeOnMount({
 		soundOnce: ({ name }) => {
-			if (name === 'doorClose' && stateGame.bonusRoundActive) bonusMusicOn = true;
+			if (name === 'doorClose' && stateGame.bonusEntryCongratsActive) bonusMusicOn = true;
 		},
 	});
 

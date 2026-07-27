@@ -83,6 +83,11 @@ export const stateGame = $state({
 	pendingSpinRouletteAfterQueuedBonus: false,
 	pendingSpinRouletteAfterBonusLevelDepletion: false,
 	bonusRouletteResultAppliedEarly: false,
+	/** True while the ENTRY "you won N drops" congratulations screen is on its way down / on screen.
+	 * Its closing-door slam lands ~240ms BEFORE the screen fully covers the view — and bonus mode is now
+	 * only switched on at full cover — so this is what tells the music swap that this particular slam is
+	 * the bonus-entry one (the wheel backdrop's and the bonus-END screen's slams must not swap it). */
+	bonusEntryCongratsActive: false,
 	pendingOutcomes: [] as PlinkoBallOutcome[],
 	expectedOutcomeByBallId: new Map<number, PlinkoBallOutcome>(),
 	/** Balls that already credited bonus meter from a server coin-peg hit this drop. */
@@ -297,12 +302,19 @@ export const stateGameDerived = {
 		if (stateGame.bonusMeterValue < max) return 0;
 		return stateGame.bonusLevelProgress + 1;
 	},
+	/**
+	 * Free-game look (FREEGAME backdrop + spine overlays + the bonus game-area frame).
+	 *
+	 * Tied to `bonusRoundActive` ALONE — deliberately NOT to "meter full" / "a bonus wheel is queued".
+	 * Those fire while the base game is still fully visible (the meter fills mid-drop, and
+	 * `triggerRoulette` waits for the balls to land before the wheel screen even slides down), so the
+	 * whole scene used to swap to the free-game art in front of the player, seconds before the bonus.
+	 * `bonusRoundActive` is flipped by `awardBonusBalls` from the congratulations screen's
+	 * `onResultReady`, which now fires only once that screen has fully covered the view — so every
+	 * bonus-mode UI change lands behind it and the reveal is a single clean cut.
+	 */
 	get isBonusBackgroundActive(): boolean {
-		if (stateGame.bonusRoundActive) return true;
-		if (isBonusMeterFull()) return true;
-		return (
-			stateGame.activeRouletteSource === 'bonus' || stateGame.pendingRouletteSource === 'bonus'
-		);
+		return stateGame.bonusRoundActive;
 	},
 	get bonusLevelLabels(): readonly number[] {
 		return BONUS_LEVEL_LABELS;

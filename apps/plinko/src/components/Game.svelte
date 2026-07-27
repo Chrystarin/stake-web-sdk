@@ -32,6 +32,7 @@
 		clearRapidWinSparkles,
 		onBallLanded,
 		onBonusEndAnnouncementClosed,
+		onBonusEndAnnouncementCovered,
 		onMainPlayClick,
 		maybeAutoFireFeatureTrigger,
 		setDropRequestHandler,
@@ -800,6 +801,7 @@
 			winValue={formatWinAmount(stateGame.bonusEndWinAmount, currencySign(stateBet.currency))}
 			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
 			autoDismiss={isReplay}
+			onCovered={onBonusEndAnnouncementCovered}
 			onClosed={onBonusEndAnnouncementClosed}
 		/>
 	{/if}
