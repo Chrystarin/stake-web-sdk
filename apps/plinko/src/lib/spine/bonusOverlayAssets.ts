@@ -195,7 +195,10 @@ export const getBonusTornadoOverlay = (
 		skeleton: staticAssetPath(`${TORNADO_BASE}/skeleton.json`),
 		atlas: staticAssetPath(`${TORNADO_BASE}/skeleton.atlas`),
 		images: {
+			// The tornado atlas is TWO pages — frames 7–9 live on `skeleton_2.png`. Both must be mapped
+			// or those frames of the 58-frame sequence render blank.
 			'skeleton.png': staticAssetPath(`${TORNADO_BASE}/skeleton.png`),
+			'skeleton_2.png': staticAssetPath(`${TORNADO_BASE}/skeleton_2.png`),
 		},
 		animation: 'animation',
 		loop: true,
