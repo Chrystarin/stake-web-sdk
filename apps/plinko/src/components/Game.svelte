@@ -180,9 +180,13 @@
 	/** Track `stateGame` meter fields directly — getters on `stateGameDerived` are not reactive. */
 	const bonusMeterProgress = $derived(
 		devBonusMeterProgress ??
-			(stateGame.bonusMeterMax > 0
-				? Math.min(1, Math.max(0, stateGame.bonusMeterValue / stateGame.bonusMeterMax))
-				: 0),
+			// `bonusMeterHoldFull` pins the bar full across a level-up (see stateGame) — without it the
+			// value/max rewrite that a level-up performs in one tick means the completed bar is never drawn.
+			(stateGame.bonusMeterHoldFull
+				? 1
+				: stateGame.bonusMeterMax > 0
+					? Math.min(1, Math.max(0, stateGame.bonusMeterValue / stateGame.bonusMeterMax))
+					: 0),
 	);
 
 	const spinMeterProgress = $derived(

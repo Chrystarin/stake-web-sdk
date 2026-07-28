@@ -6,11 +6,11 @@ import { clearBonusProgress, saveBonusProgress } from './plinkoBonusProgress';
 import {
 	BONUS_HOLD_DROP_INTERVAL_MS,
 	BONUS_LEVEL_LABELS,
-	BONUS_METER_FILL_SPEED_PER_SECOND,
 	FREE_SPIN_SEGMENTS,
 	SIM_SPEED,
 	bonusLevelBalls,
 } from '../game-logic/constants';
+import { waitForBonusMeterRenderedFull } from '../features/bonus/bonusMeterVisual';
 import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-logic/spinSlot';
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatCoefficientLabel, formatHistoryDate, formatHistoryMultiplier } from '../lib/format';
@@ -25,12 +25,28 @@ import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
 const BONUS_LEVEL_ACTIVATION_DELAY_MS = 250;
-/** Tail added to the computed bar-fill time so the engine's animated settle finishes (its last sliver
- * takes a frame or two past the linear estimate) before the reward reveals. */
-const BONUS_METER_FILL_SETTLE_MARGIN_MS = 120;
+/** How long the COMPLETED energy bar is held on screen before the level-up card covers it, so the player
+ * reads "bar filled → level up" rather than being shown the reward over a bar still on its way up. */
+const BONUS_METER_FULL_HOLD_MS = 260;
 const BONUS_LEVEL_UP_OVERLAY_DURATION_MS = 1700;
 const BONUS_LEVEL_UP_FADE_DURATION_MS = 280;
 const BONUS_METER_DRAIN_DELAY_MS = 1700;
+
+/** True while a level-up is filling its bar out / holding it full, before its reward has been awarded. */
+let bonusLevelUpRevealInProgress = false;
+/** Coin-peg hits that landed while the bar was pinned full for a level-up — see `bankBonusPegDuringLevelUp`. */
+let bonusPegsBankedDuringLevelUp = 0;
+/** An in-bonus free-spin wheel has been dequeued and is waiting for the level-up card to clear. */
+let bonusFreeSpinOpenPending = false;
+
+/**
+ * A bonus ball hit a coin peg while the energy bar was pinned full for a level-up. The completed bar
+ * can't take it, so bank it for the NEXT level's bar rather than dropping it: the pin lasts as long as
+ * the fill-out + hold (a few hundred ms), which is long enough for a held drop-stream to land real hits.
+ */
+export function bankBonusPegDuringLevelUp() {
+	bonusPegsBankedDuringLevelUp += 1;
+}
 
 let bonusMeterDrainTimer: ReturnType<typeof setTimeout> | null = null;
 let bonusLevelUpOverlayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -159,6 +175,10 @@ export function isFeatureTriggerImminent(): boolean {
 export function isBonusPlayButtonDisabled(): boolean {
 	return (
 		!stateGameDerived.hasPendingBonusBalls ||
+		// A level-up is committed but not yet celebrated: no more free balls may leave the funnel until the
+		// balls already falling have landed and the energy bar has visibly completed (see
+		// `completeBonusMeterThenLevelUp`). Without this the player keeps dropping into a full bar.
+		stateGame.bonusLevelUpPending ||
 		stateGame.bonusRouletteOpen ||
 		isPlayActionBlockedByFreeSpinRoulette() ||
 		isPlayActionBlockedByBonusRoulette()
@@ -207,6 +227,10 @@ export function isBetControlsLocked(): boolean {
 		stateGame.isSubmitting ||
 		stateGame.dropRoundActive ||
 		stateGame.bonusBallsRemaining > 0 ||
+		// A bonus level-up is committed and playing out (in-flight balls landing, energy bar completing).
+		// On the depletion path `bonusBallsRemaining` is already 0, so without this the betting controls
+		// would briefly come back to life in the gap before the level-up card.
+		stateGame.bonusLevelUpPending ||
 		stateGame.freeSpinRouletteOpen ||
 		stateGame.bonusRouletteOpen ||
 		// An active Autobet session keeps wager config locked across the whole run, including the
@@ -313,20 +337,77 @@ export function loadAuthoritativeBonusOutcomes(outcomes: PlinkoBallOutcome[], ba
 }
 
 /**
- * How long to wait before revealing a bonus level-up reward: at least the base activation beat, but
- * EXTENDED to cover however long the progress bar still needs to animate up to full at the engine's
- * fill speed. This is the fix for "+N free balls shown before the meter finished filling": the bar
- * fill is decoupled from the (server-authoritative, ball-depletion-driven) level-up, so when a level's
- * balls ran out with the bar only part-way up, the fixed 250ms reveal beat the ~556ms full-sweep fill
- * and the reward landed on an unfinished bar. Sizing the delay to the ACTUAL remaining fill makes the
- * bar always complete on-screen first. MUST be read BEFORE topping the meter value to max.
+ * THE ONE WAY a bonus level-up reaches the screen: complete the energy bar first, visibly, then reveal.
+ *
+ * Every level-up path used to rewrite the meter in a single synchronous block — top `bonusMeterValue` to
+ * `bonusMeterMax`, show the reward, re-size `bonusMeterMax` to the next level's (taller) threshold, drain
+ * on the next frame. Svelte flushes only the FINAL state of that block, so the "topped to max" step was
+ * never rendered at all: the ratio handed to the meter went straight from the part-filled value to
+ * `oldMax / newMax`, and the level-up card appeared over a bar sitting at ~2/3. On top of that the fill is
+ * ANIMATED (`BONUS_METER_FILL_SPEED_PER_SECOND`, ~556ms for a full sweep), so even a correctly-topped
+ * value needs drawing time before it reads as complete.
+ *
+ * So the sequence is: lock the Play button (`bonusLevelUpPending`) so no further free balls are dropped
+ * into a full bar → let the balls already falling LAND → pin the displayed bar full (`bonusMeterHoldFull`,
+ * immune to whatever value/max do underneath) and wait for the meter to actually DRAW itself full → hold
+ * that for a readable beat → only then run `reveal`. `settleBar` (the new level's threshold + the drain)
+ * runs a frame later, in the same tick the pin is released, so the bar goes full → empty in one clean step
+ * instead of sliding partway back.
  */
-function bonusLevelActivationDelayMs(): number {
-	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 0;
-	const progress = max > 0 ? Math.max(0, Math.min(1, stateGame.bonusMeterValue / max)) : 1;
-	const remainingFraction = Math.max(0, 1 - progress);
-	const fillMs = Math.ceil((remainingFraction / BONUS_METER_FILL_SPEED_PER_SECOND) * 1000);
-	return Math.max(BONUS_LEVEL_ACTIVATION_DELAY_MS, fillMs + BONUS_METER_FILL_SETTLE_MARGIN_MS);
+async function completeBonusMeterThenLevelUp(reveal: () => void, settleBar: () => void) {
+	// A level-up is committed the moment this starts (its queue entry is already consumed), but on the
+	// depletion path its balls are only awarded in `reveal` — so for the length of the fill-out the round
+	// looks "finished" (0 balls remaining). Block `settleBonusRoundWhenFinished` for that window or a
+	// trailing ball-land could pop the NEXT queued level, or end the bonus outright, mid-celebration.
+	bonusLevelUpRevealInProgress = true;
+	bonusPegsBankedDuringLevelUp = 0;
+	// Locks the bonus Play button (`isBonusPlayButtonDisabled`) — which also pauses a held drop-stream via
+	// `canDropBonusBallNow` — for the whole "finish the balls, finish the bar" window below.
+	stateGame.bonusLevelUpPending = true;
+	try {
+		stateGame.bonusMeterHoldFull = true;
+		// Keep the logical value in step with the pinned display: the "ready to level up" tile blink and the
+		// in-bonus fill guard in `onCoinPegHit` both read `bonusMeterValue >= bonusMeterMax`.
+		if (stateGame.bonusMeterMax > 0) stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+		const startedAt = Date.now();
+		// Play out the balls already in the air first — the level-up card must not cover a board that is
+		// still resolving the drop that earned it. (No-op on the depletion path: nothing is left falling.)
+		await waitForDropBatchCompletion();
+		await waitForBonusMeterRenderedFull();
+		// Hold the completed bar on screen. The activation beat is the floor, so a bar that was already near
+		// full still gets the same pacing the reward always had.
+		const elapsedMs = Date.now() - startedAt;
+		await sleep(Math.max(BONUS_METER_FULL_HOLD_MS, BONUS_LEVEL_ACTIVATION_DELAY_MS - elapsedMs));
+		if (!stateGame.bonusRoundActive) {
+			stateGame.bonusMeterHoldFull = false;
+			return;
+		}
+		reveal();
+		requestAnimationFrame(() => {
+			settleBar();
+			// Hand the new level's bar the pegs banked during the pin (only when it starts from empty —
+			// the fallback path can deliberately leave the bar full for a level-up queued behind this one).
+			// Capped one short of the threshold: a carry must never COMPLETE the new bar, or the next level
+			// would start already-full with nothing left to fill it and no `onCoinPegHit` crossing to trigger.
+			if (
+				bonusPegsBankedDuringLevelUp > 0 &&
+				stateGame.bonusRoundActive &&
+				stateGame.bonusMeterValue === 0
+			) {
+				stateGame.bonusMeterValue = Math.max(
+					0,
+					Math.min(stateGame.bonusMeterMax - 1, bonusPegsBankedDuringLevelUp),
+				);
+			}
+			bonusPegsBankedDuringLevelUp = 0;
+			stateGame.bonusMeterHoldFull = false;
+		});
+	} finally {
+		bonusLevelUpRevealInProgress = false;
+		// Hand the Play-button lock over to the level-up card itself (`bonusLevelUpOverlayOpen` keeps it
+		// disabled for the card's whole on-screen life), so there is no gap where a drop could slip through.
+		stateGame.bonusLevelUpPending = false;
+	}
 }
 
 /** Pull the next book-authored level off the queue, show the level-up, and award its balls. */
@@ -334,15 +415,7 @@ function consumeAuthoritativeBonusLevel(): boolean {
 	const next = stateGame.authoritativeBonusLevelQueue[0];
 	if (!next) return false;
 	stateGame.authoritativeBonusLevelQueue = stateGame.authoritativeBonusLevelQueue.slice(1);
-	// Top the completed level's progress meter out NOW so it animates up to full during the activation
-	// delay — the reward that follows then lands on a visibly completed bar. Without this the provisional
-	// per-ball fill can still be short of max here, and the level-up (below) would drain that partial
-	// value to 0, showing the +N free balls before the bar ever finished (see applyAuthoritativeBonusLevel).
-	// Size the reveal delay to the bar's remaining travel (read BEFORE the top-to-max below) so a low bar
-	// gets enough time to finish its fill animation rather than the reward beating it to the screen.
-	const delay = bonusLevelActivationDelayMs();
-	if (stateGame.bonusMeterMax > 0) stateGame.bonusMeterValue = stateGame.bonusMeterMax;
-	setTimeout(() => applyAuthoritativeBonusLevel(next), delay);
+	void applyAuthoritativeBonusLevel(next);
 	return true;
 }
 
@@ -354,25 +427,23 @@ async function applyAuthoritativeBonusLevel(level: {
 }) {
 	await waitForDropBatchCompletion();
 	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
-	stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level.level);
 	// The +N free balls must only ever be awarded on a FULLY filled progress meter (parity with the
-	// session-meter path + the "ready to level up" blink, both gated on a full bar). The provisional
-	// per-ball fill can lag the book and leave the bar short when the level's balls deplete, so assert
-	// the meter is topped out at the exact award instant rather than assuming it "held at max" — this
-	// removes the inconsistency where the reward appeared before the bar had finished filling.
-	stateGame.bonusMeterValue = stateGame.bonusMeterMax;
-	showBonusLevelUpOverlay(level.level, level.freeBalls);
-	stateGame.authoritativeBonusOutcomes = level.outcomes;
-	stateGame.authoritativeBonusOutcomeIndex = 0;
-	awardBonusBalls(level.freeBalls);
-	// Re-size the bar to the new level's escalating threshold (mirrors the mid-drop combine path).
-	if (level.levelupPegs && level.levelupPegs > 0) stateGame.bonusMeterMax = level.levelupPegs;
-	// DRAIN on the next frame so the full bar is rendered first, then the new level's bar visibly
-	// re-fills from empty as its balls drop. Draining synchronously here would snap the bar from full to
-	// empty within the same update and hide the completed state the level-up celebrates.
-	requestAnimationFrame(() => {
-		if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
-	});
+	// session-meter path + the "ready to level up" blink, both gated on a full bar).
+	await completeBonusMeterThenLevelUp(
+		() => {
+			stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level.level);
+			showBonusLevelUpOverlay(level.level, level.freeBalls);
+			stateGame.authoritativeBonusOutcomes = level.outcomes;
+			stateGame.authoritativeBonusOutcomeIndex = 0;
+			awardBonusBalls(level.freeBalls);
+		},
+		() => {
+			// Re-size the bar to the new level's escalating threshold (mirrors the mid-drop combine path),
+			// then drain so the new, taller bar visibly re-fills from empty as its balls drop.
+			if (level.levelupPegs && level.levelupPegs > 0) stateGame.bonusMeterMax = level.levelupPegs;
+			if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
+		},
+	);
 }
 
 /**
@@ -406,25 +477,30 @@ export function combineNextBonusLevelNow(): boolean {
 		...stateGame.authoritativeBonusOutcomes,
 		...next.outcomes,
 	];
-	// Celebrate the level-up NOW (the bar is already visibly full at this trigger instant, so — unlike the
-	// depletion path — there is no fill-animation to wait on before revealing the +N reward).
-	showBonusLevelUpOverlay(next.level, next.freeBalls);
-	// Pour the awarded free balls into the still-remaining pool (this is the "combine").
+	// Pour the awarded free balls into the still-remaining pool (this is the "combine"). Done NOW, not
+	// behind the reveal below, so the pool can never empty during the bar's fill-out and let
+	// `settleBonusRoundWhenFinished` end the bonus out from under a level-up that is already committed.
 	awardBonusBalls(next.freeBalls);
-	// Re-size the energy bar to the NEW level's escalating threshold (higher levels need more pegs), then
-	// drain on the next frame so the completed (full) bar renders first and the new, taller bar visibly
-	// re-fills from empty as the combined balls keep dropping.
-	if (next.levelupPegs && next.levelupPegs > 0) stateGame.bonusMeterMax = next.levelupPegs;
-	requestAnimationFrame(() => {
-		if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
-	});
-	// Fire the completed level's in-bonus free spin at THIS level-up moment (the wheel opens once the
-	// in-flight balls land — via the roulette flow's pipeline-idle wait — so it naturally follows the
-	// level-up card, then pauses the drop until it closes). Book-anchored: fires a queued `freeSpinTrigger`
-	// tagged for the level we just left. Any not fired here (the top level's, or one skipped because a
-	// wheel was already open) are fired by the depletion catch-all in `settleBonusRoundWhenFinished`.
-	// TIMING-ONLY — the same book free spins still each fire exactly once, so RTP is unchanged.
-	fireBonusFreeSpinForLevel(leavingLevel);
+	// Reaching max is the TRIGGER, not the visual: the fill is animated and can be well behind the value
+	// that just tripped it, so hand the celebration to the shared "finish the bar first" step. It reveals
+	// the +N reward on a completed bar, then re-sizes to the new level's threshold and drains.
+	void completeBonusMeterThenLevelUp(
+		() => {
+			showBonusLevelUpOverlay(next.level, next.freeBalls);
+			// Fire the completed level's in-bonus free spin at THIS level-up moment (the wheel opens once
+			// the in-flight balls land — via the roulette flow's pipeline-idle wait — so it naturally
+			// follows the level-up card, then pauses the drop until it closes). Book-anchored: fires a
+			// queued `freeSpinTrigger` tagged for the level we just left. Any not fired here (the top
+			// level's, or one skipped because a wheel was already open) are fired by the depletion
+			// catch-all in `settleBonusRoundWhenFinished`. TIMING-ONLY — the same book free spins still
+			// each fire exactly once, so RTP is unchanged.
+			fireBonusFreeSpinForLevel(leavingLevel);
+		},
+		() => {
+			if (next.levelupPegs && next.levelupPegs > 0) stateGame.bonusMeterMax = next.levelupPegs;
+			if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
+		},
+	);
 	return true;
 }
 
@@ -629,29 +705,34 @@ function consumePendingBonusLevelUp(): boolean {
 	const nextLevel = Math.max(1, stateGame.bonusLevelProgress + 1);
 	// Session-meter fallback only (production levels come from book `bonusRound` events).
 	const addedBalls = Math.max(1, bonusLevelBalls(nextLevel));
-	// Match the authoritative path: complete the bar first, sizing the reveal delay to the remaining
-	// fill (read BEFORE the top-to-max) so the +N reward never appears before the meter is visibly full.
-	const delay = bonusLevelActivationDelayMs();
-	if (stateGame.bonusMeterMax > 0) stateGame.bonusMeterValue = stateGame.bonusMeterMax;
-	setTimeout(() => applyBonusLevelUpWhenPipelineIdle(nextLevel, addedBalls), delay);
+	void applyBonusLevelUpWhenPipelineIdle(nextLevel, addedBalls);
 	return true;
 }
 
 async function applyBonusLevelUpWhenPipelineIdle(nextLevel: number, addedBalls: number) {
 	await waitForDropBatchCompletion();
 	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
-	stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, nextLevel);
-	showBonusLevelUpOverlay(nextLevel, addedBalls);
-	awardBonusBalls(addedBalls);
-	if (stateGame.pendingBonusLevelUpCount + stateGame.deferredBonusLevelUpCount > 0) {
-		stateGame.bonusMeterValue = stateGame.bonusMeterMax;
-	} else {
-		const safeMax = stateGame.bonusMeterMax || 20;
-		stateGame.bonusMeterValue = Math.max(
-			0,
-			Math.min(safeMax, stateGame.bonusMeterOverflowValue),
-		);
-	}
+	// Match the authoritative path: the +N reward never appears before the meter is visibly full.
+	await completeBonusMeterThenLevelUp(
+		() => {
+			stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, nextLevel);
+			showBonusLevelUpOverlay(nextLevel, addedBalls);
+			awardBonusBalls(addedBalls);
+		},
+		() => {
+			// Another level-up is already queued behind this one — leave the bar full for it rather than
+			// draining and immediately re-filling. Otherwise hand the next level whatever overflowed.
+			if (stateGame.pendingBonusLevelUpCount + stateGame.deferredBonusLevelUpCount > 0) {
+				stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+				return;
+			}
+			const safeMax = stateGame.bonusMeterMax || 20;
+			stateGame.bonusMeterValue = Math.max(
+				0,
+				Math.min(safeMax, stateGame.bonusMeterOverflowValue),
+			);
+		},
+	);
 }
 
 function clearBonusLevelUpOverlayTimer() {
@@ -681,6 +762,36 @@ function showBonusLevelUpOverlay(levelNumber: number, addedBalls: number) {
 			bonusLevelUpOverlayHideTimer = null;
 		}, BONUS_LEVEL_UP_FADE_DURATION_MS);
 	}, BONUS_LEVEL_UP_OVERLAY_DURATION_MS);
+}
+
+/**
+ * Resolves once the level-up card has finished its whole on-screen life — reveal, hold, fade-out — and is
+ * fully hidden (`bonusLevelUpOverlayOpen` false). Used to keep the in-bonus free-spin wheel from sliding
+ * down over a card that is still showing. The wall-clock cap is a safety net only.
+ */
+function waitForBonusLevelUpOverlayClosed(maxMs = 6000): Promise<void> {
+	return new Promise((resolve) => {
+		if (!stateGame.bonusLevelUpOverlayOpen) {
+			resolve();
+			return;
+		}
+		let settled = false;
+		const finish = () => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			resolve();
+		};
+		// setTimeout rather than a deadline inside the rAF loop: rAF stops in a backgrounded tab, but the
+		// overlay's own hide timers keep running, so the wheel must still be able to open.
+		const timer = setTimeout(finish, maxMs);
+		const check = () => {
+			if (settled) return;
+			if (!stateGame.bonusLevelUpOverlayOpen) finish();
+			else requestAnimationFrame(check);
+		};
+		requestAnimationFrame(check);
+	});
 }
 
 export function waitForDropBatchCompletion(maxMs = 30_000): Promise<void> {
@@ -716,7 +827,14 @@ function beginInBonusFreeSpin(entry: {
 	// Blocking flag stays true while any in-bonus free spin is still queued (the active wheel itself is
 	// covered by `freeSpinRouletteOpen`); it clears once the queue drains.
 	stateGame.pendingSpinRouletteAfterBonusLevelDepletion = stateGame.pendingBonusFreeSpins.length > 0;
-	triggerRoulette('spin');
+	// The wheel must never slide down over a level-up card that is still on screen: wait for that card to
+	// finish showing and be fully hidden first. No-op when no card is up (the depletion / end-of-round
+	// paths), so those wheels still open immediately.
+	bonusFreeSpinOpenPending = true;
+	void waitForBonusLevelUpOverlayClosed().then(() => {
+		bonusFreeSpinOpenPending = false;
+		triggerRoulette('spin');
+	});
 }
 
 /**
@@ -724,6 +842,9 @@ function beginInBonusFreeSpin(entry: {
  * any — this runs at the end of that level's balls, BEFORE its level-up. Returns true if a wheel opened.
  */
 function fireBonusFreeSpinForReachedLevel(): boolean {
+	// A wheel is already on its way (waiting out a level-up card). Report it as handled so the settler
+	// stops here instead of dequeuing a second spin or ending the round behind its back.
+	if (bonusFreeSpinOpenPending) return true;
 	const queue = stateGame.pendingBonusFreeSpins;
 	const index = queue.findIndex((fs) => fs.level <= stateGame.bonusLevelProgress);
 	if (index < 0) return false;
@@ -740,7 +861,7 @@ function fireBonusFreeSpinForReachedLevel(): boolean {
  * the still-queued spin is picked up by the next combine or the depletion catch-all, so it's never lost.
  */
 function fireBonusFreeSpinForLevel(level: number): boolean {
-	if (stateGame.rouletteFlowInProgress) return false;
+	if (stateGame.rouletteFlowInProgress || bonusFreeSpinOpenPending) return false;
 	const queue = stateGame.pendingBonusFreeSpins;
 	const index = queue.findIndex((fs) => fs.level <= level);
 	if (index < 0) return false;
@@ -755,6 +876,8 @@ function fireBonusFreeSpinForLevel(level: number): boolean {
  * one the round actually ended on) or the untagged session-meter fallback. Returns true if a wheel opened.
  */
 function fireRemainingBonusFreeSpin(): boolean {
+	// Same as `fireBonusFreeSpinForReachedLevel`: a deferred open counts as handled.
+	if (bonusFreeSpinOpenPending) return true;
 	if (stateGame.pendingBonusFreeSpins.length > 0) {
 		const [entry, ...rest] = stateGame.pendingBonusFreeSpins;
 		stateGame.pendingBonusFreeSpins = rest;
@@ -774,6 +897,8 @@ function fireRemainingBonusFreeSpin(): boolean {
 
 export async function settleBonusRoundWhenFinished() {
 	if (stateGame.bonusRoundSettlementInProgress) return;
+	// A level-up is mid-reveal (bar filling out / held full): its balls land when the reward does.
+	if (bonusLevelUpRevealInProgress) return;
 	// The round already ended and its total-win screen is up. The bonus state is only torn down when that
 	// screen covers the view, so `bonusRoundActive` is still true meanwhile — without this guard a late
 	// re-entry (e.g. a trailing `onBallLanded`) would fall through and re-run the end branch.
@@ -822,6 +947,10 @@ export function resetBonusRoundVisualState() {
 	clearBonusProgress();
 	stateGame.bonusRoundActive = false;
 	stateGame.bonusLevelProgress = 0;
+	// Drop any level-up's full-bar pin / Play lock — the meter is going back to its base-game reading.
+	stateGame.bonusMeterHoldFull = false;
+	stateGame.bonusLevelUpPending = false;
+	bonusFreeSpinOpenPending = false;
 	// Bonus consumed: reset to the tier base start (0 on 1/10-ball, 1/8 on 20-ball, 1/4 on 50-ball).
 	stateGame.bonusMeterValue = Math.min(bonusMeterTierStart(), stateGame.bonusMeterMax || bonusMeterTierStart());
 	stateGame.bonusMeterOverflowValue = 0;

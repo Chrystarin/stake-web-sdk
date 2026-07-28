@@ -1,4 +1,9 @@
 export { BonusMeterEngine } from './BonusMeterEngine';
+export {
+	bonusMeterRenderedProgress,
+	isBonusMeterRenderedFull,
+	waitForBonusMeterRenderedFull,
+} from './bonusMeterVisual';
 export { default as BonusMeter } from './BonusMeter.svelte';
 export { default as BonusRoulette } from './BonusRoulette.svelte';
 export type { BonusRouletteResult } from './BonusRoulette.svelte';

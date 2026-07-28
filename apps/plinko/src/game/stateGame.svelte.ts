@@ -71,6 +71,23 @@ export const stateGame = $state({
 	bonusMeterMax: 20,
 	bonusMeterBaseMax: 20,
 	bonusMeterOverflowValue: 0,
+	/**
+	 * Pins the DISPLAYED bonus meter to a full bar for the length of a level-up.
+	 *
+	 * A level-up rewrites `bonusMeterValue` AND `bonusMeterMax` (the next level's bar is taller) and then
+	 * drains — all inside one synchronous block. Svelte only flushes the FINAL state, so the "topped to
+	 * max" step was never rendered: the ratio the meter received went straight from the part-filled value
+	 * to `oldMax / newMax`, and the reward card appeared over a bar that had never visibly completed.
+	 * While this is set the meter reads 1 no matter what those two fields do, so the bar can finish its
+	 * fill animation, hold, and only then hand over to the new level's empty bar.
+	 */
+	bonusMeterHoldFull: false,
+	/**
+	 * A level-up is committed (the bar has filled / the level's balls ran out) but its card has not been
+	 * shown yet. Disables the bonus Play button for that whole window, so no further free balls are
+	 * dropped while the game finishes the balls already falling and completes the bar on screen.
+	 */
+	bonusLevelUpPending: false,
 	bonusLevelProgress: 0,
 	pendingBonusLevelUpCount: 0,
 	deferredBonusLevelUpCount: 0,

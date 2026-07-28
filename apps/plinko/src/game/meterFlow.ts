@@ -1,5 +1,6 @@
 import {
 	awardBonusBalls,
+	bankBonusPegDuringLevelUp,
 	clearBonusMeterDrainTimer,
 	combineNextBonusLevelNow,
 	isSingleBallMode,
@@ -135,6 +136,12 @@ export function onCoinPegHit(ballId: number) {
 			// drives WHEN the combine fires. No-op once the book's levels are exhausted / at the ladder
 			// top, so the bar simply holds full there (the depletion path in `settleBonusRoundWhenFinished`
 			// remains a safety net for any level not combined in-drop).
+			// The bar is pinned full while a level-up finishes filling it out and holds it on screen; a hit
+			// landing in that window belongs to the NEXT level's bar, so bank it instead of losing it.
+			if (stateGame.bonusMeterHoldFull) {
+				bankBonusPegDuringLevelUp();
+				return;
+			}
 			const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 1;
 			if (stateGame.bonusMeterValue < max) {
 				stateGame.bonusMeterValue = Math.min(max, stateGame.bonusMeterValue + 1);

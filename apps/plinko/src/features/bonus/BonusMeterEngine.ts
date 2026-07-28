@@ -1,5 +1,6 @@
 import { Application, Assets, BlurFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { BONUS_METER_FILL_SPEED_PER_SECOND } from '../../game-logic/constants';
+import { reportBonusMeterRenderedProgress } from './bonusMeterVisual';
 import { staticUrl } from '../../lib/staticUrl';
 
 export class BonusMeterEngine {
@@ -203,6 +204,9 @@ export class BonusMeterEngine {
   private updateMeterFill(): void {
     if (!this.baseSprite) return;
     const clampedProgress = Math.max(0, Math.min(1, this.displayedProgress));
+    // Publish what is actually being DRAWN. The in-bonus level-up waits on this so its reward only ever
+    // lands on a bar the player has seen complete (the logical value runs ahead of this animation).
+    reportBonusMeterRenderedProgress(clampedProgress);
     const centerX = this.meterOffsetXPx + this.meterNativeWidth / 2;
     const centerY = this.meterOffsetYPx + this.meterNativeHeight;
     const radius = this.meterNativeWidth / 2;

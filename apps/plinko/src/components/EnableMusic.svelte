@@ -10,9 +10,9 @@
 
 	// Looping background tracks. Kept separate from the one-shot sound effects in `sound.ts`
 	// so they can be toggled (and their volume tuned) independently of the `Sound` toggle.
-	// Two tracks crossfade: the normal loop plays during regular play; a bonus loop takes over
-	// while a bonus round is active (once its congratulations screen has slid away), then the
-	// normal loop returns when the bonus ends.
+	// The normal loop plays continuously and never stops for the bonus; when a bonus round starts
+	// (once its congratulations screen has slid away) the bonus loop fades in ON TOP of it, and
+	// fades back out when the bonus ends.
 	let music = $state<Howl | undefined>(undefined);
 	let bonusMusic = $state<Howl | undefined>(undefined);
 	// Browsers block audio playback until the user has interacted with the page. `musicEnabled`
@@ -23,6 +23,9 @@
 
 	const NORMAL_VOLUME = 0.35;
 	const BONUS_VOLUME = 0.35;
+	// The normal loop keeps playing underneath the bonus loop, ducked so the two layer instead of
+	// fighting each other. Raise towards NORMAL_VOLUME for a more present base track.
+	const NORMAL_VOLUME_DURING_BONUS = 0.18;
 	// Long enough to read as a smooth swap, short enough that bonus music is up as balls start.
 	const CROSSFADE_MS = 900;
 
@@ -134,9 +137,9 @@
 		fadeTimers.set(howl, timer);
 	}
 
-	// Bonus music takes over the moment the congratulations screen's closing-door SFX plays, and hands
-	// back to the normal loop when the bonus round ends. Driven by the door-close cue (below) rather than
-	// a state derive so the swap is synced exactly to that slam, not to the screen's later dismissal.
+	// Bonus music layers in the moment the congratulations screen's closing-door SFX plays, and fades
+	// back out when the bonus round ends. Driven by the door-close cue (below) rather than a state
+	// derive so the swap is synced exactly to that slam, not to the screen's later dismissal.
 	let bonusMusicOn = $state(false);
 
 	// The `doorClose` cue fires for three slides: the bonus wheel's backdrop drop, the entry
@@ -158,9 +161,10 @@
 		if (!stateGame.bonusRoundActive) bonusMusicOn = false;
 	});
 
-	/** Bring the two tracks to the volumes the current state calls for: the normal loop during regular
-	 * play, the bonus loop during a bonus round, and silence when music is off or audio isn't unlocked
-	 * yet. Reading the reactive state here means the `$effect` below re-runs this whenever it changes;
+	/** Bring the two tracks to the volumes the current state calls for: the normal loop always runs
+	 * (ducked while a bonus round is up, where the bonus loop plays alongside it), and both go silent
+	 * when music is off or audio isn't unlocked yet.
+	 * Reading the reactive state here means the `$effect` below re-runs this whenever it changes;
 	 * the gesture handler calls it directly to start playback within the user's first interaction. */
 	function applyMusicState() {
 		const enabled = stateGame.musicEnabled;
@@ -176,13 +180,9 @@
 			return;
 		}
 
-		if (bonus) {
-			fadeTo(normalHowl, 0, CROSSFADE_MS);
-			fadeTo(bonusHowl, BONUS_VOLUME, CROSSFADE_MS);
-		} else {
-			fadeTo(bonusHowl, 0, CROSSFADE_MS);
-			fadeTo(normalHowl, NORMAL_VOLUME, CROSSFADE_MS);
-		}
+		// The normal loop never stops — it just ducks under the bonus loop and comes back up after.
+		fadeTo(normalHowl, bonus ? NORMAL_VOLUME_DURING_BONUS : NORMAL_VOLUME, CROSSFADE_MS);
+		fadeTo(bonusHowl, bonus ? BONUS_VOLUME : 0, CROSSFADE_MS);
 	}
 
 	// Re-apply whenever the Music toggle, the bonus phase, the audio-unlock, or the loaded tracks change.
