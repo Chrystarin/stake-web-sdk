@@ -1258,6 +1258,23 @@
 	.bonus-announcement--win .bonus-announcement-reward {
 		font-size: clamp(42px, 7vw, 96px);
 	}
+	/* MOBILE FULL-BLEED FIX — both congratulations screens (pre-bonus wheel result + post-bonus treasure
+	   total) paint `announcement-message-background-mobile.png`, and that export ships with a fully
+	   TRANSPARENT border baked in: 8 of its 1868 columns down each side (0.43%) plus ~4 rows along the
+	   bottom. The desktop PNG has none. Stretched edge-to-edge by `background-size: 100% 100%`, those
+	   transparent margins land exactly on the screen edges, so the game showed through as a thin gap left
+	   and right of a screen that is supposed to cover everything behind it.
+
+	   The element itself is already full-width (measured 0 → viewport at 390px), so this is purely the
+	   artwork: overscan it just past the box so its SOLID area reaches both edges, anchored to the top so
+	   the vertical crop comes off the bottom — where the image is already transparent. 102%/101% leaves
+	   ~0.5% of slack each side over the measured margins; the crop taken off the real art is well under a
+	   percent of a full-bleed scene, i.e. invisible. Re-exporting the PNG without its transparent border
+	   would make this unnecessary, but keeping it here means a future export can't reintroduce the gap. */
+	.bonus-announcement--mobile {
+		background-size: 102% 101%;
+		background-position: center top;
+	}
 	.bonus-announcement--mobile .bonus-announcement-headline,
 	.bonus-announcement--mobile .bonus-announcement-reward,
 	.bonus-announcement--mobile .bonus-announcement-hint {
