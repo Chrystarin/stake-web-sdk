@@ -198,6 +198,10 @@ export const stateGame = $state({
 	balanceWinHold: null as number | null,
 	balanceWinReleaseTick: 0,
 	balanceCountUpValue: null as number | null,
+	/** DEV/debug ONLY: overrides `WIN_TIMING.hold` (ms) for the next win celebration, so a console
+	 * trigger can park the reveal on screen for as long as it wants before the merge + fade. `null` =
+	 * production timing. Set by the `plinkoTest*` helpers in devDebug.ts; cleared when the reveal ends. */
+	winCelebrationHoldMs: null as number | null,
 	/** 1-ball rapid tier: small win sparkles scattered around the skull + hat (newest first, max 3).
 	 * Managed by the gameOrchestrator helpers (`pushRapidWinSparkle` / `clearRapidWinSparkles`); rendered
 	 * by RapidWinSparkles.svelte. */

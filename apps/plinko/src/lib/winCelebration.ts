@@ -91,9 +91,39 @@ export const WIN_TIMING = {
 	balanceCountUp: 700,
 } as const;
 
+/**
+ * The three timeline milestones, derived from the hold. `holdMs` overrides `WIN_TIMING.hold` — the
+ * only stage that can stretch without desyncing anything, since it's dead time between the number
+ * landing and the merge starting. DEV console triggers pass one to park the reveal on screen; every
+ * production caller passes nothing and gets `WIN_TIMING.hold`. Both the overlay (which schedules the
+ * merge) and Game.svelte (which clears the gate at the end) must derive from the SAME hold, or the
+ * overlay is torn down mid-reveal.
+ */
+function holdOrDefault(holdMs?: number | null): number {
+	return holdMs != null && Number.isFinite(holdMs) && holdMs >= 0 ? holdMs : WIN_TIMING.hold;
+}
+
+/** When (ms after mount) the coins turn for the balance and the reveal starts fading. */
+export function winCelebrationMergeAtMs(holdMs?: number | null): number {
+	return WIN_TIMING.countDelay + WIN_TIMING.countUp + holdOrDefault(holdMs);
+}
+
 /** When (ms after mount) the balance is released to count up — as the first coins reach the coin. */
-export const WIN_BALANCE_RELEASE_AT_MS =
-	WIN_TIMING.countDelay + WIN_TIMING.countUp + WIN_TIMING.hold + WIN_TIMING.balanceReleaseDelay;
+export function winCelebrationBalanceReleaseAtMs(holdMs?: number | null): number {
+	return winCelebrationMergeAtMs(holdMs) + WIN_TIMING.balanceReleaseDelay;
+}
 
 /** Total lifetime of the celebration, from mount through the balance count-up finishing. */
-export const WIN_CELEBRATION_TOTAL_MS = WIN_BALANCE_RELEASE_AT_MS + WIN_TIMING.balanceCountUp;
+export function winCelebrationTotalMs(holdMs?: number | null): number {
+	return winCelebrationBalanceReleaseAtMs(holdMs) + WIN_TIMING.balanceCountUp;
+}
+
+/** Production-timing shorthands (no hold override). */
+export const WIN_BALANCE_RELEASE_AT_MS = winCelebrationBalanceReleaseAtMs();
+export const WIN_CELEBRATION_TOTAL_MS = winCelebrationTotalMs();
+
+/**
+ * Fixed part of the reveal — mount → the number finishing its count-up. A "keep it on screen for N
+ * seconds" debug request is measured from mount, so the hold it needs is N minus this.
+ */
+export const WIN_REVEAL_BEFORE_HOLD_MS = WIN_TIMING.countDelay + WIN_TIMING.countUp;

@@ -6,6 +6,7 @@
 
 	import { stateGame } from '../game/stateGame.svelte';
 	import { frameImagePoint, framePaintedWidth, SKULL_MOUTH_CAVITY } from '../lib/frameArt';
+	import { preloadWinPopupAssets } from '../lib/preloadAssets';
 	import { staticUrl } from '../lib/staticUrl';
 	import { winDigitArt, WIN_DOT_ART } from '../lib/winCelebration';
 
@@ -41,9 +42,15 @@
 	// Format the win value: up to 4 decimals, but with trailing zeros stripped so 0.4000 → "0.4" and
 	// 0.1230 → "0.123" (and a whole number shows no decimals). `maximumFractionDigits` already drops
 	// trailing zeros; `minimumFractionDigits: 0` lets it fall all the way to an integer.
+	// NO thousands separators — the value is drawn from digit-glyph ART (0–9 + a dot) with no comma
+	// glyph, so a grouped value would need a mismatched text comma.
 	function fmt(amount: number): string {
 		if (!Number.isFinite(amount)) return '0';
-		return amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+		return amount.toLocaleString('en-US', {
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 4,
+			useGrouping: false,
+		});
 	}
 
 	type PlacedSparkle = {
@@ -110,9 +117,9 @@
 	const shadeVisible = $derived(stateGame.rapidWinSparkles.length > 0);
 
 	onMount(() => {
-		// Preload the digit art so the first value never flashes an unloaded glyph.
-		new Image().src = staticUrl(WIN_DOT_ART);
-		for (let d = 0; d < 10; d++) new Image().src = staticUrl(winDigitArt(String(d)));
+		// Digit + dot glyphs are loaded, DECODED and retained centrally (shared with the win celebration),
+		// so the first value never flashes an unloaded glyph. Idempotent — normally already done.
+		void preloadWinPopupAssets();
 		// Preload the shade so its first fade-in isn't blank.
 		new Image().src = staticUrl(SHADE_SRC);
 	});
@@ -154,9 +161,7 @@
 								out:scale={{ start: 0.4, opacity: 0, duration: 360, easing: cubicIn }}
 							>
 								{#each s.chars as ch, i (i)}
-									{#if ch === ','}
-										<span class="rws-sep">{ch}</span>
-									{:else if ch === '.'}
+									{#if ch === '.'}
 										<img class="rws-digit rws-dot" src={staticUrl(WIN_DOT_ART)} alt="." />
 									{:else}
 										<img class="rws-digit" src={staticUrl(winDigitArt(ch))} alt={ch} />
@@ -252,18 +257,6 @@
 	.rws-dot {
 		height: calc(var(--rws-digit-h) * 0.27);
 		align-self: flex-end;
-		margin: 0 calc(var(--rws-digit-h) * 0.008);
-	}
-	.rws-sep {
-		align-self: flex-end;
-		font-family: 'Arial Black', Arial, sans-serif;
-		font-weight: 900;
-		font-size: calc(var(--rws-digit-h) * 0.52);
-		line-height: 1;
-		color: #eef2f7;
-		-webkit-text-stroke: calc(var(--rws-digit-h) * 0.022) #2b3038;
-		paint-order: stroke fill;
-		padding-bottom: calc(var(--rws-digit-h) * 0.05);
 		margin: 0 calc(var(--rws-digit-h) * 0.008);
 	}
 </style>

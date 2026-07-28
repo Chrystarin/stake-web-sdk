@@ -7,6 +7,7 @@
 	import { eventEmitter } from '../game/eventEmitter';
 	import { frameImagePoint } from '../lib/frameArt';
 	import { isPortraitGameLayout } from '../lib/format';
+	import { preloadWinPopupAssets } from '../lib/preloadAssets';
 	import { staticUrl } from '../lib/staticUrl';
 	import { WinCoinShower, type ShowerPoint } from '../lib/winCoinShower';
 	import {
@@ -19,7 +20,8 @@
 		winDigitArt,
 		WIN_DOT_ART,
 		WIN_TIMING,
-		WIN_BALANCE_RELEASE_AT_MS,
+		winCelebrationMergeAtMs,
+		winCelebrationBalanceReleaseAtMs,
 		type WinTier,
 	} from '../lib/winCelebration';
 
@@ -98,16 +100,20 @@
 		if (Number.isInteger(amount)) return 0;
 		return amount < 1 ? 4 : 2;
 	}
+	// NO thousands separators: the counter is drawn from digit-glyph ART (0–9 + a dot) and there is no
+	// comma glyph, so a grouped value would have to fall back to a text comma that doesn't match the
+	// silver 3D numerals. 1234567.89 → "1234567.89".
 	function fmt(value: number, decimals: number): string {
 		return value.toLocaleString('en-US', {
 			minimumFractionDigits: decimals,
 			maximumFractionDigits: decimals,
+			useGrouping: false,
 		});
 	}
 
 	// --- layout on the board ----------------------------------------------------------------------
 	function computeLayout() {
-		const nf = frameImagePoint(0.5, 0.42) ?? {
+		const nf = frameImagePoint(0.5, 0.5) ?? {
 			x: (innerWidth.current ?? window.innerWidth) / 2,
 			y: (innerHeight.current ?? window.innerHeight) * 0.42,
 		};
@@ -126,7 +132,7 @@
 		const w = innerWidth.current ?? window.innerWidth;
 		const h = innerHeight.current ?? window.innerHeight;
 		let units = 0;
-		for (const c of targetStr) units += c === ',' || c === '.' ? 0.42 : 0.74;
+		for (const c of targetStr) units += c === '.' ? 0.42 : 0.74;
 		units = Math.max(units, 1);
 		const cap = portrait ? w * 0.15 : Math.min(h * 0.16, w * 0.072);
 		digitH = Math.max(34, Math.min(cap, (w * 0.82) / units));
@@ -198,15 +204,17 @@
 			startCountUp(amount, decimals);
 		}, WIN_TIMING.countDelay);
 
-		// "Win is done showing" → turn the coins toward the balance coin and fade the reveal out.
-		const mergeAt = WIN_TIMING.countDelay + WIN_TIMING.countUp + WIN_TIMING.hold;
-		addTimer(() => beginMerge(amount), mergeAt);
+		// "Win is done showing" → turn the coins toward the balance coin and fade the reveal out. The hold
+		// before this can be stretched by a DEV console trigger (`stateGame.winCelebrationHoldMs`); read
+		// it ONCE here so the whole sequence — and Game.svelte's matching dismiss timer — agree on it.
+		const holdMs = stateGame.winCelebrationHoldMs;
+		addTimer(() => beginMerge(amount), winCelebrationMergeAtMs(holdMs));
 
 		// Once the coins have landed and the "+win" float has slid up, release the balance to count up to
 		// its credited total (Game.svelte watches this tick and animates it).
 		addTimer(() => {
 			stateGame.balanceWinReleaseTick++;
-		}, WIN_BALANCE_RELEASE_AT_MS);
+		}, winCelebrationBalanceReleaseAtMs(holdMs));
 	}
 
 	function startCountUp(amount: number, decimals: number) {
@@ -270,6 +278,8 @@
 		numberVisible = false;
 		stateGame.balanceGlowActive = false;
 		stateGame.balanceSparkleActive = false;
+		// A DEV hold override is ONE-SHOT: drop it here so the next (real) win plays production timing.
+		stateGame.winCelebrationHoldMs = null;
 		// Safety: if we're torn down before the scheduled release fired, still hand the held balance off
 		// to the count-up so it can never stick at the pre-win value.
 		if (stateGame.balanceWinHold !== null) stateGame.balanceWinReleaseTick++;
@@ -287,14 +297,15 @@
 		shower = new WinCoinShower(canvasEl);
 		resizeShower();
 
-		// Preload the coin + digit glyphs + tier banners so the count-up, burst and banner pop never flash
-		// an unloaded image.
+		// Coin bitmap for the shower renderer (it needs the element itself, not just a warm cache).
 		const coin = new Image();
 		coin.onload = () => shower?.setCoinImage(coin);
 		coin.src = staticUrl(WIN_COIN_ART);
-		for (let d = 0; d < 10; d++) new Image().src = staticUrl(winDigitArt(String(d)));
-		new Image().src = staticUrl(WIN_DOT_ART);
-		for (const banner of Object.values(WIN_TIER_BANNER)) new Image().src = staticUrl(banner);
+
+		// Everything the reveal paints (banners, rays, backdrop, digits) is loaded, DECODED and retained
+		// centrally — the app already fires this right after the loader, so by now it's usually a no-op.
+		// Kept here as a backstop for entry points that skip the loader (Storybook, replay, a hot reload).
+		void preloadWinPopupAssets();
 
 		const ro = new ResizeObserver(() => {
 			resizeShower();
@@ -350,9 +361,7 @@
 		<div class="wc-number" class:visible={numberVisible}>
 			<div class="wc-number-row">
 				{#each numberChars as ch, i (i)}
-					{#if ch === ','}
-						<span class="wc-sep">{ch}</span>
-					{:else if ch === '.'}
+					{#if ch === '.'}
 						<img class="wc-digit wc-dot" src={staticUrl(WIN_DOT_ART)} alt="." />
 					{:else}
 						<img class="wc-digit" src={staticUrl(winDigitArt(ch))} alt={ch} />
@@ -377,10 +386,15 @@
 		   matching the reference proportions. */
 		--wc-rays-size: clamp(575px, 81.1vw, 1284px);
 		--wc-banner-text-h: clamp(39px, 5.7vw, 96px);
+		/* Width ceiling for the banner art. WATCH THIS when scaling a tier up: once a tier's art is this
+		   wide it stops growing (height shrinks with it, since width is auto), so a bigger
+		   `--wc-banner-scale` appears to do nothing. Raise the cap if a tier flattens out. */
+		--wc-banner-max-w: 92vw;
 	}
 	.wc-overlay--portrait {
 		--wc-rays-size: 196vw;
 		--wc-banner-text-h: 11.2vw;
+		--wc-banner-max-w: 92vw;
 	}
 
 	.wc-coins {
@@ -445,18 +459,31 @@
 	/* Headline banner: stays put and POPS in — small + fading in, growing past its final size, then
 	   settling back to its original size (see the reference). The pop is a keyframe animation that plays
 	   on mount; `backwards` fill (NOT forwards) so it reverts to the base opacity:1/scale:1 afterwards
-	   and the exit `opacity:0` transition can still take over. Sized by a per-tier canvas height so the
-	   TEXT reads at ~the same height across the three arts (their text fills a different share of each
-	   canvas — measured: massive 0.82, epic 0.49, captain 0.55 → multipliers below). */
+	   and the exit `opacity:0` transition can still take over. Size + placement come from the per-tier
+	   knobs below; `--wc-banner-place` composes the shared centring with this tier's nudge so the base
+	   rule AND the pop keyframes can reuse the exact same translate. */
 	.wc-banner {
 		position: absolute;
 		left: var(--wc-bx);
 		top: var(--wc-by);
-		height: calc(var(--wc-banner-text-h) * 1.22);
+		/* Fallbacks — every tier overrides these in the knob block below. */
+		--wc-banner-scale: 1;
+		--wc-banner-dx: 0vw;
+		--wc-banner-dy: 0vh;
+		--wc-banner-place: translate(
+			calc(-50% + var(--wc-banner-dx)),
+			calc(-50% + var(--wc-banner-dy))
+		);
+		height: calc(var(--wc-banner-text-h) * var(--wc-banner-scale));
 		width: auto;
-		max-width: 92vw;
+		max-width: var(--wc-banner-max-w);
+		/* Safety net for the cap: `height` is explicit and `width` is auto, so once `max-width` binds the
+		   box keeps the full height at a clamped width and the ART STRETCHES (measured: portrait captain
+		   was squashed 35% before this). `contain` letterboxes inside the box instead — the title can stop
+		   growing, but it can never distort. */
+		object-fit: contain;
 		z-index: 3;
-		transform: translate(-50%, -50%) scale(1);
+		transform: var(--wc-banner-place);
 		/* Hidden until `entered` — the pop is gated below so the banner comes in TOGETHER with the
 		   backdrop-dim + rays (all behind the double-rAF guard). Without this the banner played on mount,
 		   2+ frames ahead of the rest, popping onto the still-bright board (the pre-reveal "flash"). */
@@ -471,30 +498,75 @@
 		opacity: 1;
 		animation: wc-banner-pop 0.72s ease-out backwards;
 	}
-	.wc-banner[data-tier='epic'] {
-		height: calc(var(--wc-banner-text-h) * 2.04);
-	}
-	/* Massive scaled 20% below the normalized base (0.976); Captain scaled 30% above its prior size
-	   (2.366), then bumped a further 15% (2.7209) — per-tier size requests layered on top of the
-	   shared cross-tier normalization above. */
+	/* ══════════════════════ MANUAL TUNING KNOBS — WIN TITLE, PER TIER ══════════════════════
+	   Three numbers per tier, and LANDSCAPE + PORTRAIT are independent sets: edit one without
+	   touching the other. Tier comes from `data-tier` on the <img> (massive | epic | captain).
+
+	     --wc-banner-scale : height = this × `--wc-banner-text-h` (the orientation's base size).
+	                         NOT a like-for-like comparison between tiers — each art fills a
+	                         different share of its own canvas with actual text (measured: massive
+	                         0.82, epic 0.49, captain 0.55), so these multipliers are partly
+	                         cancelling that out. Judge by eye, not by the number.
+	     --wc-banner-dx    : nudge RIGHT off the shared anchor (negative = left). Viewport units.
+	     --wc-banner-dy    : nudge DOWN off the shared anchor (negative = up).    Viewport units.
+
+	   The anchor itself (shared by all three tiers, and the value's anchor) is in `computeLayout()`
+	   — `frameImagePoint(0.5, 0.29)`. Move that to shift every tier at once; use dx/dy for one tier.
+	   vw/vh (not %) on purpose: % would resolve against the banner's OWN box, so re-scaling a tier
+	   would silently move it too. ────────────────────────────────────────────────────────────── */
+
+	/* ── LANDSCAPE ── */
 	.wc-banner[data-tier='massive'] {
-		height: calc(var(--wc-banner-text-h) * 0.976);
+		--wc-banner-scale: 0.976;
+		--wc-banner-dx: 0vw;
+		--wc-banner-dy: 0vh;
+	}
+	.wc-banner[data-tier='epic'] {
+		--wc-banner-scale: 3.04;
+		--wc-banner-dx: 0vw;
+		--wc-banner-dy: 0vh;
 	}
 	.wc-banner[data-tier='captain'] {
-		height: calc(var(--wc-banner-text-h) * 2.7209);
+		--wc-banner-scale: 4.7209;
+		--wc-banner-dx: 0vw;
+		--wc-banner-dy: 0vh;
 	}
+
+	/* ── PORTRAIT ──
+	   NOT the landscape numbers. A phone is ~400px wide, so the landscape scales all overflow
+	   `--wc-banner-max-w` (92vw) — they were being clamped and stretched. These are each tier's
+	   WIDEST undistorted fit at 92vw, i.e. the largest the title can legitimately get in portrait:
+	     massive 0.90 (limit ~0.918) · epic 2.85 (limit ~2.90) · captain 3.00 (limit ~3.06)
+	   Tune DOWN freely; going far up just hits the cap and stops growing (see `object-fit` above). */
+	.wc-overlay--portrait .wc-banner[data-tier='massive'] {
+		--wc-banner-scale: 0.9;
+		--wc-banner-dx: 0vw;
+		--wc-banner-dy: 0vh;
+	}
+	.wc-overlay--portrait .wc-banner[data-tier='epic'] {
+		--wc-banner-scale: 2.85;
+		--wc-banner-dx: 0vw;
+		--wc-banner-dy: 0vh;
+	}
+	.wc-overlay--portrait .wc-banner[data-tier='captain'] {
+		--wc-banner-scale: 5;
+		--wc-banner-dx: 0vw;
+		--wc-banner-dy: 0vh;
+	}
+	/* The pop OWNS `transform` while it runs, so it has to carry the per-tier nudge too — otherwise the
+	   banner would pop in at the un-nudged anchor and jump to its offset when the animation ends. */
 	@keyframes wc-banner-pop {
 		0% {
 			opacity: 0;
-			transform: translate(-50%, -50%) scale(0.25);
+			transform: var(--wc-banner-place) scale(0.25);
 		}
 		60% {
 			opacity: 1;
-			transform: translate(-50%, -50%) scale(1.18);
+			transform: var(--wc-banner-place) scale(1.18);
 		}
 		100% {
 			opacity: 1;
-			transform: translate(-50%, -50%) scale(1);
+			transform: var(--wc-banner-place) scale(1);
 		}
 	}
 
@@ -529,22 +601,10 @@
 		margin: 0 calc(var(--wc-digit-h) * -0.008);
 	}
 	/* Decimal-point glyph art is cropped tight to just the dot (not a full digit-height canvas), so it's
-	   scaled down to match the dot's proportion within a digit and sits on the baseline like the comma. */
+	   scaled down to match the dot's proportion within a digit and sits on the baseline. */
 	.wc-dot {
 		height: calc(var(--wc-digit-h) * 0.27);
 		align-self: flex-end;
-		margin: 0 calc(var(--wc-digit-h) * 0.008);
-	}
-	.wc-sep {
-		align-self: flex-end;
-		font-family: 'Arial Black', Arial, sans-serif;
-		font-weight: 900;
-		font-size: calc(var(--wc-digit-h) * 0.52);
-		line-height: 1;
-		color: #eef2f7;
-		-webkit-text-stroke: calc(var(--wc-digit-h) * 0.022) #2b3038;
-		paint-order: stroke fill;
-		padding-bottom: calc(var(--wc-digit-h) * 0.05);
 		margin: 0 calc(var(--wc-digit-h) * 0.008);
 	}
 

@@ -117,6 +117,27 @@ const DEFERRED_IMAGE_PATHS: readonly string[] = [
 ];
 
 /**
+ * WIN-CELEBRATION art (`WinCelebration.svelte` + `RapidWinSparkles.svelte`). Unlike the rest of the
+ * deferred set this can fire on the player's very FIRST drop — any round paying ≥ the total bet pops
+ * it — so it is warmed ahead of the feature art, and its images are RETAINED (see `preloadImage`)
+ * rather than left for the GC: the banners are large enough that a dropped decode means the reveal
+ * visibly waits on a re-decode, which is exactly the "still loading" hitch this list exists to kill.
+ */
+const WIN_POPUP_IMAGE_PATHS: readonly string[] = [
+	// Tier banners — one shows per win; which one isn't known until the round settles, so all three.
+	'img/win_popup/massive_plunder.png',
+	'img/win_popup/epic_bounty.png',
+	'img/win_popup/captains_jackpot.png',
+	// Shared reveal layers
+	'img/win_popup/shine_rays.png',
+	'img/win_popup/backdrop_shade.png',
+	'img/win_popup/coin.png',
+	// Counter glyphs (0–9 + the decimal dot) — also used by the 1-ball rapid sparkles
+	'img/win_popup/dot.png',
+	...Array.from({ length: 10 }, (_, digit) => `img/win_popup/${digit}.png`),
+];
+
+/**
  * Fonts declared via `@font-face` in `+layout.svelte`. Browsers only fetch a web font the
  * first time a glyph that needs it is rendered, so we load them explicitly here — otherwise
  * e.g. the roulette labels (PotatoSans) flash in an unstyled fallback on first appearance.
@@ -142,10 +163,19 @@ const FONT_SPECS: readonly string[] = [
 	"400 1rem 'AustereBlackCapsSSK'",
 ];
 
+/**
+ * Images kept alive for the session. A preloaded `Image` with no reference is GC-eligible, and when
+ * it goes so can its decoded bitmap — leaving the HTTP bytes cached but the next `<img>` still paying
+ * for a decode on first paint. Holding the element pins the decode. Only used where a mid-game hitch
+ * would be visible (the win reveal); the rest stay collectable.
+ */
+const retainedImages: HTMLImageElement[] = [];
+
 /** Load + decode a single image. Always resolves — a missing asset must never block the loader. */
-function preloadImage(url: string): Promise<void> {
+function preloadImage(url: string, options: { retain?: boolean } = {}): Promise<void> {
 	return new Promise((resolve) => {
 		const img = new Image();
+		if (options.retain) retainedImages.push(img);
 		const done = () => resolve();
 		img.onload = () => {
 			// decode() guarantees the bitmap is ready to paint with no first-use hitch.
@@ -201,13 +231,32 @@ export function preloadCriticalAssets(options: PreloadOptions = {}): Promise<voi
 }
 
 /**
+ * Load + decode + RETAIN the win-celebration art ({@link WIN_POPUP_IMAGE_PATHS}) so the reveal never
+ * waits on a fetch or a decode. Idempotent: the first call owns the work and every later caller gets
+ * the same promise, so the components can safely warm it on mount as a backstop to the deferred pass.
+ */
+let winPopupWarmup: Promise<void> | undefined;
+export function preloadWinPopupAssets(): Promise<void> {
+	if (typeof window === 'undefined') return Promise.resolve();
+	winPopupWarmup ??= Promise.allSettled(
+		WIN_POPUP_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path), { retain: true })),
+	).then(() => undefined);
+	return winPopupWarmup;
+}
+
+/**
  * Preload the heavy, feature-gated art ({@link DEFERRED_IMAGE_PATHS}) in the background. Kicked off
  * fire-and-forget once the game is revealed, so it warms the cache well before any feature triggers
  * without ever gating the splash. Always resolves; failures are swallowed.
+ *
+ * The win-celebration art goes FIRST — every path here is requested at once (subject to the browser's
+ * per-host connection limit), so being early in the list is what buys it the first free sockets, and
+ * it's the only feature in this set that can fire on the player's first drop.
  */
 export function preloadDeferredAssets(): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
-	return Promise.allSettled(
-		DEFERRED_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
-	).then(() => undefined);
+	return Promise.allSettled([
+		preloadWinPopupAssets(),
+		...DEFERRED_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
+	]).then(() => undefined);
 }

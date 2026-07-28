@@ -141,6 +141,9 @@
 	// back out when the bonus round ends. Driven by the door-close cue (below) rather than a state
 	// derive so the swap is synced exactly to that slam, not to the screen's later dismissal.
 	let bonusMusicOn = $state(false);
+	// Mirrors `bonusMusicOn` as `applyMusicState` last saw it, so it can spot the moment a bonus round
+	// starts and rewind the bonus track. Deliberately NOT `$state`: it's written from inside the effect.
+	let bonusTrackArmed = false;
 
 	// The `doorClose` cue fires for three slides: the bonus wheel's backdrop drop, the entry
 	// congratulations screen, and the bonus-END treasure screen. `bonusEntryCongratsActive` is true only
@@ -173,6 +176,15 @@
 		const normalHowl = music;
 		const bonusHowl = bonusMusic;
 		if (!normalHowl || !bonusHowl) return;
+
+		// Every bonus round must open on the first bar of the bonus track. `fadeTo` pauses a track when it
+		// ramps to silence, and Howler resumes a paused sound from where it left off — so rewind on the
+		// rising edge. `stop()` (not `seek(0)`) is the reliable reset for an `html5` source, and it leaves
+		// the track not-playing so `fadeTo` starts it cleanly from zero volume.
+		if (bonus !== bonusTrackArmed) {
+			bonusTrackArmed = bonus;
+			if (bonus) bonusHowl.stop();
+		}
 
 		if (!enabled || !unlocked) {
 			fadeTo(normalHowl, 0, CROSSFADE_MS);

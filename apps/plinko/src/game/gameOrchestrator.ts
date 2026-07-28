@@ -99,8 +99,12 @@ export function getCombinedRoundWinAmount(): number {
 const BONUS_ROUND_COMPLETION_TIMEOUT_MS = 600_000;
 
 function isBonusRoundBlockingSettlement(): boolean {
+	// `bonusRoundActive` covers the post-bonus congratulations screen on its way DOWN (it is only torn
+	// down at full cover, in `onBonusEndAnnouncementCovered`). Deliberately NOT gated on
+	// `bonusEndAnnouncementOpen` as well: settlement — and with it the RGS balance credit — must land
+	// while that screen is still on the player's view, so the balance is already updated behind it rather
+	// than jumping some time after they dismiss it.
 	if (stateGame.bonusBallsRemaining > 0 || stateGame.bonusRoundActive) return true;
-	if (stateGame.bonusEndAnnouncementOpen) return true;
 	if (stateGame.pendingSpinRouletteAfterBonusLevelDepletion) return true;
 	if (stateGame.freeSpinRouletteOpen) return true;
 	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin') {
@@ -231,6 +235,10 @@ export function isBetControlsLocked(): boolean {
 		// On the depletion path `bonusBallsRemaining` is already 0, so without this the betting controls
 		// would briefly come back to life in the gap before the level-up card.
 		stateGame.bonusLevelUpPending ||
+		// The post-bonus congratulations screen is still on the view. The round now settles behind it (so
+		// the balance credits before the player dismisses it), which releases the round's own locks — this
+		// keeps betting shut until they actually dismiss the screen.
+		stateGame.bonusEndAnnouncementOpen ||
 		stateGame.freeSpinRouletteOpen ||
 		stateGame.bonusRouletteOpen ||
 		// An active Autobet session keeps wager config locked across the whole run, including the

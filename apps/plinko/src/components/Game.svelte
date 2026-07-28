@@ -68,7 +68,7 @@
 		formatWinAmount,
 	} from '../lib/format';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
-	import { WIN_CELEBRATION_TOTAL_MS, WIN_TIMING } from '../lib/winCelebration';
+	import { winCelebrationTotalMs, WIN_TIMING } from '../lib/winCelebration';
 
 	import Background from './Background.svelte';
 	import BonusLevelUpOverlay from './BonusLevelUpOverlay.svelte';
@@ -202,9 +202,12 @@
 		if (!stateGame.showWinPopup) return;
 		if (DEV_SHOW_WIN_MODAL_ON_LOAD) return;
 		stateGame.winPopupAmount;
+		// Same hold the overlay schedules its merge from (a DEV console trigger can stretch it), so a
+		// parked reveal isn't torn down while it's still on screen.
+		const totalMs = winCelebrationTotalMs(stateGame.winCelebrationHoldMs);
 		const timer = setTimeout(() => {
 			stateGame.showWinPopup = false;
-		}, WIN_CELEBRATION_TOTAL_MS + 300);
+		}, totalMs + 300);
 		return () => clearTimeout(timer);
 	});
 
