@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 
 	import { bonusRouletteSegmentsForTier } from '../../game-logic/constants';
 	import { eventEmitter } from '../../game/eventEmitter';
@@ -496,11 +496,14 @@
 		}
 		// Buy bonus: the entry count is fixed by the purchase — skip the wheel and announce it directly,
 		// still emitting onResultReady/onFinished so the bonus-round award flow is unchanged.
+		//
+		// This screen is mounted on the Activate CLICK, before `/wallet/play` has returned, so the door
+		// starts closing immediately instead of the player staring at the board for the round trip. The
+		// count is usually confirmed long before the 1s slide finishes; if it isn't, `adoptBuyBonusResult`
+		// reveals as soon as the book lands (nothing is claimed on screen until then).
 		if (props.skipSpin) {
 			requestAnimationFrame(() => (slidePhase = 'idle'));
-			const freeBallCount = Math.max(0, Math.floor(props.targetFreeBalls ?? 0));
-			pendingResult = { segmentIndex: 0, segmentLabel: String(freeBallCount), freeBallCount };
-			wonFreeBalls = freeBallCount;
+			adoptBuyBonusResult(props.targetFreeBalls);
 			startAnnouncementSequence();
 			return cleanup;
 		}
@@ -692,6 +695,44 @@
 		props.onResultReady?.(pendingResult);
 	}
 
+	/** True when the screen finished covering the view before the purchased entry count was confirmed. */
+	let awaitingResultAtCover = false;
+
+	/**
+	 * Reveal the headline/reward and hand the result to the game. Normally runs the instant the screen
+	 * finishes covering the view; for a buy whose book is still in flight it runs later, when the count
+	 * arrives (the cover is already down by then, so the player sees no difference).
+	 */
+	function revealAnnouncementContent() {
+		awaitingResultAtCover = false;
+		announcementTextVisible = true;
+		emitResultReady();
+		props.onCovered?.();
+		// Held off so the message finishes animating before the shower starts — same offset from the
+		// reveal as the old `SLIDE + POP` timer, which fired this long after full cover.
+		timers.push(setTimeout(() => (announcementCoinsVisible = true), ANNOUNCEMENT_TEXT_POP_MS));
+	}
+
+	/**
+	 * BUY BONUS: adopt the purchased entry count once the book confirms it. No-op until then (and after
+	 * the first adoption), so nothing is announced before `/wallet/play` has authorised the purchase.
+	 */
+	function adoptBuyBonusResult(targetFreeBalls: number | undefined): void {
+		if (!props.skipSpin || pendingResult) return;
+		const freeBallCount = Math.floor(targetFreeBalls ?? 0);
+		if (freeBallCount <= 0) return;
+		pendingResult = { segmentIndex: 0, segmentLabel: String(freeBallCount), freeBallCount };
+		wonFreeBalls = freeBallCount;
+		if (awaitingResultAtCover) revealAnnouncementContent();
+	}
+
+	// Watch for the confirmed count landing while the door is already down. `untrack` keeps the reveal's
+	// own state writes (and the `onResultReady` award flow it fires) out of this effect's dependencies.
+	$effect(() => {
+		const targetFreeBalls = props.targetFreeBalls;
+		untrack(() => adoptBuyBonusResult(targetFreeBalls));
+	});
+
 	function startAnnouncementSequence() {
 		announcementVisible = true;
 		// Entry congratulations screen (not the bonus-END message): flag it so the closing-door slam it
@@ -713,17 +754,19 @@
 					setTimeout(() => {
 						// The screen now covers the whole view: reveal the message AND flip the game into bonus
 						// mode on the same frame, hidden behind it.
+						//
+						// ⚠️ The reveal is held for EXACTLY ONE case: a buy started on the Activate click whose
+						// book hasn't landed yet (`skipSpin` with no confirmed count) — the cover is already down,
+						// so that wait is unseen, and `adoptBuyBonusResult` runs the reveal when the count arrives.
+						// Every other caller must reveal HERE. Gating on `pendingResult` alone broke the bonus-END
+						// treasure screen (`mode: 'message'` never sets one): it rendered as a bare background with
+						// every text layer stuck at `opacity: 0`, and it swallowed `onCovered` — which is what runs
+						// the bonus-end settlement.
+						const awaitingBuyBonusCount = !!props.skipSpin && !pendingResult;
 						announcementCoversScreen = true;
-						announcementTextVisible = true;
-						emitResultReady();
-						props.onCovered?.();
+						if (awaitingBuyBonusCount) awaitingResultAtCover = true;
+						else revealAnnouncementContent();
 					}, ANNOUNCEMENT_SLIDE_MS),
-				);
-				timers.push(
-					setTimeout(
-						() => (announcementCoinsVisible = true),
-						ANNOUNCEMENT_SLIDE_MS + ANNOUNCEMENT_TEXT_POP_MS,
-					),
 				);
 			}),
 		);

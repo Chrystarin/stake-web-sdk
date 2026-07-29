@@ -3,6 +3,7 @@ import { stateBet, stateUrlDerived } from 'state-shared';
 
 import {
 	bonusMeterTierFor,
+	BUY_BONUS_BALLS_PER_DROP_REF,
 	DEFAULT_ROW_COUNT,
 	PLINKO_DEFAULT_VARIANT_ID,
 	spinMeterTierFor,
@@ -296,11 +297,30 @@ export function resetSpinMeterSession(): void {
  * and re-seeds here when the player switches tier.
  */
 export function seedSpinMeterForCurrentTier(): void {
-	const { max, start } = spinMeterTierFor(plinkoBallsPerDrop());
+	const { max, start } = spinMeterTierFor(activeMeterTierBalls());
 	stateGame.spinMeterBaseMax = max;
 	stateGame.spinMeterMax = max;
 	stateGame.spinMeterValue = Math.min(Math.max(0, start), max);
 	setRgsSessionSpinMeter(start);
+}
+
+/**
+ * The balls-per-drop tier the meters should mirror RIGHT NOW.
+ *
+ * Normally the player's selected tier. While a BUY BONUS purchase is in flight it is the math's fixed
+ * `BUY_BONUS_BALLS_PER_DROP_REF` instead: a buy is bonus-only, so the math generates its book at that
+ * reference tier regardless of the selector, and the served book's `spinMeterMax` / `spinMeterStart`
+ * come from it. Resolving the tier here (rather than at the call site) is what makes the reset STICK —
+ * `seedSpinMeterForCurrentTier` is re-run from several reactive paths (`syncBallPerDropTier` is invoked
+ * from an `$effect` that re-fires when `bonusRoundActive` / `authoritativeMeterFlow` flip as the bought
+ * bonus starts), and each of those would otherwise snap the bar back to the selected tier's start.
+ *
+ * Reading `pendingBuyBonusMode` also keeps those effects subscribed to it, so the meters restore
+ * themselves to the selected tier the moment the purchased round settles and the flag clears.
+ */
+export function activeMeterTierBalls(): number {
+	if (stateGame.pendingBuyBonusMode) return BUY_BONUS_BALLS_PER_DROP_REF;
+	return plinkoBallsPerDrop();
 }
 
 /**

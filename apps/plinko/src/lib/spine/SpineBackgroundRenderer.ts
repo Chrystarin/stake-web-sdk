@@ -527,6 +527,69 @@ export class SpineBackgroundRenderer {
 		this.imageOverlays = imageOverlays;
 		this.startBonusTicker();
 		this.fitSpine();
+		this.warmBonusTexturesToGpu(overlayDefs, imageOverlays);
+	}
+
+	/**
+	 * Push the bonus-mode textures onto the GPU while the player is still in the base game.
+	 *
+	 * Loading an asset only gets it as far as a decoded bitmap in CPU memory — Pixi defers the actual
+	 * `texImage2D` upload until a texture is first DRAWN. Every bonus layer is drawn for the first time
+	 * on the same frame the bonus round opens, so all of it uploaded at once and the entry visibly
+	 * hitched (measured: 6 uploads, ~1.2s total, dominated by the two 1977×2032 FG_SPLASH atlas pages
+	 * and the 2879×1620 FREEGAME backdrop; nothing uploads during play or on exit).
+	 *
+	 * Uploads are done ONE PER IDLE CALLBACK rather than in a single pass: the work is the same, but
+	 * spread over idle time it never forms one long task, so it can't trade a bonus-entry hitch for a
+	 * base-game one. GPU textures are per-WebGL-context, so this must run on THIS renderer — the one
+	 * that draws these layers.
+	 */
+	private warmBonusTexturesToGpu(
+		overlayDefs: readonly SpineOverlayDef[],
+		imageOverlays: { sprite: Sprite }[],
+	): void {
+		const textureSystem = (
+			this.app?.renderer as { texture?: { initSource?: (source: unknown) => void } } | undefined
+		)?.texture;
+		// WebGPU exposes a different texture system; skip rather than guess (we request `webgl` above).
+		if (typeof textureSystem?.initSource !== 'function') return;
+		const upload = textureSystem.initSource.bind(textureSystem);
+
+		const sources = new Set<unknown>();
+		const addTexture = (texture: Texture | undefined) => {
+			if (texture?.source) sources.add(texture.source);
+		};
+
+		addTexture(this.bonusBackdropTexture);
+		imageOverlays.forEach(({ sprite }) => addTexture(sprite.texture));
+		for (const def of overlayDefs) {
+			// Atlas pages are not registered as `Assets` entries under their own URLs (see
+			// `loadSkeletonData`) — they live on the TextureAtlas the alias resolves to.
+			const atlas = Assets.get(`${def.id}-atlas`) as
+				| { pages?: { texture?: { texture?: Texture } }[] }
+				| undefined;
+			atlas?.pages?.forEach((page) => addTexture(page.texture?.texture));
+		}
+
+		const queue = [...sources];
+		const schedule =
+			typeof requestIdleCallback === 'function'
+				? (fn: () => void) => requestIdleCallback(() => fn(), { timeout: 2000 })
+				: (fn: () => void) => window.setTimeout(fn, 0);
+
+		const uploadNext = () => {
+			// Bail if the renderer was torn down (or the context lost) between callbacks.
+			if (!this.app) return;
+			const source = queue.shift();
+			if (!source) return;
+			try {
+				upload(source);
+			} catch {
+				/* best-effort — a failed warm-up just means this texture uploads on first draw */
+			}
+			if (queue.length) schedule(uploadNext);
+		};
+		if (queue.length) schedule(uploadNext);
 	}
 
 	/** Load a bonus image-overlay texture and build its sprite (hidden, centre-anchored) until activated. */

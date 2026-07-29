@@ -262,13 +262,31 @@ export function syncBallPerDropTier() {
 			stateGame.ballPerDrop,
 		);
 	}
-	// Free-spin meter is PER-DROP: always re-seed the HUD to the selected tier's start + max so the
-	// meter UI matches the new balls-per-drop tier immediately on switch (independent of the
-	// server-authoritative bonus-meter flow).
+	// ⚠️ `meterController` shares the `stateGame` object, so `setBallPerDrop` ASSIGNS `ballPerDrop` —
+	// it must always be the player's SELECTED tier. Passing a resolved/override tier here (e.g. the
+	// buy-bonus reference) silently changes the selector out from under the player.
+	//
+	// ⚠️⚠️ SKIPPED while a buy is pending, and that is NOT an optimization. `setBallPerDrop` rebuilds
+	// both meter maxima from the SELECTED tier while the seeds below deliberately use the buy-bonus
+	// REFERENCE tier, so running both makes this function write two DIFFERENT values for `spinMeterMax`
+	// on every pass. `rebuildMeterTierMaxima` also READS the meter values/maxima (to clamp them), so
+	// this runs as a self-invalidating `$effect` (Game.svelte calls it from one) and Svelte tears itself
+	// apart with `effect_update_depth_exceeded` — which presents as the game hanging on buy activation.
+	// The call is a no-op for `ballPerDrop` here anyway (it assigns the value it just read), so during a
+	// buy the seeds below are left as the single writer of the maxima.
+	if (
+		!stateGame.authoritativeMeterFlow &&
+		!stateGame.serverMeterLimitsActive &&
+		!stateGame.pendingBuyBonusMode
+	) {
+		meterController.setBallPerDrop(stateGame.ballPerDrop);
+	}
+	// Free-spin meter is PER-DROP: always re-seed the HUD to the tier's start + max so the meter UI
+	// matches the balls-per-drop tier immediately on switch (independent of the server-authoritative
+	// bonus-meter flow). Runs AFTER `setBallPerDrop` so that during a pending buy the resolved tier
+	// wins — see `activeMeterTierBalls`.
 	seedSpinMeterForCurrentTier();
 	// Bonus meter is a PER-TIER SESSION meter: re-seed the HUD to the selected tier's stored value (or
 	// its tier base start). Skip during an active bonus round (the HUD shows the in-round level meter).
 	if (!stateGame.bonusRoundActive) seedBonusMeterForCurrentTier();
-	if (stateGame.authoritativeMeterFlow || stateGame.serverMeterLimitsActive) return;
-	meterController.setBallPerDrop(stateGame.ballPerDrop);
 }

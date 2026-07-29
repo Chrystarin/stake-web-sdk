@@ -21,6 +21,7 @@
 	import {
 		applyBonusMeterDisplay,
 		applyRgsSessionMetersToDisplay,
+		seedSpinMeterForCurrentTier,
 	} from '../game/plinkoSessionMeters';
 
 	import { getContext } from '../game/context';
@@ -316,10 +317,21 @@
 		}
 	});
 
+	// Re-seed the board + meters when the player switches tier, and when a buy-bonus purchase starts or
+	// settles (the buy plays on the math's reference tier, not the selected one — see
+	// `activeMeterTierBalls`). Those two reads ARE the dependency list.
+	//
+	// ⚠️ `syncBallPerDropTier` must run UNTRACKED. It both reads and writes meter state (`setBallPerDrop`
+	// clamps the meter values against the maxima it just rebuilt), so tracking its internals makes this
+	// effect depend on values it writes — one pass that settles on a different value than it read
+	// re-triggers the effect forever and Svelte aborts with `effect_update_depth_exceeded`, which the
+	// player sees as the game hanging. Declaring the deps explicitly here keeps the intended behaviour
+	// without the self-invalidation.
 	$effect(() => {
 		stateGame.ballPerDrop;
+		stateGame.pendingBuyBonusMode;
 
-		syncBallPerDropTier();
+		untrack(() => syncBallPerDropTier());
 	});
 
 	// Auto-fire the bonus trigger bet the moment the bonus meter is full and the round machine is idle.
@@ -516,6 +528,17 @@
 		// up to max and then drop back to empty when the level-1 in-bonus meter took over — a jarring
 		// bounce on entry.
 		applyBonusMeterDisplay(0);
+		// The free-spin meter likewise restarts for the bought round. `pendingBuyBonusMode` is already set
+		// above, so this seeds the bar to the math's BUY_BONUS_BALLS_PER_DROP_REF default (see
+		// `activeMeterTierBalls`) instead of leaving the selected tier's start (e.g. 5/21 on 50-ball) filled.
+		seedSpinMeterForCurrentTier();
+		// Start the congratulations door closing on THIS click rather than when `/wallet/play` returns —
+		// otherwise the player watches the untouched board for the whole round trip. The screen shows no
+		// headline or ball count until the book confirms the purchase (see `adoptBuyBonusResult`), so
+		// nothing is claimed before RGS authorises it; the count almost always lands well inside the 1s
+		// slide. A failed bet unmounts this via `releaseRoundInteractionLocks` → `bonusRouletteOpen = false`.
+		stateGame.serverBonusFreeBalls = undefined;
+		stateGame.bonusRouletteOpen = true;
 		syncPlinkoBetModeFromUi();
 		placeBet();
 	}

@@ -100,6 +100,16 @@ const DEFERRED_IMAGE_PATHS: readonly string[] = [
 	'img/bonus-level-base.png',
 	'img/bonus-level-base-background.png',
 	'img/bonus-level-up-base.png',
+	// The 9 level-arch tiles + their lit variants (`BonusLevel.svelte` LEVEL_BAR_URLS). All 18 mount at
+	// once with the arch, so leaving them out meant 9+ cold requests fired on the bonus-entry frame.
+	// Tiny (~156 kB the lot), so there is no reason for them not to be warmed with the rest of the arch.
+	...Array.from({ length: 9 }, (_, i) => `img/bonus-bar-level-${i + 1}.png`),
+	...Array.from({ length: 9 }, (_, i) => `img/bonus-bar-level-active-${i + 1}.png`),
+
+	// Free-game backdrops. The landscape one also loads through the spine renderer (which GPU-warms it),
+	// but the PORTRAIT one is a plain CSS background on mobile with nothing else warming it.
+	'img/BG_landscape_FREEGAME.jpg',
+	'img/BG_portrait_FREEGAME.jpg',
 
 	// Announcement banner (feature intro)
 	'img/announcement-message-background.png',
@@ -114,6 +124,10 @@ const DEFERRED_IMAGE_PATHS: readonly string[] = [
 	'img/congratulations_screen/treasure_table.png',
 	'img/congratulations_screen/treasure_table_mobile.png',
 	'img/congratulations_screen/sparkle.png',
+	// The coins strewn across the treasure table — they mount with it, so they were cold-fetched on the
+	// bonus-END frame, which is exactly where a hitch is most visible.
+	'img/congratulations_screen/coin_1.png',
+	'img/congratulations_screen/coin_2.png',
 ];
 
 /**

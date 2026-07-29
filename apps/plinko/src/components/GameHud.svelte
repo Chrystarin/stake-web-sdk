@@ -141,6 +141,15 @@
 		return isRapidSingleBallMode() && isGameOngoing();
 	});
 	const wagerControlsLocked = $derived(controlsLocked || oneBallDropInFlight);
+	/**
+	 * During a bonus round every drop is a FREE ball, so the wager controls become read-only: the − / +
+	 * steppers are removed entirely (desktop and mobile) rather than just disabled, and on mobile the
+	 * Total bet card goes with them — a total-bet readout is meaningless when the drops cost nothing
+	 * (the desktop total-bet overlay is already dropped for the same reason). The Bet per ball / Balls
+	 * per drop VALUES stay on screen so the player can still see what the bonus is playing at, and the
+	 * two remaining mobile cards centre themselves in the row.
+	 */
+	const wagerSteppersHidden = $derived(stateGame.bonusRoundActive);
 	// Replay drives bonus-ball drops itself — keep the visible bonus-play button locked for the viewer.
 	const bonusPlayDisabled = $derived(
 		isBonusPlayButtonDisabled() || props.bonusPlayDisabled || isReplayMode(),
@@ -558,19 +567,21 @@
 		{@render bettingFieldFrame()}
 		<span class="bp-field-label">{betPerBallLabel}</span>
 		<div class="bp-bet-input-wrap">
-			<button
-				type="button"
-				class="bp-stepper-btn bp-stepper-btn--decrease"
-				disabled={isBetAmountStepDisabled(-1)}
-				aria-label="Decrease bet per ball"
-				onclick={() => adjustBetAmountStep(-1)}
-			>
-				<img
-					src={staticUrl('img/betting-component-input-decrease.png')}
-					alt=""
-					aria-hidden="true"
-				/>
-			</button>
+			{#if !wagerSteppersHidden}
+				<button
+					type="button"
+					class="bp-stepper-btn bp-stepper-btn--decrease"
+					disabled={isBetAmountStepDisabled(-1)}
+					aria-label="Decrease bet per ball"
+					onclick={() => adjustBetAmountStep(-1)}
+				>
+					<img
+						src={staticUrl('img/betting-component-input-decrease.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+				</button>
+			{/if}
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
@@ -591,19 +602,21 @@
 					{formatCompactAmount(props.betAmount)}
 				</span>
 			</div>
-			<button
-				type="button"
-				class="bp-stepper-btn bp-stepper-btn--increase"
-				disabled={isBetAmountStepDisabled(1)}
-				aria-label="Increase bet per ball"
-				onclick={() => adjustBetAmountStep(1)}
-			>
-				<img
-					src={staticUrl('img/betting-component-input-increase.png')}
-					alt=""
-					aria-hidden="true"
-				/>
-			</button>
+			{#if !wagerSteppersHidden}
+				<button
+					type="button"
+					class="bp-stepper-btn bp-stepper-btn--increase"
+					disabled={isBetAmountStepDisabled(1)}
+					aria-label="Increase bet per ball"
+					onclick={() => adjustBetAmountStep(1)}
+				>
+					<img
+						src={staticUrl('img/betting-component-input-increase.png')}
+						alt=""
+						aria-hidden="true"
+					/>
+				</button>
+			{/if}
 		</div>
 		{#if betPresetOpen}
 			<div class="bp-bet-presets-panel">
@@ -639,84 +652,95 @@
 			</div>
 		</div>
 
-		<div class="mobile-top-row">
-			<!-- TOTAL BET — read-only display (no steppers), narrower than the two stepper fields. -->
-			<div class="mobile-top-card mobile-top-card--stat">
-				{@render mobileTopCardFrame()}
-				<div class="mobile-top-card-mid">
-					<span class="mobile-top-card-label">{totalBetLabel}</span>
-					<span class="mobile-top-card-value">{formatMoney(displayTotalBet)}</span>
+		<div class="mobile-top-row" class:mobile-top-row--bonus={wagerSteppersHidden}>
+			<!-- TOTAL BET — read-only display (no steppers), narrower than the two stepper fields.
+			     Dropped during a bonus round (free balls cost nothing), leaving the two cards centred. -->
+			{#if !wagerSteppersHidden}
+				<div class="mobile-top-card mobile-top-card--stat">
+					{@render mobileTopCardFrame()}
+					<div class="mobile-top-card-mid">
+						<span class="mobile-top-card-label">{totalBetLabel}</span>
+						<span class="mobile-top-card-value">{formatMoney(displayTotalBet)}</span>
+					</div>
 				</div>
-			</div>
+			{/if}
 
 			<!-- BET PER BALL — inline − / + steppers (the old chip popup is removed). -->
 			<div class="mobile-top-card mobile-top-card--stepper">
 				{@render mobileTopCardFrame()}
-				<button
-					type="button"
-					class="mobile-top-step mobile-top-step--decrease"
-					disabled={isBetAmountStepDisabled(-1)}
-					aria-label="Decrease bet per ball"
-					onclick={() => adjustBetAmountStep(-1)}
-				>
-					<img
-						src={staticUrl('img/betting-component-input-decrease-containerless.png')}
-						alt=""
-						aria-hidden="true"
-					/>
-				</button>
+				{#if !wagerSteppersHidden}
+					<button
+						type="button"
+						class="mobile-top-step mobile-top-step--decrease"
+						disabled={isBetAmountStepDisabled(-1)}
+						aria-label="Decrease bet per ball"
+						onclick={() => adjustBetAmountStep(-1)}
+					>
+						<img
+							src={staticUrl('img/betting-component-input-decrease-containerless.png')}
+							alt=""
+							aria-hidden="true"
+						/>
+					</button>
+				{/if}
 				<div class="mobile-top-card-mid">
 					<span class="mobile-top-card-label">{betPerBallLabel}</span>
 					<span class="mobile-top-card-value">{formatCompactAmount(props.betAmount)}</span>
 				</div>
-				<button
-					type="button"
-					class="mobile-top-step mobile-top-step--increase"
-					disabled={isBetAmountStepDisabled(1)}
-					aria-label="Increase bet per ball"
-					onclick={() => adjustBetAmountStep(1)}
-				>
-					<img
-						src={staticUrl('img/betting-component-input-increase-containerless.png')}
-						alt=""
-						aria-hidden="true"
-					/>
-				</button>
+				{#if !wagerSteppersHidden}
+					<button
+						type="button"
+						class="mobile-top-step mobile-top-step--increase"
+						disabled={isBetAmountStepDisabled(1)}
+						aria-label="Increase bet per ball"
+						onclick={() => adjustBetAmountStep(1)}
+					>
+						<img
+							src={staticUrl('img/betting-component-input-increase-containerless.png')}
+							alt=""
+							aria-hidden="true"
+						/>
+					</button>
+				{/if}
 			</div>
 
 			<!-- BALLS PER DROP — inline − / + steppers. -->
 			<div class="mobile-top-card mobile-top-card--stepper">
 				{@render mobileTopCardFrame()}
-				<button
-					type="button"
-					class="mobile-top-step mobile-top-step--decrease"
-					disabled={isBallPerDropStepDisabled(-1)}
-					aria-label="Decrease ball per drop"
-					onclick={() => adjustBallPerDrop(-1)}
-				>
-					<img
-						src={staticUrl('img/betting-component-input-decrease-containerless.png')}
-						alt=""
-						aria-hidden="true"
-					/>
-				</button>
+				{#if !wagerSteppersHidden}
+					<button
+						type="button"
+						class="mobile-top-step mobile-top-step--decrease"
+						disabled={isBallPerDropStepDisabled(-1)}
+						aria-label="Decrease ball per drop"
+						onclick={() => adjustBallPerDrop(-1)}
+					>
+						<img
+							src={staticUrl('img/betting-component-input-decrease-containerless.png')}
+							alt=""
+							aria-hidden="true"
+						/>
+					</button>
+				{/if}
 				<div class="mobile-top-card-mid">
 					<span class="mobile-top-card-label">{context.i18nDerived.t('Ball per drop')}</span>
 					<span class="mobile-top-card-value">{ballPerDropDisplay}</span>
 				</div>
-				<button
-					type="button"
-					class="mobile-top-step mobile-top-step--increase"
-					disabled={isBallPerDropStepDisabled(1)}
-					aria-label="Increase ball per drop"
-					onclick={() => adjustBallPerDrop(1)}
-				>
-					<img
-						src={staticUrl('img/betting-component-input-increase-containerless.png')}
-						alt=""
-						aria-hidden="true"
-					/>
-				</button>
+				{#if !wagerSteppersHidden}
+					<button
+						type="button"
+						class="mobile-top-step mobile-top-step--increase"
+						disabled={isBallPerDropStepDisabled(1)}
+						aria-label="Increase ball per drop"
+						onclick={() => adjustBallPerDrop(1)}
+					>
+						<img
+							src={staticUrl('img/betting-component-input-increase-containerless.png')}
+							alt=""
+							aria-hidden="true"
+						/>
+					</button>
+				{/if}
 			</div>
 		</div>
 
@@ -1000,35 +1024,39 @@
 							{@render bettingFieldFrame()}
 							<span class="bp-field-label">{context.i18nDerived.t('Ball per drop')}</span>
 							<div class="bp-bet-input-wrap">
-								<button
-									type="button"
-									class="bp-stepper-btn bp-stepper-btn--decrease"
-									disabled={isBallPerDropStepDisabled(-1)}
-									aria-label="Decrease ball per drop"
-									onclick={() => adjustBallPerDrop(-1)}
-								>
-									<img
-										src={staticUrl('img/betting-component-input-decrease.png')}
-										alt=""
-										aria-hidden="true"
-									/>
-								</button>
+								{#if !wagerSteppersHidden}
+									<button
+										type="button"
+										class="bp-stepper-btn bp-stepper-btn--decrease"
+										disabled={isBallPerDropStepDisabled(-1)}
+										aria-label="Decrease ball per drop"
+										onclick={() => adjustBallPerDrop(-1)}
+									>
+										<img
+											src={staticUrl('img/betting-component-input-decrease.png')}
+											alt=""
+											aria-hidden="true"
+										/>
+									</button>
+								{/if}
 								<div class="bp-bet-input-mid">
 									<span class="bp-select-display" aria-live="polite">{ballPerDropDisplay}</span>
 								</div>
-								<button
-									type="button"
-									class="bp-stepper-btn bp-stepper-btn--increase"
-									disabled={isBallPerDropStepDisabled(1)}
-									aria-label="Increase ball per drop"
-									onclick={() => adjustBallPerDrop(1)}
-								>
-									<img
-										src={staticUrl('img/betting-component-input-increase.png')}
-										alt=""
-										aria-hidden="true"
-									/>
-								</button>
+								{#if !wagerSteppersHidden}
+									<button
+										type="button"
+										class="bp-stepper-btn bp-stepper-btn--increase"
+										disabled={isBallPerDropStepDisabled(1)}
+										aria-label="Increase ball per drop"
+										onclick={() => adjustBallPerDrop(1)}
+									>
+										<img
+											src={staticUrl('img/betting-component-input-increase.png')}
+											alt=""
+											aria-hidden="true"
+										/>
+									</button>
+								{/if}
 							</div>
 						</div>
 					</div>

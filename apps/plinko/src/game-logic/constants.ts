@@ -53,6 +53,12 @@ export function spinMeterTierFor(ballsPerDrop: number): { max: number; start: nu
 	return { max: cfg.max, start: Math.round(cfg.max * cfg.startRatio) };
 }
 
+/** Balls-per-drop the math simulates a BUY BONUS at, regardless of the player's selected tier — mirror
+ * of stake-math-sdk plinko_data.BUY_BONUS_BALLS_PER_DROP_REF. A buy's book is generated at this tier, so
+ * its `spinMeterMax` / `spinMeterStart` (and the in-bonus free-spin gating) come from this tier, NOT the
+ * selected one. Used to seed the free-spin meter to the math default the moment a buy is activated. */
+export const BUY_BONUS_BALLS_PER_DROP_REF = 10;
+
 /** Pyramid row counts available in the UI. */
 export const ROW_COUNT_OPTIONS = [10, 14, 20] as const;
 

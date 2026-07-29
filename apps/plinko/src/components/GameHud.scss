@@ -1323,6 +1323,24 @@
 	width: 100%;
 }
 
+// BONUS ROUND: Total bet is gone (free balls) and the steppers are stripped, leaving Bet per ball +
+// Balls per drop. They keep EXACTLY the width they have in normal mode — one third of the row, i.e.
+// `(100% - 2 gaps) / 3` — and the pair is centred, so the two plaques don't stretch or shift size when
+// the bonus starts; they just close up around the middle.
+.mobile-top-row--bonus {
+	grid-template-columns: repeat(
+		2,
+		minmax(0, calc((100% - 2 * var(--bp-mobile-component-gap)) / 3))
+	);
+	justify-content: center;
+
+	// With the − / + buttons removed the card has only its label/value block left, so switch off the
+	// `space-between` that used to push the steppers to the plaque edges and centre it instead.
+	.mobile-top-card--stepper {
+		justify-content: center;
+	}
+}
+
 .mobile-top-card {
 	position: relative;
 	// Establish a container so the label/value scale to the card's own width.

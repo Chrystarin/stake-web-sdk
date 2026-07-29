@@ -24,7 +24,7 @@ import {
 	waitForBonusRoundCompletion,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
-import { isPlinkoTriggerMode } from './plinkoBetMode';
+import { isPlinkoBuyBonusMode, isPlinkoTriggerMode } from './plinkoBetMode';
 import { applyAuthoritativeSpinMeterMax } from './plinkoMeterConfig';
 import { runFreeSpinTriggerFlow } from '../features/freeSpin';
 import { runBonusRouletteFlow } from '../features/bonus';
@@ -88,7 +88,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		const outcomes = Array.isArray(bookEvent.outcomes) ? bookEvent.outcomes : [];
 		const ballsPerDrop = plinkoBallsPerDrop();
 		const bookBallsPerDrop = readBookBallsPerDrop(bookEvent);
-		const stratumMismatch = bookBallsPerDrop !== ballsPerDrop;
+		// A BUY BONUS book is bonus-only and the math generates it at a FIXED reference balls-per-drop
+		// (`BUY_BONUS_BALLS_PER_DROP_REF`) regardless of the player's selector — the buy's cost and EV are
+		// balls-per-drop independent. So a mismatch here is by design, not a mis-served stratum, and
+		// warning about it every buy is pure noise.
+		const stratumMismatch =
+			bookBallsPerDrop !== ballsPerDrop && !isPlinkoBuyBonusMode(stateBet.activeBetModeKey);
 		if (stratumMismatch) {
 			console.warn(
 				`[plinko] book ballsPerDrop (${bookBallsPerDrop}) does not match UI (${ballsPerDrop}); check play meta / lookup stratum`,
