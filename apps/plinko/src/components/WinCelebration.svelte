@@ -563,12 +563,12 @@
 	     massive 0.90 (limit ~0.918) · epic 2.85 (limit ~2.90) · captain 3.00 (limit ~3.06)
 	   Tune DOWN freely; going far up just hits the cap and stops growing (see `object-fit` above). */
 	.wc-overlay--portrait .wc-banner[data-tier='massive'] {
-		--wc-banner-scale: 2.5;
+		--wc-banner-scale: 2.20;
 		--wc-banner-dx: 0vw;
 		--wc-banner-dy: 0vh;
 	}
 	.wc-overlay--portrait .wc-banner[data-tier='epic'] {
-		--wc-banner-scale: 2.85;
+		--wc-banner-scale: 2.5;
 		--wc-banner-dx: 0vw;
 		--wc-banner-dy: 0vh;
 	}
