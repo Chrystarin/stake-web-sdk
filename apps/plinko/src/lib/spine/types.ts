@@ -119,6 +119,35 @@ export type SpineOverlayDef = {
 };
 
 /**
+ * Blink an image overlay on a duty cycle instead of holding it at a constant alpha: ramp up to the
+ * def's `alpha`, hold, ramp back to invisible, then stay dark for a randomized gap before striking
+ * again. Used for the free-game sheet lightning. Driven from the same shared schedules as the spine
+ * duty cycles (see `SpineOverlayDef.cycleGroup`), so a staggered pair keeps its stagger forever.
+ */
+export type ImageOverlayFlickerDef = {
+	/** Seconds ramping from invisible up to the overlay's `alpha`. */
+	fadeInSeconds: number;
+	/** Seconds held at full `alpha` between the two ramps. */
+	holdSeconds: number;
+	/** Seconds ramping back down to invisible. */
+	fadeOutSeconds: number;
+	/**
+	 * Dark pause after the strike, re-rolled uniformly in `[gapMinSeconds, gapMaxSeconds]` after every
+	 * cycle so the blinks feel like weather rather than a metronome. Equal values ⇒ a fixed gap.
+	 */
+	gapMinSeconds: number;
+	gapMaxSeconds: number;
+	/** Offset from the group's period start at which THIS overlay strikes (lets a pair fire in turn). */
+	startDelaySeconds?: number;
+	/**
+	 * Run off a schedule SHARED with every other layer naming the same group, so `startDelaySeconds`
+	 * means something lasting — with private schedules each member re-rolls its own random gap and a
+	 * staggered pair drifts into unison within a few cycles. Defaults to the overlay's own `id`.
+	 */
+	group?: string;
+};
+
+/**
  * A plain image (not a Spine) painted only while bonus mode is active — e.g. the free-game moon.
  * Positioned in viewport-fraction coordinates (not the scene's world space), so it's trivial to place
  * against the reference regardless of the base skeleton's fit transform. See
@@ -133,13 +162,23 @@ export type SpineImageOverlayDef = {
 	yVh: number;
 	/** Rendered width as a fraction of the viewport width; height follows to preserve aspect ratio. */
 	widthVw: number;
-	/** Opacity 0..1. Defaults to 1. */
+	/** Opacity 0..1. Defaults to 1. With `flicker`, this is the alpha the strike peaks at. */
 	alpha?: number;
 	/**
 	 * Render under the base background spine instead of on top, so foreground scene elements (and the
 	 * on-top overlays like clouds/rain) occlude it — giving a distant sky element like the moon depth.
+	 *
+	 * Without it the layer is drawn directly ABOVE the base spine and BELOW every `bonusOverlays` spine
+	 * — i.e. in front of the scene but behind the drifting clouds, tornadoes and rain.
 	 */
 	behindBase?: boolean;
+	/**
+	 * Pixi blend mode. `'add'` makes a white asset read as emitted LIGHT rather than as a pasted grey
+	 * haze — the right choice for a glow over the night sky. Defaults to normal alpha blending.
+	 */
+	blendMode?: 'normal' | 'add' | 'screen';
+	/** Blink instead of holding a constant alpha — see `ImageOverlayFlickerDef`. */
+	flicker?: ImageOverlayFlickerDef;
 };
 
 export type SpineAssetDef = {

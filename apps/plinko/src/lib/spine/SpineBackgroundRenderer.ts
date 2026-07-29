@@ -17,7 +17,29 @@ import {
 	spineFitConfig,
 	type FitTransform,
 } from './spineFit';
-import type { SpineAssetDef, SpineImageOverlayDef, SpineOverlayDef } from './types';
+import type {
+	ImageOverlayFlickerDef,
+	SpineAssetDef,
+	SpineImageOverlayDef,
+	SpineOverlayDef,
+} from './types';
+
+/** Smoothstep, so the flicker ramps ease in and out instead of hitting a linear kink at each end. */
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+/**
+ * Alpha multiplier (0..1) for a flickering image overlay `t` seconds into its strike: ramp up, hold at
+ * full, ramp back down. Both ramps are smoothstepped so the glow swells and dies away rather than
+ * sliding linearly — the difference between sheet lightning and a dimmer knob.
+ */
+const strikeEnvelope = (t: number, flicker: ImageOverlayFlickerDef): number => {
+	const { fadeInSeconds, holdSeconds, fadeOutSeconds } = flicker;
+	if (t < fadeInSeconds) return fadeInSeconds > 0 ? smoothstep(t / fadeInSeconds) : 1;
+	const held = t - fadeInSeconds;
+	if (held < holdSeconds) return 1;
+	const out = held - holdSeconds;
+	return fadeOutSeconds > 0 ? smoothstep(Math.max(0, 1 - out / fadeOutSeconds)) : 0;
+};
 
 /** Structural subset shared by the base asset and bonus overlays — everything needed to load a spine. */
 type SpineLoadable = Pick<
@@ -112,8 +134,20 @@ export class SpineBackgroundRenderer {
 			currentGap: number;
 		}
 	>();
-	/** Bonus-mode plain-image layers (e.g. the free-game moon), positioned in viewport fractions. */
-	private imageOverlays: { def: SpineImageOverlayDef; sprite: Sprite }[] = [];
+	/** Bonus-mode plain-image layers (e.g. the free-game moon), positioned in viewport fractions.
+	 * `cycle` is present when the layer blinks (see `SpineImageOverlayDef.flicker`). */
+	private imageOverlays: {
+		def: SpineImageOverlayDef;
+		sprite: Sprite;
+		cycle?: {
+			/** Length of one strike: fade in + hold + fade out. */
+			duration: number;
+			/** Offset from the group's period start at which THIS layer strikes. */
+			startDelay: number;
+			/** Key into `bonusCycleGroups` — the schedule this layer blinks on. */
+			group: string;
+		};
+	}[] = [];
 	/** Wrapper container per `SpineOverlayDef.baseSlot`, attached into the base skeleton's draw order. */
 	private slotAnchors = new Map<string, Container>();
 	/** `baseSlot` → `baseSlotAfter`: where each anchor slot is moved to while bonus mode is active. */
@@ -430,18 +464,7 @@ export class SpineBackgroundRenderer {
 						// Overlays without an explicit group get a private one, so they behave as before.
 						const group = def.cycleGroup ?? def.id;
 						cycle = { duration, startDelay, group };
-
-						// The group's period must cover its LAST member's play, else an overlay whose
-						// `startDelay` runs past the period start would be cut off by the next one.
-						const existing = this.bonusCycleGroups.get(group);
-						const span = Math.max(existing?.span ?? 0, startDelay + duration);
-						this.bonusCycleGroups.set(group, {
-							cycleStart: 0,
-							span,
-							gapMin,
-							gapMax,
-							currentGap: existing?.currentGap ?? gapMin + Math.random() * (gapMax - gapMin),
-						});
+						this.registerBonusCycleGroup(group, startDelay + duration, gapMin, gapMax);
 					}
 				}
 				return { def, spine, cycle };
@@ -452,7 +475,25 @@ export class SpineBackgroundRenderer {
 		const imagesPromise = Promise.all(
 			imageDefs.map(async (def) => {
 				const sprite = await this.loadImageOverlaySprite(def);
-				return { def, sprite };
+
+				let cycle: (typeof this.imageOverlays)[number]['cycle'];
+				const flicker = def.flicker;
+				if (flicker) {
+					const duration =
+						flicker.fadeInSeconds + flicker.holdSeconds + flicker.fadeOutSeconds;
+					if (duration > 0) {
+						const startDelay = flicker.startDelaySeconds ?? 0;
+						const group = flicker.group ?? def.id;
+						cycle = { duration, startDelay, group };
+						this.registerBonusCycleGroup(
+							group,
+							startDelay + duration,
+							flicker.gapMinSeconds,
+							flicker.gapMaxSeconds,
+						);
+					}
+				}
+				return { def, sprite, cycle };
 			}),
 		);
 
@@ -474,18 +515,29 @@ export class SpineBackgroundRenderer {
 		const baseSpine = this.spine;
 
 		// `behindBase` layers are inserted at the base spine's index, so each new one lands directly under
-		// the base spine (and above the previously inserted behind-layer). On-top layers are appended, so
+		// the base spine (and above the previously inserted behind-layer). Spine overlays are appended, so
 		// each lands above the last. `baseSlot` layers go INSIDE the base skeleton's draw order instead.
 		// The bonus asset arrays are ordered so the stack reads, bottom→top:
-		// backdrop → moon → [base scene … sea → ship → splashes → waterfall/dock/fog] → clouds → tornadoes → rain.
+		// backdrop → moon → [base scene … sea → ship → splashes → waterfall/dock/fog] → lightning → clouds
+		// → tornadoes → rain.
 
 		const addBehindBase = (child: Parameters<typeof app.stage.addChild>[0]) =>
 			app.stage.addChildAt(child, app.stage.getChildIndex(baseSpine));
 
+		// On-top image overlays are inserted directly ABOVE the base spine rather than appended, so they
+		// stay UNDER every spine overlay added below — that's what puts the lightning glow behind the
+		// drifting clouds. `aboveBaseCount` keeps the group's own order (and the base spine's index moves
+		// as `addBehindBase` inserts under it, hence the lookup per call).
+		let aboveBaseCount = 0;
+		const addAboveBase = (child: Parameters<typeof app.stage.addChild>[0]) => {
+			app.stage.addChildAt(child, app.stage.getChildIndex(baseSpine) + 1 + aboveBaseCount);
+			aboveBaseCount += 1;
+		};
+
 		// Image overlays first, so a `behindBase` image (the moon) sits beneath the spine overlays.
 		imageOverlays.forEach(({ def, sprite }) => {
 			if (def.behindBase) addBehindBase(sprite);
-			else app.stage.addChild(sprite);
+			else addAboveBase(sprite);
 		});
 
 		// Overlays anchored into the base skeleton (`baseSlot`) share one wrapper container per slot, in
@@ -592,6 +644,28 @@ export class SpineBackgroundRenderer {
 		if (queue.length) schedule(uploadNext);
 	}
 
+	/**
+	 * Register (or widen) a duty-cycle schedule. Shared by the spine overlays and the flickering image
+	 * overlays, so a `cycleGroup` may mix both. The group's period must cover its LAST member's play
+	 * (`memberEnd` = that member's `startDelay + duration`), else a member whose delay runs past the
+	 * period start would be cut off by the next period.
+	 */
+	private registerBonusCycleGroup(
+		group: string,
+		memberEnd: number,
+		gapMin: number,
+		gapMax: number,
+	): void {
+		const existing = this.bonusCycleGroups.get(group);
+		this.bonusCycleGroups.set(group, {
+			cycleStart: 0,
+			span: Math.max(existing?.span ?? 0, memberEnd),
+			gapMin,
+			gapMax,
+			currentGap: existing?.currentGap ?? gapMin + Math.random() * (gapMax - gapMin),
+		});
+	}
+
 	/** Load a bonus image-overlay texture and build its sprite (hidden, centre-anchored) until activated. */
 	private async loadImageOverlaySprite(def: SpineImageOverlayDef): Promise<Sprite> {
 		const alias = `${def.id}-image-overlay`;
@@ -600,14 +674,16 @@ export class SpineBackgroundRenderer {
 		const texture = await Assets.load(alias);
 		const sprite = Sprite.from(texture);
 		sprite.anchor.set(0.5);
-		sprite.alpha = def.alpha ?? 1;
+		// A flickering layer starts dark; the ticker ramps it up to `alpha` on its first strike.
+		sprite.alpha = def.flicker ? 0 : (def.alpha ?? 1);
+		if (def.blendMode) sprite.blendMode = def.blendMode;
 		sprite.visible = false;
 		return sprite;
 	}
 
 	/**
-	 * Drives the splash duty cycles off the Pixi ticker, so they're frame-rate independent and pause
-	 * with the app. (The rain/tornado/cloud overlays self-animate via `autoUpdate`.)
+	 * Drives the splash + lightning duty cycles off the Pixi ticker, so they're frame-rate independent
+	 * and pause with the app. (The rain/tornado/cloud overlays self-animate via `autoUpdate`.)
 	 */
 	private startBonusTicker(): void {
 		const app = this.app;
@@ -621,7 +697,7 @@ export class SpineBackgroundRenderer {
 			} catch (error) {
 				// An exception escaping a ticker listener aborts Pixi's rAF loop, which silently freezes
 				// the ENTIRE background (no repaint at all). Detach instead so the base scene keeps running.
-				console.error('[SpineBackgroundRenderer] bonus tick failed; disabling splash cycle', error);
+				console.error('[SpineBackgroundRenderer] bonus tick failed; disabling duty cycles', error);
 				app.ticker.remove(tick);
 				this.bonusTick = undefined;
 			}
@@ -631,8 +707,8 @@ export class SpineBackgroundRenderer {
 	}
 
 	/**
-	 * Duty-cycled overlays (the two splashes) play their animation once, then hide for `gap` seconds
-	 * before replaying. Members of a `cycleGroup` share one period, each playing at its own
+	 * Duty-cycled layers (the two splashes, the two lightning glows) play once, then hide for `gap`
+	 * seconds before replaying. Members of a `cycleGroup` share one period, each playing at its own
 	 * `startDelay` into it — so the left splash always leads the right by exactly that offset, every
 	 * burst, rather than the two drifting into each other over time.
 	 */
@@ -664,6 +740,18 @@ export class SpineBackgroundRenderer {
 			entry.trackTime = t;
 			// autoUpdate is off for cycled overlays: apply the pose we just seeked to.
 			spine.update(0);
+		}
+
+		for (const { def, sprite, cycle } of this.imageOverlays) {
+			if (!cycle || !def.flicker) continue;
+			const group = this.bonusCycleGroups.get(cycle.group);
+			if (!group) continue;
+
+			const t = this.bonusElapsed - (group.cycleStart + cycle.startDelay);
+			const striking = t >= 0 && t < cycle.duration;
+			sprite.visible = striking;
+			if (!striking) continue;
+			sprite.alpha = (def.alpha ?? 1) * strikeEnvelope(t, def.flicker);
 		}
 	}
 
@@ -795,8 +883,18 @@ export class SpineBackgroundRenderer {
 			spine.autoUpdate = bonus;
 		}
 
-		for (const { sprite } of this.imageOverlays) {
+		for (const { def, sprite, cycle } of this.imageOverlays) {
+			if (cycle) {
+				// Flickering: the ticker owns `visible`/`alpha`. Just make sure the layer is dark when
+				// leaving bonus, so it can't be caught mid-strike and re-enter already lit.
+				if (!bonus) {
+					sprite.visible = false;
+					sprite.alpha = 0;
+				}
+				continue;
+			}
 			sprite.visible = bonus;
+			sprite.alpha = def.alpha ?? 1;
 		}
 	}
 
