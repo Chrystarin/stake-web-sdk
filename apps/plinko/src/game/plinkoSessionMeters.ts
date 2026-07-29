@@ -338,6 +338,9 @@ export function seedBonusMeterForCurrentTier(): void {
 	stateGame.bonusMeterMax = max;
 	stateGame.bonusMeterValue = Math.min(Math.max(0, start), max);
 	stateGame.bonusMeterLevel = 0;
+	// Push the seed into the session store too — otherwise the previous tier's value is left behind and
+	// the next `applyRgsSessionMetersToDisplay` (any balance change re-runs it) snaps the bar back to it.
+	setRgsSessionBonusMeter(stateGame.bonusMeterValue, 0);
 }
 
 /** Apply a `spinMeter` book event to the HUD (session-absolute, never regress mid-bet). */
@@ -474,13 +477,22 @@ export function deriveBonusMeterFromBookEvents(events: BookEvent[]): DerivedBonu
 	};
 }
 
-/** Update HUD display only — does not persist or author outcomes. */
+/**
+ * Set the HUD bonus meter (does not author outcomes) and keep the session store in step.
+ *
+ * ⚠️ The session write is NOT optional. `applyRgsSessionMetersToDisplay` pushes the session value back
+ * into the HUD, and it is re-run from PlinkoAuthenticate's seeding `$effect` — which re-fires on every
+ * balance change, i.e. on the win credit at the end of every round. Any reset that moved the display
+ * WITHOUT moving the session left a stale value behind that the next balance change resurrected, which
+ * the player saw as the meter snapping back and then bouncing up again a beat later.
+ */
 export function applyBonusMeterDisplay(bonusMeter: number, bonusLevel?: number): void {
 	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : bonusMeter;
 	stateGame.bonusMeterValue = Math.min(Math.max(0, bonusMeter), max);
 	if (bonusLevel != null) {
 		stateGame.bonusMeterLevel = Math.max(0, Math.floor(bonusLevel));
 	}
+	setRgsSessionBonusMeter(stateGame.bonusMeterValue, stateGame.bonusMeterLevel);
 }
 
 /** Sync in-memory session bonus meter / level from RGS (next play sends it via meta). */
@@ -535,14 +547,19 @@ function bonusMeterConsumedThisRound(events: BookEvent[]): boolean {
 	return events.some((event) => event.type === 'bonusRoulette');
 }
 
-/** After a bet book finishes: display RGS result and sync bonus meter for the next play meta. */
+/** After a bet book finishes: leave the round's achieved fill on screen and persist it. */
 export async function syncBonusMeterAfterBet(_events: BookEvent[]): Promise<void> {
-	// PER-DROP bonus meter (Option A): reset to the current tier's start each round — no cross-bet carry
-	// (statelessness). The meter filled (and possibly fired the in-drop bonus) during the just-finished
-	// book's `bonusMeter` events; a fired bonus's animation owns the display until it ends, after which
-	// this restores the tier start. Mirrors `syncSpinMeterAfterBet`.
 	if (stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
-	seedBonusMeterForCurrentTier();
+	// The meter is still PER-DROP — it is re-seeded from the next book's own `bonusMeterStart` when that
+	// bet starts (see the `plinkoDrop` handler) — but it must NOT be wiped here. The balls have only just
+	// landed, so resetting on round completion yanked the bar back down in front of the player before they
+	// could read what the round achieved, and the round-end balance credit then re-ran
+	// `applyRgsSessionMetersToDisplay` (PlinkoAuthenticate's seeding `$effect` depends on the balance) with
+	// the session value this reset never cleared — which bounced the bar straight back up. Hold the
+	// achieved reading and persist it, so display and session agree and the meter stays put until the
+	// next bet. A bonus that fired this round owns the display instead and resets it on its own way out
+	// (`resetBonusRoundVisualState`), which the guard above defers to.
+	updateRgsSessionBonusMeter(stateGame.bonusMeterValue, stateGame.bonusMeterLevel);
 }
 
 /** Offset lookup-table `bonusMeter` events when injecting session carry-over (local dev). */

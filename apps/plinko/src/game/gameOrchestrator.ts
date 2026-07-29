@@ -18,7 +18,11 @@ import { meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived, type HistoryChip, type HistoryEntry } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { stateXstateDerived } from './stateXstate';
-import { bonusMeterTierStart, hasActiveRgsSession } from './plinkoSessionMeters';
+import {
+	bonusMeterTierStart,
+	hasActiveRgsSession,
+	updateRgsSessionBonusMeter,
+} from './plinkoSessionMeters';
 import { isPlinkoTriggerMode } from './plinkoBetMode';
 import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
@@ -960,7 +964,11 @@ export function resetBonusRoundVisualState() {
 	stateGame.bonusLevelUpPending = false;
 	bonusFreeSpinOpenPending = false;
 	// Bonus consumed: reset to the tier base start (0 on 1/10-ball, 1/8 on 20-ball, 1/4 on 50-ball).
+	// Persisted as well as displayed: a display-only reset leaves the in-bonus value in the session store,
+	// and the next balance change re-runs `applyRgsSessionMetersToDisplay`, which would snap the bar back
+	// up to it moments after the bonus ended.
 	stateGame.bonusMeterValue = Math.min(bonusMeterTierStart(), stateGame.bonusMeterMax || bonusMeterTierStart());
+	updateRgsSessionBonusMeter(stateGame.bonusMeterValue, 0);
 	stateGame.bonusMeterOverflowValue = 0;
 	stateGame.pendingBonusLevelUpCount = 0;
 	stateGame.deferredBonusLevelUpCount = 0;
