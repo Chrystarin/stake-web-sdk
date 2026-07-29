@@ -220,16 +220,19 @@
 	function startCountUp(amount: number, decimals: number) {
 		const t0 = performance.now();
 		const dur = WIN_TIMING.countUp;
+		// Only WRITE when the rendered string actually changes. The ease-out spends its tail barely
+		// moving, so most frames format to the same digits — reassigning anyway made Svelte reconcile the
+		// glyph row (and re-set every `src`) ~60×/s for nothing, right where the mobile flicker clusters.
+		let shown = numberChars.join('');
 		const tick = (now: number) => {
 			const p = Math.min(1, (now - t0) / dur);
 			const eased = 1 - Math.pow(1 - p, 2.2); // ease-out: fast then settle
-			numberChars = fmt(amount * eased, decimals).split('');
-			if (p < 1) {
-				countRaf = requestAnimationFrame(tick);
-			} else {
-				countRaf = 0;
-				numberChars = fmt(amount, decimals).split('');
+			const next = fmt(p < 1 ? amount * eased : amount, decimals);
+			if (next !== shown) {
+				shown = next;
+				numberChars = next.split('');
 			}
+			countRaf = p < 1 ? requestAnimationFrame(tick) : 0;
 		};
 		countRaf = requestAnimationFrame(tick);
 	}
@@ -350,10 +353,13 @@
 	<canvas class="wc-coins" bind:this={canvasEl}></canvas>
 
 	{#if active}
-		<img class="wc-backdrop" src={staticUrl(WIN_BACKDROP_ART)} alt="" />
+		<!-- `decoding="sync"` on both full-screen layers: they are presented ATOMICALLY with the rest of
+		     the reveal, so the compositor can never show a frame in which the art hasn't decoded yet (the
+		     mobile "background flashes bright for one frame" bug — see the CSS notes on `.wc-backdrop`). -->
+		<img class="wc-backdrop" src={staticUrl(WIN_BACKDROP_ART)} alt="" decoding="sync" />
 
 		<div class="wc-rays-wrap">
-			<img class="wc-rays-img" src={staticUrl(WIN_RAYS_ART)} alt="" />
+			<img class="wc-rays-img" src={staticUrl(WIN_RAYS_ART)} alt="" decoding="sync" />
 		</div>
 
 		<img class="wc-banner" src={bannerSrc} alt="" data-tier={tier} />
@@ -408,14 +414,27 @@
 	}
 
 	/* Soft dark vignette behind the reveal — sized to roughly the SPARKLE (rays) footprint and centred
-	   on the same point, so it only shades the burst area rather than dimming the whole screen. */
+	   on the same point, so it only shades the burst area rather than dimming the whole screen.
+
+	   ⚠️ THE BIGGEST LAYER IN THE APP — at 264vw square it is ~3100×3100 device px on a phone, and it is
+	   what the whole board is dimmed by. If its raster/decode isn't ready when the compositor presents,
+	   Chrome draws the tile TRANSPARENT and the entire board flashes bright for exactly one frame. QA hit
+	   this on Android (Brave/Chrome): measured single-frame flashes at ~250–460ms and ~1.7s into the
+	   celebration — i.e. as the enter transitions FINISHED (layer demoted + re-rastered) and as the
+	   count-up rAF loop STOPPED. Two things keep it stable, don't drop either:
+	     • `will-change: opacity` + `translateZ(0)` — pins it on its own composited layer for the whole
+	       celebration, so finishing the opacity transition can't demote and re-raster it.
+	     • the art itself is a PURE radial blur and is kept SMALL (1192×748, was 4766×2989 ≈ 57MB decoded)
+	       — a re-decode now costs ~1 frame of nothing instead of stalling. Do NOT re-export it large. */
 	.wc-backdrop {
 		position: absolute;
 		left: var(--wc-nx);
 		top: var(--wc-ny);
 		width: calc(var(--wc-rays-size) * 1.35);
 		height: calc(var(--wc-rays-size) * 1.35);
-		transform: translate(-50%, -50%);
+		transform: translate(-50%, -50%) translateZ(0);
+		backface-visibility: hidden;
+		will-change: opacity;
 		object-fit: fill;
 		z-index: 0;
 		opacity: 0;
@@ -426,7 +445,9 @@
 	}
 
 	/* Shine rays: a wrap owns the enter (fade + grow), the inner img owns a slow continuous spin, so
-	   the two transforms don't fight. */
+	   the two transforms don't fight. `will-change` on BOTH for the same reason as `.wc-backdrop`: the
+	   wrap's opacity/transform transitions END at 0.4s/0.55s, and a layer demoted at that moment gets
+	   re-rastered at full size (196vw ≈ 2300px on a phone) — one missed raster = one flashed frame. */
 	.wc-rays-wrap {
 		position: absolute;
 		left: var(--wc-nx);
@@ -436,6 +457,7 @@
 		transform: translate(-50%, -50%) scale(0.55);
 		z-index: 1;
 		opacity: 0;
+		will-change: opacity, transform;
 		transition:
 			opacity 0.4s ease,
 			transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1);
@@ -449,6 +471,8 @@
 		height: 100%;
 		animation: wc-rays-spin 30s linear infinite;
 		transform-origin: center;
+		backface-visibility: hidden;
+		will-change: transform;
 	}
 	@keyframes wc-rays-spin {
 		to {
@@ -517,12 +541,12 @@
 
 	/* ── LANDSCAPE ── */
 	.wc-banner[data-tier='massive'] {
-		--wc-banner-scale: 0.976;
+		--wc-banner-scale: 3.25;
 		--wc-banner-dx: 0vw;
 		--wc-banner-dy: 0vh;
 	}
 	.wc-banner[data-tier='epic'] {
-		--wc-banner-scale: 3.04;
+		--wc-banner-scale: 4.04;
 		--wc-banner-dx: 0vw;
 		--wc-banner-dy: 0vh;
 	}
@@ -539,7 +563,7 @@
 	     massive 0.90 (limit ~0.918) · epic 2.85 (limit ~2.90) · captain 3.00 (limit ~3.06)
 	   Tune DOWN freely; going far up just hits the cap and stops growing (see `object-fit` above). */
 	.wc-overlay--portrait .wc-banner[data-tier='massive'] {
-		--wc-banner-scale: 0.9;
+		--wc-banner-scale: 2.5;
 		--wc-banner-dx: 0vw;
 		--wc-banner-dy: 0vh;
 	}
