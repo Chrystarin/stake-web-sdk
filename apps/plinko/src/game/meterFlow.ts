@@ -3,6 +3,7 @@ import {
 	bankBonusPegDuringLevelUp,
 	clearBonusMeterDrainTimer,
 	combineNextBonusLevelNow,
+	hasPendingBonusLevelAward,
 	isSingleBallMode,
 	onBonusMeterFilledDuringRound,
 	scheduleBonusMeterDrainDuringRoll,
@@ -143,8 +144,15 @@ export function onCoinPegHit(ballId: number) {
 				return;
 			}
 			const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : 1;
-			if (stateGame.bonusMeterValue < max) {
-				stateGame.bonusMeterValue = Math.min(max, stateGame.bonusMeterValue + 1);
+			// A COMPLETED bar with no level-up behind it is a dead end: nothing consumes it, and every
+			// further hit is then rejected by the `< ceiling` test below — the meter simply stops for the
+			// rest of the round. The bar is sized so the book's own levels complete it (see
+			// `sizeBonusMeterForLevel`); this is the backstop for anything that doesn't fit that model
+			// (legacy books with no `levelupPegs`, the top of the ladder), holding the bar one notch short
+			// of the top so it still reads as progress rather than as a level-up that never arrives.
+			const ceiling = hasPendingBonusLevelAward() ? max : Math.max(0, max - 1);
+			if (stateGame.bonusMeterValue < ceiling) {
+				stateGame.bonusMeterValue = Math.min(ceiling, stateGame.bonusMeterValue + 1);
 				if (stateGame.bonusMeterValue >= max) combineNextBonusLevelNow();
 			}
 		} else {

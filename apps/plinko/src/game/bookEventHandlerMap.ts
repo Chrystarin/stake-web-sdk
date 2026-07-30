@@ -295,7 +295,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		}
 		if (level <= stateGame.bonusLevelProgress) {
 			// Entry level: balls were just awarded by the bonus wheel; load their outcomes.
-			loadAuthoritativeBonusOutcomes(outcomes, ballsPlayed);
+			loadAuthoritativeBonusOutcomes(outcomes, ballsPlayed, levelupPegs);
 			return;
 		}
 		// True level-up: play after the current level's balls finish (book-driven, no RNG).

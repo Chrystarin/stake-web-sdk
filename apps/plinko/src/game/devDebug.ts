@@ -6,6 +6,7 @@ import {
 	WIN_TIMING,
 	type WinTier,
 } from '../lib/winCelebration';
+import { bonusMeterRenderedProgress } from '../features/bonus/bonusMeterVisual';
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import {
 	isBetControlsLocked,
@@ -32,6 +33,12 @@ export type PlinkoLockDebugSnapshot = {
 	bonusLevelProgress: number;
 	bonusMeterValue: number;
 	bonusMeterMax: number;
+	/** Bar pinned full for a level-up. Stuck true = the meter stops crediting coin-peg hits. */
+	bonusMeterHoldFull: boolean;
+	bonusLevelUpPending: boolean;
+	/** What the meter is actually DRAWING (0..1) — the fill is animated, so it lags value/max. Every
+	 *  level-up must land on ~1 here; anything lower means the reward beat the bar to the screen. */
+	bonusMeterRenderedFill: number;
 	bonusLevelQueueLength: number;
 	bonusOutcomesTotal: number;
 	bonusOutcomesIndex: number;
@@ -63,6 +70,9 @@ export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
 		bonusLevelProgress: stateGame.bonusLevelProgress,
 		bonusMeterValue: stateGame.bonusMeterValue,
 		bonusMeterMax: stateGame.bonusMeterMax,
+		bonusMeterHoldFull: stateGame.bonusMeterHoldFull,
+		bonusLevelUpPending: stateGame.bonusLevelUpPending,
+		bonusMeterRenderedFill: Number(bonusMeterRenderedProgress().toFixed(3)),
 		bonusLevelQueueLength: stateGame.authoritativeBonusLevelQueue.length,
 		bonusOutcomesTotal: stateGame.authoritativeBonusOutcomes.length,
 		bonusOutcomesIndex: stateGame.authoritativeBonusOutcomeIndex,
