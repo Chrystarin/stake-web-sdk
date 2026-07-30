@@ -387,6 +387,76 @@ export class PlinkoEngine {
   /** How far down the airspace the launch apex sits, as a fraction of mouth → peg-field entry. */
   private static readonly SPAWN_LAUNCH_APEX_FALL = 0.28;
 
+  /**
+   * How far off centre a ball may ENTER the peg field, in whole top-row peg spacings.
+   *
+   * The Galton lane starts at board centre and its first turn moves half a spacing, so without this
+   * the top row could only ever resolve to one of the two middle pegs — every ball entered the field
+   * in the same place. One spacing of entry offset puts the first bounce on the shoulder pegs, two
+   * puts it on the outermost peg of the 6-wide top row (lane sits at ±2.5 spacings after the turn).
+   * Whole spacings only, so a wide entry still lands ON a peg rather than in the gap beside it.
+   */
+  private static readonly ENTRY_WANDER_MAX_COLUMNS = 2;
+
+  /**
+   * Rows over which an off-centre entry eases back onto the pure Galton lane (randomised per ball
+   * within this range). Ends in the lower-middle of the 12-row pyramid: long enough that the ball
+   * visibly travels down one flank before converging, short enough that the last rows are back on the
+   * Galton lane so the final snap into the target slot stays a normal-length step.
+   */
+  private static readonly ENTRY_WANDER_DECAY_ROWS_MIN = 6;
+  private static readonly ENTRY_WANDER_DECAY_ROWS_MAX = 9;
+
+  /** Lateral jitter on the entry offset, in peg spacings, so wide entries aren't rail-straight. */
+  private static readonly ENTRY_WANDER_JITTER_RATIO = 0.12;
+
+  /**
+   * How much of the way from the launch bias toward the first row's lane the peg-field entry point
+   * sits. Below 1 so the ball is still visibly moving sideways as it meets the first peg row instead
+   * of arriving pre-aligned and dropping straight in.
+   */
+  private static readonly ENTRY_APPROACH_RATIO = 0.6;
+
+  /**
+   * Most sideways travel a lane may demand in one row gap, in peg spacings. Above roughly one
+   * spacing per row the ball stops reading as falling through pegs and starts reading as sliding
+   * sideways, so a wide entry that the coin-avoidance plan then routes around the OPPOSITE flank
+   * gets backed off (see `ENTRY_WANDER_FALLBACK_SCALES`) until it fits.
+   */
+  private static readonly LANE_MAX_STEP_RATIO = 1.25;
+
+  /**
+   * Entry-wander strengths to fall back through when the full-strength lane moves too fast
+   * sideways. Ends at 0 — the pure Galton lane — so the governor can never do worse than the
+   * old centre-only entry.
+   */
+  private static readonly ENTRY_WANDER_FALLBACK_SCALES = [0.7, 0.45, 0.2, 0];
+
+  /**
+   * Which flank the lane routes around the coin cluster on: how much the choice is pulled by the
+   * target slot vs. by the side the ball is already falling down.
+   *
+   * The cluster's first row is row 3, so there are only three rows of runway — crossing to the far
+   * flank from a wide entry would need multiple peg spacings per row. Approach outweighs target so
+   * the ball rounds the cluster on the side it arrived on and drifts toward its slot over the eight
+   * rows below, which both looks better and leaves the entry wander intact.
+   */
+  private static readonly FLANK_TARGET_WEIGHT = 0.4;
+  private static readonly FLANK_APPROACH_WEIGHT = 0.65;
+
+  /**
+   * Rows over which the lane eases onto the target slot's centre.
+   *
+   * The Galton walk steps half a peg spacing per row from board centre, so over 12 rows it can only
+   * reach ±6 spacings — but the bottom peg row is 17 wide (±8) and the outer slot centres sit at
+   * ±7.69. `galtonPosition` is rounded to a whole turn count on top of that, so the walk ends on a
+   * half-spacing grid while slot centres sit on a ~1.03-spacing one. Together those left a residual
+   * of up to 1.69 spacings (over 3× a normal row step) that the final — longest, bounce-free —
+   * segment had to cover in one sideways lurch. Easing it in over the last few rows instead makes
+   * the drop into the pocket vertical.
+   */
+  private static readonly TARGET_CONVERGE_ROWS = 5;
+
   /** Ball size the instant it appears in the mouth, as a fraction of its real radius. */
   private static readonly EMERGE_MIN_SCALE = 0.12;
 
@@ -1798,6 +1868,147 @@ export class PlinkoEngine {
     return lane;
   }
 
+  /** Half-width of a peg row, centre → outermost peg centre. */
+  private laneHalfSpanForRow(row: number): number {
+    const pegsInRow = row + PlinkoEngine.TOP_ROW_PEGS;
+    return ((pegsInRow - 1) / 2) * this.pegSpacingXForRow(row);
+  }
+
+  /**
+   * Keep a lane position inside the pyramid — never wider than the row's outermost peg. `reachX`
+   * widens the bound to include that x: the outer slots sit BEYOND the pyramid's span, so the lane
+   * converging onto one has to be allowed past the outermost peg, otherwise the clamp would re-open
+   * the very end-gap the convergence is closing.
+   */
+  private clampLaneToRow(row: number, x: number, reachX?: number): number {
+    const centerX = this.containerWidth / 2;
+    let limit = this.laneHalfSpanForRow(row);
+    if (reachX != null) limit = Math.max(limit, Math.abs(reachX - centerX));
+    return Math.max(centerX - limit, Math.min(centerX + limit, x));
+  }
+
+  /**
+   * Ease the lane onto the target slot's centre over the last `TARGET_CONVERGE_ROWS` rows, so the
+   * final segment into the pocket is a straight drop rather than a sideways lurch. Zero at the start
+   * of the ramp and exactly the full residual at the last peg row, so nothing above the ramp moves.
+   */
+  private planTargetConvergence(lane: number[], targetX: number): number[] {
+    const offsets = new Array<number>(this.rows).fill(0);
+    const lastRow = this.rows - 1;
+    if (lastRow < 1) return offsets;
+
+    const residual = targetX - (lane[lastRow] ?? targetX);
+    if (!residual) return offsets;
+
+    const startRow = Math.max(0, lastRow - PlinkoEngine.TARGET_CONVERGE_ROWS);
+    const span = Math.max(1, lastRow - startRow);
+    for (let row = startRow + 1; row <= lastRow; row++) {
+      offsets[row] = residual * this.smoothstep((row - startRow) / span);
+    }
+    return offsets;
+  }
+
+  /** Fastest sideways travel anywhere in a lane, in peg spacings per row gap. */
+  private maxLaneStepRatio(lane: number[]): number {
+    let worst = 0;
+    for (let row = 1; row < lane.length; row++) {
+      const step = Math.abs(lane[row] - lane[row - 1]) / this.pegSpacingXForRow(row);
+      if (step > worst) worst = step;
+    }
+    return worst;
+  }
+
+  /**
+   * Randomised off-centre ENTRY into the peg field.
+   *
+   * Returns a per-row lane offset that starts at a whole number of peg spacings to one side and eases
+   * back to exactly 0 by `decayRows`. That lets the first bounce land anywhere across the top row
+   * (including the outermost pegs) and lets the ball keep travelling down that flank through the
+   * middle rows, while guaranteeing the lower rows are back on the pure Galton lane — so the target
+   * slot is completely unaffected. This is a lane SHAPE only; it never touches the Galton turn counts.
+   */
+  private planEntryLaneShape(
+    spawnDirection: SpawnDirection,
+    targetIndex: number,
+    nextRandom: () => number,
+  ): { offsets: number[]; columns: number } {
+    const offsets = new Array<number>(this.rows).fill(0);
+    if (this.rows < 4) return { offsets, columns: 0 };
+
+    const side = spawnDirection < 0 ? -1 : 1;
+
+    // Headroom. A slot that is already far out on this side gives the Galton lane an extreme walk in
+    // the same direction, so a wide entry on top of it would just pin the ball against the outer wall
+    // for half the board (and get clamped anyway). Entering AWAY from the target keeps the full range
+    // — that is the long cross-board sweep, and it is the case that reads best.
+    const denom = Math.max(1, this.slots.length - 1);
+    const targetBias = (targetIndex / denom) * 2 - 1; // -1 = leftmost slot, +1 = rightmost
+    const maxColumns = Math.round(
+      PlinkoEngine.ENTRY_WANDER_MAX_COLUMNS * (1 - Math.max(0, targetBias * side)),
+    );
+    if (maxColumns <= 0) return { offsets, columns: 0 };
+
+    // Wide launches (|dir| 2) favour the outer pegs, shallow ones (|dir| 1) the shoulder pegs — and
+    // sometimes still the middle, so the old centre entry stays part of the mix rather than vanishing.
+    const roll = nextRandom();
+    const columns = Math.min(
+      maxColumns,
+      Math.abs(spawnDirection) === 2 ? (roll < 0.55 ? 2 : 1) : roll < 0.6 ? 1 : 0,
+    );
+    if (columns <= 0) return { offsets, columns: 0 };
+
+    const decaySpread =
+      PlinkoEngine.ENTRY_WANDER_DECAY_ROWS_MAX - PlinkoEngine.ENTRY_WANDER_DECAY_ROWS_MIN + 1;
+    const decayRows = Math.max(
+      2,
+      Math.min(
+        this.rows - 2,
+        PlinkoEngine.ENTRY_WANDER_DECAY_ROWS_MIN + Math.floor(nextRandom() * decaySpread),
+      ),
+    );
+    const jitter = (nextRandom() * 2 - 1) * PlinkoEngine.ENTRY_WANDER_JITTER_RATIO;
+
+    for (let row = 0; row < this.rows; row++) {
+      const fade = 1 - this.smoothstep(row / decayRows);
+      if (fade <= 0) break;
+      // Offset is expressed in the ROW's own spacing, so it stays peg-aligned as rows widen.
+      offsets[row] = side * (columns + jitter) * this.pegSpacingXForRow(row) * fade;
+    }
+
+    return { offsets, columns };
+  }
+
+  /**
+   * Scale the entry wander back until it no longer walks a ball into the coin cluster that the pure
+   * Galton lane would have missed.
+   *
+   * Only needed on the legacy (non-deterministic) path, where no avoidance plan runs and ANY featured
+   * contact credits the bonus meter — there, a wider lane would silently raise the coin-hit rate.
+   * Deterministic drops don't need this: `planSmoothFeaturedAvoidance` runs on the shaped lane and
+   * routes it around the whole cluster, which is a better result than damping.
+   */
+  private dampEntryWanderNearFeatured(galtonLane: number[], entryOffsets: number[]): number[] {
+    const featuredRows: number[] = [];
+    for (let row = 0; row < this.rows; row++) {
+      if (this.rowHasFeaturedPeg(row)) featuredRows.push(row);
+    }
+    if (!featuredRows.length) return entryOffsets;
+
+    const createsThreat = (scale: number): boolean =>
+      featuredRows.some((row) => {
+        const galtonX = galtonLane[row] ?? 0;
+        if (this.galtonLaneThreatensFeaturedCluster(row, galtonX)) return false; // already exposed
+        const shapedX = this.clampLaneToRow(row, galtonX + (entryOffsets[row] ?? 0) * scale);
+        return this.galtonLaneThreatensFeaturedCluster(row, shapedX);
+      });
+
+    if (!createsThreat(1)) return entryOffsets;
+    for (const scale of [0.75, 0.5, 0.25]) {
+      if (!createsThreat(scale)) return entryOffsets.map((offset) => offset * scale);
+    }
+    return new Array<number>(this.rows).fill(0);
+  }
+
   private getFeaturedClusterSpan(row: number): { minX: number; maxX: number } | null {
     return this.clusterSpanByRow.get(row) ?? null;
   }
@@ -1851,6 +2062,23 @@ export class PlinkoEngine {
     );
     if (!needsAvoidance) return { offsets, flankPegByRow };
 
+    const firstFeatured = featuredRows[0];
+    const lastFeatured = featuredRows[featuredRows.length - 1];
+    const rampRows = Math.min(5, Math.max(3, firstFeatured));
+    const easeInStart = Math.max(0, firstFeatured - rampRows);
+    // Ease back out over EVERY remaining row rather than a fixed few. Coming off the flank the lane
+    // may have most of the board to cross (a ball routed right around the cluster whose slot is on
+    // the far left), and squeezing that into three rows made the ball slide sideways. Spread over the
+    // rest of the descent it is a gradual drift, and the offset still reaches exactly 0 on the last
+    // row so the final step into the slot is unchanged.
+    const easeOutEnd = this.rows - 1;
+
+    // Where the ball is when the detour STARTS, not where it would have been at the cluster itself.
+    // By the cluster row the lane has already converged toward the slot, so scoring there makes both
+    // flanks look equidistant and the target pulls the ball across — a crossing that has to fit
+    // inside `rampRows` and reads as a sideways slide.
+    const approachX = galtonLane[easeInStart] ?? targetSlotX;
+
     let chosenSide: -1 | 1 = 1;
     let bestScore = -Infinity;
     for (const side of [-1, 1] as const) {
@@ -1862,9 +2090,8 @@ export class PlinkoEngine {
           valid = false;
           break;
         }
-        const galtonX = galtonLane[row] ?? targetSlotX;
-        score -= Math.abs(flank.x - targetSlotX) * 0.4;
-        score -= Math.abs(flank.x - galtonX) * 0.15;
+        score -= Math.abs(flank.x - targetSlotX) * PlinkoEngine.FLANK_TARGET_WEIGHT;
+        score -= Math.abs(flank.x - approachX) * PlinkoEngine.FLANK_APPROACH_WEIGHT;
       }
       if (!valid) continue;
       if (score > bestScore) {
@@ -1881,12 +2108,6 @@ export class PlinkoEngine {
       targetLaneByRow.set(row, flank.x);
     }
     if (!targetLaneByRow.size) return { offsets, flankPegByRow };
-
-    const firstFeatured = featuredRows[0];
-    const lastFeatured = featuredRows[featuredRows.length - 1];
-    const rampRows = Math.min(5, Math.max(3, firstFeatured));
-    const easeInStart = Math.max(0, firstFeatured - rampRows);
-    const easeOutEnd = Math.min(this.rows - 1, lastFeatured + rampRows);
 
     for (let row = 0; row < this.rows; row++) {
       let weight = 0;
@@ -2088,9 +2309,19 @@ export class PlinkoEngine {
     const targetSlot = this.slots[targetIndex];
     const targetX = targetSlot.centerX;
 
-    const denom = Math.max(1, this.slots.length - 1);
-    const galtonPosition = Math.round((targetIndex / denom) * this.rows);
-    const rightTurns = galtonPosition;
+    // Turn split from the slot's ACTUAL x, not a proportional index mapping. The pockets are neither
+    // evenly spaced (the centre one is 1.95× wide) nor confined to the walk's reach — 12 rows of
+    // half-spacing steps only span ±6 spacings, while the outer slot centres sit at ±7.69 — so the
+    // old `round(targetIndex / (slots-1) * rows)` left a systematic end-gap of up to 1.69 spacings
+    // for the final, bounce-free segment to cover in one sideways lurch.
+    const halfStep = this.pegSpacingXForRow(this.rows - 1) / 2;
+    const desiredSteps = halfStep > 0 ? (targetX - centerX) / halfStep : 0;
+    let netSteps = Math.round(desiredSteps);
+    // `rightTurns - leftTurns` must share parity with the row count for both to be whole numbers;
+    // when it doesn't, nudge toward the value we actually wanted.
+    if (Math.abs(netSteps % 2) !== this.rows % 2) netSteps += desiredSteps > netSteps ? 1 : -1;
+    netSteps = Math.max(-this.rows, Math.min(this.rows, netSteps));
+    const rightTurns = (this.rows + netSteps) / 2;
     const leftTurns = this.rows - rightTurns;
 
     const turns: number[] = [];
@@ -2157,23 +2388,78 @@ export class PlinkoEngine {
     const avoidFeaturedPegs = pathOptions?.deterministic === true && pathOptions?.hitBonusPeg !== true;
     const steerToFeatured = pathOptions?.hitBonusPeg === true && featuredTarget != null;
     const galtonLane = this.buildGaltonLane(turns, centerX);
-    let laneOffsets: number[];
-    let flankPegByRow: Map<number, Peg>;
-    if (avoidFeaturedPegs) {
-      const avoidancePlan = this.planSmoothFeaturedAvoidance(galtonLane, targetX);
-      laneOffsets = avoidancePlan.offsets;
-      flankPegByRow = avoidancePlan.flankPegByRow;
-    } else if (steerToFeatured && featuredTarget) {
-      laneOffsets = this.planSmoothFeaturedApproach(galtonLane, featuredTarget);
-      flankPegByRow = new Map<number, Peg>();
-    } else {
-      laneOffsets = new Array<number>(this.rows).fill(0);
-      flankPegByRow = new Map<number, Peg>();
+
+    // Off-centre entry: shift the whole lane sideways at the top and ease it back onto the Galton
+    // lane by the lower-middle rows.
+    const entryShape = this.planEntryLaneShape(spawnDirection, targetIndex, nextRandom);
+    const entryOffsets =
+      avoidFeaturedPegs || steerToFeatured
+        ? entryShape.offsets
+        : this.dampEntryWanderNearFeatured(galtonLane, entryShape.offsets);
+
+    // The coin-peg planners run on the SHAPED lane, not the raw Galton one, so they see where the
+    // ball will actually be — otherwise a wandering lane could stroll into a coin the avoidance plan
+    // believed was nowhere near it.
+    const buildLane = (entryScale: number): { lane: number[]; flanks: Map<number, Peg> } => {
+      const shaped = galtonLane.map((laneX, row) =>
+        this.clampLaneToRow(row, laneX + (entryOffsets[row] ?? 0) * entryScale),
+      );
+      let offsets: number[];
+      let flanks: Map<number, Peg>;
+      if (avoidFeaturedPegs) {
+        const avoidancePlan = this.planSmoothFeaturedAvoidance(shaped, targetX);
+        offsets = avoidancePlan.offsets;
+        flanks = avoidancePlan.flankPegByRow;
+      } else if (steerToFeatured && featuredTarget) {
+        offsets = this.planSmoothFeaturedApproach(shaped, featuredTarget);
+        flanks = new Map<number, Peg>();
+      } else {
+        offsets = new Array<number>(this.rows).fill(0);
+        flanks = new Map<number, Peg>();
+      }
+      const coinLane = shaped.map((laneX, row) =>
+        this.clampLaneToRow(row, laneX + (offsets[row] ?? 0)),
+      );
+      // Last: close the residual gap onto the slot centre. Applied on top of the coin plan (whose
+      // rows are all well above the ramp) so it can never pull the lane back into the cluster.
+      const converge = this.planTargetConvergence(coinLane, targetX);
+      return {
+        lane: coinLane.map((laneX, row) =>
+          this.clampLaneToRow(row, laneX + (converge[row] ?? 0), targetX),
+        ),
+        flanks,
+      };
+    };
+
+    // Naturalness governor. A wide entry that the coin-avoidance plan then routes around the
+    // OPPOSITE flank can demand two-plus peg spacings of sideways travel in a single row gap, which
+    // reads as the ball sliding rather than falling. Back the wander off until every step fits.
+    // The last fallback is 0 (pure Galton lane), so this can only ever match the old behaviour.
+    let lanePlan = buildLane(1);
+    for (const scale of PlinkoEngine.ENTRY_WANDER_FALLBACK_SCALES) {
+      if (this.maxLaneStepRatio(lanePlan.lane) <= PlinkoEngine.LANE_MAX_STEP_RATIO) break;
+      lanePlan = buildLane(scale);
     }
-    const earlyAvoidBias = laneOffsets[0] ?? 0;
+    const shapedLane = lanePlan.lane;
+    const flankPegByRow = lanePlan.flanks;
 
     const spawnX = spawn.x + spawnMouthOffset;
     const entryY = this.topMargin - this.pegSpacing * 0.32;
+
+    // Aim the peg-field entry most of the way at wherever the lane actually starts, so a wide entry
+    // doesn't have to make up the whole sideways distance in the one segment below the mouth (which
+    // would read as a sideways teleport rather than a throw). A centre entry is unchanged.
+    const firstRowLaneX = shapedLane[0] ?? centerX;
+    const launchBiasedX = centerX + spawnLaneBias;
+    const entryX = this.clampLaneToRow(
+      0,
+      launchBiasedX + (firstRowLaneX - launchBiasedX) * PlinkoEngine.ENTRY_APPROACH_RATIO,
+    );
+    // Throw harder the further out the ball is entering, so the arc out of the mouth stays in
+    // proportion to the distance it has to cover.
+    const launchBurstRatio =
+      PlinkoEngine.SPAWN_LAUNCH_BURST_RATIO *
+      (1 + Math.min(1, entryShape.columns / PlinkoEngine.ENTRY_WANDER_MAX_COLUMNS));
 
     const path: PathPoint[] = [];
     // Born off-centre, inside the black cavity.
@@ -2188,18 +2474,16 @@ export class PlinkoEngine {
     // Thrown: most of the sideways motion happens here, in the first stretch below the mouth. The
     // ball overshoots the entry point and arcs back onto it, which is what a thrown ball does.
     path.push({
-      x:
-        spawnX +
-        spawnDirection * this.pegSpacingXForRow(0) * PlinkoEngine.SPAWN_LAUNCH_BURST_RATIO,
+      x: spawnX + spawnDirection * this.pegSpacingXForRow(0) * launchBurstRatio,
       y: spawn.y + (entryY - spawn.y) * PlinkoEngine.SPAWN_LAUNCH_APEX_FALL,
       row: -1,
       closestPeg: null,
       bounceIntensity: 0,
       travelDir: 0,
     });
-    // Peg-field entry — unchanged, so nothing downstream of the launch moves.
+    // Peg-field entry, lined up with the first row's lane.
     path.push({
-      x: centerX + spawnLaneBias + earlyAvoidBias * 0.12,
+      x: entryX,
       y: entryY,
       row: -1,
       closestPeg: null,
@@ -2209,8 +2493,7 @@ export class PlinkoEngine {
 
     for (let row = 0; row < this.rows; row++) {
       const rowY = this.topMargin + this.pegSpacing * 0.5 + row * this.pegSpacing;
-      const galtonX = galtonLane[row] ?? centerX;
-      const laneX = galtonX + (laneOffsets[row] ?? 0);
+      const laneX = shapedLane[row] ?? centerX;
 
       const rowPegs = this.pegsByRow.get(row) ?? [];
       const { pathX, closestPeg, bounceIntensity } = this.resolveRowBounce(rowPegs, laneX, {
@@ -2231,7 +2514,7 @@ export class PlinkoEngine {
         featuredTarget && row + 1 === featuredTarget.row
           ? featuredTarget.x
           : row + 1 < this.rows
-            ? (galtonLane[row + 1] ?? targetX) + (laneOffsets[row + 1] ?? 0)
+            ? (shapedLane[row + 1] ?? targetX)
             : targetX;
       const pegX = closestPeg?.x ?? pathX;
       const travelDir =
