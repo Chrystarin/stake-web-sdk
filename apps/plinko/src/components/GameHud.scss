@@ -1450,9 +1450,20 @@
 }
 
 .mobile-free-spin-meter {
+	// Overall size multiplier for the component. 1 == the reference sizing below; the three clamp
+	// terms are the untouched baseline so the reference is still readable at a glance.
+	// ⚠️ Height is aspect-derived, so this grows the meter's ROW too — and .mobile-hud is `flex: 0 0
+	// auto` against a `flex: 1` .game-area, so a taller HUD eats the board's leftover height and can
+	// pull --portrait-fit-scale down. Re-check the board/scrim after changing this.
+	// 1.25 (+25%) then reduced 10% → 1.125, i.e. +12.5% over the baseline below.
+	--fs-meter-scale: 1.125;
 	// Right-aligned. Native free-spin-base.png ratio (306 × 137) → no letterbox padding inside the
-	// canvas. Width is 15% smaller than the previous 120px/40%/196px.
-	width: clamp(102px, 34%, 167px);
+	// canvas. Baseline width is 15% smaller than the previous 120px/40%/196px.
+	width: clamp(
+		calc(102px * var(--fs-meter-scale, 1)),
+		calc(34% * var(--fs-meter-scale, 1)),
+		calc(167px * var(--fs-meter-scale, 1))
+	);
 	height: auto;
 	aspect-ratio: 306 / 137;
 	min-height: 0;

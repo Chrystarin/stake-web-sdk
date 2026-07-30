@@ -1747,12 +1747,14 @@
 		   This is the ANCHOR — leave it at 100% and nudge with --fs-scrim-offset-y below. */
 		--fs-scrim-top: 100%;
 		/* Vertical nudge, added to --fs-scrim-top. NEGATIVE moves the band UP (further onto the wood),
-		   POSITIVE moves it DOWN (further onto the deck). 0% sits exactly on the frame's bottom edge.
-		   ⚠️ Keep this a PERCENTAGE, not px/vw. It resolves against the frame box height, so it rides
-		   the same scale(--portrait-fit-scale) squeeze as everything else; an absolute unit would
-		   re-introduce exactly the drift this whole wrapper exists to eliminate.
-		   Scale: the frame box is ~496px tall on a 390×844 phone, so 1% ≈ 5px there (and proportionally
-		   less on a smaller/squeezed viewport — which is the point). */
+		   POSITIVE moves it DOWN (further onto the deck). 0 sits exactly on the frame's bottom edge.
+		   Either % or vw is safe here, and the two are interchangeable: .container's LAYOUT width is
+		   100vw-derived, and --portrait-fit-scale is a `transform: scale()` (visual only — it never
+		   changes layout width). So a vw length declared inside .container is scaled by exactly the
+		   same factor as the frame itself. Measured across 360×780 → 360×460 (fit-scale 1.00 → 0.60),
+		   the -12.5vw below holds a constant -11.31% of frame height, spread 0.002pp.
+		   Do NOT use px — that is the one unit which would not track the squeeze.
+		   Conversions: -12.5vw == -11.31% == -56px on a 390×844 phone. */
 		--fs-scrim-offset-y: -12.5vw;
 		/* Band height, as a fraction of frame height. */
 		--fs-scrim-height: 27%;
