@@ -71,12 +71,12 @@
 	// will crop — lower the scale or nudge with the offsets.
 	const BONUS_ROULETTE_TUNING = {
 		landscape: {
-			label: { scale: 1.8, offsetX: 0, offsetY: -0.05 },
+			label: { scale: 1.7, offsetX: 0, offsetY: -0.075 },
 			wheel: { scale: 1.8, offsetX: 0, offsetY: 0.3 },
 		},
 		portrait: {
 			label: { scale: 1.2, offsetX: 0, offsetY: 0 },
-			wheel: { scale: 1.2, offsetX: 0, offsetY: -0.2 },
+			wheel: { scale: 1.1, offsetX: 0, offsetY: -0.2 },
 		},
 	};
 
@@ -1014,7 +1014,8 @@
 	}
 	.bonus-spin-title {
 		position: relative;
-		/* Above the wheel assembly so the label always paints over the frame's crown pointer when it pokes up. */
+		/* Below the wheel assembly so the frame's crown marker paints OVER the label where it pokes up
+		   into the banner (see `.bonus-spin-wheel-stack`). */
 		z-index: 4;
 		width: min(72vw, 100%);
 		max-width: 100%;
@@ -1036,6 +1037,9 @@
 	}
 	.bonus-spin-wheel-stack {
 		position: relative;
+		/* Above `.bonus-spin-title` (z-index 4) so the frame's baked-in crown marker sits on top of the
+		   label instead of being covered by it when the wheel is scaled/offset up into the banner. */
+		z-index: 5;
 		width: min(72vw, 100%);
 		height: min(72vw, 100%);
 		max-width: 100%;
