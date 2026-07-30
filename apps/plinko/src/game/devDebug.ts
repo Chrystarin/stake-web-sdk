@@ -16,7 +16,8 @@ import {
 } from './gameOrchestrator';
 import { forceUnlockBettingControls } from './meterFlow';
 import { plinkoActiveModeMaxWin, plinkoStakePerBall } from './plinkoBet';
-import { stateGame } from './stateGame.svelte';
+import { setRgsSessionSpinMeter } from './plinkoSessionMeters';
+import { meterController, stateGame } from './stateGame.svelte';
 
 export type PlinkoLockDebugSnapshot = {
 	controlsLocked: boolean;
@@ -183,6 +184,10 @@ export function installPlinkoDevDebug() {
 		plinkoTestEpicBounty?: (...args: WinCelebrationTestArgs) => void;
 		plinkoTestCaptainsJackpot?: (...args: WinCelebrationTestArgs) => void;
 		plinkoTestRapidSparkle?: (amount?: number, multiplier?: number, count?: number) => void;
+		plinkoSetSpinMeter?: (
+			value: number,
+			max?: number,
+		) => { spinMeterValue: number; spinMeterMax: number; spinMeterProgress: number };
 	};
 
 	w.plinkoPlayMeta = buildPlinkoPlayPayloadPreview;
@@ -237,5 +242,26 @@ export function installPlinkoDevDebug() {
 		for (let i = 0; i < count; i++) {
 			setTimeout(() => pushRapidWinSparkle(amount, multiplier), i * 220);
 		}
+	};
+
+	// Dev-only: pin the Free Spin meter (the "Free Spin" wheel + fill bar in GameHud) to an exact
+	// value without dropping any balls — e.g. `plinkoSetSpinMeter(7, 10)` for a 70%-full bar, or
+	// `plinkoSetSpinMeter(10)` to see it land exactly on the free-spin-wheel trigger. Omit `max` to
+	// keep the current tier's max (set by ballsPerDrop) and only move the fill value.
+	// Also writes through the RGS session cache (`setRgsSessionSpinMeter`) — display-only writes get
+	// silently snapped back to the cached session value on the next balance change (any bet/round
+	// activity), the same resurrection bug documented for the bonus meter.
+	w.plinkoSetSpinMeter = (value, max) => {
+		if (typeof max === 'number') {
+			stateGame.spinMeterMax = max;
+			stateGame.spinMeterBaseMax = max;
+		}
+		stateGame.spinMeterValue = Math.max(0, Math.min(value, stateGame.spinMeterMax));
+		setRgsSessionSpinMeter(stateGame.spinMeterValue);
+		return {
+			spinMeterValue: stateGame.spinMeterValue,
+			spinMeterMax: stateGame.spinMeterMax,
+			spinMeterProgress: meterController.spinMeterProgress(),
+		};
 	};
 }

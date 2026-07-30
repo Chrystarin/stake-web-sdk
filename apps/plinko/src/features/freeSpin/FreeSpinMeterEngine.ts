@@ -35,10 +35,15 @@ export class FreeSpinMeterEngine {
   private targetProgress = 0;
   private readonly fillAnimationSpeedPerSecond = 2.2;
   // Wheel tuning controls (relative to the base art size).
-  private readonly wheelScaleByBaseHeight = 0.45;
+  private readonly wheelScaleByBaseHeight = 0.8;
   private readonly wheelOffsetXByBaseWidth = 0.9;
-  private readonly wheelOffsetYByBaseHeight = 0.75;
+  private readonly wheelOffsetYByBaseHeight = 0.65;
   private readonly wheelSpinRadiansPerSecond = 1.2;
+  // Fill-bar tuning controls (relative to the base art size).
+  private readonly meterOffsetXByBaseWidth = 0.055;
+  private readonly meterOffsetYByBaseHeight = 0.5;
+  private readonly meterWidthByBaseWidth = 0.8;
+  private readonly meterHeightByBaseHeight = 0.25;
   private wheelSpinTicker?: (ticker: { deltaMS: number }) => void;
 
 	async init(host: HTMLElement): Promise<void> {
@@ -168,10 +173,10 @@ export class FreeSpinMeterEngine {
     this.baseSprite.position.set(offsetX, offsetY);
 
     // Align the fill to the long horizontal strip shown in the FREE SPIN art.
-    this.meterOffsetXPx = offsetX + scaledBaseWidth * 0.075;
-    this.meterOffsetYPx = offsetY + scaledBaseHeight * 0.675;
-    this.meterNativeWidth = scaledBaseWidth * 0.9;
-    this.meterNativeHeight = scaledBaseHeight * 0.13;
+    this.meterOffsetXPx = offsetX + scaledBaseWidth * this.meterOffsetXByBaseWidth;
+    this.meterOffsetYPx = offsetY + scaledBaseHeight * this.meterOffsetYByBaseHeight;
+    this.meterNativeWidth = scaledBaseWidth * this.meterWidthByBaseWidth;
+    this.meterNativeHeight = scaledBaseHeight * this.meterHeightByBaseHeight;
 
     this.meterSprite.position.set(this.meterOffsetXPx, this.meterOffsetYPx);
     this.meterSprite.width = this.meterNativeWidth;

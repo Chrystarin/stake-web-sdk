@@ -779,6 +779,21 @@
 				<!-- 1-ball rapid tier: small win sparkles (shine rays + value) that pop in/out at random
 				     spots around the skull + hat — rendered by the <RapidWinSparkles /> overlay below. -->
 
+				<!-- Scrim over the wood at the foot of the frame, giving the mobile Free Spin meter
+				     (which lives in the HUD below) something to sit on. It's a child of .container —
+				     NOT of the HUD — so it inherits the same scale(--portrait-fit-scale) squeeze as the
+				     board and stays welded to the frame's bottom edge at every viewport. Last child, so
+				     it paints over the frame art. -->
+				{#if mobile}
+					<div class="game-area-foot" aria-hidden="true">
+						<img
+							class="game-area-foot-scrim"
+							src={staticUrl('img/mobile_free_spin_under_frame_overlay.png')}
+							alt=""
+						/>
+					</div>
+				{/if}
+
 			</div>
 		</div>
 
@@ -1710,6 +1725,70 @@
 
 	.game-root--mobile .game-area > .container .game-area-frame {
 		transform: translateX(-50%);
+	}
+
+	/* Geometric CLONE of .game-area-frame's box: same left/width/transform, with the height pinned by
+	   the frame art's native aspect (1142×1010) instead of `height: auto`. `.game-area-frame` is an
+	   <img>, so its box height is aspect-derived and can't be referenced by a sibling — this empty
+	   div reproduces that box so percentages inside it resolve against the FRAME, not the container.
+	   Being a child of .container, it also inherits the scale(--portrait-fit-scale) squeeze that
+	   kicks in on short viewports — which is exactly what vw units could not follow. */
+	.game-root--mobile .game-area > .container .game-area-foot {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		width: 125%;
+		aspect-ratio: 1142 / 1010;
+		transform: translateX(-50%);
+		pointer-events: none;
+
+		/* ── Scrim knobs. All % of the FRAME box, so they scale with the frame ─────────────────
+		   Where the band starts, as a fraction of frame height. 100% == the frame's bottom edge.
+		   This is the ANCHOR — leave it at 100% and nudge with --fs-scrim-offset-y below. */
+		--fs-scrim-top: 100%;
+		/* Vertical nudge, added to --fs-scrim-top. NEGATIVE moves the band UP (further onto the wood),
+		   POSITIVE moves it DOWN (further onto the deck). 0% sits exactly on the frame's bottom edge.
+		   ⚠️ Keep this a PERCENTAGE, not px/vw. It resolves against the frame box height, so it rides
+		   the same scale(--portrait-fit-scale) squeeze as everything else; an absolute unit would
+		   re-introduce exactly the drift this whole wrapper exists to eliminate.
+		   Scale: the frame box is ~496px tall on a 390×844 phone, so 1% ≈ 5px there (and proportionally
+		   less on a smaller/squeezed viewport — which is the point). */
+		--fs-scrim-offset-y: -12.5vw;
+		/* Band height, as a fraction of frame height. */
+		--fs-scrim-height: 27%;
+		/* Band width, as a fraction of frame width, centred. Deliberately over-wide: once
+		   --portrait-fit-scale drops below 1 on a short viewport the frame shrinks NARROWER than the
+		   screen, and a 100% band would leave gaps at both edges. The art is a flat horizontal
+		   gradient, so surplus width costs nothing and guarantees edge-to-edge at any squeeze. */
+		--fs-scrim-width: 160%;
+		/* Vertical flip. The art ramps 0.23α → 0.58α DOWNWARD, i.e. its most opaque edge is the
+		   bottom one. As-authored (1) that dense edge ends mid-deck and reads as a hard seam;
+		   flipped (-1) it butts against the frame and fades out downward, like a cast shadow.
+		     -1 = dense edge at the frame, fades down (default)
+		      1 = as-authored; only works if --fs-scrim-height is stretched far enough for the dense
+		          edge to reach the black Win/Balance bar and blend into it. */
+		--fs-scrim-flip: -1;
+	}
+
+	/* The art (mobile_free_spin_under_frame_overlay.png, 1982×146) is a PURE VERTICAL gradient —
+	   every row is one flat colour edge-to-edge — so stretching it to any width/height is visually
+	   lossless. `object-fit: fill` is deliberate, not a fallback for a wrong aspect.
+	   `left`+`width` / `top`+`height` are set explicitly rather than as left/right or top/bottom
+	   pairs: this is a REPLACED element, and an over-constrained abs-pos <img> drops `right`/`bottom`
+	   and snaps back to its intrinsic size, silently un-stretching the band. */
+	.game-root--mobile .game-area > .container .game-area-foot-scrim {
+		position: absolute;
+		left: 50%;
+		width: var(--fs-scrim-width, 160%);
+		/* Anchor + nudge. Both percentages resolve against the frame box height, so the sum scales
+		   with the frame — see the --fs-scrim-offset-y note above. */
+		top: calc(var(--fs-scrim-top, 100%) + var(--fs-scrim-offset-y, 0%));
+		height: var(--fs-scrim-height, 27%);
+		object-fit: fill;
+		display: block;
+		/* translateX(-50%) centres the over-wide band; scaleY applies --fs-scrim-flip. Both must live
+		   in ONE declaration — a second `transform` rule would replace this, not compose with it. */
+		transform: translateX(-50%) scaleY(var(--fs-scrim-flip, -1));
 	}
 
 	.game-root--mobile .game-area > .container .game-area-bonus-overlay {
