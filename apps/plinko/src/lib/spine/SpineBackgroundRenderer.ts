@@ -518,7 +518,7 @@ export class SpineBackgroundRenderer {
 		// the base spine (and above the previously inserted behind-layer). Spine overlays are appended, so
 		// each lands above the last. `baseSlot` layers go INSIDE the base skeleton's draw order instead.
 		// The bonus asset arrays are ordered so the stack reads, bottom→top:
-		// backdrop → moon → [base scene … sea → ship → splashes → waterfall/dock/fog] → lightning → clouds
+		// backdrop → moon → lightning → [base scene … sea → ship → splashes → waterfall/dock/fog] → clouds
 		// → tornadoes → rain.
 
 		const addBehindBase = (child: Parameters<typeof app.stage.addChild>[0]) =>

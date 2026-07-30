@@ -10,9 +10,10 @@ import type { SpineImageOverlayDef, SpineOverlayDef } from './types';
  *
  * Layers, from farthest to nearest:
  *  - moon  (image overlay, 50% opacity, behind the scene)   — `getBonusMoonOverlay`
+ *  - lightning (image overlays, just above the moon, still UNDER the base scene; a staggered pair on
+ *    desktop, a single centred glow in portrait)            — `getBonusLightningOverlays`
  *  - ship  (spine, INSIDE the base scene just above the sea) — `getBonusShipOverlay`
  *  - splash×2 (spine, inside the base scene, over the ship)  — `getBonusSplashOverlay`
- *  - lightning×2 (image overlays, above the scene but UNDER the clouds) — `getBonusLightningOverlays`
  *  - tornado×2 (spine, above the scene: a big one right, a smaller one left) — `getBonusTornadoOverlay`
  *  - cloud (spine, drifting storm clouds on top)             — `getBonusCloudOverlay`
  *  - rain  (spine, on top — landscape/portrait specific)     — `getBonusRainOverlay`
@@ -50,7 +51,7 @@ const OVERLAY_SKELETON_SCALE = 0.5;
  *                       − = UP, + = DOWN.   (Roughly 1 unit ≈ 1px on a ~1280px-wide desktop.)
  *    • scaleMul     — size multiplier.  1 = original size, 0.8 = 80% (smaller), 1.25 = 125% (bigger).
  *
- *  MOON and LIGHTNING×2 (plain images, placed in viewport fractions — independent of the scene):
+ *  MOON and LIGHTNING (plain images, placed in viewport fractions — independent of the scene):
  *    • xVw / yVh    — CENTRE position, as fractions of viewport width / height (0 = left/top … 1 = right/bottom).
  *    • widthVw      — width as a fraction of viewport width (height follows automatically to keep aspect).
  *    • alpha        — opacity, 0–1  (0.5 = 50%).  For the lightning this is the alpha each blink PEAKS at.
@@ -59,7 +60,8 @@ const OVERLAY_SKELETON_SCALE = 0.5;
  *                     To make an additive glow read brighter once it is at 1, widen it (`widthVw`)
  *                     so more of the asset's bright core lands on screen.
  *
- *  How OFTEN the lightning blinks is a separate knob block — see `LIGHTNING_FLICKER` below.
+ *  How OFTEN the lightning blinks, and how long each strike lasts, are a separate knob block — see
+ *  `LIGHTNING_STRIKE` / `LIGHTNING_INTERVAL_*` below.
  * ════════════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -68,12 +70,22 @@ type SpinePlacement = { offsetXVw: number; offsetYScene: number; scaleMul: numbe
 /** Position + size (+ opacity) of a plain image overlay: the moon, and each lightning glow. */
 type ImagePlacement = { xVw: number; yVh: number; widthVw: number; alpha: number };
 
+/**
+ * One sheet-lightning glow. An orientation may run any number of them (desktop uses a staggered
+ * left/right pair, mobile a single centred one), so they are configured as a LIST rather than as fixed
+ * left/right slots.
+ */
+type LightningPlacement = ImagePlacement & {
+	/** Suffix for the overlay id — must be unique within the orientation (`bonus_lightning_<key>`). */
+	key: string;
+	/** Seconds after the shared cycle's start at which THIS glow strikes. The first should be 0. */
+	delaySeconds: number;
+};
+
 type OrientationTuning = {
 	moon: ImagePlacement;
-	/** The sheet-lightning glow in the upper-LEFT sky — strikes first. */
-	lightningLeft: ImagePlacement;
-	/** The sheet-lightning glow in the upper-RIGHT sky — answers a beat later. */
-	lightningRight: ImagePlacement;
+	/** Sheet-lightning glows, in strike order. See `LightningPlacement`. */
+	lightning: LightningPlacement[];
 	ship: SpinePlacement;
 	/** The big right-hand tornado (shown in both orientations). */
 	tornadoRight: SpinePlacement;
@@ -88,8 +100,11 @@ type OrientationTuning = {
 /* ▼▼▼ DESKTOP / LANDSCAPE — move & resize the moon, ship and tornadoes on desktop here. ▼▼▼ */
 const LANDSCAPE_TUNING: OrientationTuning = {
 	moon: { xVw: 0.12, yVh: 0.13, widthVw: 0.35, alpha: 0.5 },
-	lightningLeft: { xVw: 0.27, yVh: 0.09, widthVw: 0.58, alpha: 0.85 },
-	lightningRight: { xVw: 0.75, yVh: 0.08, widthVw: 0.52, alpha: 0.8 },
+	// A staggered pair: the left glow strikes, the right answers a beat later.
+	lightning: [
+		{ key: 'left', xVw: 0.27, yVh: 0.09, widthVw: 0.58, alpha: 0.85, delaySeconds: 0 },
+		{ key: 'right', xVw: 0.75, yVh: 0.08, widthVw: 0.52, alpha: 0.8, delaySeconds: 0.35 },
+	],
 	ship: { offsetXVw: -0.2, offsetYScene: 100, scaleMul: 1 },
 	tornadoRight: { offsetXVw: 0.23, offsetYScene: -516, scaleMul: 1 },
 	tornadoLeft: { offsetXVw: -0.2, offsetYScene: -554, scaleMul: 0.62 },
@@ -100,15 +115,18 @@ const LANDSCAPE_TUNING: OrientationTuning = {
 /* ▼▼▼ MOBILE / PORTRAIT — move & resize the moon, ship and tornado on mobile here. ▼▼▼ */
 const PORTRAIT_TUNING: OrientationTuning = {
 	moon: { xVw: 0.175, yVh: 0.05, widthVw: 0.5, alpha: 0.5 },
-	// Portrait leaves far less sky: the skull arch fills the top-centre and the board starts a quarter
-	// of the way down, so the only background still on screen is a sliver down each side. Both glows are
-	// pushed right out to those slivers (half of each ellipse falls off-screen, which is fine for a soft
-	// radial glow) and run a little brighter, since much less of the flash is visible to begin with.
-	lightningLeft: { xVw: 0.1, yVh: 0.08, widthVw: 0.68, alpha: 0.9 },
-	// The right glow cannot ride as high as the left one: the skull arch is at its WIDEST across the top
-	// of the portrait frame, so a core placed up there lands behind the hat and the flash all but
-	// vanishes (measured: peak brightness fell to a third). It sits a little lower and further out.
-	lightningRight: { xVw: 0.94, yVh: 0.11, widthVw: 0.62, alpha: 0.85 },
+	// ONE glow on mobile, centred on the top edge — portrait simply has no room for a staggered pair.
+	//
+	// ⚠️ It has to be much wider than either desktop glow, for two reasons that compound. The sprite is
+	// centre-anchored, so pinning it to the top edge pushes most of it off-screen; and the skull arch
+	// covers the top-CENTRE, which is exactly where the asset's bright core now sits. What actually
+	// reaches the player is the glow's lower wings, spilling into the sky slivers either side of the
+	// arch — so the asset is scaled well past the viewport width to put enough brightness out there.
+	// Measured: lifting a glow 0.02vh in portrait costs ~40-50% of its peak brightness, so any further
+	// vertical move needs `widthVw` re-tuned with it.
+	lightning: [
+		{ key: 'center', xVw: 0.5, yVh: 0.05, widthVw: 1.85, alpha: 0.95, delaySeconds: 0 },
+	],
 	ship: { offsetXVw: -0.07, offsetYScene: -50, scaleMul: 0.9 },
 	tornadoRight: { offsetXVw: 0.3, offsetYScene: -645, scaleMul: 0.7 },
 	// (no left tornado on mobile)
@@ -320,16 +338,17 @@ export const getBonusMoonOverlay = (orientation: Orientation): SpineImageOverlay
 
 /*
  * ════════════════════════════════════════════════════════════════════════════════════════════════
- *  TUNING KNOBS — how the bonus-mode LIGHTNING blinks. (Where it sits and how bright it gets are the
- *  `lightningLeft` / `lightningRight` entries in the two orientation blocks above.)
+ *  TUNING KNOBS — how the bonus-mode LIGHTNING blinks. (Where each glow sits, how big and how bright
+ *  it is, and how long after the beat it strikes, are the `lightning` lists in the orientation blocks
+ *  above.) This shape is shared by every glow in both orientations.
  *
  *    • fadeInSeconds / holdSeconds / fadeOutSeconds — one strike: swell up, stay lit, die away.
- *    • gapMin/MaxSeconds — dark pause between strikes, re-rolled each time inside this range so the
- *                          storm never feels metronomic. Raise both to make lightning rarer.
- *    • rightDelaySeconds — how long AFTER the left glow the right one answers.
+ *    • LIGHTNING_INTERVAL_{MIN,MAX}_SECONDS — how often lightning strikes, measured strike-to-strike
+ *                          and re-rolled inside the range every cycle so the storm never feels
+ *                          metronomic. Raise both to make lightning rarer.
  * ════════════════════════════════════════════════════════════════════════════════════════════════
  */
-const LIGHTNING_FLICKER = {
+const LIGHTNING_STRIKE = {
 	// The glow swells in and is then snuffed out — a long ramp up, a brief peak, a quick cut back to
 	// dark. ⚠️ Don't shorten `fadeOutSeconds` much further: the background app is capped at 30fps during
 	// bonus (`BONUS_BACKGROUND_MAX_FPS`), so anything under ~0.1s is only two or three drawn frames and
@@ -337,49 +356,63 @@ const LIGHTNING_FLICKER = {
 	fadeInSeconds: 0.35,
 	holdSeconds: 0.06,
 	fadeOutSeconds: 0.32,
-	gapMinSeconds: 2.2,
-	gapMaxSeconds: 4.5,
 };
-/** The LEFT glow strikes on the beat; the RIGHT one answers this many seconds later. */
-const LIGHTNING_RIGHT_DELAY_SECONDS = 0.35;
+/** How long one strike lasts, start to fully dark. */
+const LIGHTNING_STRIKE_SECONDS =
+	LIGHTNING_STRIKE.fadeInSeconds + LIGHTNING_STRIKE.holdSeconds + LIGHTNING_STRIKE.fadeOutSeconds;
+
 /**
- * Both glows run off ONE schedule, so the left→right stagger holds for every strike instead of
- * decaying into unison as each side re-rolls its own random gap (see `ImageOverlayFlickerDef.group`).
+ * Time from one strike to the next, re-rolled in this range after every cycle.
+ *
+ * These are the OBSERVED interval, not the renderer's `gap` knob — the renderer's cycle period is
+ * `span + gap`, where the span covers the last glow's strike (its start delay plus the strike length).
+ * `getBonusLightningOverlays` subtracts that span, so a 6-7s setting here means lightning is seen every
+ * 6-7s, and the two orientations agree despite desktop's staggered pair having a longer span.
+ */
+const LIGHTNING_INTERVAL_MIN_SECONDS = 6;
+const LIGHTNING_INTERVAL_MAX_SECONDS = 7;
+/**
+ * Every glow runs off ONE schedule, so a staggered set keeps its stagger for every strike instead of
+ * decaying into unison as each member re-rolls its own random gap (see `ImageOverlayFlickerDef.group`).
+ * Harmless for a single-glow orientation, which simply has one member on the schedule.
  */
 const LIGHTNING_CYCLE_GROUP = 'bonus_lightning_pair';
 
 /**
- * The free-game sheet lightning: two soft white glows blinking in the storm clouds at the top of the
- * screen, the left one striking first and the right answering a beat later.
+ * The free-game sheet lightning: soft white glows blinking in the storm clouds at the top of the
+ * screen. Desktop runs a staggered left/right pair; portrait has no room for that and runs a single
+ * wide glow centred on the top edge. Both are configured by the orientation's `lightning` list.
  *
  * `lightning.png` is not a bolt — it's a wide, soft elliptical glow (peak alpha ~0.5, pure white), so
  * it's drawn ADDITIVELY: over the night sky that reads as the cloud bank lighting up from within,
- * where normal alpha blending would just paste a grey haze on top. Both sit above the base scene but
- * below the `bonusOverlays` spines, so the drifting clouds and the rain pass in FRONT of the flash —
- * see `SpineImageOverlayDef.behindBase`.
+ * where normal alpha blending would just paste a grey haze on top.
+ *
+ * They belong to the distant-sky group: `behindBase` puts them UNDER the base scene, so its sky, fog
+ * and foreground art (dock, flags, waterfalls) all occlude the flash instead of being washed over by
+ * it — and of course the bonus clouds and rain above the scene pass in front too. They are built after
+ * the moon and each `behindBase` layer inserts directly under the base spine, so they land just ABOVE
+ * the moon: backdrop → moon → lightning → base scene → clouds → tornadoes → rain.
  */
 export const getBonusLightningOverlays = (orientation: Orientation): SpineImageOverlayDef[] => {
-	const flicker = (startDelaySeconds: number) => ({
-		...LIGHTNING_FLICKER,
-		startDelaySeconds,
-		group: LIGHTNING_CYCLE_GROUP,
-	});
-	return [
-		{
-			id: 'bonus_lightning_left',
-			src: staticAssetPath(LIGHTNING_IMAGE),
-			blendMode: 'add' as const,
-			flicker: flicker(0),
-			...TUNING[orientation].lightningLeft,
+	const glows = TUNING[orientation].lightning;
+	// The renderer restarts the cycle every `span + gap` seconds, where the span reaches the END of the
+	// last glow's strike. Subtracting it here is what makes LIGHTNING_INTERVAL_* mean the strike-to-strike
+	// interval a player actually sees, for a single glow and a staggered pair alike.
+	const span = Math.max(...glows.map((g) => g.delaySeconds)) + LIGHTNING_STRIKE_SECONDS;
+	return glows.map(({ key, delaySeconds, ...placement }) => ({
+		id: `bonus_lightning_${key}`,
+		src: staticAssetPath(LIGHTNING_IMAGE),
+		blendMode: 'add' as const,
+		behindBase: true,
+		flicker: {
+			...LIGHTNING_STRIKE,
+			gapMinSeconds: Math.max(0, LIGHTNING_INTERVAL_MIN_SECONDS - span),
+			gapMaxSeconds: Math.max(0, LIGHTNING_INTERVAL_MAX_SECONDS - span),
+			startDelaySeconds: delaySeconds,
+			group: LIGHTNING_CYCLE_GROUP,
 		},
-		{
-			id: 'bonus_lightning_right',
-			src: staticAssetPath(LIGHTNING_IMAGE),
-			blendMode: 'add' as const,
-			flicker: flicker(LIGHTNING_RIGHT_DELAY_SECONDS),
-			...TUNING[orientation].lightningRight,
-		},
-	];
+		...placement,
+	}));
 };
 
 /**
@@ -400,8 +433,9 @@ export const getBonusOverlays = (orientation: Orientation): SpineOverlayDef[] =>
 ];
 
 /**
- * Plain-image overlays. The moon is `behindBase` so the scene occludes it; the lightning pair is not,
- * landing above the scene but still under every spine overlay (clouds, tornadoes, rain).
+ * Plain-image overlays, in z-order. Both the moon and the lightning are `behindBase`, so the base
+ * scene occludes them — and because each `behindBase` layer is inserted directly under the base spine,
+ * this array's order is what puts the lightning above the moon rather than below it.
  */
 export const getBonusImageOverlays = (orientation: Orientation): SpineImageOverlayDef[] => [
 	getBonusMoonOverlay(orientation),
