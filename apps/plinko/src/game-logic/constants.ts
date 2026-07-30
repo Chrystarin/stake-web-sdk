@@ -155,6 +155,31 @@ export function bonusLevelBalls(level: number): number {
 	return BONUS_LEVEL_BALLS[Math.floor(level)] ?? 0;
 }
 
+/**
+ * SHARED in-bonus level-up ladder — coin-peg hits needed to LEAVE level L (index L-1).
+ *
+ * IDENTICAL IN EVERY MODE: an earned bonus (10/20/50) and a bought bonus need the same hits to climb.
+ * What differs per mode is how often a falling ball awards a coin peg (math
+ * `BONUS_PEG_HIT_PROB_BY_MODE`), which is the per-mode RTP lever — the buy tiers use a much lower
+ * probability so their big fixed entry batch cannot run the ×10 award ladder away to level 9.
+ *
+ * The threshold ESCALATES because the free-ball award ladder is exponential (`BONUS_LEVEL_BALLS`,
+ * ×2 per level): a flat bar is bimodal — either the bonus stalls at level 1-2, or one award becomes
+ * big enough to fund the next level-up and the round runs away. Growth ~1.7 keeps each level roughly
+ * as hard as its award is large.
+ *
+ * Mirror of stake-math-sdk `plinko_data.BONUS_LEVELUP_PEG_HITS_BY_LEVEL`
+ * (= `round(5 × 1.7^(L-1))`). This is a FALLBACK only: production sizes each level's bar from the
+ * book's own `bonusRound.levelupPegs`, and this table is used when a book omits it.
+ */
+export const BONUS_LEVELUP_PEGS = [5, 8, 14, 25, 42, 71, 121, 205] as const;
+
+/** Coin-peg hits needed to advance FROM `level` to `level + 1` (clamped to the ladder). */
+export function bonusLevelupPegs(level: number): number {
+	const index = Math.max(1, Math.min(Math.floor(level || 1), BONUS_LEVELUP_PEGS.length)) - 1;
+	return BONUS_LEVELUP_PEGS[index];
+}
+
 /** Bonus roulette ABSOLUTE entry free-ball awards (9 segments, avg 60). Mirror of stake-math-sdk
  * `plinko_data.BONUS_WHEEL_FREE_BALLS`. Tier-INDEPENDENT.
  * ⚠️ THE ART IS THE SOURCE OF TRUTH: these are exactly the numbers painted on `wheel_values.png`, in

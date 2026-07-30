@@ -9,6 +9,7 @@ import {
 	FREE_SPIN_SEGMENTS,
 	SIM_SPEED,
 	bonusLevelBalls,
+	bonusLevelupPegs,
 } from '../game-logic/constants';
 import { waitForBonusMeterRenderedFull } from '../features/bonus/bonusMeterVisual';
 import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-logic/spinSlot';
@@ -93,9 +94,20 @@ function countBonusPegs(outcomes: PlinkoBallOutcome[]): number {
  * Size the energy bar for the level being ENTERED — see `applyBonusMeterLevelMax` for the rule.
  * `ownPegs` is how many coin-peg hits this level's OWN balls will deliver; `carryPegs` how many are
  * still owed by balls already in the pool (the previous level's leftovers, which drop first).
+ *
+ * The threshold comes from the book (`bonusRound.levelupPegs`) whenever it is present — it is the same
+ * escalating ladder in every mode, so `bonusLevelupPegs(level)` is an exact stand-in for a book that
+ * omits the field. Only if the level is unknown too does this keep the previous level's threshold.
  */
-function sizeBonusMeterForLevel(levelupPegs: number, ownPegs: number, carryPegs: number) {
-	const threshold = levelupPegs > 0 ? levelupPegs : bonusLevelPegThreshold || stateGame.bonusMeterMax;
+function sizeBonusMeterForLevel(
+	levelupPegs: number,
+	bonusLevel: number,
+	ownPegs: number,
+	carryPegs: number,
+) {
+	const mirrored = bonusLevel > 0 ? bonusLevelupPegs(bonusLevel) : 0;
+	const threshold =
+		levelupPegs > 0 ? levelupPegs : mirrored || bonusLevelPegThreshold || stateGame.bonusMeterMax;
 	bonusLevelPegThreshold = Math.max(1, Math.floor(threshold || 1));
 	bonusLevelOwnPegs = Math.max(0, Math.floor(ownPegs));
 	bonusLevelCarryPegs = Math.max(0, Math.floor(carryPegs));
@@ -398,7 +410,12 @@ export function startAuthoritativeBonusRound(
 	stateGame.authoritativeBonusOutcomeIndex = played;
 	// Size the energy bar to what THIS (entry) level's own balls will actually deliver. No carry: the
 	// entry level starts on an empty pool.
-	sizeBonusMeterForLevel(levelupPegs, countBonusPegs(stateGame.authoritativeBonusOutcomes), 0);
+	sizeBonusMeterForLevel(
+		levelupPegs,
+		level,
+		countBonusPegs(stateGame.authoritativeBonusOutcomes),
+		0,
+	);
 	const remaining = Math.max(0, Math.floor(freeBalls || 0) - played);
 	if (level > 0) {
 		stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level);
@@ -455,7 +472,8 @@ export function loadAuthoritativeBonusOutcomes(
 	// Size the entry level's bar to the coin-peg hits its own balls carry (see `applyBonusMeterLevelMax`).
 	// The wheel's `awardBonusBalls` snapped the meter to max a moment ago so the trigger reads as
 	// "fill → fire"; this is also what hands it over to the level-1 energy bar, starting from empty.
-	sizeBonusMeterForLevel(levelupPegs, countBonusPegs(stateGame.authoritativeBonusOutcomes), 0);
+	// This path only ever loads the ENTRY level's outcomes, so the fallback threshold is level 1's.
+	sizeBonusMeterForLevel(levelupPegs, 1, countBonusPegs(stateGame.authoritativeBonusOutcomes), 0);
 	stateGame.bonusMeterValue = 0;
 	// RESUME: the wheel just re-awarded the FULL entry count; drop the already-played balls so the
 	// player continues from the remaining count (fresh play passes 0 → no reduction).
@@ -599,7 +617,7 @@ async function applyAuthoritativeBonusLevel(level: {
 			// Re-size the bar to the new level's escalating threshold (mirrors the mid-drop combine path),
 			// then drain so the new, taller bar visibly re-fills from empty as its balls drop. This path only
 			// runs once the level's balls have DEPLETED, so there is no leftover carry to fold in.
-			sizeBonusMeterForLevel(level.levelupPegs ?? 0, countBonusPegs(level.outcomes), 0);
+			sizeBonusMeterForLevel(level.levelupPegs ?? 0, level.level, countBonusPegs(level.outcomes), 0);
 			if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
 		},
 	);
@@ -668,7 +686,12 @@ export function combineNextBonusLevelNow(): boolean {
 			fireBonusFreeSpinForLevel(leavingLevel);
 		},
 		() => {
-			sizeBonusMeterForLevel(next.levelupPegs ?? 0, countBonusPegs(next.outcomes), carryPegs);
+			sizeBonusMeterForLevel(
+				next.levelupPegs ?? 0,
+				next.level,
+				countBonusPegs(next.outcomes),
+				carryPegs,
+			);
 			if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
 		},
 	);

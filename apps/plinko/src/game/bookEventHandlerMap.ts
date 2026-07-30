@@ -285,8 +285,9 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		const level = Math.max(1, Math.floor(bookEvent.level ?? 1));
 		const freeBalls = Math.max(0, Math.floor(bookEvent.freeBalls ?? outcomes.length));
 		const ballsPlayed = Math.max(0, Math.floor(bookEvent.ballsPlayed ?? 0));
-		// Escalating per-level energy-bar threshold (pegs to leave THIS level). 0 = legacy book → keep the
-		// flat meter max from the `bonusMeter` event.
+		// Escalating per-level energy-bar threshold (pegs to leave THIS level), the SAME ladder in every
+		// mode. 0 = legacy book → `sizeBonusMeterForLevel` falls back to the mirrored `bonusLevelupPegs`
+		// for this level.
 		const levelupPegs = Math.max(0, Math.floor(bookEvent.levelupPegs ?? 0));
 		if (!stateGame.bonusRoundActive) {
 			// No preceding wheel award (e.g. resume) — start the round and award balls.
