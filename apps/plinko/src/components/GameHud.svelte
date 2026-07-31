@@ -803,40 +803,60 @@
 			>
 				<img src={staticUrl('img/fast-game-btn-mobile.png')} alt="" aria-hidden="true" />
 			</button>
-			<button
-				type="button"
-				class="mobile-icon-btn mobile-icon-btn--play"
-				class:mobile-icon-btn--play-loading={showPlayLoading}
-				class:mobile-icon-btn--soft-disabled={isPlayButtonSoftInsufficient}
-				disabled={isPlayButtonHardDisabled}
-				aria-label="Bet"
-				aria-disabled={isPlayButtonSoftInsufficient}
-				aria-busy={showPlayLoading}
-				onclick={onMainActionClick}
-				onpointerdown={onPlayPointerDown}
-				onpointerup={onPlayPointerRelease}
-				onpointercancel={onPlayPointerRelease}
-				onlostpointercapture={onPlayPointerRelease}
-			>
-				<!-- Play button now uses the desktop round plaque + icon (main_btn_empty.png +
-				     main_btn_play_icon.png) via the shared snippets, replacing play-btn-mobile.png. The
-				     plaque is drawn in every state; only the overlay (spinner / icon) changes. -->
-				{@render mainButtonBase()}
-				{#if showPlayLoading}
-					<img
-						class="bp-btn-play-spinner"
-						src={staticUrl('img/loading_vector.png')}
-						alt=""
-						aria-hidden="true"
-					/>
-				{:else if props.hasPendingBonusBalls}
-					<!-- During a bonus round the mobile Play button matches desktop: the play icon is
-					     dropped and the plaque shows only the number of free balls left. -->
-					<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
-				{:else}
-					{@render mainButtonPlayIcon()}
-				{/if}
-			</button>
+			<!-- The strap art is wrapped WITH the Play button (not dropped straight into the row) so it
+			     is anchored to the button's own box: its socket offset is then a pure function of the
+			     button size and can never drift if the row's other buttons are resized. The wrapper is
+			     shrink-to-fit, so it adds no layout of its own. -->
+			<div class="mobile-play-wrap">
+				<!-- Portrait-only decorative strap running behind the action row, with the Play plaque
+				     seated in its socket. Purely presentational — it must never eat a tap meant for the
+				     button underneath the pointer.
+				     A DIV rather than an <img>: the art is 3-sliced so the bar can run longer than the
+				     PNG without stretching the socket (see .mobile-play-strap). The element paints the
+				     fixed socket slice and its ::before/::after paint the stretchable end caps, and
+				     replaced elements don't render pseudo-elements. The URL rides in on a custom
+				     property so SvelteKit's `base` still resolves it — the convention documented in
+				     lib/staticUrl.ts — since a bundled SCSS `url()` can't see the CDN subpath. -->
+				<div
+					class="mobile-play-strap"
+					style:--strap-img="url({staticUrl('img/portait_bet_panel_strap.png')})"
+					aria-hidden="true"
+				></div>
+				<button
+					type="button"
+					class="mobile-icon-btn mobile-icon-btn--play"
+					class:mobile-icon-btn--play-loading={showPlayLoading}
+					class:mobile-icon-btn--soft-disabled={isPlayButtonSoftInsufficient}
+					disabled={isPlayButtonHardDisabled}
+					aria-label="Bet"
+					aria-disabled={isPlayButtonSoftInsufficient}
+					aria-busy={showPlayLoading}
+					onclick={onMainActionClick}
+					onpointerdown={onPlayPointerDown}
+					onpointerup={onPlayPointerRelease}
+					onpointercancel={onPlayPointerRelease}
+					onlostpointercapture={onPlayPointerRelease}
+				>
+					<!-- Play button now uses the desktop round plaque + icon (main_btn_empty.png +
+					     main_btn_play_icon.png) via the shared snippets, replacing play-btn-mobile.png. The
+					     plaque is drawn in every state; only the overlay (spinner / icon) changes. -->
+					{@render mainButtonBase()}
+					{#if showPlayLoading}
+						<img
+							class="bp-btn-play-spinner"
+							src={staticUrl('img/loading_vector.png')}
+							alt=""
+							aria-hidden="true"
+						/>
+					{:else if props.hasPendingBonusBalls}
+						<!-- During a bonus round the mobile Play button matches desktop: the play icon is
+						     dropped and the plaque shows only the number of free balls left. -->
+						<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
+					{:else}
+						{@render mainButtonPlayIcon()}
+					{/if}
+				</button>
+			</div>
 			<div class="mobile-autobet-wrap">
 				<button
 					type="button"

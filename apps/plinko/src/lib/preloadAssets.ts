@@ -52,6 +52,8 @@ const CRITICAL_IMAGE_PATHS: readonly string[] = [
 	'img/loading_vector.png',
 	'img/fast-game-btn-mobile.png',
 	'img/auto-bet-btn-mobile.png',
+	// Portrait-only strap behind the mobile action row (see .mobile-play-strap).
+	'img/portait_bet_panel_strap.png',
 	// Desktop menu button (top-hud). Mobile uses its own asset below.
 	'img/menu-btn.png',
 	// Mobile menu button — dedicated mobile art, top-left corner.

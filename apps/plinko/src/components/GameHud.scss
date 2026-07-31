@@ -1484,6 +1484,45 @@
 	justify-content: center;
 	align-items: center;
 	gap: clamp(14px, 4.5vw, 28px);
+
+	/* ══ TUNING KNOBS for the whole action row ════════════════════════════════════════════════════
+	   Declared here, not on the individual rules, because the strap and the side buttons have to
+	   agree: the drop below is computed from the strap's own scale, so a knob that lived on
+	   .mobile-play-strap would be invisible to the Fast/Autobet buttons (custom properties only
+	   inherit downward, and they are its SIBLINGS).
+
+	   --mobile-play-w         Play button size. Every other value here is derived from it, so the
+	                           row holds its proportions at any viewport width.
+	   --strap-length          Strap bar length, end to end. Any CSS length; 100vw = exactly
+	                           full-bleed. Thanks to the 3-slice (see .mobile-play-strap) this does
+	                           NOT touch the socket — measured @375: 80vw → 300px bar, 100vw → 375px,
+	                           120vw → 450px, 150vw → 562px, socket flush at every one. Below the
+	                           centre slice's own width (560 art-px ≈ 220px @375) the caps collapse.
+	   --strap-scale           Socket diameter AND bar thickness; does NOT affect bar length.
+	                           1 = socket exactly the size of the visible play ball (the design
+	                           target). Measured @375: 0.90 → bar 43px thick, socket 4.0px inside the
+	                           ball; 1.00 → 48px, flush; 1.10 → 53px, 4.0px proud; 1.25 → 60px,
+	                           9.9px proud.
+	   --strap-offset-x / -y   Nudge the strap right/down (negative = left/up). Any CSS length.
+	                           ⚠️ Moves the strap ONLY — the button stays put, so anything other than
+	                           0 takes the socket off-centre from the ball by that exact amount.
+	   --action-side-btn-drop  How far Fast + Autobet sit below the row's centre line. The default
+	                           lands them on the strap's BAND centre: the band spans art y 72..194
+	                           (centre 133) while the socket centre is art y 110, so the bar's middle
+	                           is 23 art-px lower than the socket — and the socket is itself 3.125%
+	                           above the button-box centre. Hence `23 * --strap-px - 3.125% * play-w`,
+	                           ≈ 6.4px @375. Increase to sit lower, negative to sit higher.
+	   ═════════════════════════════════════════════════════════════════════════════════════════════ */
+	--mobile-play-w: clamp(65px, 22.6vw, 100px);
+	--strap-length: 100vw;
+	--strap-scale: 1.15;
+	--strap-offset-x: 0px;
+	--strap-offset-y: 0px;
+
+	// Rendered size of a single strap art pixel — derived from the knobs above, not a knob itself.
+	--strap-px: calc(var(--mobile-play-w) * 0.9375 * var(--strap-scale) / 202);
+
+	--action-side-btn-drop: calc(var(--strap-px) * 23 - var(--mobile-play-w) * 0.03125);
 }
 
 .mobile-icon-btn {
@@ -1526,11 +1565,112 @@
 	}
 }
 
+// Shrink-to-fit holder for the Play button + the strap art behind it. Its box is EXACTLY the button
+// box (the strap is absolutely positioned, so it doesn't contribute to the shrink-to-fit width),
+// which is what lets .mobile-play-strap resolve its % offsets against the button.
+// ⚠️ Deliberately no `z-index` here: with `z-index: auto` this is NOT a stacking context, so the
+// strap (z-index 0) and the buttons (z-index 1) all layer inside the ACTION ROW's context — that's
+// how the strap gets under the Fast/Autobet buttons, which are its flex siblings, not its children.
+.mobile-play-wrap {
+	position: relative;
+	display: inline-flex;
+	flex: 0 0 auto;
+}
+
+/* Portrait-only strap art running behind the action row (portait_bet_panel_strap.png, 922 × 221 —
+   the mobile HUD is only rendered when `props.mobile`, i.e. the portrait layout, so no media query
+   is needed). Its dark socket is 202 art-px across, centred at (464, 110).
+   The plaque it seats is main_btn_empty.png: its VISIBLE ball (green fill + orange rim) measures 120
+   of 128px, i.e. 93.75% of the button box, and sits 3.125% ABOVE the box centre (same offset as
+   --bp-play-disc-rise). Everything outside that 120px is a soft shadow at alpha <= 30, so 93.75% is
+   the button's real edge — the number to match the socket against, NOT the full 100% box.
+   Everything is derived from --mobile-play-w, so the whole strap tracks the button as it grows and
+   shrinks with the viewport — the knobs below are pure multipliers/nudges on top of that and never
+   need re-tuning per screen size.
+
+   ── 3-SLICE ─────────────────────────────────────────────────────────────────────────────────────
+   A plain <img> ties bar length to socket diameter (one bitmap, one scale), so a longer bar always
+   meant a socket too big for the ball. The art is therefore cut into three vertical slices:
+
+       art x:  0 ────────── 184 ═══════ socket 464 ═══════ 744 ────────── 922
+               |  left cap   |          FIXED CENTRE          |  right cap  |
+               |  stretches  |   socket stays flush w/ ball    |  stretches  |
+
+   The cut points are measured, not guessed. The bar's core is flat across its whole width
+   (premultiplied luminance 6.32, alpha 179 at EVERY x outside the socket), and the socket's drop
+   shadow on the bar's bottom edge is confined to x 230..700 — so 184 and 744 sit on clean baseline
+   bar and the caps carry no socket detail to distort. Each cap is anchored AT its seam (the left
+   cap's art x=184 lands exactly on the centre's left edge, the right cap's x=744 on its right
+   edge), so the joins are continuous by construction; the stretch only ever falls on flat bar.
+   ⚠️ Moving a cut point inside 230..700 drags part of the socket shadow into a cap, where it gets
+   horizontally stretched — that IS visible. Widen the centre rather than narrowing it. */
+.mobile-play-strap {
+	// The knobs this reads (--strap-length / -scale / -offset-x / -offset-y, plus the derived
+	// --strap-px) are all declared on .mobile-action-row — see the tuning block there.
+	// The fixed centre slice, art x 184..744.
+	--strap-mid-w: calc(var(--strap-px) * 560);
+	// What's left over goes to the two caps. Clamped so a too-short --strap-length can't invert them.
+	--strap-cap-w: max(0px, calc((var(--strap-length) - var(--strap-mid-w)) / 2));
+
+	// This element IS the centre slice; the caps hang off it as ::before / ::after.
+	position: absolute;
+	// Under the three buttons (all z-index 1) but above the row's own background.
+	z-index: 0;
+	width: var(--strap-mid-w);
+	height: calc(var(--strap-px) * 221);
+	/* Pin the socket centre (464, 110 art-px) onto the ball centre (50% across, 46.875% down the
+	   square button box). The socket sits exactly halfway across the centre slice (464 - 184 = 280 =
+	   560 / 2), so centring the slice on the ball centres the socket on it. `left` resolves against
+	   the wrap's width, `top` against its height. */
+	left: calc(50% - var(--strap-px) * 280 + var(--strap-offset-x));
+	top: calc(46.875% - var(--strap-px) * 110 + var(--strap-offset-y));
+	// Full art at uniform scale, shifted left so art x=184 lands on this box's left edge.
+	background-image: var(--strap-img);
+	background-repeat: no-repeat;
+	background-size: calc(var(--strap-px) * 922) 100%;
+	background-position: calc(var(--strap-px) * -184) 0;
+	pointer-events: none;
+	user-select: none;
+
+	&::before,
+	&::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		height: 100%;
+		width: var(--strap-cap-w);
+		background-image: var(--strap-img);
+		background-repeat: no-repeat;
+		// Height 100% on both caps and the centre keeps ONE vertical scale across all three slices,
+		// so the bar's top and bottom edges stay level through the seams.
+		background-size: auto 100%;
+	}
+
+	/* Left cap — art x 0..184 stretched across the cap. Sizing the background to capW * 922/184 makes
+	   one art px `capW / 184` wide, so art x=184 lands exactly on capW: the seam. */
+	&::before {
+		right: 100%;
+		background-size: calc(var(--strap-cap-w) * 922 / 184) 100%;
+		background-position: 0 0;
+	}
+
+	/* Right cap — art x 744..922 (178 wide) stretched across the cap, shifted so art x=744 lands on
+	   the cap's left edge: the other seam. */
+	&::after {
+		left: 100%;
+		background-size: calc(var(--strap-cap-w) * 922 / 178) 100%;
+		background-position: calc(var(--strap-cap-w) * -744 / 178) 0;
+	}
+}
+
 .mobile-icon-btn--play {
 	// Explicit size (~85px @375), overriding the base width. Explicit rather than a scale() so it lays
 	// out correctly as a flex item in the action row. (25% larger than the previous ~68px.)
-	width: clamp(65px, 22.6vw, 100px);
+	width: var(--mobile-play-w);
 	position: relative;
+	// Above .mobile-play-strap. Safe to make a stacking context: the plaque/spinner/badge it contains
+	// are all self-contained overlays.
+	z-index: 1;
 	// Feeds the desktop plaque/spinner overlays reused here — main_btn_empty.png draws its disc 3.125%
 	// high, so the spinner raises onto the disc centre (see .bp-btn-play-spinner).
 	--bp-play-disc-rise: 3.125%;
@@ -1567,6 +1707,26 @@
 .mobile-icon-btn--autobet,
 .mobile-icon-btn--fast {
 	opacity: 0.6;
+	/* The strap art behind Play runs UNDER both of these. They are flex siblings of the strap's
+	   wrapper, so lift them out of the unpositioned paint layer (which sits below any positioned
+	   element) and onto the strap's layer + 1. Autobet's dropdown panel is a sibling of the button at
+	   z-index 120, so it still stacks above this. */
+	position: relative;
+	z-index: 1;
+}
+
+/* Fast + Autobet ride the STRAP, not the row: `align-items: center` lines them up on the row's
+   centre, which is ABOVE the bar's band centre, so they read as floating high on the bar. Drop them
+   onto the band (see --action-side-btn-drop).
+   The Autobet WRAP moves, not the button inside it, so the dropdown panel — anchored to the wrap at
+   `bottom: 100% + gap` — travels with the button instead of leaving a widening gap above it.
+   ⚠️ `top`, deliberately not a transform: the base `.mobile-icon-btn:active` rule sets
+   `transform: scale(0.97)`, and transforms are not additive — a translate here would be REPLACED on
+   press and the button would jump back up mid-tap. `top` on an already-`position: relative` element
+   also shifts paint only, so the row's height and the flex layout are untouched. */
+.mobile-icon-btn--fast,
+.mobile-autobet-wrap {
+	top: var(--action-side-btn-drop);
 }
 
 .mobile-icon-btn--on,
