@@ -3,6 +3,7 @@
 
 	import { frameImagePoint, SKULL_GOLD_PILE } from '../lib/frameArt';
 	import { stateGame } from '../game/stateGame.svelte';
+	import { releaseBonusEndBalanceHold } from '../game/gameOrchestrator';
 	import { eventEmitter } from '../game/eventEmitter';
 	import { CoinFountainRenderer, type FountainPoint } from '../lib/spine/CoinFountainRenderer';
 
@@ -110,8 +111,16 @@
 		playMergeSfx();
 	}
 
-	function launchBurst(countOverride?: number, winAmount?: number) {
-		if (!renderer || !ready) return;
+	// Only the post-bonus collect holds a balance: its treasure screen pins the displayed balance at the
+	// pre-win value at full cover, so the number climbs with these coins instead of already being at its
+	// new total when the screen lifts. `releasesBalance` marks that burst; the hold is handed to its
+	// count-up off the FIRST coin to actually LAND (not a timer), so a slow device can't count the balance
+	// up before the coins get there.
+	function launchBurst(countOverride?: number, winAmount?: number, releasesBalance = false) {
+		if (!renderer || !ready) {
+			if (releasesBalance) releaseBonusEndBalanceHold();
+			return;
+		}
 		// Origin: the gold coin pile at the pirate skull's MOUTH (baked into the game-area frame art).
 		// Fall back to the frame centre, then the viewport, so a burst always has somewhere to come from.
 		const from =
@@ -120,7 +129,17 @@
 			(() => ({ x: window.innerWidth / 2, y: window.innerHeight * 0.4 }))();
 		const to = rectCenter('[data-coin-fly-target="balance"]');
 		// No balance coin on screen (shouldn't happen) — nothing to collect into.
-		if (!to) return;
+		if (!to) {
+			if (releasesBalance) releaseBonusEndBalanceHold();
+			return;
+		}
+
+		let balanceReleased = false;
+		const releaseBalanceOnce = () => {
+			if (!releasesBalance || balanceReleased) return;
+			balanceReleased = true;
+			releaseBonusEndBalanceHold();
+		};
 
 		// Multi-ball win: a bigger multiplier throws a few more coins. 1-ball rapid mode passes an explicit
 		// 1-3 count (see the rapid effect below). Capped inside the renderer.
@@ -139,10 +158,15 @@
 				{ ms: SPARKLE_LEAD_MS, onLead: showSparkle },
 				{ ms: GLOW_LEAD_MS, onLead: showGlow },
 			],
-			onArrive: onCoinMerge,
+			onArrive: () => {
+				onCoinMerge();
+				releaseBalanceOnce();
+			},
 			onComplete: () => {
 				scheduleGlowOff();
 				scheduleSparkleOff();
+				// Safety: a burst can only finish with zero arrivals if it was cleared out from under us.
+				releaseBalanceOnce();
 			},
 		});
 
@@ -205,6 +229,20 @@
 		if (tick !== lastMinorTick) {
 			lastMinorTick = tick;
 			launchBurst(MINOR_WIN_COIN_COUNT, stateGame.minorWinCoinBurstAmount);
+		}
+	});
+
+	// Bonus round just ended and its treasure screen has slid away: pour the round's total into the balance
+	// coin. A bonus round shows no win modal (the treasure screen is its whole presentation), so this is the
+	// only collect it gets — hence the biggest stream of the three, just under the renderer's 48-coin cap.
+	// `onBonusEndAnnouncementClosed` bumps `bonusEndCoinBurstTick` (see gameOrchestrator).
+	const BONUS_END_COIN_COUNT = 40;
+	let lastBonusEndTick = stateGame.bonusEndCoinBurstTick;
+	$effect(() => {
+		const tick = stateGame.bonusEndCoinBurstTick;
+		if (tick !== lastBonusEndTick) {
+			lastBonusEndTick = tick;
+			launchBurst(BONUS_END_COIN_COUNT, stateGame.bonusEndCoinBurstAmount, true);
 		}
 	});
 </script>

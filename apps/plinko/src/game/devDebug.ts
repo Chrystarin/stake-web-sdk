@@ -9,6 +9,7 @@ import {
 import { bonusMeterRenderedProgress } from '../features/bonus/bonusMeterVisual';
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import {
+	fireBonusEndCoinCollect,
 	isBetControlsLocked,
 	isDropBatchPending,
 	isGameOngoing,
@@ -188,6 +189,7 @@ export function installPlinkoDevDebug() {
 		plinkoTestEpicBounty?: (...args: WinCelebrationTestArgs) => void;
 		plinkoTestCaptainsJackpot?: (...args: WinCelebrationTestArgs) => void;
 		plinkoTestRapidSparkle?: (amount?: number, multiplier?: number, count?: number) => void;
+		plinkoTestBonusEndCollect?: (amount?: number) => void;
 		plinkoSetSpinMeter?: (
 			value: number,
 			max?: number,
@@ -246,6 +248,19 @@ export function installPlinkoDevDebug() {
 		for (let i = 0; i < count; i++) {
 			setTimeout(() => pushRapidWinSparkle(amount, multiplier), i * 220);
 		}
+	};
+
+	// Dev-only: fire the post-bonus coin collect — the stream that pours out of the skull's mouth into the
+	// balance coin once the treasure screen has slid away — without having to play a whole bonus round.
+	// `plinkoTestBonusEndCollect(250)` throws the collect for a $250 bonus total.
+	w.plinkoTestBonusEndCollect = (amount = 250) => {
+		stateGame.bonusEndWinAmount = amount;
+		// Mirror the real flow: the treasure screen pins the pre-win balance at full cover and the credit
+		// lands behind it, so by the time the collect runs the balance is already up and only the DISPLAY
+		// is held back — which is what the coins then release into a count-up.
+		stateGame.balanceWinHold = stateBet.balanceAmount;
+		stateBet.balanceAmount += amount;
+		fireBonusEndCoinCollect();
 	};
 
 	// Dev-only: pin the Free Spin meter (the "Free Spin" wheel + fill bar in GameHud) to an exact

@@ -28,6 +28,13 @@
       "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3015", "--strictPort"],
       "port": 3015,
       "autoPort": false
+    },
+    {
+      "name": "plinko-collect",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3017", "--strictPort"],
+      "port": 3017,
+      "autoPort": false
     }
   ]
 }

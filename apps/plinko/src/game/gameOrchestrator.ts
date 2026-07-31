@@ -1208,8 +1208,44 @@ export function resetBonusRoundVisualState() {
 
 /** The bonus-end treasure screen now hides the whole view — drop the bonus look behind it. */
 export function onBonusEndAnnouncementCovered() {
+	// Pin the DISPLAYED balance at its pre-win value, the same way `finalWin` does for a win celebration.
+	// This is the last moment it CAN be pinned: the reset below clears `bonusRoundActive`, which is what
+	// unblocks settlement — and with it the round's balance credit — behind this screen. Pinning any later
+	// (e.g. when the screen closes) would read a balance that already includes the win, and the number
+	// would visibly snap DOWN, since the screen spends its last ~320ms of slide-up with the balance in view.
+	// Released by the post-bonus coin collect once the coins reach the balance coin, so the number climbs
+	// with them. DISPLAY-ONLY — affordability still reads the authoritative balance (plinkoSpendableBalance).
+	if (stateGame.bonusEndWinAmount > 0 && stateGame.balanceWinHold === null) {
+		stateGame.balanceWinHold = stateBet.balanceAmount;
+	}
 	resetBonusRoundVisualState();
 }
+
+/**
+ * Hand the balance the treasure screen pinned over to its count-up (Game.svelte drives it), and drop the
+ * backstop timer below. No-op if nothing is held.
+ *
+ * ⚠️ Clearing the timer is not tidiness — it is the point. A timer left armed after the coins have already
+ * released would come due up to a full round later and release whatever hold was current THEN, cutting a
+ * following round's win celebration short. Every path out of the collect goes through here.
+ */
+export function releaseBonusEndBalanceHold() {
+	if (bonusEndBalanceReleaseTimer) {
+		clearTimeout(bonusEndBalanceReleaseTimer);
+		bonusEndBalanceReleaseTimer = null;
+	}
+	if (stateGame.balanceWinHold !== null) stateGame.balanceWinReleaseTick++;
+}
+
+/**
+ * Backstop for the hold: however the collect ends — coins landed, no balance coin on screen to collect
+ * into, the renderer not ready — the displayed balance must never be left pinned at its pre-win value.
+ * CoinFountain covers all three synchronously, so this only ever fires if the collect never ran at all.
+ * Well past the coins' ~1.5s of travel, even on a device slow enough to stretch it (the renderer clamps
+ * its step to 48ms, so anything above ~21fps tracks wall clock exactly).
+ */
+const BONUS_END_BALANCE_RELEASE_FALLBACK_MS = 8000;
+let bonusEndBalanceReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function onBonusEndAnnouncementClosed() {
 	// Safety net: the reset normally runs at full cover (above). If that screen was ever torn down before
@@ -1217,6 +1253,41 @@ export function onBonusEndAnnouncementClosed() {
 	// `resetBonusRoundVisualState` is idempotent, so the normal path just re-applies the same values.
 	resetBonusRoundVisualState();
 	stateGame.bonusEndAnnouncementOpen = false;
+	fireBonusEndCoinCollect();
+}
+
+/**
+ * The treasure screen has slid away and the game is back in view — pour the bonus total out of the skull's
+ * mouth into the balance coin (CoinFountain watches `bonusEndCoinBurstTick`).
+ *
+ * A bonus round is deliberately given NO win modal (`finalWin` skips the celebration because the treasure
+ * screen already showed the total), which also meant it was the one paying round with no coins collected
+ * into the balance at all. This is that collect, moved to after the screen rather than under it — the
+ * screen covers the whole view, so coins thrown while it is down would simply not be seen.
+ */
+export function fireBonusEndCoinCollect() {
+	const amount = stateGame.bonusEndWinAmount;
+	if (amount <= 0) {
+		// Nothing to collect — don't strand the display on a hold no animation will lift.
+		releaseBonusEndBalanceHold();
+		return;
+	}
+	// One frame of headroom: this runs in the same tick that unmounts the screen, so the balance coin's
+	// rect (which the burst aims at) is measured after that removal has been laid out.
+	requestAnimationFrame(() => {
+		stateGame.bonusEndCoinBurstAmount = amount;
+		stateGame.bonusEndCoinBurstTick++;
+		// CONSUME the total. Nothing else clears `bonusEndWinAmount` — it is only overwritten by the next
+		// bonus to finish — so leaving it set would let a later bonus that paid nothing pin the balance
+		// (see `onBonusEndAnnouncementCovered`) and collect this round's amount all over again. Safe to do
+		// a frame late: the treasure screen that renders it unmounted with `bonusEndAnnouncementOpen`.
+		stateGame.bonusEndWinAmount = 0;
+	});
+	if (bonusEndBalanceReleaseTimer) clearTimeout(bonusEndBalanceReleaseTimer);
+	bonusEndBalanceReleaseTimer = setTimeout(
+		releaseBonusEndBalanceHold,
+		BONUS_END_BALANCE_RELEASE_FALLBACK_MS,
+	);
 }
 
 export function scheduleBonusMeterDrainDuringRoll() {

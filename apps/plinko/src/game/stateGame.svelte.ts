@@ -192,6 +192,13 @@ export const stateGame = $state({
 	 * throws a small skull→balance coin burst. `minorWinCoinBurstAmount` carries the round win to float. */
 	minorWinCoinBurstTick: 0,
 	minorWinCoinBurstAmount: 0,
+	/** Bumped once the post-bonus treasure screen has slid away, so CoinFountain pours the round's total
+	 * out of the skull's mouth into the balance coin. `bonusEndCoinBurstAmount` carries the total to float.
+	 * A bonus round shows no win modal (the treasure screen is its presentation — see the `finalWin`
+	 * handler), so this collect is the only coins it gets — and it is also what releases `balanceWinHold`
+	 * into its count-up. */
+	bonusEndCoinBurstTick: 0,
+	bonusEndCoinBurstAmount: 0,
 	/** Bumped when coins merge into the balance coin to float a "+<win>" text down from it (BalanceCard).
 	 * `balanceWinFloatAmount` is the win amount to show. */
 	balanceWinFloatTick: 0,
@@ -201,7 +208,10 @@ export const stateGame = $state({
 	 * animation. `balanceWinReleaseTick` is then bumped to hand off to a quick count-up
 	 * (`balanceCountUpValue` carries the animating value) that ticks the balance up to the credited total.
 	 * All three are DISPLAY-ONLY (affordability still gates on the authoritative balance). `null` = show
-	 * authoritative. See WinCelebration (sets the hold + release) and Game.svelte (drives the count-up). */
+	 * authoritative. See WinCelebration (sets the hold + release) and Game.svelte (drives the count-up).
+	 * A bonus round runs the same two beats through different owners: the hold is pinned by
+	 * `onBonusEndAnnouncementCovered` (before the credit lands behind the treasure screen) and released by
+	 * CoinFountain's post-bonus collect, on the first coin to reach the balance coin. */
 	balanceWinHold: null as number | null,
 	balanceWinReleaseTick: 0,
 	balanceCountUpValue: null as number | null,

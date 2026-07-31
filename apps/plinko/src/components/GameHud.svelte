@@ -906,6 +906,17 @@
 					alt=""
 					aria-hidden="true"
 				/>
+				<!-- "+<win>" rising out of the wallet as coins merge into it — the mobile twin of
+				     BalanceCard's `.balance-win-float`, driven by the same `balanceWinFloatTick`. Keyed on
+				     the tick so a re-mount restarts the one-shot animation. Absolutely positioned, so it
+				     never disturbs the corner row's flex layout. -->
+				{#if stateGame.balanceWinFloatTick > 0}
+					{#key stateGame.balanceWinFloatTick}
+						<span class="mobile-balance-win-float" aria-hidden="true">
+							+{formatWin(stateGame.balanceWinFloatAmount)}
+						</span>
+					{/key}
+				{/if}
 			</div>
 		</div>
 	</div>
