@@ -142,6 +142,32 @@
 	});
 	const wagerControlsLocked = $derived(controlsLocked || oneBallDropInFlight);
 	/**
+	 * Arming Autobet is a WAGER-CONFIG action, not a play action: picking a count both arms AND starts the
+	 * run, and `startAutoBet` refuses to start while any ball is still in flight. So the count menu must be
+	 * unavailable under exactly that same precondition — "the menu is offered ⟺ a run can actually start".
+	 *
+	 * `controlsLocked` alone is not enough. On the rapid 1-ball tier it deliberately reads FALSE mid-drop
+	 * (continuous betting keeps Play live), which let the player open the menu and pick a count while a ball
+	 * was falling: the run could not start, yet `autoMode` was left armed — and an armed-idle Autobet turns
+	 * the main Play button into a "start autobet" control, so the next ordinary Play press fired the whole
+	 * run with no confirmation. Gating on the in-flight state too makes every tier behave like 10/20/50:
+	 * the menu is simply locked until the board is clear.
+	 *
+	 * The `!autoPlayStarted` exemption at each call site keeps the toggle (Stop) and the count options live
+	 * DURING a run, where picking a count only retargets the remaining rounds.
+	 */
+	const autoBetConfigLocked = $derived.by(() => {
+		stateGame.isAnimating;
+		stateGame.expectedOutcomeByBallId.size;
+		stateGame.pendingSpacedSpawnTimers;
+		return controlsLocked || isGameOngoing();
+	});
+	// If a drop starts while the count panel is open (possible on the rapid 1-ball tier, where Play stays
+	// live mid-drop) its options go disabled — close the panel too so it can't sit open and inert.
+	$effect(() => {
+		if (autoBetConfigLocked && !props.autoPlayStarted) autoPanelOpen = false;
+	});
+	/**
 	 * During a bonus round every drop is a FREE ball, so the wager controls become read-only: the − / +
 	 * steppers are removed entirely (desktop and mobile) rather than just disabled, and on mobile the
 	 * Total bet card goes with them — a total-bet readout is meaningless when the drops cost nothing
@@ -330,7 +356,7 @@
 		event.stopPropagation();
 		// Inert while a mid-Autobet bonus is terminating the run.
 		if (autoBetStopping) return;
-		if (controlsLocked && !props.autoPlayStarted) return;
+		if (autoBetConfigLocked && !props.autoPlayStarted) return;
 		// Same click SFX as the bet-panel steppers.
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 		if (props.autoMode) {
@@ -347,24 +373,37 @@
 		// The panel is closing either way; make sure the hover-preview doesn't stay pinned to the
 		// last-hovered option (esp. on the toast branch, which doesn't move focus off the option).
 		hoveredAutoRounds = null;
-		if (controlsLocked && !props.autoPlayStarted) return;
+		if (autoBetConfigLocked && !props.autoPlayStarted) return;
+		// Already-running Autobet: picking a count only retargets the remaining rounds, it never
+		// re-arms or re-starts anything.
+		if (props.autoPlayStarted) {
+			stateGame.autoRoundsLeft = count;
+			stateGame.autoRoundsDisplay = count;
+			autoPanelOpen = false;
+			return;
+		}
 		// Picking a count starts a fresh Autobet run immediately, and Autobet is all-or-nothing:
 		// the player must be able to fund every selected drop up front (count × per-drop wager). If
 		// the whole run isn't affordable, don't arm or start it at all — just show the toast.
-		// (Already-running Autobet just updates its remaining count.)
-		if (!props.autoPlayStarted && !canAffordAutoBetRun(count)) {
+		if (!canAffordAutoBetRun(count)) {
 			autoPanelOpen = false;
 			showToast('Insufficient Balance');
 			return;
 		}
+		autoPanelOpen = false;
+		if (props.betAmount <= 0) return;
 		stateGame.autoRoundsLeft = count;
 		stateGame.autoRoundsDisplay = count;
+		// ARMING AND STARTING ARE ONE ATOMIC ACTION. Selecting a count is the player's only confirmation
+		// of an Autobet run, so if the run can't actually start we must not leave `autoMode` armed: an
+		// armed-idle Autobet swaps the main Play button for a "start autobet" control, and the player's
+		// next ordinary Play press would then fire the whole run without ever confirming it.
 		stateGame.autoMode = true;
-		autoPanelOpen = false;
-		if (!props.autoPlayStarted && props.betAmount > 0 && !isGameOngoing()) {
-			startAutoBet(() => props.onPlay());
-			context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
+		if (!startAutoBet(() => props.onPlay())) {
+			stateGame.autoMode = false;
+			return;
 		}
+		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
 	}
 
 	function onAutoGameStopClick() {
@@ -381,7 +420,12 @@
 			return;
 		}
 		if (props.betAmount <= 0) return;
-		startAutoBet(() => props.onPlay());
+		// Same invariant as `selectAutoBetCount`: never leave Autobet armed-but-idle. If the run can't
+		// start (balls still in flight) fall back to manual rather than priming a run for the next press.
+		if (!startAutoBet(() => props.onPlay())) {
+			stateGame.autoMode = false;
+			return;
+		}
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'startAutoPlay' });
 	}
 
@@ -486,7 +530,7 @@
 			autoPanelOpen = false;
 			return;
 		}
-		if (controlsLocked) return;
+		if (autoBetConfigLocked) return;
 		autoPanelOpen = !autoPanelOpen;
 	}
 
@@ -798,7 +842,7 @@
 					type="button"
 					class="mobile-icon-btn mobile-icon-btn--autobet"
 					class:mobile-icon-btn--on={props.autoMode || props.autoPlayStarted}
-					disabled={(controlsLocked && !props.autoPlayStarted) || autoBetStopping}
+					disabled={(autoBetConfigLocked && !props.autoPlayStarted) || autoBetStopping}
 					aria-pressed={props.autoMode || props.autoPlayStarted}
 					aria-label="Autobet"
 					onclick={onMobileAutoButtonClick}
@@ -814,7 +858,7 @@
 							<button
 								type="button"
 								class="mobile-autobet-option"
-								disabled={controlsLocked}
+								disabled={autoBetConfigLocked && !props.autoPlayStarted}
 								onclick={() => selectMobileAutoBetCount(option)}
 							>
 								{option}
@@ -893,7 +937,7 @@
 								class="bp-btn-auto"
 								class:bp-btn-auto--on={props.autoMode}
 								class:bp-btn-auto--running={props.autoPlayStarted}
-								disabled={(controlsLocked && !props.autoPlayStarted) || autoBetStopping}
+								disabled={(autoBetConfigLocked && !props.autoPlayStarted) || autoBetStopping}
 								aria-pressed={props.autoMode}
 								title={props.autoPlayStarted ? 'Stop autobet' : props.autoMode ? 'Manual' : 'Auto'}
 								onclick={onAutoButtonClick}
@@ -917,7 +961,7 @@
 										<button
 											type="button"
 											class="bp-autobet-option"
-											disabled={controlsLocked}
+											disabled={autoBetConfigLocked && !props.autoPlayStarted}
 											onclick={() => selectAutoBetCount(option)}
 											onmouseenter={() => (hoveredAutoRounds = option)}
 											onfocus={() => (hoveredAutoRounds = option)}

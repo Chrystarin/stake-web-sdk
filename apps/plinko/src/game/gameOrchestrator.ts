@@ -1542,13 +1542,22 @@ export function recordFreeSpinWinHistory(multiplier: number) {
  * compressed drop settles the round almost immediately, so the ~WIN_CELEBRATION_TOTAL_MS reveal
  * never got to finish before the next ball dropped. (In normal speed the slower drop happened to
  * mask it.) Gating here lets the presentation play out; the celebration auto-dismisses itself.
+ *
+ * RAPID 1-BALL is the exception to `isGameOngoing()`. That flag also covers a ball that is merely still
+ * FALLING, and on the 1-ball tier the round is already closed by then — settlement is decoupled from the
+ * animation (see `isRapidSingleBallMode`), so `placeBet` lets a human press Bet again immediately. Waiting
+ * on it here paced Autobet at the drop animation (~3s/bet) rather than at the round, which is not what
+ * "1 ball per drop" is for. So there we gate on exactly what `placeBet` itself gates on — the round-closure
+ * flags — and let the previous ball finish falling on its own. The tier is feature-free (no bonus / free
+ * spin / win popup), so none of the other conditions can be true there anyway.
  */
 function isAutoBetRoundBusy(): boolean {
 	return (
 		stateGame.isSubmitting ||
 		stateGame.dropRoundActive ||
 		stateGame.bonusBallsRemaining > 0 ||
-		isGameOngoing() ||
+		// A still-falling ball does not hold the round open on the rapid 1-ball tier — see above.
+		(!isRapidSingleBallMode() && isGameOngoing()) ||
 		stateGame.freeSpinRouletteOpen ||
 		stateGame.bonusRouletteOpen ||
 		stateGame.rouletteFlowInProgress ||
@@ -1595,8 +1604,14 @@ async function placeAutoBetRound(onBet: () => void): Promise<boolean> {
 	return waitForAutoBetRoundIdle();
 }
 
-export function startAutoBet(onBet: () => void) {
-	if (isGameOngoing()) return;
+/**
+ * Arms and starts an Autobet run. Returns FALSE when the run could not start (balls still in flight) —
+ * callers must then clear `stateGame.autoMode` rather than leave Autobet armed-but-idle. An armed-idle
+ * Autobet turns the main Play button into a "start autobet" control, so the next ordinary Play press
+ * silently fires the whole run: see `selectAutoBetCount` in GameHud.
+ */
+export function startAutoBet(onBet: () => void): boolean {
+	if (isGameOngoing()) return false;
 	stateGame.autoPlayStarted = true;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
@@ -1605,6 +1620,7 @@ export function startAutoBet(onBet: () => void) {
 	showToast('Autobet Started');
 	const firstRoundLeft = selected >= 1000 ? selected : selected - 1;
 	void playAutoRounds(firstRoundLeft, onBet);
+	return true;
 }
 
 export function stopAutoBet() {
