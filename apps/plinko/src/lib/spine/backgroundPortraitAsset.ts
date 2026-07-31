@@ -1,4 +1,4 @@
-import { getBonusImageOverlays, getBonusOverlays } from './bonusOverlayAssets';
+import { getBaseMoonOverlay, getBonusImageOverlays, getBonusOverlays } from './bonusOverlayAssets';
 import { staticAssetPath } from '../staticUrl';
 import type { SpineAssetDef } from './types';
 
@@ -11,8 +11,9 @@ const PORTRAIT_CLOUD_SLOTS = ['cloud1', 'cloud2', 'cloud3', 'cloud5', 'cloud6', 
 
 /**
  * Hidden during bonus: the base ambient clouds plus the distant ship (replaced by the dedicated ship
- * spine overlay). The portrait scene has no rendered moon of its own, so the free-game moon image is
- * simply added on top. `moon` is listed harmlessly for parity with landscape.
+ * spine overlay). The portrait scene has no rendered moon of its own — both the base game and the free
+ * game add the moon image on top (`imageOverlays` / `bonusImageOverlays`) — so `moon` is listed here
+ * harmlessly, for parity with landscape.
  */
 const PORTRAIT_BONUS_HIDDEN_SLOTS = [...PORTRAIT_CLOUD_SLOTS, 'moon', 'ship'];
 
@@ -65,6 +66,9 @@ export const getBackgroundPortraitAsset = (): SpineAssetDef => ({
 		// Cover the height too, so tall phones don't show an empty strip above the scene.
 		coverHeight: true,
 	},
+	// The portrait skeleton draws no moon (landscape's does), so the base game paints the same moon image
+	// the free game uses, at the same place and scale — see `getBaseMoonOverlay`.
+	imageOverlays: [getBaseMoonOverlay('portrait')],
 	bonusBackdropSrc: staticAssetPath(PORTRAIT_BONUS_IMAGE),
 	bonusHiddenSlots: PORTRAIT_BONUS_HIDDEN_SLOTS,
 	bonusOverlays: getBonusOverlays('portrait'),

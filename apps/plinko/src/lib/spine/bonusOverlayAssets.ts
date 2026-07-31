@@ -52,6 +52,10 @@ const OVERLAY_SKELETON_SCALE = 0.5;
  *    • scaleMul     — size multiplier.  1 = original size, 0.8 = 80% (smaller), 1.25 = 125% (bigger).
  *
  *  MOON and LIGHTNING (plain images, placed in viewport fractions — independent of the scene):
+ *    ⚠️ the MOON knobs also place the BASE-GAME moon (`getBaseMoonOverlay`) — deliberately, so the two
+ *       stay the same moon; editing xVw/yVh/widthVw moves it in the base game AND the free game.
+ *       Its OPACITY is the exception: the base game runs the moon at `BASE_MOON_ALPHA` (full strength
+ *       over a clear night sky) and only the free game uses the dimmed `alpha` below.
  *    • xVw / yVh    — CENTRE position, as fractions of viewport width / height (0 = left/top … 1 = right/bottom).
  *    • widthVw      — width as a fraction of viewport width (height follows automatically to keep aspect).
  *    • alpha        — opacity, 0–1  (0.5 = 50%).  For the lightning this is the alpha each blink PEAKS at.
@@ -334,6 +338,38 @@ export const getBonusMoonOverlay = (orientation: Orientation): SpineImageOverlay
 	behindBase: true,
 	// Position/size/opacity from the tuning block above.
 	...TUNING[orientation].moon,
+});
+
+/**
+ * Opacity of the BASE-GAME moon — full strength, unlike the free game's dimmed `moon.alpha`.
+ *
+ * The free game dims its moon to 50% because the storm is meant to be rolling in over it (and its
+ * backdrop, cloud bank and rain all pile on top). The base game's sky is clear, so the same 50% left the
+ * moon washed out against it; at 1 it reads as an actual moon while the ambient clouds still drift in
+ * front. ⚠️ 1 is a hard ceiling — see the alpha note in the knob block above.
+ */
+const BASE_MOON_ALPHA = 1;
+
+/**
+ * The BASE-GAME moon, for a scene that doesn't draw one itself (the portrait skeleton has no moon slot,
+ * so without this the base game's mobile sky is empty while the free game's has a moon).
+ *
+ * It is the same image at the same place and size as the free-game moon — it reads as the SAME moon,
+ * the storm rolling in over it rather than a different sky — so it deliberately shares that layer's
+ * tuning knobs (`TUNING[orientation].moon`) instead of copying the numbers, and the two can never drift
+ * apart. Only the opacity differs (`BASE_MOON_ALPHA`). `behindBase` likewise, so the scene's ambient
+ * clouds drift in front of it.
+ *
+ * The renderer hides this while bonus is active and shows `getBonusMoonOverlay` in its place: same
+ * moon, same spot, so the hand-off is just a dimming — but running both at once would stack their
+ * alphas into one over-bright disc.
+ */
+export const getBaseMoonOverlay = (orientation: Orientation): SpineImageOverlayDef => ({
+	id: 'base_moon',
+	src: staticAssetPath(MOON_IMAGE),
+	behindBase: true,
+	...TUNING[orientation].moon,
+	alpha: BASE_MOON_ALPHA,
 });
 
 /*

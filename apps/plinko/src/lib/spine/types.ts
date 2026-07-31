@@ -148,10 +148,13 @@ export type ImageOverlayFlickerDef = {
 };
 
 /**
- * A plain image (not a Spine) painted only while bonus mode is active — e.g. the free-game moon.
- * Positioned in viewport-fraction coordinates (not the scene's world space), so it's trivial to place
- * against the reference regardless of the base skeleton's fit transform. See
+ * A plain image (not a Spine) layered onto the background — e.g. the moon. Positioned in
+ * viewport-fraction coordinates (not the scene's world space), so it's trivial to place against the
+ * reference regardless of the base skeleton's fit transform. See
  * `SpineBackgroundRenderer.applyImageOverlayFit`.
+ *
+ * Listed under `SpineAssetDef.imageOverlays` it is painted in the BASE game (and hidden during bonus);
+ * under `bonusImageOverlays` it is painted only while bonus mode is active.
  */
 export type SpineImageOverlayDef = {
 	id: string;
@@ -208,6 +211,17 @@ export type SpineAssetDef = {
 	offsetYVh?: number;
 	/** Static image rendered behind the spine using the same fit bounds. */
 	backdrop?: SpineBackdropDef;
+	/**
+	 * Plain-image layers painted in the BASE game (see `SpineImageOverlayDef`) — used where the scene
+	 * itself doesn't draw a sky element the art direction calls for, e.g. the portrait scene's missing
+	 * moon. Loaded with the base asset rather than lazily, so they are on screen as soon as the
+	 * background is, and hidden while bonus mode is active (the free game paints its own
+	 * `bonusImageOverlays` in their place).
+	 *
+	 * ⚠️ `flicker` is not driven for these: the duty-cycle clock only advances while bonus is active, so
+	 * a base-game layer holds its constant `alpha`.
+	 */
+	imageOverlays?: SpineImageOverlayDef[];
 	/**
 	 * Backdrop image swapped in while bonus mode is active (free game). Same fit rules as `backdrop`,
 	 * so it should share the base backdrop's pixel dimensions. When absent the base backdrop stays.

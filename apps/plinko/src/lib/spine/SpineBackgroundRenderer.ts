@@ -153,6 +153,12 @@ export class SpineBackgroundRenderer {
 			group: string;
 		};
 	}[] = [];
+	/**
+	 * BASE-GAME plain-image layers (the portrait moon), positioned in viewport fractions like the bonus
+	 * ones. Loaded with the base asset rather than lazily — they are part of the scene the player sees
+	 * first — and hidden while bonus mode is active, where `imageOverlays` paints its own copy.
+	 */
+	private baseImageOverlays: { def: SpineImageOverlayDef; sprite: Sprite }[] = [];
 	/** Wrapper container per `SpineOverlayDef.baseSlot`, attached into the base skeleton's draw order. */
 	private slotAnchors = new Map<string, Container>();
 	/** `baseSlot` → `baseSlotAfter`: where each anchor slot is moved to while bonus mode is active. */
@@ -281,6 +287,8 @@ export class SpineBackgroundRenderer {
 		this.bonusCycleGroups.clear();
 		this.imageOverlays.forEach(({ sprite }) => sprite.destroy());
 		this.imageOverlays = [];
+		this.baseImageOverlays.forEach(({ sprite }) => sprite.destroy());
+		this.baseImageOverlays = [];
 		this.backdrop?.destroy();
 		this.backdrop = undefined;
 		this.spine?.destroy({ children: true });
@@ -360,6 +368,22 @@ export class SpineBackgroundRenderer {
 		return Sprite.from(texture);
 	}
 
+	/**
+	 * Load the base-game image layers (`SpineAssetDef.imageOverlays`) with the rest of the base asset, so
+	 * they appear with the scene instead of popping in later. The sprites come back hidden; `loadAsset`
+	 * places them on the stage and reveals them.
+	 */
+	private async loadBaseImageOverlays(
+		asset: SpineAssetDef,
+	): Promise<{ def: SpineImageOverlayDef; sprite: Sprite }[]> {
+		return Promise.all(
+			(asset.imageOverlays ?? []).map(async (def) => ({
+				def,
+				sprite: await this.loadImageOverlaySprite(def),
+			})),
+		);
+	}
+
 	private captureFitBounds(spine: Spine, asset: SpineAssetDef): void {
 		spine.skeleton.setupPose();
 		spine.state.apply(spine.skeleton);
@@ -373,13 +397,15 @@ export class SpineBackgroundRenderer {
 			throw new Error('[SpineBackgroundRenderer] pixi application missing');
 		}
 
-		const [skeletonData, backdrop] = await Promise.all([
+		const [skeletonData, backdrop, baseImageOverlays] = await Promise.all([
 			this.loadSkeletonData(asset),
 			this.loadBackdrop(asset),
+			this.loadBaseImageOverlays(asset),
 		]);
 
 		this.spine?.destroy({ children: true });
 		this.backdrop?.destroy();
+		this.baseImageOverlays.forEach(({ sprite }) => sprite.destroy());
 
 		const spine = new Spine({
 			skeletonData,
@@ -395,7 +421,18 @@ export class SpineBackgroundRenderer {
 		}
 		app.stage.addChild(spine);
 
+		// Base-game image layers straddle the base spine in array order: `behindBase` ones are inserted
+		// directly under it (so the scene's own art occludes them — the moon sits in the sky, with the
+		// ambient clouds drifting across it), the rest go on top. They stay off while bonus is active,
+		// which paints its own copy; `setBonusMode` owns the flag from here on.
+		baseImageOverlays.forEach(({ def, sprite }) => {
+			if (def.behindBase) app.stage.addChildAt(sprite, app.stage.getChildIndex(spine));
+			else app.stage.addChild(sprite);
+			sprite.visible = !this.bonusActive;
+		});
+
 		this.backdrop = backdrop;
+		this.baseImageOverlays = baseImageOverlays;
 		this.spine = spine;
 		this.currentAsset = asset;
 
@@ -673,7 +710,7 @@ export class SpineBackgroundRenderer {
 		});
 	}
 
-	/** Load a bonus image-overlay texture and build its sprite (hidden, centre-anchored) until activated. */
+	/** Load an image-overlay texture and build its sprite (hidden, centre-anchored) until activated. */
 	private async loadImageOverlaySprite(def: SpineImageOverlayDef): Promise<Sprite> {
 		const alias = `${def.id}-image-overlay`;
 		Assets.add({ alias, src: def.src });
@@ -929,6 +966,14 @@ export class SpineBackgroundRenderer {
 			sprite.visible = bonus;
 			sprite.alpha = def.alpha ?? 1;
 		}
+
+		// Base-game layers are the mirror image: on in the base game, off while the free game paints its
+		// own copy over the same spot (the portrait moon is in both, at different opacities, so leaving
+		// this one up would stack the two into one over-bright disc).
+		for (const { def, sprite } of this.baseImageOverlays) {
+			sprite.visible = !bonus;
+			sprite.alpha = def.alpha ?? 1;
+		}
 	}
 
 	private scheduleFitSpine(): void {
@@ -1052,12 +1097,14 @@ export class SpineBackgroundRenderer {
 	}
 
 	/**
-	 * Place each bonus image overlay (e.g. the moon) in plain viewport-fraction coordinates: centre at
+	 * Place each image overlay (e.g. the moon) in plain viewport-fraction coordinates: centre at
 	 * (`xVw`·w, `yVh`·h), width `widthVw`·w with the height following to preserve aspect. Independent of
-	 * the scene fit transform, so it's trivial to align against the reference.
+	 * the scene fit transform, so it's trivial to align against the reference. Base-game and bonus layers
+	 * are placed identically — that's what lets the two moons hand over without the disc moving (each
+	 * keeps its own `alpha`, so the free game's is the dimmer of the two).
 	 */
 	private applyImageOverlayFit(width: number, height: number): void {
-		for (const { def, sprite } of this.imageOverlays) {
+		for (const { def, sprite } of [...this.baseImageOverlays, ...this.imageOverlays]) {
 			const texWidth = sprite.texture.width || 1;
 			const scale = (def.widthVw * width) / texWidth;
 			sprite.scale.set(scale);
