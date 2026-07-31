@@ -46,6 +46,9 @@ export type PlinkoLockDebugSnapshot = {
 	bonusLevelUpOverlayOpen: boolean;
 	/** Post-bonus congratulations (treasure total-win) screen. */
 	bonusEndAnnouncementOpen: boolean;
+	/** True while a congratulations screen fully hides the game — the animated background idles at 6fps
+	 * for exactly this window. Stuck true = the background never comes back up to speed. */
+	overlayCoversGame: boolean;
 	/** Full-screen win celebration — must stay false for a round that played a bonus. */
 	showWinPopup: boolean;
 	winAmount: number;
@@ -79,6 +82,7 @@ export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
 		bonusOutcomesIndex: stateGame.authoritativeBonusOutcomeIndex,
 		bonusLevelUpOverlayOpen: stateGame.bonusLevelUpOverlayOpen,
 		bonusEndAnnouncementOpen: stateGame.bonusEndAnnouncementOpen,
+		overlayCoversGame: stateGame.overlayCoversGame,
 		showWinPopup: stateGame.showWinPopup,
 		winAmount: stateGame.winAmount,
 		freeSpinRouletteOpen: stateGame.freeSpinRouletteOpen,

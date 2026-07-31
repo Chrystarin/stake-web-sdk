@@ -92,6 +92,11 @@ export class SpineBackgroundRenderer {
 	/** Frame-rate cap applied to this (background) app while the bonus round is active, to leave the
 	 * separate ball-rendering app enough main-thread + GPU budget to stay smooth. See `applyBonusFrameRate`. */
 	private static readonly BONUS_BACKGROUND_MAX_FPS = 30;
+	/** Frame-rate cap applied while a full-screen overlay completely hides this canvas. See
+	 * `setHiddenByOverlay`. Low, but non-zero, so state changes made behind the cover still settle.
+	 * 10 is the floor Pixi will honour anyway — its `maxFPS` setter clamps to `max(minFPS, fps)`, and
+	 * `minFPS` is 10 by default — so asking for less would silently land here regardless. */
+	private static readonly OVERLAY_HIDDEN_MAX_FPS = 10;
 	private hostElement: HTMLElement;
 	private app?: Application;
 	private spine?: Spine;
@@ -158,6 +163,8 @@ export class SpineBackgroundRenderer {
 	private baseBackdropTexture?: Texture;
 	private bonusBackdropTexture?: Texture;
 	private bonusActive = false;
+	/** True while a full-screen congratulations screen completely hides this canvas — see `setHiddenByOverlay`. */
+	private hiddenByOverlay = false;
 	/** Latched once the lazy bonus-asset load starts; awaited by `setBonusMode`. */
 	private bonusAssetsPromise?: Promise<void>;
 	/** Setup attachment object for each `bonusHiddenSlots` slot, so it can be restored on exit. Stored
@@ -775,7 +782,7 @@ export class SpineBackgroundRenderer {
 		this.bonusActive = active;
 		// Throttle the background straight away (before the asset await) so the balls get their frame
 		// budget back the instant the bonus round begins, not once the overlays finish loading.
-		this.applyBonusFrameRate(active);
+		this.applyBonusFrameRate();
 		await this.ensureBonusAssets();
 		if (!this.spine || this.bonusActive !== active) return;
 
@@ -784,6 +791,27 @@ export class SpineBackgroundRenderer {
 		this.applyAnchorDrawOrder(active);
 		this.applyOverlayVisibility(active);
 		this.fitSpine();
+	}
+
+	/**
+	 * Drop this app to a trickle frame rate while a full-screen overlay (the bonus entry / bonus-end
+	 * congratulations screens) completely hides it, and restore its normal rate the moment that screen
+	 * starts sliding away.
+	 *
+	 * Nothing here is on screen while the flag is on, but the free-game scene is the heaviest thing this
+	 * renderer ever draws (full-viewport rain, two tornadoes, drifting clouds, duty-cycled splashes) and it
+	 * kept drawing at full rate into a canvas nobody could see — competing for the GPU with the
+	 * congratulations screen's own coin/sparkle animations. That competition is invisible on a 1× Windows
+	 * display and decisive on a Retina Mac, which pays 4× the fill rate for the same scene.
+	 *
+	 * Deliberately a low cap rather than `ticker.stop()`: the bonus-mode swap that runs at full cover still
+	 * needs frames to land (and to settle before the screen lifts), it just doesn't need 60 of them a
+	 * second. Everything spine-driven is delta-time based, so the animations resume mid-motion rather than
+	 * jumping.
+	 */
+	setHiddenByOverlay(hidden: boolean): void {
+		this.hiddenByOverlay = hidden;
+		this.applyBonusFrameRate();
 	}
 
 	/**
@@ -800,10 +828,15 @@ export class SpineBackgroundRenderer {
 	 * speed is unchanged — there are simply fewer repaints of the out-of-focus background. `maxFPS = 0`
 	 * removes the cap for the base game.
 	 */
-	private applyBonusFrameRate(active: boolean): void {
+	private applyBonusFrameRate(): void {
 		const ticker = this.app?.ticker;
 		if (!ticker) return;
-		ticker.maxFPS = active ? SpineBackgroundRenderer.BONUS_BACKGROUND_MAX_FPS : 0;
+		// Hidden behind a full-screen overlay beats every other consideration — there is nothing to see.
+		if (this.hiddenByOverlay) {
+			ticker.maxFPS = SpineBackgroundRenderer.OVERLAY_HIDDEN_MAX_FPS;
+			return;
+		}
+		ticker.maxFPS = this.bonusActive ? SpineBackgroundRenderer.BONUS_BACKGROUND_MAX_FPS : 0;
 	}
 
 	private applyBackdropTexture(bonus: boolean): void {

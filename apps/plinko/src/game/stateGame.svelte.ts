@@ -105,6 +105,13 @@ export const stateGame = $state({
 	 * only switched on at full cover — so this is what tells the music swap that this particular slam is
 	 * the bonus-entry one (the wheel backdrop's and the bonus-END screen's slams must not swap it). */
 	bonusEntryCongratsActive: false,
+	/** True while a full-screen congratulations/announcement screen completely hides the game behind it.
+	 * Set at full cover and cleared the moment it starts sliding back up. The animated Spine background
+	 * drops to a trickle frame rate while this is on (see `SpineBackgroundRenderer.setHiddenByOverlay`) —
+	 * it is drawing a free-game scene (rain, two tornadoes, clouds, splashes) that nobody can see, and on
+	 * a Retina display that hidden work is what starved the congratulations screen's own particle
+	 * animations of GPU budget. */
+	overlayCoversGame: false,
 	pendingOutcomes: [] as PlinkoBallOutcome[],
 	expectedOutcomeByBallId: new Map<number, PlinkoBallOutcome>(),
 	/** Balls that already credited bonus meter from a server coin-peg hit this drop. */

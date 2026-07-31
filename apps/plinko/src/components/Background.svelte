@@ -2,7 +2,7 @@
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 
 	import { isPortraitGameLayout } from '../lib/format';
-	import { stateGameDerived } from '../game/stateGame.svelte';
+	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { getBackgroundLandscapeAsset } from '../lib/spine/backgroundLandscapeAsset';
 	import { getBackgroundPortraitAsset } from '../lib/spine/backgroundPortraitAsset';
 	import { SpineBackgroundRenderer } from '../lib/spine/SpineBackgroundRenderer';
@@ -80,6 +80,15 @@
 		const active = bonus;
 		if (!spineReady) return;
 		void renderer?.setBonusMode(active);
+	});
+
+	// Drop to a trickle frame rate whenever a full-screen congratulations screen hides this canvas, so the
+	// GPU budget goes to that screen's own animations instead of a free-game scene nobody can see. Re-runs
+	// on re-mount (orientation change) for the same reason as the bonus effect above.
+	$effect(() => {
+		const hidden = stateGame.overlayCoversGame;
+		if (!spineReady) return;
+		renderer?.setHiddenByOverlay(hidden);
 	});
 </script>
 

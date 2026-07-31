@@ -532,6 +532,9 @@
 		stopHighlightTracking();
 		// The screen is gone; from here `bonusRoundActive` carries the bonus state on its own.
 		stateGame.bonusEntryCongratsActive = false;
+		// Safety net for a teardown that skips the dismiss path (a force-unlock mid-slide): the throttle
+		// must never outlive the screen that hid the game, or the background stays stuck at 6fps.
+		stateGame.overlayCoversGame = false;
 		// Safety net: the award is normally handed over at full cover (`emitResultReady`), and again by
 		// `onFinished` on dismiss. If this overlay is torn down between the two (a force-unlock mid-slide),
 		// hand it over here so a landed wheel can never lose its free balls — the cosmetic cost of the
@@ -764,6 +767,9 @@
 						// the bonus-end settlement.
 						const awaitingBuyBonusCount = !!props.skipSpin && !pendingResult;
 						announcementCoversScreen = true;
+						// Nothing behind this screen is visible any more — let the animated Spine background
+						// idle so the coin shower / treasure sparkles get the whole GPU budget.
+						stateGame.overlayCoversGame = true;
 						if (awaitingBuyBonusCount) awaitingResultAtCover = true;
 						else revealAnnouncementContent();
 					}, ANNOUNCEMENT_SLIDE_MS),
@@ -783,6 +789,9 @@
 		if (!announcementCoversScreen) return;
 		announcementTextVisible = false;
 		announcementCoinsVisible = false;
+		// The game is about to be revealed by the slide-up — put the background back to full rate NOW, so
+		// it is already running normally on the first frame the player can see it.
+		stateGame.overlayCoversGame = false;
 		// The screen slides back up to reveal the game — play the opening-door creak to match.
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'doorOpen' });
 		slidePhase = 'exit';
@@ -1130,6 +1139,13 @@
 		z-index: 1;
 		overflow: hidden;
 		pointer-events: none;
+		/* Own compositing layer + paint containment. Without these the clip is a PAINT-time clip applied by
+		   the ancestor that also carries the full-screen announcement background, so every coin that moved
+		   dirtied a rect of that ~3MP (7MP on mobile) backdrop and forced a main-thread repaint. With paint
+		   containment the clip is compositor-side and a falling coin can never invalidate anything outside
+		   this box. */
+		transform: translateZ(0);
+		contain: layout paint;
 	}
 	.bonus-announcement-coin {
 		position: absolute;
@@ -1138,7 +1154,15 @@
 		object-fit: contain;
 		pointer-events: none;
 		will-change: transform, opacity;
-		filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+		/* ⚠️ NO `filter` here. This used to carry `drop-shadow(0 4px 6px rgba(0,0,0,0.4))`, which is what
+		   made the shower stutter on macOS: a BLURRED filter takes an element off the compositor's
+		   transform-only fast path — the layer needs its own offscreen render surface and a two-pass
+		   Gaussian every time it rasterises, times 24 coins, every frame. Windows at 1× / 60Hz absorbed
+		   that; a Retina Mac pays 4× the fill rate (DPR 2) with half the frame budget on a 120Hz ProMotion
+		   panel, so it dropped frames. Keeping this animation to `transform` + `opacity` ONLY hands it to
+		   the compositor thread, where it runs at display rate no matter what the main thread is doing.
+		   The shadow itself was invisible anyway — a 40%-black blur behind a flat gold disc on a backdrop
+		   whose mean luma is 54/255. If the depth is ever wanted back, bake it into the coin art. */
 		animation-name: bonus-announcement-coin-fall;
 		animation-timing-function: linear;
 		animation-iteration-count: infinite;
@@ -1148,17 +1172,19 @@
 	.bonus-announcement--coins-visible .bonus-announcement-coin {
 		animation-play-state: running;
 	}
+	/* `translate3d` (not `translateY`/`translateX`): WebKit only guarantees the accelerated path for 3D
+	   transforms, and translations commute, so `translate3d(drift, fall, 0)` is pixel-identical to the
+	   `translateY(fall) translateX(drift)` pair it replaces. */
 	@keyframes bonus-announcement-coin-fall {
 		0% {
-			transform: translateY(0) translateX(0) rotate(0deg);
+			transform: translate3d(0, 0, 0) rotate(0deg);
 			opacity: 0;
 		}
 		6% {
 			opacity: 1;
 		}
 		100% {
-			transform: translateY(128vh) translateX(var(--coin-drift, 0px))
-				rotate(var(--coin-rotate, 360deg));
+			transform: translate3d(var(--coin-drift, 0px), 128vh, 0) rotate(var(--coin-rotate, 360deg));
 			opacity: 1;
 		}
 	}
@@ -1545,10 +1571,14 @@
 	.congrats-sparkle {
 		position: absolute;
 		height: auto;
-		transform: translate(-50%, -50%) scale(0.2);
+		transform: translate3d(-50%, -50%, 0) scale(0.2);
 		opacity: 0;
 		will-change: transform, opacity;
-		filter: drop-shadow(0 0 0.25em rgba(255, 255, 255, 0.55));
+		/* ⚠️ NO `filter` here — same reason as `.bonus-announcement-coin` above, and worse: these keyframes
+		   animate `scale()`, so a blurred filter had to be re-rasterised at a new scale on every frame
+		   rather than cached once. sparkle.png already ships its own soft rays + white core, so the extra
+		   `drop-shadow(0 0 0.25em rgba(255,255,255,0.55))` halo was near-invisible on top of the baked-in
+		   glow — it cost 9 permanent offscreen render surfaces for nothing. */
 		animation-name: congrats-sparkle-twinkle;
 		animation-timing-function: ease-in-out;
 		animation-iteration-count: infinite;
@@ -1560,15 +1590,15 @@
 	@keyframes congrats-sparkle-twinkle {
 		0% {
 			opacity: 0;
-			transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
+			transform: translate3d(-50%, -50%, 0) scale(0.2) rotate(0deg);
 		}
 		50% {
 			opacity: 1;
-			transform: translate(-50%, -50%) scale(1) rotate(30deg);
+			transform: translate3d(-50%, -50%, 0) scale(1) rotate(30deg);
 		}
 		100% {
 			opacity: 0;
-			transform: translate(-50%, -50%) scale(0.2) rotate(60deg);
+			transform: translate3d(-50%, -50%, 0) scale(0.2) rotate(60deg);
 		}
 	}
 
