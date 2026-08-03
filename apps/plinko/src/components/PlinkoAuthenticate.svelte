@@ -107,6 +107,16 @@ import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 			stateBet.betAmount = snapStakeToBetLevels(Math.max(0, stateBet.betAmount));
 		}
 
+		// Latch this session's DEFAULT bet per ball on the first seed only. It is the fixed reference the
+		// high-bet confirmation threshold is measured against (500× default TOTAL bet), so it must be the
+		// launch stake and must never follow the player's later stake changes. Prefer the RGS
+		// `defaultBetLevel` — on a resumed round `stateBet.betAmount` is that round's amount, not the
+		// default — and fall back to the seeded stake when the RGS supplies no default (local dev).
+		if (isFirstSeed && stateGame.defaultStakePerBall <= 0) {
+			stateGame.defaultStakePerBall =
+				stateConfig.defaultBetLevel > 0 ? stateConfig.defaultBetLevel : stateBet.betAmount;
+		}
+
 		// Win display multiplies `payoutMultiplier` by this — use the play amount (per-ball
 		// stake = RGS `amount`), not the total wager, so displayed win matches the balance credit.
 		stateBet.wageredBetAmount = plinkoPlayAmount() || stateBet.betAmount;

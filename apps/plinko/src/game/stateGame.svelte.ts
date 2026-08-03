@@ -57,6 +57,13 @@ export const stateGame = $state({
 	// Launch on the single-ball tier so the opening wager is one default bet level (e.g. 100 JPY), NOT a
 	// 10× ball setup that would inflate the default 10×. Players opt into 10/20/50-ball tiers themselves.
 	ballPerDrop: 1,
+	/**
+	 * This session's DEFAULT bet per ball — the stake the game launched at (RGS `defaultBetLevel`, or
+	 * the seeded local-dev stake). Latched once on the first seed (see PlinkoAuthenticate) and never
+	 * moved by the player's later stake changes, because it is the fixed reference the HIGH-BET
+	 * confirmation threshold is measured against (`plinkoHighBetThreshold`). 0 = not yet seeded.
+	 */
+	defaultStakePerBall: 0,
 	coefficients: [] as number[],
 	fastGameEnabled: false,
 	animationEnabled: true,

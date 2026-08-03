@@ -9,7 +9,13 @@
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
-	import { canAffordPlinkoWager, plinkoWagerAmount, snapStakeToBetLevels } from '../game/plinkoBet';
+	import {
+		canAffordPlinkoWager,
+		isPlinkoHighBet,
+		plinkoWagerAmount,
+		snapStakeToBetLevels,
+	} from '../game/plinkoBet';
+	import { requestConfirmPrompt } from '../game/confirmPrompt.svelte';
 	import {
 		buyBonusModeName,
 		syncPlinkoBetModeFromUi,
@@ -93,6 +99,8 @@
 	import InfoModal from './InfoModal.svelte';
 
 	import BuyBonusModal from './BuyBonusModal.svelte';
+
+	import ConfirmPromptModal from './ConfirmPromptModal.svelte';
 
 	import MsgBox from './MsgBox.svelte';
 
@@ -432,7 +440,29 @@
 		context.eventEmitter.broadcast({ type: 'bet' });
 	}
 
+	/**
+	 * Whether THIS play press needs the high-bet confirmation (total wager ≥ 500× the default bet).
+	 *
+	 * Deliberately narrow — it must only gate a wager the player is committing to right here:
+	 *  - Autobet already confirmed the whole run at its start, so its rounds must not re-prompt (they
+	 *    come back through this same handler via `startAutoBet(() => props.onPlay())`).
+	 *  - Bonus free balls cost nothing, and a buy bonus has its own prompt.
+	 *  - Replay places no wager at all.
+	 */
+	function needsHighBetConfirm(): boolean {
+		if (isReplay) return false;
+		if (stateGame.autoPlayStarted || stateGame.autoMode) return false;
+		if (stateGameDerived.hasPendingBonusBalls || stateGame.bonusRoundActive) return false;
+		return isPlinkoHighBet();
+	}
+
 	function handlePlay() {
+		if (needsHighBetConfirm()) {
+			// Re-run the whole action on Yes (not just `placeBet`) so the confirmed press behaves exactly
+			// like an unconfirmed one, and re-checks affordability against the balance at that moment.
+			requestConfirmPrompt('highBet', () => onMainPlayClick(placeBet));
+			return;
+		}
 		onMainPlayClick(placeBet);
 	}
 
@@ -513,12 +543,23 @@
 	// Activate buttons (the modal UI still opens) if the math is ever unpublished.
 	const BUY_BONUS_ENABLED = true as boolean;
 
-	/** A tier's Activate: route the next bet through that buy mode, then place it. A buy is bonus-only:
-	 * the bonus fires at once, the roulette lands on the bought entry balls, and chain hits add more on
-	 * top. The pending mode is cleared by the revert effect once the round fully settles. */
+	/**
+	 * A tier's Activate: a buy spends the whole tier price in one click, so it goes through the Yes/No
+	 * prompt first. The tier-select modal stays open behind the prompt (the prompt layers above it), so
+	 * "No" simply returns the player to the tier list with nothing spent.
+	 */
 	function handleBuyBonusActivate(tier: BuyBonusTier) {
 		// No buy bonus on the single-ball tier (rapid mode).
 		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1) return;
+		requestConfirmPrompt('buyBonus', () => startBuyBonus(tier));
+	}
+
+	/** Route the next bet through that buy mode, then place it. A buy is bonus-only: the bonus fires at
+	 * once, the roulette lands on the bought entry balls, and chain hits add more on top. The pending
+	 * mode is cleared by the revert effect once the round fully settles. */
+	function startBuyBonus(tier: BuyBonusTier) {
+		// Re-check: the tier can go unavailable (ball-per-drop switch, round start) while the prompt is up.
+		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1 || buyBonusDisabled) return;
 		stateGame.buyBonusModalOpen = false;
 		// Bonus-only buy → mode is per tier (bpd-independent).
 		stateGame.pendingBuyBonusMode = buyBonusModeName(tier.key);
@@ -613,6 +654,10 @@
 <InfoModal />
 
 <BuyBonusModal disabled={buyBonusDisabled} onActivate={handleBuyBonusActivate} />
+
+<!-- Yes/No gate for autobet starts, bonus buys and high bets. Mounted after BuyBonusModal so it also
+     layers above it (the buy prompt is raised from that modal, which stays open behind the prompt). -->
+<ConfirmPromptModal />
 
 <BonusLevelUpOverlay />
 

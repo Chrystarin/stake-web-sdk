@@ -36,6 +36,8 @@ const CRITICAL_IMAGE_PATHS: readonly string[] = [
 
 	// Betting panel (desktop + mobile) — always visible
 	'img/betting-component-frame.png',
+	// Mobile field frame; also the Yes/No plate in ConfirmPromptModal (both layouts).
+	'img/betting-component-frame-mobile.png',
 	'img/betting-component-input-decrease.png',
 	'img/betting-component-input-increase.png',
 	// Containerless (bare glyph) stepper icons used by the mobile inline steppers.
@@ -81,6 +83,13 @@ const CRITICAL_IMAGE_PATHS: readonly string[] = [
  * Ordered roughly by how soon each feature can trigger (free-spin roulette first → congrats last).
  */
 const DEFERRED_IMAGE_PATHS: readonly string[] = [
+	// FIRST in the deferred list, ahead of the feature art below: this is also the confirmation-prompt
+	// panel (ConfirmPromptModal), which is reachable from the player's very first interaction — arming
+	// Autobet, opening Buy Bonus, or raising the stake to a high bet. Everything after it is gated
+	// behind a meter fill or a bonus, i.e. many rounds away.
+	'img/announcement-message-background.png',
+	'img/announcement-message-background-mobile.png',
+
 	// Bonus board background (swapped in only during the free game)
 	'img/game_area_bonus.png',
 
@@ -112,10 +121,6 @@ const DEFERRED_IMAGE_PATHS: readonly string[] = [
 	// but the PORTRAIT one is a plain CSS background on mobile with nothing else warming it.
 	'img/BG_landscape_FREEGAME.jpg',
 	'img/BG_portrait_FREEGAME.jpg',
-
-	// Announcement banner (feature intro)
-	'img/announcement-message-background.png',
-	'img/announcement-message-background-mobile.png',
 
 	// Buy Bonus modal — card frame + Activate button + per-tier feature art (keys mirror BUY_BONUS_TIERS)
 	'img/buy_bonus_button.png',

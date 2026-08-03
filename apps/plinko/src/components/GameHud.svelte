@@ -34,6 +34,7 @@
 		plinkoWagerAmount,
 	} from '../game/plinkoBet';
 	import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
+	import { isConfirmPromptOpen, requestConfirmPrompt } from '../game/confirmPrompt.svelte';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { stateXstate } from '../game/stateXstate';
 	import { getContext } from '../game/context';
@@ -392,12 +393,27 @@
 		}
 		autoPanelOpen = false;
 		if (props.betAmount <= 0) return;
+		// A run commits `count` whole wagers up front, so ask before arming anything.
+		requestConfirmPrompt('autobet', () => beginAutoBetRun(count));
+	}
+
+	/**
+	 * Arm + start a confirmed Autobet run. Every precondition is re-checked here rather than trusted
+	 * from `selectAutoBetCount`: the balance and the board can both change while the prompt is open.
+	 */
+	function beginAutoBetRun(count: number) {
+		if (props.autoPlayStarted || autoBetConfigLocked) return;
+		if (!canAffordAutoBetRun(count)) {
+			showToast('Insufficient Balance');
+			return;
+		}
+		if (props.betAmount <= 0) return;
 		stateGame.autoRoundsLeft = count;
 		stateGame.autoRoundsDisplay = count;
-		// ARMING AND STARTING ARE ONE ATOMIC ACTION. Selecting a count is the player's only confirmation
-		// of an Autobet run, so if the run can't actually start we must not leave `autoMode` armed: an
-		// armed-idle Autobet swaps the main Play button for a "start autobet" control, and the player's
-		// next ordinary Play press would then fire the whole run without ever confirming it.
+		// ARMING AND STARTING ARE ONE ATOMIC ACTION. Confirming the prompt is the player's only
+		// confirmation of an Autobet run, so if the run can't actually start we must not leave `autoMode`
+		// armed: an armed-idle Autobet swaps the main Play button for a "start autobet" control, and the
+		// player's next ordinary Play press would then fire the whole run without ever confirming it.
 		stateGame.autoMode = true;
 		if (!startAutoBet(() => props.onPlay())) {
 			stateGame.autoMode = false;
@@ -420,7 +436,19 @@
 			return;
 		}
 		if (props.betAmount <= 0) return;
-		// Same invariant as `selectAutoBetCount`: never leave Autobet armed-but-idle. If the run can't
+		requestConfirmPrompt('autobet', startArmedAutoBetRun);
+	}
+
+	/** Start the already-armed run once confirmed; preconditions re-checked (the prompt is not modal to
+	 * the game clock — balance and in-flight balls can both move while it is up). */
+	function startArmedAutoBetRun() {
+		if (props.autoPlayStarted) return;
+		if (!canAffordAutoBetRun(stateGame.autoRoundsLeft)) {
+			showToast('Insufficient Balance');
+			return;
+		}
+		if (props.betAmount <= 0) return;
+		// Same invariant as `beginAutoBetRun`: never leave Autobet armed-but-idle. If the run can't
 		// start (balls still in flight) fall back to manual rather than priming a run for the next press.
 		if (!startAutoBet(() => props.onPlay())) {
 			stateGame.autoMode = false;
@@ -499,6 +527,9 @@
 		// onMainActionClick, which shows the toast (keeping Space consistent with a click).
 		if (isPlayButtonHardDisabled) return;
 		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
+		// A confirmation prompt is awaiting a Yes/No — Space must not fire the very action being asked
+		// about (the backdrop already blocks pointer input, but the hotkey is global).
+		if (isConfirmPromptOpen()) return;
 		if (document.activeElement?.getAttribute('role') === 'button') return;
 		onMainActionClick();
 	}
@@ -512,6 +543,7 @@
 	function onSpaceHold() {
 		if (!props.hasPendingBonusBalls) return;
 		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
+		if (isConfirmPromptOpen()) return;
 		startBonusBallHoldDrop();
 	}
 

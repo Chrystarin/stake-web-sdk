@@ -197,6 +197,41 @@ export function plinkoWagerAmount(): number {
 }
 
 /**
+ * Multiple of the DEFAULT bet at which a round's total wager counts as a "high bet" and needs an
+ * explicit Yes/No confirmation before it fires (see ConfirmPromptModal).
+ */
+export const HIGH_BET_DEFAULT_MULTIPLE = 500;
+
+/**
+ * This session's default bet per ball — the launch stake, latched by PlinkoAuthenticate on the first
+ * seed. Falls back to the RGS `defaultBetLevel`, then to the current stake, so the threshold below is
+ * never measured against 0 (which would make every bet a "high bet") if the latch hasn't run yet.
+ */
+export function plinkoDefaultStakePerBall(): number {
+	if (stateGame.defaultStakePerBall > 0) return stateGame.defaultStakePerBall;
+	if (stateConfig.defaultBetLevel > 0) return stateConfig.defaultBetLevel;
+	return plinkoStakePerBall();
+}
+
+/**
+ * The TOTAL bet (bet per ball × balls per drop) at or above which a round is a high bet.
+ * Per-currency by construction: the default stake it scales is already in the player's currency.
+ */
+export function plinkoHighBetThreshold(): number {
+	return plinkoDefaultStakePerBall() * HIGH_BET_DEFAULT_MULTIPLE;
+}
+
+/**
+ * Whether `total` (the round's whole wager, defaulting to the current one) is a high bet — i.e. it
+ * reaches 500× the default bet. Free / feature-trigger rounds cost nothing and are never high bets.
+ */
+export function isPlinkoHighBet(total: number = plinkoWagerAmount()): boolean {
+	const threshold = plinkoHighBetThreshold();
+	if (threshold <= 0) return false;
+	return total > 0 && total >= threshold;
+}
+
+/**
  * Balance the player can actually spend right now — what affordability checks must gate on.
  *
  * In rapid 1-ball mode the authoritative `stateBet.balanceAmount` is credited with an in-flight
