@@ -1194,23 +1194,23 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: clamp(10px, 2vh, 18px);
+		gap: clamp(calc(10 * var(--ui-px)), 2vh, calc(18 * var(--ui-px)));
 	}
 	.bonus-announcement-hint {
 		position: absolute;
 		z-index: 2;
 		left: 0;
 		right: 0;
-		bottom: clamp(16px, 5vh, 56px);
+		bottom: clamp(calc(16 * var(--ui-px)), 5vh, calc(56 * var(--ui-px)));
 		margin-top: 0;
-		padding: 0 clamp(1rem, 4vw, 2rem);
+		padding: 0 clamp(calc(16 * var(--ui-px)), 4vw, calc(32 * var(--ui-px)));
 		box-sizing: border-box;
 		font-family: 'Perpetua', serif;
-		font-size: clamp(16px, 2.6vw, 26px);
+		font-size: clamp(calc(16 * var(--ui-px)), 2.6vw, calc(26 * var(--ui-px)));
 		line-height: 1.1;
 		letter-spacing: 0.03em;
 		color: #f0ddaa;
-		text-shadow: 0 2px 7px rgba(0, 0, 0, 0.7);
+		text-shadow: 0 calc(2 * var(--ui-px)) calc(7 * var(--ui-px)) rgba(0, 0, 0, 0.7);
 	}
 	.bonus-announcement--bg-visible {
 		transform: translateY(0);
@@ -1304,7 +1304,10 @@
 			0 0 0.48em rgba(255, 200, 70, 0.52), 0 0.05em 0.08em rgba(0, 0, 0, 0.28);
 		--announcement-highlight-shadow: 0 -0.02em 0.03em rgba(255, 208, 75, 0.36);
 		font-family: 'PiecesOfEight', serif;
-		font-size: clamp(48px, 8.2vw, 116px);
+		/* px bounds in --ui-px throughout this screen: the vw term is what sizes the type at the
+		   1024×576 reference, but every floor below binds on a 400×225 popout and would leave the
+		   headline/reward/value 2–3× oversized against the congratulations plate. */
+		font-size: clamp(calc(48 * var(--ui-px)), 8.2vw, calc(116 * var(--ui-px)));
 		line-height: 0.95;
 		letter-spacing: 0.02em;
 	}
@@ -1318,7 +1321,7 @@
 			0 0 0.4em rgba(255, 228, 120, 0.48), 0 0.04em 0.08em rgba(0, 0, 0, 0.25);
 		--announcement-highlight-shadow: 0 -0.02em 0.03em rgba(245, 200, 95, 0.32);
 		font-family: 'PotatoSans', sans-serif;
-		font-size: clamp(30px, 5.2vw, 76px);
+		font-size: clamp(calc(30 * var(--ui-px)), 5.2vw, calc(76 * var(--ui-px)));
 		line-height: 1;
 		letter-spacing: 0.01em;
 	}
@@ -1326,10 +1329,10 @@
 		background-image: linear-gradient(180deg, #f9e4bc 0%, #e0c48a 56.7%, #d49420 100%);
 	}
 	.bonus-announcement--win .bonus-announcement-headline {
-		font-size: clamp(44px, 7.2vw, 100px);
+		font-size: clamp(calc(44 * var(--ui-px)), 7.2vw, calc(100 * var(--ui-px)));
 	}
 	.bonus-announcement--win .bonus-announcement-reward {
-		font-size: clamp(42px, 7vw, 96px);
+		font-size: clamp(calc(42 * var(--ui-px)), 7vw, calc(96 * var(--ui-px)));
 	}
 	/* MOBILE FULL-BLEED FIX — both congratulations screens (pre-bonus wheel result + post-bonus treasure
 	   total) paint `announcement-message-background-mobile.png`, and that export ships with a fully
@@ -1406,8 +1409,8 @@
 		position: relative;
 		z-index: 2;
 		/* Sit lower on the screen so the value drops into the treasure zone (matches the reference). */
-		margin-top: clamp(44px, 22vh, 150px);
-		gap: clamp(8px, 2vh, 22px);
+		margin-top: clamp(calc(44 * var(--ui-px)), 22vh, calc(150 * var(--ui-px)));
+		gap: clamp(calc(8 * var(--ui-px)), 2vh, calc(22 * var(--ui-px)));
 	}
 	/* "YOU HAVE WON" subheading: bright Figma cream→gold fill + a warm dark-gold OUTLINE (the reference
 	   look), smaller than the CONGRATULATIONS headline (overrides --win). */
@@ -1415,7 +1418,7 @@
 	.bonus-announcement--roulette .bonus-announcement-reward {
 		/* Low min so the text keeps shrinking with the viewport instead of pinning at a min size and
 		   overflowing on narrow/high-DPI screens — the 4.7vw scaling keeps it on one line at any width. */
-		font-size: clamp(16px, 4.7vw, 68px);
+		font-size: clamp(calc(16 * var(--ui-px)), 4.7vw, calc(68 * var(--ui-px)));
 		/* Wider than the Figma spec's 0.06em — bumped further for more visible breathing room between
 		   characters. Line-height ~0.945 (121/128) still matches the spec. */
 		letter-spacing: 0.12em;
@@ -1472,7 +1475,7 @@
 		/* Low min (overrides --win's 44px) so "CONGRATULATIONS!" keeps shrinking with the viewport and
 		   never overflows/clips on narrow or high-DPI screens — 7.2vw keeps it on one line at any width.
 		   Unchanged on normal/wide screens where 7.2vw is already above the min. */
-		font-size: clamp(22px, 7.2vw, 100px);
+		font-size: clamp(calc(22 * var(--ui-px)), 7.2vw, calc(100 * var(--ui-px)));
 		/* Wider gap between characters (overrides the base 0.02em). */
 		letter-spacing: 0.08em;
 		/* Kept modest so the fill gradient (the letter body) dominates and the outline is just a rim. */
@@ -1506,9 +1509,11 @@
 		z-index: 2;
 		display: inline-grid;
 		justify-items: center;
-		margin-top: clamp(6px, 2.2vh, 26px);
+		margin-top: clamp(calc(6 * var(--ui-px)), 2.2vh, calc(26 * var(--ui-px)));
 		font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
-		font-size: clamp(56px, 7.6vw, 144px);
+		/* The worst offender on this screen: 7.6vw only wins above ~740px wide, so on a 400×225 popout
+		   the 56px floor pinned the win value at 14% of the frame width instead of 7.6%. */
+		font-size: clamp(calc(56 * var(--ui-px)), 7.6vw, calc(144 * var(--ui-px)));
 		line-height: 1.1;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;

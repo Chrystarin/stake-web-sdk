@@ -1107,11 +1107,14 @@
 		top: 2.2vw;
 		left: 2.2vw;
 		z-index: 25;
-		/* 6.25vw = the original 5vw × 1.25. Mins scale with it so the +25% survives on small viewports. */
+		/* 6.25vw = the original 5vw × 1.25. Mins scale with it so the +25% survives on small viewports.
+		   The mins are the ACTIVE size at the 1024×576 reference (6.25vw = 64px there, so the 67.5 floor
+		   binds) — stated in --ui-px so they keep binding at the same *proportion* on a 400×225 popout
+		   instead of pinning the badge at 67.5 real px, where it swallows a sixth of the frame width. */
 		width: 6.25vw;
 		height: 6.25vw;
-		min-width: 67.5px;
-		min-height: 67.5px;
+		min-width: calc(67.5 * var(--ui-px));
+		min-height: calc(67.5 * var(--ui-px));
 		padding: 0;
 		border: none;
 		background: none;
@@ -1126,7 +1129,7 @@
 		height: 100%;
 		object-fit: contain;
 		pointer-events: none;
-		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+		filter: drop-shadow(0 calc(2 * var(--ui-px)) calc(6 * var(--ui-px)) rgba(0, 0, 0, 0.5));
 	}
 
 	.buy-bonus-trigger:hover:not(:disabled) {

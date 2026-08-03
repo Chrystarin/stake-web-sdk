@@ -97,8 +97,11 @@
 		position: relative;
 		/* Both the frame art and every type size below are proportional to THIS width, so the panel
 		   scales as one piece: `min(720px, 86vw)` capped, and each `clamp(px, vw, px)` pair below is the
-		   same percentage expressed against each of those two terms. */
-		width: min(720px, 86vw);
+		   same percentage expressed against each of those two terms.
+		   The px term is in --ui-px so it shrinks with the viewport below the 1024×576 reference. Without
+		   it the 86vw term takes over on a 400×225 popout and the prompt covers 86% of the frame instead
+		   of the 70% (720/1024) it occupies at the reference. */
+		width: min(calc(720 * var(--ui-px)), 86vw);
 		/* announcement-message-background.png is 1919×1080 — draw it at its true ratio, never stretched. */
 		aspect-ratio: 1919 / 1080;
 		display: flex;
@@ -147,8 +150,10 @@
 		font-family: 'PiecesOfEight', serif;
 		font-weight: 400;
 		/* 11% of the panel width, written against both terms of the panel's own `min()` (720px / 86vw)
-		   so the headline keeps its proportion at every size instead of drifting once the panel caps. */
-		font-size: clamp(22px, 9.4vw, 79px);
+		   so the headline keeps its proportion at every size instead of drifting once the panel caps.
+		   Both px bounds are in --ui-px, matching the panel — otherwise the 22px floor binds on a
+		   400×225 popout and the headline outgrows the plaque it sits on. */
+		font-size: clamp(calc(22 * var(--ui-px)), 9.4vw, calc(79 * var(--ui-px)));
 		line-height: 1;
 		text-align: center;
 		letter-spacing: 0.02em;
@@ -163,8 +168,8 @@
 		color: transparent;
 		/* drop-shadow, NOT text-shadow: with background-clip:text the gradient paints in the background
 		   layer, so a text-shadow would land ON TOP of it. */
-		filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8))
-			drop-shadow(0 0 14px rgba(246, 168, 32, 0.5));
+		filter: drop-shadow(0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.8))
+			drop-shadow(0 0 calc(14 * var(--ui-px)) rgba(246, 168, 32, 0.5));
 	}
 
 	.cf-choices {
@@ -206,19 +211,21 @@
 		z-index: 1;
 		font-family: 'PotatoSans', sans-serif;
 		/* 4.9% of the panel width — same two-term treatment as .cf-title. */
-		font-size: clamp(13px, 4.2vw, 35px);
+		font-size: clamp(calc(13 * var(--ui-px)), 4.2vw, calc(35 * var(--ui-px)));
 		line-height: 1;
 		letter-spacing: 0.02em;
-		/* White fill with a black edge — legible over the plate's dark centre at any size. */
+		/* White fill with a black edge — legible over the plate's dark centre at any size. The outline
+		   rides --ui-px too: a real 1px edge on 13px type (the popout size) reads as a blob, where at
+		   the reference it's a hairline on 35px type. */
 		color: #ffffff;
-		-webkit-text-stroke: 1px #000000;
+		-webkit-text-stroke: var(--ui-px) #000000;
 		paint-order: stroke fill;
 		text-shadow:
-			1px 1px 0 #000000,
-			-1px 1px 0 #000000,
-			1px -1px 0 #000000,
-			-1px -1px 0 #000000,
-			0 2px 3px rgba(0, 0, 0, 0.7);
+			var(--ui-px) var(--ui-px) 0 #000000,
+			calc(-1 * var(--ui-px)) var(--ui-px) 0 #000000,
+			var(--ui-px) calc(-1 * var(--ui-px)) 0 #000000,
+			calc(-1 * var(--ui-px)) calc(-1 * var(--ui-px)) 0 #000000,
+			0 calc(2 * var(--ui-px)) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.7);
 		white-space: nowrap;
 	}
 

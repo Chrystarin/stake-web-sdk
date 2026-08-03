@@ -115,21 +115,25 @@
 		overflow: auto;
 	}
 
+	/* Every absolute length in this modal (px AND rem — rem is just as fixed, the app never rescales the
+	   root font-size) is stated in --ui-px, so the tier grid is a uniform scale of its 1024×576 reference
+	   self. Left raw, the cards keep their full-size chrome on Stake's 400×225 popout and the four tiers
+	   no longer fit the frame. */
 	.bb-modal {
 		position: relative;
-		width: min(1100px, 96vw);
+		width: min(calc(1100 * var(--ui-px)), 96vw);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 2.2rem;
+		gap: calc(35.2 * var(--ui-px)); /* 2.2rem */
 	}
 
 	.bb-close {
 		position: absolute;
-		top: -0.5rem;
-		right: -0.5rem;
-		width: 2.6rem;
-		height: 2.6rem;
+		top: calc(-8 * var(--ui-px)); /* -0.5rem */
+		right: calc(-8 * var(--ui-px));
+		width: calc(41.6 * var(--ui-px)); /* 2.6rem */
+		height: calc(41.6 * var(--ui-px));
 		border: none;
 		background: none;
 		cursor: pointer;
@@ -146,18 +150,18 @@
 		margin: 0;
 		font-family: 'PiecesOfEight', serif;
 		font-weight: 400;
-		font-size: clamp(2rem, 5vw, 3.4rem);
+		font-size: clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))); /* 2rem … 3.4rem */
 		letter-spacing: 0.02em;
 		color: #f6c54a;
 		text-shadow:
-			0 0 12px rgba(246, 168, 32, 0.65),
-			0 2px 2px rgba(0, 0, 0, 0.8);
+			0 0 calc(12 * var(--ui-px)) rgba(246, 168, 32, 0.65),
+			0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.8);
 	}
 
 	.bb-cards {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		gap: 1.2rem;
+		gap: calc(19.2 * var(--ui-px)); /* 1.2rem */
 		width: 100%;
 	}
 
@@ -186,7 +190,7 @@
 		align-items: center;
 		text-align: center;
 		padding: 9% 10% 8%;
-		gap: 0.28rem;
+		gap: calc(4.48 * var(--ui-px)); /* 0.28rem */
 	}
 
 	.bb-card-title {
@@ -195,12 +199,12 @@
 		font-weight: 400;
 		/* px/vw based (NOT rem): the game halves the root font-size on narrow screens, so a rem title
 		 * clamps tiny. This keeps the tier title prominent at every width. */
-		font-size: clamp(20px, 4.2vw, 34px);
+		font-size: clamp(calc(20 * var(--ui-px)), 4.2vw, calc(34 * var(--ui-px)));
 		line-height: 1.05;
 		color: #ffffff;
 		/* Shared depth recipe with .bb-card-desc / .bb-card-total so every line reads with the same
 		 * contrast against the textured panel (no per-line brightness/glow mismatch). */
-		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85);
+		text-shadow: 0 calc(2 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.85);
 	}
 
 	.bb-card-desc {
@@ -209,7 +213,7 @@
 		font-family: 'PotatoSans', sans-serif;
 		/* px/vw based — the game halves the root font-size on narrow screens (see title note).
 		 * Small caps, matching the reference (desktop caps at 10px). */
-		font-size: clamp(8.5px, 1.05vw, 10px);
+		font-size: clamp(calc(8.5 * var(--ui-px)), 1.05vw, calc(10 * var(--ui-px)));
 		line-height: 1.3;
 		/* Tracked-out caps, matching the reference spacing. */
 		letter-spacing: 0.05em;
@@ -217,8 +221,8 @@
 		/* Near-white cream, matching the reference; double shadow lifts it clear of the textured panel. */
 		color: #f4efe4;
 		text-shadow:
-			0 1px 3px rgba(0, 0, 0, 0.95),
-			0 0 3px rgba(0, 0, 0, 0.85);
+			0 var(--ui-px) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.95),
+			0 0 calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.85);
 	}
 
 	.bb-card-art {
@@ -227,10 +231,10 @@
 		max-width: 86%;
 		max-height: 48%;
 		object-fit: contain;
-		margin: 0.1rem auto;
+		margin: calc(1.6 * var(--ui-px)) auto; /* 0.1rem */
 		flex: 0 1 auto;
 		min-height: 0;
-		filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+		filter: drop-shadow(0 calc(3 * var(--ui-px)) calc(6 * var(--ui-px)) rgba(0, 0, 0, 0.5));
 		user-select: none;
 	}
 
@@ -244,9 +248,9 @@
 	.bb-card-total {
 		font-family: 'PotatoSans', sans-serif;
 		/* px/vw based (NOT rem) so it stays prominent on narrow screens (see title note). */
-		font-size: clamp(16px, 2.7vw, 24px);
+		font-size: clamp(calc(16 * var(--ui-px)), 2.7vw, calc(24 * var(--ui-px)));
 		color: #ffffff;
-		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+		text-shadow: 0 var(--ui-px) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.9);
 		/* Keep "<n> FREE BALLS" on one line even for the wide 3-digit tiers (matches the reference). */
 		white-space: nowrap;
 	}
@@ -270,9 +274,9 @@
 		 * element's background layer (behind), while text-shadow paints in the text layer (in front), so a
 		 * text-shadow lands ON TOP of the gradient. drop-shadow composites the shadow behind the rendered
 		 * glyphs, matching the reference (shadow behind the number). */
-		filter: drop-shadow(0px 2.42262px 2.42262px #000000)
-			drop-shadow(0.605655px 1.21131px 0px #000000)
-			drop-shadow(0px 0px 12px rgba(237, 176, 42, 0.6));
+		filter: drop-shadow(0 calc(2.42262 * var(--ui-px)) calc(2.42262 * var(--ui-px)) #000000)
+			drop-shadow(calc(0.605655 * var(--ui-px)) calc(1.21131 * var(--ui-px)) 0 #000000)
+			drop-shadow(0 0 calc(12 * var(--ui-px)) rgba(237, 176, 42, 0.6));
 	}
 
 	.bb-activate {
@@ -309,20 +313,20 @@
 		z-index: 1;
 		font-family: 'PotatoSans', sans-serif;
 		/* px/vw based — the game halves the root font-size on narrow screens (see title note). */
-		font-size: clamp(12px, 1.6vw, 16px);
+		font-size: clamp(calc(12 * var(--ui-px)), 1.6vw, calc(16 * var(--ui-px)));
 		letter-spacing: 0.03em;
 		text-transform: uppercase;
 		/* White with a black outline. -webkit-text-stroke draws the outline where supported; the layered
 		 * text-shadow gives a solid black edge everywhere else. */
 		color: #ffffff;
-		-webkit-text-stroke: 1px #000000;
+		-webkit-text-stroke: var(--ui-px) #000000;
 		paint-order: stroke fill;
 		text-shadow:
-			1px 1px 0 #000000,
-			-1px 1px 0 #000000,
-			1px -1px 0 #000000,
-			-1px -1px 0 #000000,
-			0 2px 2px rgba(0, 0, 0, 0.6);
+			var(--ui-px) var(--ui-px) 0 #000000,
+			calc(-1 * var(--ui-px)) var(--ui-px) 0 #000000,
+			var(--ui-px) calc(-1 * var(--ui-px)) 0 #000000,
+			calc(-1 * var(--ui-px)) calc(-1 * var(--ui-px)) 0 #000000,
+			0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.6);
 		white-space: nowrap;
 	}
 
@@ -346,8 +350,13 @@
 		filter: grayscale(0.6) brightness(0.75);
 	}
 
-	/* Tablet / portrait — 2×2 grid */
-	@media (max-width: 760px) {
+	/* Tablet / portrait — 2×2 grid.
+	   ⚠️ Gated on the PORTRAIT aspect, not width alone. A 2×2 grid is twice as tall as 4×1, which is
+	   fine on a tall phone but not in a short landscape frame: Stake's 400×225 popout is under 760px
+	   wide, so the unqualified query used to flip it to 2×2 there and the second row fell off the
+	   225px-tall viewport. `max-aspect-ratio: 1/1` is height ≥ width — the complement of the landscape
+	   query --ui-px is defined under (routes/+layout.svelte), so the two can never both apply. */
+	@media (max-width: 760px) and (max-aspect-ratio: 1/1) {
 		.bb-cards {
 			grid-template-columns: repeat(2, 1fr);
 			gap: 0.9rem;

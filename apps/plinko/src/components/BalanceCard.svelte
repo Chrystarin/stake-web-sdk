@@ -412,7 +412,7 @@
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
-		filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55));
+		filter: drop-shadow(0 calc(2 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.55));
 		transform-origin: center;
 	}
 
@@ -431,7 +431,10 @@
 		white-space: nowrap;
 		font-family: 'Poppins', 'Instrument Sans', sans-serif;
 		font-weight: 700;
-		font-size: clamp(12px, 1.25vw, 20px);
+		/* px bounds in --ui-px so the float keeps its proportion to the plaque it rises out of — the
+		   1.25vw term is what's active at the 1024×576 reference (12.8px), but the raw 12px floor binds
+		   below ~960px wide and would leave the "+win" bigger than the balance value under it. */
+		font-size: clamp(calc(12 * var(--ui-px)), 1.25vw, calc(20 * var(--ui-px)));
 		color: #ffffff;
 		text-shadow: 0 0.14vw 0.3vw rgba(0, 0, 0, 0.8);
 		pointer-events: none;

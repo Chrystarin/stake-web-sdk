@@ -440,10 +440,17 @@
 		display: grid;
 		place-items: center;
 	}
+	/* ⚠️ This modal is sized ENTIRELY in absolute px — nothing here tracks the viewport, so on Stake's
+	   400×225 popout the panel kept its full-size 14px body copy, 20px padding and 36px close button
+	   inside a frame a third the width, and the rules/how-to-play text overflowed instead of scaling.
+	   Every length below is therefore stated in --ui-px (see routes/+layout.svelte): 1px at the 1024×576
+	   reference — so the desktop rendering is byte-for-byte what it was — and 0.39px at 400×225, making
+	   the whole panel a uniform downscale. Borders/hairlines are deliberately left at raw 1px so they
+	   can't fall under a device pixel and vanish. */
 	.info-modal-wrap {
 		position: relative;
-		width: min(92vw, 640px);
-		max-height: min(80vh, 720px);
+		width: min(92vw, calc(640 * var(--ui-px)));
+		max-height: min(80vh, calc(720 * var(--ui-px)));
 		display: flex;
 		flex-direction: column;
 	}
@@ -462,7 +469,7 @@
 	.info-modal {
 		background: #0f1a28;
 		border: 1px solid rgba(126, 200, 255, 0.25);
-		border-radius: 12px;
+		border-radius: calc(12 * var(--ui-px));
 		overflow: hidden;
 		color: #d6e8f7;
 		display: flex;
@@ -473,47 +480,47 @@
 	}
 	.info-modal-close img {
 		display: block;
-		width: 36px;
-		height: 36px;
+		width: calc(36 * var(--ui-px));
+		height: calc(36 * var(--ui-px));
 		object-fit: contain;
 	}
 	.info-modal-header {
 		display: flex;
 		align-items: center;
-		padding: 14px 20px;
+		padding: calc(14 * var(--ui-px)) calc(20 * var(--ui-px));
 		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 	}
 	.info-modal-title {
 		margin: 0;
 		color: #fff;
-		font-size: 16px;
+		font-size: calc(16 * var(--ui-px));
 		font-weight: 700;
 		line-height: 1.2;
 	}
 	.info-modal-body {
-		padding: 20px;
+		padding: calc(20 * var(--ui-px));
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
-		font-size: 14px;
+		font-size: calc(14 * var(--ui-px));
 		line-height: 1.5;
 	}
 	.info-modal-body p {
-		margin: 0 0 8px;
+		margin: 0 0 calc(8 * var(--ui-px));
 	}
 	.info-tabs {
 		display: flex;
 		justify-content: center;
-		gap: 8px;
-		margin: 0 0 18px;
+		gap: calc(8 * var(--ui-px));
+		margin: 0 0 calc(18 * var(--ui-px));
 	}
 	.info-tab {
-		padding: 7px 22px;
+		padding: calc(7 * var(--ui-px)) calc(22 * var(--ui-px));
 		border: none;
-		border-radius: 8px;
+		border-radius: calc(8 * var(--ui-px));
 		background: transparent;
 		color: #9ab8d0;
-		font-size: 14px;
+		font-size: calc(14 * var(--ui-px));
 		font-weight: 600;
 		cursor: pointer;
 		transition:
@@ -530,29 +537,29 @@
 	.info-limits {
 		display: flex;
 		flex-direction: column;
-		gap: 14px;
+		gap: calc(14 * var(--ui-px));
 	}
 	.info-limits-row {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		gap: 16px;
-		padding-bottom: 10px;
+		gap: calc(16 * var(--ui-px));
+		padding-bottom: calc(10 * var(--ui-px));
 		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	}
 	.info-limits-row--head {
 		color: #fff;
 		font-weight: 700;
-		font-size: 15px;
+		font-size: calc(15 * var(--ui-px));
 	}
 	.info-limits-value {
 		color: #7ec8ff;
-		font-size: 14px;
+		font-size: calc(14 * var(--ui-px));
 		font-weight: 600;
 	}
 	.info-section-title {
-		margin: 18px 0 8px;
-		font-size: 15px;
+		margin: calc(18 * var(--ui-px)) 0 calc(8 * var(--ui-px));
+		font-size: calc(15 * var(--ui-px));
 		font-weight: 700;
 		color: #fff;
 	}
@@ -565,51 +572,51 @@
 		/* Pin to the body's padding-box top (top = -padding) so the bar's background
 		 * covers the full strip — otherwise a gap the height of the padding shows
 		 * scrolled content above the pill. */
-		top: -20px;
+		top: calc(-20 * var(--ui-px));
 		z-index: 2;
 		display: flex;
 		justify-content: center;
-		margin: -20px -20px 14px;
-		padding: 20px 20px 12px;
+		margin: calc(-20 * var(--ui-px)) calc(-20 * var(--ui-px)) calc(14 * var(--ui-px));
+		padding: calc(20 * var(--ui-px)) calc(20 * var(--ui-px)) calc(12 * var(--ui-px));
 		background: #0f1a28;
 	}
 	.howto-pill {
-		padding: 9px 24px;
+		padding: calc(9 * var(--ui-px)) calc(24 * var(--ui-px));
 		border-radius: 999px;
 		background: rgba(126, 200, 255, 0.1);
 		border: 1px solid rgba(126, 200, 255, 0.3);
 		color: #fff;
-		font-size: 15px;
+		font-size: calc(15 * var(--ui-px));
 		font-weight: 700;
 		line-height: 1.2;
 		text-align: center;
 	}
 	.howto-subhead {
-		margin: 14px 0 8px;
-		font-size: 14px;
+		margin: calc(14 * var(--ui-px)) 0 calc(8 * var(--ui-px));
+		font-size: calc(14 * var(--ui-px));
 		font-weight: 700;
 		color: #fff;
 	}
 	.howto-steps li {
-		margin-bottom: 10px;
+		margin-bottom: calc(10 * var(--ui-px));
 	}
 	.info-modal-body ul,
 	.info-modal-body ol {
-		margin: 0 0 10px;
-		padding-left: 20px;
+		margin: 0 0 calc(10 * var(--ui-px));
+		padding-left: calc(20 * var(--ui-px));
 	}
 	.info-modal-body li {
-		margin-bottom: 6px;
+		margin-bottom: calc(6 * var(--ui-px));
 	}
 	.info-modal-body strong {
 		color: #fff;
 	}
 	.info-formula {
-		padding: 10px 12px;
-		margin: 0 0 10px;
+		padding: calc(10 * var(--ui-px)) calc(12 * var(--ui-px));
+		margin: 0 0 calc(10 * var(--ui-px));
 		background: rgba(0, 0, 0, 0.35);
-		border-radius: 6px;
-		font-size: 13px;
+		border-radius: calc(6 * var(--ui-px));
+		font-size: calc(13 * var(--ui-px));
 		line-height: 1.6;
 		color: #eaf3fb;
 	}
@@ -631,7 +638,7 @@
 		min-height: 0;
 		overflow-x: hidden;
 		overflow-y: auto;
-		padding: 0 20px 20px;
+		padding: 0 calc(20 * var(--ui-px)) calc(20 * var(--ui-px));
 		-webkit-overflow-scrolling: touch;
 	}
 	.info-history-table {
@@ -640,16 +647,16 @@
 		border-collapse: separate;
 		/* Single table: header + body share one column grid, so centered titles line up
 		 * exactly with the centered cell contents (no scrollbar / padding drift). */
-		border-spacing: 0 6px;
+		border-spacing: 0 calc(6 * var(--ui-px));
 	}
 	.info-history-table thead th {
 		position: sticky;
 		top: 0;
 		z-index: 1;
 		text-align: center;
-		font-size: 12px;
+		font-size: calc(12 * var(--ui-px));
 		color: #e9eff9;
-		padding: 8px 10px;
+		padding: calc(8 * var(--ui-px)) calc(10 * var(--ui-px));
 		margin: 0;
 		font-weight: 600;
 		background: #0f1a28;
@@ -693,50 +700,55 @@
 		background: transparent !important;
 	}
 	.info-history-table td {
-		padding: 8px 10px;
+		padding: calc(8 * var(--ui-px)) calc(10 * var(--ui-px));
 		text-align: center;
 		background: rgba(106, 124, 160, 0.45);
 		color: #f2f7ff;
-		font-size: 13px;
+		font-size: calc(13 * var(--ui-px));
 		font-weight: 600;
 		vertical-align: middle;
 	}
 	.info-history-table tr td:first-child {
-		border-top-left-radius: 8px;
-		border-bottom-left-radius: 8px;
+		border-top-left-radius: calc(8 * var(--ui-px));
+		border-bottom-left-radius: calc(8 * var(--ui-px));
 	}
 	.info-history-table tr td:last-child {
-		border-top-right-radius: 8px;
-		border-bottom-right-radius: 8px;
+		border-top-right-radius: calc(8 * var(--ui-px));
+		border-bottom-right-radius: calc(8 * var(--ui-px));
 	}
 	/* Stack the round's multiplier chips (base game + optional Bonus / Free Spin) vertically. */
 	.info-mult-chips {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
+		gap: calc(4 * var(--ui-px));
 	}
 	.info-mult-pill {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 48px;
+		min-width: calc(48 * var(--ui-px));
 		max-width: 100%;
-		height: 26px;
-		padding: 0 8px;
-		border-radius: 8px;
+		height: calc(26 * var(--ui-px));
+		padding: 0 calc(8 * var(--ui-px));
+		border-radius: calc(8 * var(--ui-px));
 		color: #fff;
-		font-size: 13px;
+		font-size: calc(13 * var(--ui-px));
 		font-weight: 700;
 		line-height: 1;
 		white-space: nowrap;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+		text-shadow: 0 calc(1 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.45);
 	}
 
 	/* Narrow screens: the 6-column history table is too tight for 13px text +
 	 * 10px cell padding, so figures bleed to the cell edges. Shrink fonts,
-	 * padding and chip sizing so every value fits without truncation. */
-	@media (max-width: 480px) {
+	 * padding and chip sizing so every value fits without truncation.
+	 * ⚠️ PORTRAIT ONLY. This block exists because the table's px sizing did not track a narrow
+	 * viewport — in landscape it now does (--ui-px), so a 400×225 popout already renders the table at
+	 * the same proportions as 1024×576 and applying these overrides on top would shrink the columns
+	 * twice and break parity. `max-aspect-ratio: 1/1` is height ≥ width, the complement of the
+	 * landscape query --ui-px is defined under (routes/+layout.svelte). */
+	@media (max-width: 480px) and (max-aspect-ratio: 1/1) {
 		.info-history-scroll {
 			padding: 0 10px 16px;
 		}

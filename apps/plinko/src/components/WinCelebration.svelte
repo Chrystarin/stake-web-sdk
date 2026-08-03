@@ -9,6 +9,7 @@
 	import { isPortraitGameLayout } from '../lib/format';
 	import { preloadWinPopupAssets } from '../lib/preloadAssets';
 	import { staticUrl } from '../lib/staticUrl';
+	import { uiScale } from '../lib/uiScale';
 	import { WinCoinShower, type ShowerPoint } from '../lib/winCoinShower';
 	import {
 		winTierForMultiplier,
@@ -135,7 +136,10 @@
 		for (const c of targetStr) units += c === '.' ? 0.42 : 0.74;
 		units = Math.max(units, 1);
 		const cap = portrait ? w * 0.15 : Math.min(h * 0.16, w * 0.072);
-		digitH = Math.max(34, Math.min(cap, (w * 0.82) / units));
+		// The 34px floor is the JS twin of a clamp's px minimum: it stops tracking the viewport once it
+		// binds, which on a 400×225 popout leaves the counter 18% larger than its share of the frame at
+		// the 1024×576 reference. Scaling it keeps the counter proportional (see lib/uiScale.ts).
+		digitH = Math.max(34 * uiScale(), Math.min(cap, (w * 0.82) / units));
 	}
 
 	// --- geometry helpers -------------------------------------------------------------------------
@@ -390,8 +394,11 @@
 		   Sparkle (rays) footprint enlarged 30% (then another 30% on top) per design; the banner
 		   (label) text height is bumped ~30% so the title reads bigger relative to the value,
 		   matching the reference proportions. */
-		--wc-rays-size: clamp(575px, 81.1vw, 1284px);
-		--wc-banner-text-h: clamp(39px, 5.7vw, 96px);
+		/* px bounds in --ui-px: the vw term is what's active at the 1024×576 reference, but both floors
+		   bind well before a 400×225 popout — the ray burst would be pinned at 575 real px (144% of the
+		   frame width, vs 81% at the reference) and the banner would dwarf the value under it. */
+		--wc-rays-size: clamp(calc(575 * var(--ui-px)), 81.1vw, calc(1284 * var(--ui-px)));
+		--wc-banner-text-h: clamp(calc(39 * var(--ui-px)), 5.7vw, calc(96 * var(--ui-px)));
 		/* Width ceiling for the banner art. WATCH THIS when scaling a tier up: once a tier's art is this
 		   wide it stops growing (height shrinks with it, since width is auto), so a bigger
 		   `--wc-banner-scale` appears to do nothing. Raise the cap if a tier flattens out. */

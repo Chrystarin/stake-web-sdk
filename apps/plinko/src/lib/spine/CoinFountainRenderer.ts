@@ -7,6 +7,7 @@ import {
 } from '@esotericsoftware/spine-pixi-v8';
 import { Application, Assets, Ticker } from 'pixi.js';
 
+import { uiScale } from '../uiScale';
 import { COIN_FOUNTAIN_ANIMATIONS, getCoinFountainAssets } from './coinFountainAsset';
 import { loadSpineAsset } from './spineAssetCache';
 import { readSkeletonData } from './spineSkeletonData';
@@ -199,8 +200,12 @@ export class CoinFountainRenderer {
 		const dist = Math.max(1, Math.hypot(dx, dy));
 		// Baseline coin size scales gently with viewport so it reads on phones and desktop alike.
 		// (coefficient + clamp bounds cut 25% from the previous 0.042 / 22–46 for smaller coins.)
+		// The bounds ride `uiScale()` for the same reason a CSS clamp's px bounds ride --ui-px: at the
+		// 1024×576 reference the coefficient is what's active (0.0315 × 576 = 18.1), but on a 400×225
+		// popout the raw 16.5 floor binds and the coins fly in at 2.3× their proportional size.
+		const s = uiScale();
 		const viewMin = Math.min(this.app.renderer.width, this.app.renderer.height) || 400;
-		const baseSize = Math.max(16.5, Math.min(34.5, viewMin * 0.0315));
+		const baseSize = Math.max(16.5 * s, Math.min(34.5 * s, viewMin * 0.0315));
 
 		// Sorted once here, earliest warning first, so each coin only needs a cursor into it.
 		const leads = [...(options.leads ?? [])].sort((a, b) => b.ms - a.ms);

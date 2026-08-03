@@ -40,20 +40,23 @@
 		place-items: center;
 		pointer-events: none;
 	}
+	/* Landscape sizing. Every px below is stated in --ui-px so the whole card is a uniform scale of its
+	   1024×576 reference self — the vw terms already track the viewport, but the clamp floors bind long
+	   before Stake's 400×225 popout and would leave the type ~2.5× oversized against the board. */
 	.result-wrapper {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding: 20px 32px;
+		gap: calc(16 * var(--ui-px));
+		padding: calc(20 * var(--ui-px)) calc(32 * var(--ui-px));
 		background: rgba(8, 16, 28, 0.88);
-		border: 2px solid rgba(255, 214, 96, 0.5);
-		border-radius: 16px;
+		border: calc(2 * var(--ui-px)) solid rgba(255, 214, 96, 0.5);
+		border-radius: calc(16 * var(--ui-px));
 		animation: fade-in 0.3s ease;
 	}
 	.rate-lbl {
 		font-family: 'Poppins', system-ui, sans-serif;
 		/* vw-driven so it tracks the viewport; px bounds keep it sane on very small/large screens. */
-		font-size: clamp(30px, 3.1vw, 56px);
+		font-size: clamp(calc(30 * var(--ui-px)), 3.1vw, calc(56 * var(--ui-px)));
 		font-weight: 900;
 		color: #fee663;
 		/* em so the stroke scales with the font (≈2px at the 40px desktop size). */
@@ -61,14 +64,14 @@
 		paint-order: stroke fill;
 	}
 	.sep {
-		width: 2px;
-		height: 48px;
+		width: calc(2 * var(--ui-px));
+		height: calc(48 * var(--ui-px));
 		background: rgba(255, 255, 255, 0.2);
 	}
 	.amount-lbl {
 		font-family: 'Poppins', system-ui, sans-serif;
 		/* vw-driven so it tracks the viewport; px bounds keep it sane on very small/large screens. */
-		font-size: clamp(22px, 2.25vw, 40px);
+		font-size: clamp(calc(22 * var(--ui-px)), 2.25vw, calc(40 * var(--ui-px)));
 		font-weight: 900;
 		color: #fff;
 		/* em so the stroke scales with the font (≈1.4px at the ~29px desktop size). */
@@ -76,8 +79,8 @@
 		paint-order: stroke fill;
 	}
 	.suffix {
-		margin-left: 6px;
-		font-size: 1rem;
+		margin-left: calc(6 * var(--ui-px));
+		font-size: calc(16 * var(--ui-px));
 		opacity: 0.8;
 	}
 

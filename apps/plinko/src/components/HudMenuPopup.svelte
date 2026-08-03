@@ -144,12 +144,18 @@
 </div>
 
 <style>
+	/* Desktop/landscape popup. Sizing is vw-driven and already scales, EXCEPT the px terms inside the
+	   min()/clamp()s below — those bind on a small viewport and stop tracking it, which is why the menu
+	   labels read ~2.5× oversized on Stake's 400×225 popout (0.82vw = 3.3px there, so the 12px floor
+	   wins). Stating them in --ui-px keeps each bound at its reference PROPORTION. The `--mobile` rules
+	   further down are untouched: --ui-px is 1px in portrait, where that block's px sizes belong to the
+	   separate 992×1761 reference. */
 	.hud-menu-popup {
 		position: absolute;
 		top: calc(100% + 0.55vw);
 		right: 0;
 		width: max-content;
-		max-width: min(322px, 18.4vw);
+		max-width: min(calc(322 * var(--ui-px)), 18.4vw);
 		border-radius: 0.65vw;
 		background: #1a1b1f;
 		box-shadow: 0 0.45vw 1.2vw rgba(0, 0, 0, 0.45);
@@ -203,7 +209,7 @@
 	.hud-menu-player-name {
 		margin: 0;
 		color: #fff;
-		font-size: clamp(13px, 0.95vw, 16px);
+		font-size: clamp(calc(13 * var(--ui-px)), 0.95vw, calc(16 * var(--ui-px)));
 		font-weight: 700;
 		line-height: 1.2;
 		white-space: nowrap;
@@ -215,7 +221,7 @@
 		border: none;
 		background: transparent;
 		color: rgba(255, 255, 255, 0.45);
-		font-size: clamp(11px, 0.72vw, 13px);
+		font-size: clamp(calc(11 * var(--ui-px)), 0.72vw, calc(13 * var(--ui-px)));
 		font-weight: 400;
 		line-height: 1.2;
 		padding: 0;
@@ -298,7 +304,7 @@
 	}
 
 	.hud-menu-item-label {
-		font-size: clamp(12px, 0.82vw, 14px);
+		font-size: clamp(calc(12 * var(--ui-px)), 0.82vw, calc(14 * var(--ui-px)));
 		font-weight: 400;
 		line-height: 1.25;
 		white-space: nowrap;
