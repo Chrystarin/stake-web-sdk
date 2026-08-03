@@ -1483,52 +1483,59 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	gap: clamp(14px, 4.5vw, 28px);
+	/* Not a free clamp: the gap is what puts Fast + Autobet on the strap's two wing plates. A flex
+	   row centres its items, so the distance from the Play centre to a side-button centre is
+	   `play-w/2 + gap + side-w/2` — solve that for the plate offset (189 art-px, see below) and the
+	   gap falls out. It stays positive across the whole viewport range (≈13px @288 → ≈21px @500). */
+	gap: calc(var(--strap-px) * 189 - var(--mobile-play-w) / 2 - var(--mobile-side-btn-w) / 2);
 
 	/* ══ TUNING KNOBS for the whole action row ════════════════════════════════════════════════════
 	   Declared here, not on the individual rules, because the strap and the side buttons have to
-	   agree: the drop below is computed from the strap's own scale, so a knob that lived on
-	   .mobile-play-strap would be invisible to the Fast/Autobet buttons (custom properties only
-	   inherit downward, and they are its SIBLINGS).
+	   agree: the gap and drop above/below are computed from the strap's own scale, so a knob that
+	   lived on .mobile-play-strap would be invisible to the Fast/Autobet buttons (custom properties
+	   only inherit downward, and they are its SIBLINGS).
 
 	   --mobile-play-w         Play button size. Every other value here is derived from it, so the
 	                           row holds its proportions at any viewport width.
-	   --strap-length          Strap bar length, end to end. Any CSS length; 100vw = exactly
-	                           full-bleed. Thanks to the 3-slice (see .mobile-play-strap) this does
-	                           NOT touch the socket — measured @375: 80vw → 300px bar, 100vw → 375px,
-	                           120vw → 450px, 150vw → 562px, socket flush at every one. Below the
-	                           centre slice's own width (560 art-px ≈ 220px @375) the caps collapse.
-	   --strap-scale           Socket diameter AND bar thickness; does NOT affect bar length.
-	                           1 = socket exactly the size of the visible play ball (the design
-	                           target). Measured @375: 0.90 → bar 43px thick, socket 4.0px inside the
-	                           ball; 1.00 → 48px, flush; 1.10 → 53px, 4.0px proud; 1.25 → 60px,
-	                           9.9px proud.
+	   --mobile-side-btn-w     Fast / Autobet button size. Feeds the gap calc above, so it has to
+	                           live here rather than on .mobile-icon-btn (again: siblings).
+	   --strap-scale           Size of the WHOLE strap, scaled about its socket. 1 = the socket is
+	                           exactly the size of the visible play ball (the design target); the bar
+	                           length, thickness and wing plates all follow, because the art is drawn
+	                           at its native 610 : 263 ratio and never stretched. Raising this grows
+	                           the plate but leaves the socket loose around the ball, and pushes the
+	                           side buttons further out with it.
 	   --strap-offset-x / -y   Nudge the strap right/down (negative = left/up). Any CSS length.
-	                           ⚠️ Moves the strap ONLY — the button stays put, so anything other than
+	                           ⚠️ Moves the strap ONLY — the buttons stay put, so anything other than
 	                           0 takes the socket off-centre from the ball by that exact amount.
 	   --action-side-btn-drop  How far Fast + Autobet sit below the row's centre line. The default
-	                           lands them on the strap's BAND centre: the band spans art y 72..194
-	                           (centre 133) while the socket centre is art y 110, so the bar's middle
-	                           is 23 art-px lower than the socket — and the socket is itself 3.125%
-	                           above the button-box centre. Hence `23 * --strap-px - 3.125% * play-w`,
-	                           ≈ 6.4px @375. Increase to sit lower, negative to sit higher.
+	                           lands them on the wing plates' centre: the plates span art y 69..196
+	                           (centre 132.5) while the socket centre is art y 130, so a plate's
+	                           middle is 2.5 art-px lower than the socket — and the socket is itself
+	                           3.125% above the button-box centre (see --bp-play-disc-rise). Hence
+	                           `2.5 * --strap-px - 3.125% * play-w`. Increase to sit lower.
 	   ═════════════════════════════════════════════════════════════════════════════════════════════ */
 	--mobile-play-w: clamp(65px, 22.6vw, 100px);
-	--strap-length: 100vw;
-	--strap-scale: 1.1;
+	--mobile-side-btn-w: clamp(30px, 10.4vw, 46px);
+	--strap-scale: 1.02;
 	--strap-offset-x: -0.1vw;
-	--strap-offset-y: 0px;
+	--strap-offset-y: -0.1vw;
 
-	// Rendered size of a single strap art pixel — derived from the knobs above, not a knob itself.
-	--strap-px: calc(var(--mobile-play-w) * 0.9375 * var(--strap-scale) / 202);
+	/* Rendered size of a single strap art pixel — derived from the knobs above, not a knob itself.
+	   The divisor is the socket hole's diameter (189 art-px, measured as the area-equivalent circle
+	   of the pure-black hole), and the numerator is the play ball's VISIBLE diameter — 120 of
+	   main_btn_empty.png's 128px, i.e. 93.75% of the button box. At --strap-scale: 1 the two are
+	   therefore equal and the ball seats flush in the socket. ONE scale drives both axes, which is
+	   what keeps the art at its true 610 : 263 ratio. */
+	--strap-px: calc(var(--mobile-play-w) * 0.9375 * var(--strap-scale) / 189);
 
-	--action-side-btn-drop: calc(var(--strap-px) * 23 - var(--mobile-play-w) * 0.03125);
+	--action-side-btn-drop: calc(var(--strap-px) * 2.5 - var(--mobile-play-w) * 0.03125);
 }
 
 .mobile-icon-btn {
 	// Explicit size = the Fast/Autobet baseline; Play overrides larger below. Not a % (see
 	// .mobile-action-row). No `margin: 0 auto` — auto margins on a flex item would spread the buttons.
-	width: clamp(30px, 10.4vw, 46px);
+	width: var(--mobile-side-btn-w, clamp(30px, 10.4vw, 46px));
 	aspect-ratio: 1 / 1;
 	border: none;
 	background: transparent;
@@ -1577,90 +1584,52 @@
 	flex: 0 0 auto;
 }
 
-/* Portrait-only strap art running behind the action row (portait_bet_panel_strap.png, 922 × 221 —
-   the mobile HUD is only rendered when `props.mobile`, i.e. the portrait layout, so no media query
-   is needed). Its dark socket is 202 art-px across, centred at (464, 110).
+/* Portrait-only strap art running behind the action row (portait_bet_panel_strap.png — the mobile
+   HUD is only rendered when `props.mobile`, i.e. the portrait layout, so no media query is needed).
+
+   ── DRAWN AT ITS TRUE RATIO ─────────────────────────────────────────────────────────────────────
+   The art is a finished plate with rounded ends, NOT a bar meant to run full-bleed, so it is drawn
+   as ONE bitmap at ONE uniform scale: 610 × 263 art-px → `--strap-px * 610` by `--strap-px * 263`.
+   No 9-slice, no `background-size: 100%` on a box of some other shape — anything that gives the two
+   axes different scales visibly squashes the rivets and turns the socket into an ellipse.
+   ⚠️ The corollary is that bar LENGTH is no longer independently settable: it is 610/189 ≈ 3.23× the
+   socket, and the socket is pinned to the ball. To make the plate longer, raise --strap-scale (which
+   also loosens the socket around the ball) or --mobile-play-w — never `width` alone.
+
+   ── MEASURED ART CONSTANTS (610 × 263) ──────────────────────────────────────────────────────────
+       socket hole    centroid (307, 130), 189 art-px across   — seats the play ball
+       wing plates    centres (118, 132.5) and (496, 132.5)    — seat Fast / Autobet
+                      i.e. socket centre ± 189, the same 189 as the socket diameter
+       plate extent   x 37..197 and 417..573, y 69..196        — the recessed dark wood
+   The socket figure is the area-equivalent diameter of the pure-black hole (2·√(A/π) over 28 118
+   px), not a bbox edge, so anti-aliasing on the bronze rim can't bias it.
+
    The plaque it seats is main_btn_empty.png: its VISIBLE ball (green fill + orange rim) measures 120
    of 128px, i.e. 93.75% of the button box, and sits 3.125% ABOVE the box centre (same offset as
    --bp-play-disc-rise). Everything outside that 120px is a soft shadow at alpha <= 30, so 93.75% is
    the button's real edge — the number to match the socket against, NOT the full 100% box.
    Everything is derived from --mobile-play-w, so the whole strap tracks the button as it grows and
-   shrinks with the viewport — the knobs below are pure multipliers/nudges on top of that and never
-   need re-tuning per screen size.
-
-   ── 3-SLICE ─────────────────────────────────────────────────────────────────────────────────────
-   A plain <img> ties bar length to socket diameter (one bitmap, one scale), so a longer bar always
-   meant a socket too big for the ball. The art is therefore cut into three vertical slices:
-
-       art x:  0 ────────── 184 ═══════ socket 464 ═══════ 744 ────────── 922
-               |  left cap   |          FIXED CENTRE          |  right cap  |
-               |  stretches  |   socket stays flush w/ ball    |  stretches  |
-
-   The cut points are measured, not guessed. The bar's core is flat across its whole width
-   (premultiplied luminance 6.32, alpha 179 at EVERY x outside the socket), and the socket's drop
-   shadow on the bar's bottom edge is confined to x 230..700 — so 184 and 744 sit on clean baseline
-   bar and the caps carry no socket detail to distort. Each cap is anchored AT its seam (the left
-   cap's art x=184 lands exactly on the centre's left edge, the right cap's x=744 on its right
-   edge), so the joins are continuous by construction; the stretch only ever falls on flat bar.
-   ⚠️ Moving a cut point inside 230..700 drags part of the socket shadow into a cap, where it gets
-   horizontally stretched — that IS visible. Widen the centre rather than narrowing it. */
+   shrinks with the viewport — the knobs are pure multipliers/nudges on top of that and never need
+   re-tuning per screen size. */
 .mobile-play-strap {
-	// The knobs this reads (--strap-length / -scale / -offset-x / -offset-y, plus the derived
-	// --strap-px) are all declared on .mobile-action-row — see the tuning block there.
-	// The fixed centre slice, art x 184..744.
-	--strap-mid-w: calc(var(--strap-px) * 560);
-	// What's left over goes to the two caps. Clamped so a too-short --strap-length can't invert them.
-	--strap-cap-w: max(0px, calc((var(--strap-length) - var(--strap-mid-w)) / 2));
-
-	// This element IS the centre slice; the caps hang off it as ::before / ::after.
+	// The knobs this reads (--strap-scale / -offset-x / -offset-y, plus the derived --strap-px) are
+	// all declared on .mobile-action-row — see the tuning block there.
 	position: absolute;
 	// Under the three buttons (all z-index 1) but above the row's own background.
 	z-index: 0;
-	width: var(--strap-mid-w);
-	height: calc(var(--strap-px) * 221);
-	/* Pin the socket centre (464, 110 art-px) onto the ball centre (50% across, 46.875% down the
-	   square button box). The socket sits exactly halfway across the centre slice (464 - 184 = 280 =
-	   560 / 2), so centring the slice on the ball centres the socket on it. `left` resolves against
-	   the wrap's width, `top` against its height. */
-	left: calc(50% - var(--strap-px) * 280 + var(--strap-offset-x));
-	top: calc(46.875% - var(--strap-px) * 110 + var(--strap-offset-y));
-	// Full art at uniform scale, shifted left so art x=184 lands on this box's left edge.
+	// The full plate, both axes off the same --strap-px — this IS the true-ratio guarantee.
+	width: calc(var(--strap-px) * 610);
+	height: calc(var(--strap-px) * 263);
+	/* Pin the socket centre (307, 130 art-px) onto the ball centre (50% across, 46.875% down the
+	   square button box). `left` resolves against the wrap's width, `top` against its height. */
+	left: calc(50% - var(--strap-px) * 307 + var(--strap-offset-x));
+	top: calc(46.875% - var(--strap-px) * 130 + var(--strap-offset-y));
 	background-image: var(--strap-img);
 	background-repeat: no-repeat;
-	background-size: calc(var(--strap-px) * 922) 100%;
-	background-position: calc(var(--strap-px) * -184) 0;
+	// 100% 100% on a box that is already 610 : 263 — one scale, no distortion.
+	background-size: 100% 100%;
 	pointer-events: none;
 	user-select: none;
-
-	&::before,
-	&::after {
-		content: '';
-		position: absolute;
-		top: 0;
-		height: 100%;
-		width: var(--strap-cap-w);
-		background-image: var(--strap-img);
-		background-repeat: no-repeat;
-		// Height 100% on both caps and the centre keeps ONE vertical scale across all three slices,
-		// so the bar's top and bottom edges stay level through the seams.
-		background-size: auto 100%;
-	}
-
-	/* Left cap — art x 0..184 stretched across the cap. Sizing the background to capW * 922/184 makes
-	   one art px `capW / 184` wide, so art x=184 lands exactly on capW: the seam. */
-	&::before {
-		right: 100%;
-		background-size: calc(var(--strap-cap-w) * 922 / 184) 100%;
-		background-position: 0 0;
-	}
-
-	/* Right cap — art x 744..922 (178 wide) stretched across the cap, shifted so art x=744 lands on
-	   the cap's left edge: the other seam. */
-	&::after {
-		left: 100%;
-		background-size: calc(var(--strap-cap-w) * 922 / 178) 100%;
-		background-position: calc(var(--strap-cap-w) * -744 / 178) 0;
-	}
 }
 
 .mobile-icon-btn--play {

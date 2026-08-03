@@ -811,12 +811,12 @@
 				<!-- Portrait-only decorative strap running behind the action row, with the Play plaque
 				     seated in its socket. Purely presentational — it must never eat a tap meant for the
 				     button underneath the pointer.
-				     A DIV rather than an <img>: the art is 3-sliced so the bar can run longer than the
-				     PNG without stretching the socket (see .mobile-play-strap). The element paints the
-				     fixed socket slice and its ::before/::after paint the stretchable end caps, and
-				     replaced elements don't render pseudo-elements. The URL rides in on a custom
-				     property so SvelteKit's `base` still resolves it — the convention documented in
-				     lib/staticUrl.ts — since a bundled SCSS `url()` can't see the CDN subpath. -->
+				     A DIV rather than an <img>: the plate has to be sized from the PLAY BUTTON (its socket
+				     is pinned to the ball), not from its own intrinsic size, and the box is what carries
+				     that — the art then fills it at its native 610 : 263 ratio, undistorted. The URL
+				     rides in on a custom property so SvelteKit's `base` still resolves it — the
+				     convention documented in lib/staticUrl.ts — since a bundled SCSS `url()` can't see
+				     the CDN subpath. -->
 				<div
 					class="mobile-play-strap"
 					style:--strap-img="url({staticUrl('img/portait_bet_panel_strap.png')})"
