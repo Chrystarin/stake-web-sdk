@@ -6,7 +6,16 @@ import {
 	Spine,
 	type SkeletonData,
 } from '@esotericsoftware/spine-pixi-v8';
-import { Application, Assets, Container, Matrix, Sprite, type Texture, Ticker } from 'pixi.js';
+import {
+	Application,
+	Assets,
+	Container,
+	Matrix,
+	Sprite,
+	type Texture,
+	Ticker,
+	UPDATE_PRIORITY,
+} from 'pixi.js';
 
 import { readSkeletonData } from './spineSkeletonData';
 import {
@@ -48,6 +57,19 @@ const strikeEnvelope = (t: number, flicker: ImageOverlayFlickerDef): number => {
 	if (held < holdSeconds) return 1;
 	const out = held - holdSeconds;
 	return fadeOutSeconds > 0 ? smoothstep(Math.max(0, 1 - out / fadeOutSeconds)) : 0;
+};
+
+/**
+ * A window of the base animation's own timeline to hold inside, ping-ponging between the two ends.
+ * See {@link SpineBackgroundRenderer.setAnimationHold}.
+ */
+export type AnimationHold = {
+	/** Timeline point the swell rests at (seconds). */
+	fromSeconds: number;
+	/** Timeline point it swells to. Equal to `fromSeconds` for a plain freeze. */
+	toSeconds: number;
+	/** Seconds for one full out-and-back cycle. */
+	periodSeconds: number;
 };
 
 const applySpineFit = (
@@ -169,6 +191,10 @@ export class SpineBackgroundRenderer {
 	/** Shared clock (seconds) driving the splash duty cycles, advanced from the Pixi ticker. */
 	private bonusElapsed = 0;
 	private bonusTick?: () => void;
+	/** Active animation hold (see `setAnimationHold`) and its own clock, in seconds. */
+	private hold?: AnimationHold;
+	private holdElapsed = 0;
+	private holdTick?: () => void;
 	private baseBackdropTexture?: Texture;
 	private bonusBackdropTexture?: Texture;
 	private bonusActive = false;
@@ -258,22 +284,93 @@ export class SpineBackgroundRenderer {
 	 */
 	advanceFrame(deltaSeconds: number): void {
 		if (!this.app || !this.spine) return;
+		// A hold owns `trackTime` outright (the state's own clock is stopped), so it must be stepped
+		// here too — `spine.update` alone would just re-apply the same frame forever.
+		this.advanceHold(deltaSeconds);
 		this.spine.update(deltaSeconds);
 		this.app.render();
 	}
 
 	/**
-	 * Freeze (or release) the base animation where it stands. The intro splash uses this to hold the
-	 * logo on its fully-lit frame until the asset preload finishes, rather than letting it play on to
-	 * the empty screen it fades to.
+	 * Hold the base animation inside a window of its OWN timeline, ping-ponging between the two ends,
+	 * instead of letting it play on. `undefined` releases it to continue from wherever the hold left it.
 	 *
-	 * Scales the ANIMATION STATE rather than stopping a ticker: the ticker keeps running, so the canvas
-	 * still repaints and the resize/fit path stays live, and BOTH drive paths funnel through
-	 * `state.update` — Pixi's rAF via `autoUpdate`, and {@link advanceFrame} while the tab is hidden —
-	 * so the one flag stops them both.
+	 * The intro splash uses this to keep the logo alive while the asset preload runs: a dead-frozen
+	 * frame reads as a hang, whereas a slow swell reads as "working". Because the motion is seeked out
+	 * of the authored animation rather than synthesized on the display object, it uses the artist's own
+	 * curve and amplitude and cannot fight the fit transform — set `fromSeconds === toSeconds` for a
+	 * plain freeze.
+	 *
+	 * While held, the animation state's clock is stopped (`timeScale = 0`) and `trackTime` is driven by
+	 * hand, so nothing else can advance it underneath us.
 	 */
-	setAnimationPaused(paused: boolean): void {
-		if (this.spine) this.spine.state.timeScale = paused ? 0 : 1;
+	setAnimationHold(hold: AnimationHold | undefined): void {
+		const app = this.app;
+		const spine = this.spine;
+		if (!app || !spine) return;
+
+		if (this.holdTick) {
+			Ticker.shared.remove(this.holdTick);
+			this.holdTick = undefined;
+		}
+		this.hold = hold;
+
+		if (!hold) {
+			spine.state.timeScale = 1;
+			return;
+		}
+
+		spine.state.timeScale = 0;
+		// Start the phase where the animation ALREADY is, by inverting the raised cosine over the rising
+		// half. Engaging the hold at the top of the window (which is what the splash does) would otherwise
+		// snap trackTime back to `fromSeconds` on the very first frame — a visible pop into the pulse.
+		const span = hold.toSeconds - hold.fromSeconds;
+		const current = spine.state.getTrack(0)?.trackTime ?? hold.fromSeconds;
+		const progress = span > 0 ? Math.min(1, Math.max(0, (current - hold.fromSeconds) / span)) : 0;
+		this.holdElapsed = (Math.acos(1 - 2 * progress) / (Math.PI * 2)) * hold.periodSeconds;
+
+		const tick = () => {
+			try {
+				this.advanceHold(Ticker.shared.deltaMS / 1000);
+			} catch (error) {
+				// An exception escaping a ticker listener aborts Pixi's rAF loop, which would freeze the
+				// whole canvas. Detach and leave the logo on its last frame instead.
+				console.error('[SpineBackgroundRenderer] animation hold failed; freezing instead', error);
+				Ticker.shared.remove(tick);
+				this.holdTick = undefined;
+			}
+		};
+		this.holdTick = tick;
+		// ⚠️ `Ticker.shared`, NOT `app.ticker`, and at a priority above spine's own update. Spine drives
+		// `autoUpdate` off the SHARED ticker (`Ticker.shared.add(this.internalUpdate)`), while this app was
+		// created without `sharedTicker` — so `app.ticker` is a second, independent rAF loop. Driving the
+		// pulse from it meant (a) no ordering guarantee, so some frames applied a stale `trackTime` and
+		// others skipped one, and (b) a mismatched clock: `app.ticker` keeps Pixi's default 100 ms
+		// catch-up cap while the shared ticker is clamped to 16.7 ms by `catchUpMinFps`, so every stall
+		// leapt the phase ~6x further than the render actually advanced. Both read as judder.
+		Ticker.shared.add(tick, undefined, UPDATE_PRIORITY.HIGH);
+	}
+
+	/**
+	 * Step the ping-pong. Split out of the ticker callback so {@link advanceFrame} can drive it too:
+	 * while the tab is hidden the app ticker is not running, and the splash hand-drives frames from a
+	 * timer instead — without this the pulse would stall there while the canvas kept repainting.
+	 */
+	private advanceHold(deltaSeconds: number): void {
+		const hold = this.hold;
+		const entry = this.spine?.state.getTrack(0);
+		if (!hold || !entry) return;
+
+		this.holdElapsed += deltaSeconds;
+		const span = hold.toSeconds - hold.fromSeconds;
+		if (span <= 0 || hold.periodSeconds <= 0) {
+			entry.trackTime = hold.fromSeconds;
+			return;
+		}
+		// Raised cosine: 0 at both ends of the cycle, 1 in the middle. Unlike a triangle wave it has
+		// zero velocity at the turns, so the swell eases in and out instead of visibly ticking over.
+		const phase = (this.holdElapsed % hold.periodSeconds) / hold.periodSeconds;
+		entry.trackTime = hold.fromSeconds + span * ((1 - Math.cos(phase * Math.PI * 2)) / 2);
 	}
 
 	/**
@@ -309,6 +406,14 @@ export class SpineBackgroundRenderer {
 			this.app?.ticker.remove(this.bonusTick);
 			this.bonusTick = undefined;
 		}
+		if (this.holdTick) {
+			// Registered on the SHARED ticker (see `setAnimationHold`), which outlives this app — leaving
+			// it attached would keep a destroyed renderer's callback running for the rest of the session.
+			Ticker.shared.remove(this.holdTick);
+			this.holdTick = undefined;
+		}
+		this.hold = undefined;
+		this.holdElapsed = 0;
 		this.bonusElapsed = 0;
 		this.overlays.forEach(({ spine }) => spine.destroy({ children: true }));
 		this.overlays = [];

@@ -62,3 +62,31 @@ export const CASINO_TV_LOGO_DURATION_MS = 3400;
  * over. Resuming plays 2 → 3.333s, so the fade-out still runs in full before the game is revealed.
  */
 export const CASINO_TV_LOGO_HOLD_SECONDS = 2;
+
+/**
+ * The loading pulse: rather than sitting on one dead frame, the splash ping-pongs the animation across
+ * this window for as long as the preload takes, so the logo breathes and the wait reads as "working".
+ *
+ * The motion is the ARTIST'S, not a synthesized wobble — the window is seeked out of the authored
+ * animation, so it rides the real curve and cannot fight the renderer's fit transform.
+ *
+ * ⚠️ Tune against the MEASURED pose, not the raw JSON. `skeleton.json` shows `logo_adjust`'s scale
+ * timeline running 1.0 → 1.05, which reads like a 5% nudge; what the runtime actually applies over the
+ * reveal is far bigger (sampled from the live skeleton, `logo_adjust` pose scaleX / slot alpha):
+ *
+ *     t     0.6    0.7    1.0    1.5    1.8    1.9    2.0    2.4    3.0   3.2
+ *     scale 1.000  0.585  0.692  0.846  0.917  0.937  0.952  1.011  1.050  —
+ *     alpha 0      1      1      1      1      1      1      0.667  0.167  0
+ *
+ * So 0.7 → 2.0 is the logo GROWING IN by ~63%, not a breath — pulsing across it throbs the logo half
+ * its size again. The window below is the top ~4% of that ramp, which reads as a breath.
+ *
+ * Hard bounds: below ~0.7s the `effectsLogo` flicker is still on screen; above 2.0s alpha starts
+ * dropping, so the pulse would visibly dim the logo. Widen `fromSeconds` downward for a deeper breath,
+ * keep `toSeconds` at 2.0, and set the pace with `periodSeconds`.
+ */
+export const CASINO_TV_LOGO_PULSE = {
+	fromSeconds: 1.8,
+	toSeconds: CASINO_TV_LOGO_HOLD_SECONDS,
+	periodSeconds: 1.8,
+} as const;

@@ -9,6 +9,7 @@
 		CASINO_TV_LOGO_BACKDROP,
 		CASINO_TV_LOGO_DURATION_MS,
 		CASINO_TV_LOGO_HOLD_SECONDS,
+		CASINO_TV_LOGO_PULSE,
 		getCasinoTvLogoAsset,
 	} from '../lib/spine/casinoTvLogoAsset';
 	import {
@@ -126,15 +127,17 @@
 					preloadSettled = true;
 				});
 
-				// Play the reveal, then — if the assets aren't in yet — FREEZE on the fully-lit logo
+				// Play the reveal, then — if the assets aren't in yet — hold the logo on a slow breath
 				// rather than letting it dissolve into an empty screen while the player waits.
 				await waitForAnimationTime(CASINO_TV_LOGO_HOLD_SECONDS);
 				if (disposed) return;
 				if (!preloadSettled) {
-					renderer?.setAnimationPaused(true);
+					renderer?.setAnimationHold(CASINO_TV_LOGO_PULSE);
 					await preload;
 					if (disposed) return;
-					renderer?.setAnimationPaused(false);
+					// Released mid-breath, so the animation carries on from wherever the swell had got to
+					// and eases into the fade-out — no snap back to a fixed frame.
+					renderer?.setAnimationHold(undefined);
 				}
 
 				// Assets are in: let the fade-out play out in full, then reveal the game.
