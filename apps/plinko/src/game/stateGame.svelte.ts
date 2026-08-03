@@ -30,7 +30,7 @@ export type HistoryEntry = {
 	/** Multiplier pills: base-game total, optional "N Bonus", and one "Free Spin xN" per free spin. */
 	chips: HistoryChip[];
 };
-export type InfoModalTab = 'rules' | 'fair' | 'history' | 'howToPlay';
+export type InfoModalTab = 'rules' | 'history' | 'howToPlay';
 /** One entry in the 1-ball rapid win-sparkle set (newest first, capped to 3). Each is a small shine-ray
  * burst with the win value + tier label printed over it, that pops in at the skull's mouth, floats
  * slowly upward across its lifetime, then shrinks + fades away. `multiplier` sizes the sparkle (bigger

@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Spielanleitung',
 	'Player name': 'Spielername',
 	'Change avatar': 'Avatar ändern',
-	'Provably fair settings': 'Provably-Fair-Einstellungen',
 	'Game Rules': 'Spielregeln',
 	'My Bet History': 'Mein Wettverlauf',
 	'How to Play?': 'Spielanleitung?',

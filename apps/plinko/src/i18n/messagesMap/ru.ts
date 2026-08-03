@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Как играть',
 	'Player name': 'Имя игрока',
 	'Change avatar': 'Сменить аватар',
-	'Provably fair settings': 'Настройки честной игры',
 	'Game Rules': 'Правила игры',
 	'My Bet History': 'История моих ставок',
 	'How to Play?': 'Как играть?',

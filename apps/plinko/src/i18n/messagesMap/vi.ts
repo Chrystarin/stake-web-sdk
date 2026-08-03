@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Cách chơi',
 	'Player name': 'Tên người chơi',
 	'Change avatar': 'Đổi ảnh đại diện',
-	'Provably fair settings': 'Cài đặt công bằng có thể kiểm chứng',
 	'Game Rules': 'Luật chơi',
 	'My Bet History': 'Lịch sử cược của tôi',
 	'How to Play?': 'Cách chơi?',

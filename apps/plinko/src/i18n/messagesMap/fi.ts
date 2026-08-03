@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Miten pelataan',
 	'Player name': 'Pelaajan nimi',
 	'Change avatar': 'Vaihda avatar',
-	'Provably fair settings': 'Todistettavasti reilun pelin asetukset',
 	'Game Rules': 'Pelin säännöt',
 	'My Bet History': 'Panoshistoriani',
 	'How to Play?': 'Miten pelataan?',

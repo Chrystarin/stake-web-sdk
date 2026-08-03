@@ -21,7 +21,6 @@ export default {
 	'How to play': 'कैसे खेलें',
 	'Player name': 'खिलाड़ी का नाम',
 	'Change avatar': 'अवतार बदलें',
-	'Provably fair settings': 'प्रोवेबली फेयर सेटिंग्स',
 	'Game Rules': 'खेल के नियम',
 	'My Bet History': 'मेरा दांव इतिहास',
 	'How to Play?': 'कैसे खेलें?',

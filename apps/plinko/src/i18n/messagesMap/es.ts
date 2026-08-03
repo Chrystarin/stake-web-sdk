@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Cómo jugar',
 	'Player name': 'Nombre del jugador',
 	'Change avatar': 'Cambiar avatar',
-	'Provably fair settings': 'Configuración de juego justo verificable',
 	'Game Rules': 'Reglas del juego',
 	'My Bet History': 'Mi historial de apuestas',
 	'How to Play?': '¿Cómo jugar?',

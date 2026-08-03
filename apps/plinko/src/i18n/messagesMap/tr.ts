@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Nasıl oynanır',
 	'Player name': 'Oyuncu adı',
 	'Change avatar': 'Avatarı değiştir',
-	'Provably fair settings': 'Kanıtlanabilir adalet ayarları',
 	'Game Rules': 'Oyun kuralları',
 	'My Bet History': 'Bahis geçmişim',
 	'How to Play?': 'Nasıl oynanır?',

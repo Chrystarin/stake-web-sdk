@@ -21,7 +21,6 @@ export default {
 	'How to play': '遊び方',
 	'Player name': 'プレイヤー名',
 	'Change avatar': 'アバターを変更',
-	'Provably fair settings': 'プロバブリーフェア設定',
 	'Game Rules': 'ゲームルール',
 	'My Bet History': 'ベット履歴',
 	'How to Play?': '遊び方は？',

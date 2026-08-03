@@ -21,7 +21,6 @@ export default {
 	'How to play': '게임 방법',
 	'Player name': '플레이어 이름',
 	'Change avatar': '아바타 변경',
-	'Provably fair settings': '검증 가능한 공정성 설정',
 	'Game Rules': '게임 규칙',
 	'My Bet History': '내 베팅 기록',
 	'How to Play?': '게임 방법?',

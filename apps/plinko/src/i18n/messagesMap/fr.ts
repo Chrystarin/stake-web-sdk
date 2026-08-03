@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Comment jouer',
 	'Player name': 'Nom du joueur',
 	'Change avatar': "Changer d'avatar",
-	'Provably fair settings': "Paramètres de l'équité vérifiable",
 	'Game Rules': 'Règles du jeu',
 	'My Bet History': 'Mon historique de paris',
 	'How to Play?': 'Comment jouer ?',

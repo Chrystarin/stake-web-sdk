@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-
-	import { stateBet, stateUrlDerived } from 'state-shared';
+	import { stateBet } from 'state-shared';
 
 	import { buyBonusCost, plinkoBetLimits } from '../game/plinkoBet';
 	import { BUY_BONUS_TIERS } from '../game/plinkoBetMode';
@@ -22,7 +20,6 @@
 
 	const sectionTitles: Record<InfoModalTab, string> = {
 		rules: 'Game Rules',
-		fair: 'Provably fair settings',
 		history: 'My Bet History',
 		howToPlay: 'How to Play?',
 	};
@@ -53,40 +50,6 @@
 			value >= 1 ? value.toLocaleString('en-US', { maximumFractionDigits: 2 }) : value.toFixed(2);
 		return `${currencySign}${formatted}`;
 	}
-
-	// ── Provably fair ────────────────────────────────────────────────────────
-	// The Stake RGS does not surface fairness seeds to the game frame (none are
-	// present in the authenticate/play responses), so the client seed shown here
-	// is the live launch session id and the server-seed commitment is a real
-	// SHA-256 over a per-session server seed generated client-side.
-	const bytesToHex = (bytes: Uint8Array) =>
-		Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-
-	async function sha256Hex(input: string): Promise<string> {
-		const data = new TextEncoder().encode(input);
-		const digest = await crypto.subtle.digest('SHA-256', data);
-		return bytesToHex(new Uint8Array(digest));
-	}
-
-	function randomSeed(): string {
-		const bytes = new Uint8Array(32);
-		crypto.getRandomValues(bytes);
-		return bytesToHex(bytes);
-	}
-
-	/** Live session id doubles as the client seed; falls back to a label in local dev. */
-	const clientSeed = $derived(stateUrlDerived.sessionID() || 'local-dev-session');
-
-	/** SHA-256 commitment of the per-session server seed (computed once, client-side). */
-	let serverSeedHash = $state('');
-
-	onMount(async () => {
-		try {
-			serverSeedHash = await sha256Hex(randomSeed());
-		} catch {
-			serverSeedHash = '';
-		}
-	});
 </script>
 
 {#if stateGame.infoModalOpen}
@@ -416,13 +379,6 @@
 							according to the amount received from the Remote Game Server and not from events
 							within the web browser. TM and © 2026 Stake Engine.
 						</p>
-					{:else if stateGame.infoModalTab === 'fair'}
-						<p><strong>Provably fair settings</strong></p>
-						<p>This game uses Provably Fair technology.</p>
-						<p><strong>Next client seed:</strong></p>
-						<div class="info-seed-box">{clientSeed}</div>
-						<p><strong>Next server seed SHA256:</strong></p>
-						<div class="info-seed-box">{serverSeedHash || 'Generating…'}</div>
 					{:else}
 						<div class="info-history-pane">
 							<div class="info-history-scroll">
@@ -677,13 +633,6 @@
 		overflow-y: auto;
 		padding: 0 20px 20px;
 		-webkit-overflow-scrolling: touch;
-	}
-	.info-seed-box {
-		padding: 10px;
-		background: rgba(0, 0, 0, 0.35);
-		border-radius: 6px;
-		word-break: break-all;
-		margin-bottom: 12px;
 	}
 	.info-history-table {
 		width: 100%;

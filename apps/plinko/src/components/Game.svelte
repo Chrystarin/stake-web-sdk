@@ -727,7 +727,6 @@
 						onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
 						musicEnabled={stateGame.musicEnabled}
 						onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
-						onOpenFair={() => openInfo('fair')}
 						onOpenRules={() => openInfo('rules')}
 						onOpenHistory={() => openInfo('history')}
 						onOpenHowToPlay={() => openInfo('howToPlay')}
@@ -745,7 +744,6 @@
 			onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
 			musicEnabled={stateGame.musicEnabled}
 			onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
-			onOpenFair={() => openInfo('fair')}
 			onOpenRules={() => openInfo('rules')}
 			onOpenHistory={() => openInfo('history')}
 			onOpenHowToPlay={() => openInfo('howToPlay')}

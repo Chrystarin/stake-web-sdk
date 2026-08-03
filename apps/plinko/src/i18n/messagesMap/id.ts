@@ -21,7 +21,6 @@ export default {
 	'How to play': 'Cara bermain',
 	'Player name': 'Nama pemain',
 	'Change avatar': 'Ubah avatar',
-	'Provably fair settings': 'Pengaturan provably fair',
 	'Game Rules': 'Aturan permainan',
 	'My Bet History': 'Riwayat taruhan saya',
 	'How to Play?': 'Cara bermain?',

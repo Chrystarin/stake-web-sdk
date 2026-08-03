@@ -89,7 +89,6 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy-bonus-btn.webp',
 
 	// ── Menu + modal icons ───────────────────────────────────────────────────────────────────────
-	'img/hamburg_menu_ico_fair_settings.webp',
 	'img/hamburg_menu_ico_game_rules.webp',
 	'img/hamburg_menu_ico_history.webp',
 	'img/hamburg_menu_ico_how_to_play.webp',
