@@ -30,7 +30,7 @@
 
 	// Backdrop shade — a soft dark-navy vignette dimmed over the skull mouth + head so the win value
 	// pops against it. It fades IN while any win value is on screen and OUT once none remain.
-	const SHADE_SRC = 'img/win_popup/backdrop_shade.png';
+	const SHADE_SRC = 'img/win_popup/backdrop_shade.webp';
 	const SHADE_ASPECT = 1192 / 748; // intrinsic w/h of the PNG
 	// Where the shade's centre sits on the frame art (fractions of the painted frame). Biased slightly
 	// below the skull's eyes so the vignette's opaque core covers the mouth + the floating values above it.

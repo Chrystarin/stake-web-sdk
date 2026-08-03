@@ -57,7 +57,7 @@
 	<div class="meter-host" bind:this={hostEl}></div>
 	<img
 		class="meter-marker"
-		src={staticUrl('img/bonus-bar-marker.png')}
+		src={staticUrl('img/bonus-bar-marker.webp')}
 		alt=""
 		style:left="{markerLeft}px"
 		style:top="{markerTop}px"

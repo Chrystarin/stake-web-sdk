@@ -25,8 +25,8 @@
 	);
 	/** Shown only while the Spine stack (backdrop + animation) is loading or failed. */
 	const fallbackImageSrc = $derived.by(() => {
-		const base = portrait ? 'img/BG_portrait.jpg' : 'img/BG_landscape.jpg';
-		const free = portrait ? 'img/BG_portrait_FREEGAME.jpg' : 'img/BG_landscape_FREEGAME.jpg';
+		const base = portrait ? 'img/BG_portrait.webp' : 'img/BG_landscape.webp';
+		const free = portrait ? 'img/BG_portrait_FREEGAME.webp' : 'img/BG_landscape_FREEGAME.webp';
 		return staticUrl(bonus ? free : base);
 	});
 

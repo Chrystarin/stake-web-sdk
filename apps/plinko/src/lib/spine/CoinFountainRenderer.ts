@@ -8,6 +8,7 @@ import {
 import { Application, Assets, Ticker } from 'pixi.js';
 
 import { COIN_FOUNTAIN_ANIMATIONS, getCoinFountainAssets } from './coinFountainAsset';
+import { loadSpineAsset } from './spineAssetCache';
 import { readSkeletonData } from './spineSkeletonData';
 import type { SpineAssetDef } from './types';
 
@@ -155,11 +156,9 @@ export class CoinFountainRenderer {
 	}
 
 	private async loadOne(asset: SpineAssetDef): Promise<CoinSkeleton> {
-		const atlasAlias = `${asset.id}-atlas`;
-		const skeletonAlias = `${asset.id}-skeleton`;
-		Assets.add({ alias: atlasAlias, src: asset.atlas, data: { images: asset.images } });
-		Assets.add({ alias: skeletonAlias, src: asset.skeleton });
-		await Assets.load([atlasAlias, skeletonAlias]);
+		// Shared cache: the intro loader preloads these coins, so this normally resolves without a fetch,
+		// and the aliases are only ever added to Pixi's global resolver once (no "overwriting" warning).
+		const { atlasAlias, skeletonAlias } = await loadSpineAsset(asset);
 		const atlas = Assets.get(atlasAlias);
 		const skeletonSource = Assets.get(skeletonAlias);
 		if (!atlas || !skeletonSource) {

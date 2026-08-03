@@ -111,9 +111,9 @@ export class FreeSpinMeterEngine {
     let wheelTexture: Texture;
     try {
       [baseTexture, meterTexture, wheelTexture] = await Promise.all([
-        Assets.load(staticUrl('img/free-spin-base.png')),
-        Assets.load(staticUrl('img/free-spin-meter.png')),
-        Assets.load(staticUrl('img/free-spin-meter-wheel.png'))
+        Assets.load(staticUrl('img/free-spin-base.webp')),
+        Assets.load(staticUrl('img/free-spin-meter.webp')),
+        Assets.load(staticUrl('img/free-spin-meter-wheel.webp'))
       ]);
     } catch {
       return;

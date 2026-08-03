@@ -38,10 +38,10 @@
 	});
 
 	const menuIcons = {
-		fair: staticUrl('img/hamburg_menu_ico_fair_settings.png'),
-		rules: staticUrl('img/hamburg_menu_ico_game_rules.png'),
-		history: staticUrl('img/hamburg_menu_ico_history.png'),
-		howToPlay: staticUrl('img/hamburg_menu_ico_how_to_play.png'),
+		fair: staticUrl('img/hamburg_menu_ico_fair_settings.webp'),
+		rules: staticUrl('img/hamburg_menu_ico_game_rules.webp'),
+		history: staticUrl('img/hamburg_menu_ico_history.webp'),
+		howToPlay: staticUrl('img/hamburg_menu_ico_how_to_play.webp'),
 	} as const;
 </script>
 

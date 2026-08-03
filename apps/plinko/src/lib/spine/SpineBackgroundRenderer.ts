@@ -9,6 +9,15 @@ import {
 import { Application, Assets, Container, Matrix, Sprite, type Texture, Ticker } from 'pixi.js';
 
 import { readSkeletonData } from './spineSkeletonData';
+import {
+	backdropAlias,
+	bonusBackdropAlias,
+	imageOverlayAlias,
+	loadTextureAsset,
+	registerSpineAsset,
+	spineAliases,
+	type SpineLoadable,
+} from './spineAssetCache';
 import { createWorldBounds, updateWorldBounds } from './spineBounds';
 import {
 	computeBackdropTransform,
@@ -40,12 +49,6 @@ const strikeEnvelope = (t: number, flicker: ImageOverlayFlickerDef): number => {
 	const out = held - holdSeconds;
 	return fadeOutSeconds > 0 ? smoothstep(Math.max(0, 1 - out / fadeOutSeconds)) : 0;
 };
-
-/** Structural subset shared by the base asset and bonus overlays — everything needed to load a spine. */
-type SpineLoadable = Pick<
-	SpineAssetDef,
-	'id' | 'format' | 'skeleton' | 'atlas' | 'images' | 'skeletonScale'
->;
 
 const applySpineFit = (
 	spine: Spine,
@@ -260,6 +263,34 @@ export class SpineBackgroundRenderer {
 	}
 
 	/**
+	 * Freeze (or release) the base animation where it stands. The intro splash uses this to hold the
+	 * logo on its fully-lit frame until the asset preload finishes, rather than letting it play on to
+	 * the empty screen it fades to.
+	 *
+	 * Scales the ANIMATION STATE rather than stopping a ticker: the ticker keeps running, so the canvas
+	 * still repaints and the resize/fit path stays live, and BOTH drive paths funnel through
+	 * `state.update` — Pixi's rAF via `autoUpdate`, and {@link advanceFrame} while the tab is hidden —
+	 * so the one flag stops them both.
+	 */
+	setAnimationPaused(paused: boolean): void {
+		if (this.spine) this.spine.state.timeScale = paused ? 0 : 1;
+	}
+
+	/**
+	 * Seconds into the base animation, read off the spine's own track rather than a wall clock — the
+	 * two diverge, deliberately, whenever `catchUpMinFps` clamps a stalled frame's catch-up (the whole
+	 * point of that clamp is that a stall makes the animation lag real time instead of skipping).
+	 *
+	 * Keeps counting past the animation's own length: spine leaves a finished non-looping entry on the
+	 * track with `trackEnd = MAX_VALUE`, so this can be compared against the authored duration to tell
+	 * when the logo has played out. `Infinity` if the track has been cleared, `0` before init.
+	 */
+	getAnimationTime(): number {
+		if (!this.spine) return 0;
+		return this.spine.state.getTrack(0)?.trackTime ?? Number.POSITIVE_INFINITY;
+	}
+
+	/**
 	 * @param options.releaseAssets Unload this renderer's textures from the global Pixi `Assets`
 	 *   cache. Long-lived background renderers leave this off (assets are reused); short-lived
 	 *   renderers like the intro splash MUST set it, otherwise their atlas pages (tens of MB of
@@ -320,15 +351,10 @@ export class SpineBackgroundRenderer {
 		const cached = this.skeletonDataCache.get(cacheKey);
 		if (cached) return cached;
 
-		const atlasAlias = `${asset.id}-atlas`;
-		const skeletonAlias = `${asset.id}-skeleton`;
-
-		Assets.add({
-			alias: atlasAlias,
-			src: asset.atlas,
-			data: { images: asset.images },
-		});
-		Assets.add({ alias: skeletonAlias, src: asset.skeleton });
+		// Registered through the shared cache so the aliases are added to Pixi's global resolver exactly
+		// once, no matter how many renderers mount this def or whether the intro loader already
+		// preloaded it — a repeat `Assets.add` logs a "[Resolver] already has key … overwriting" warning.
+		const { atlasAlias, skeletonAlias } = registerSpineAsset(asset);
 
 		this.loadedAssetKeys.add(atlasAlias);
 		this.loadedAssetKeys.add(skeletonAlias);
@@ -360,10 +386,9 @@ export class SpineBackgroundRenderer {
 		const backdropDef = asset.backdrop;
 		if (!backdropDef) return undefined;
 
-		const alias = `${asset.id}-backdrop`;
-		Assets.add({ alias, src: backdropDef.src });
+		const alias = backdropAlias(asset.id);
 		this.loadedAssetKeys.add(alias);
-		const texture = await Assets.load(alias);
+		const texture = await loadTextureAsset(alias, backdropDef.src);
 		this.baseBackdropTexture = texture;
 		return Sprite.from(texture);
 	}
@@ -661,7 +686,7 @@ export class SpineBackgroundRenderer {
 		for (const def of overlayDefs) {
 			// Atlas pages are not registered as `Assets` entries under their own URLs (see
 			// `loadSkeletonData`) — they live on the TextureAtlas the alias resolves to.
-			const atlas = Assets.get(`${def.id}-atlas`) as
+			const atlas = Assets.get(spineAliases(def).atlasAlias) as
 				| { pages?: { texture?: { texture?: Texture } }[] }
 				| undefined;
 			atlas?.pages?.forEach((page) => addTexture(page.texture?.texture));
@@ -712,10 +737,9 @@ export class SpineBackgroundRenderer {
 
 	/** Load an image-overlay texture and build its sprite (hidden, centre-anchored) until activated. */
 	private async loadImageOverlaySprite(def: SpineImageOverlayDef): Promise<Sprite> {
-		const alias = `${def.id}-image-overlay`;
-		Assets.add({ alias, src: def.src });
+		const alias = imageOverlayAlias(def.id);
 		this.loadedAssetKeys.add(alias);
-		const texture = await Assets.load(alias);
+		const texture = await loadTextureAsset(alias, def.src);
 		const sprite = Sprite.from(texture);
 		sprite.anchor.set(0.5);
 		// A flickering layer starts dark; the ticker ramps it up to `alpha` on its first strike.
@@ -800,10 +824,9 @@ export class SpineBackgroundRenderer {
 	}
 
 	private async loadBonusBackdropTexture(assetId: string, src: string): Promise<Texture> {
-		const alias = `${assetId}-bonus-backdrop`;
-		Assets.add({ alias, src });
+		const alias = bonusBackdropAlias(assetId);
 		this.loadedAssetKeys.add(alias);
-		return Assets.load(alias);
+		return loadTextureAsset(alias, src);
 	}
 
 	/**

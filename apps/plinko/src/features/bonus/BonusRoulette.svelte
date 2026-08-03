@@ -160,9 +160,9 @@
 		y: (HIGHLIGHT_PNG.apexY / HIGHLIGHT_PNG.h) * 100,
 	};
 
-	const valuesSrc = staticUrl('img/free_bonus_roulette_v2/wheel_values.png');
-	const frameSrc = staticUrl('img/free_bonus_roulette_v2/wheel_base.png');
-	const highlightSrc = staticUrl('img/free_bonus_roulette_v2/wheel_segment_highlight.png');
+	const valuesSrc = staticUrl('img/free_bonus_roulette_v2/wheel_values.webp');
+	const frameSrc = staticUrl('img/free_bonus_roulette_v2/wheel_base.webp');
+	const highlightSrc = staticUrl('img/free_bonus_roulette_v2/wheel_segment_highlight.webp');
 
 	/** Free-ball values BAKED into wheel_values.png, clockwise from the wedge parked under the pointer at
 	 * rotation 0. Recovered by hue-sampling the art at each wedge's bisector (100 red, 90 orange, 80 blue,
@@ -252,8 +252,8 @@
 	// Two coin art variants fall behind the headline while the "PRESS ANYWHERE" screen is up. Generated
 	// once per mount (not reactive) so the shower doesn't reshuffle on every render.
 	const ANNOUNCEMENT_COIN_IMAGES = [
-		staticUrl('img/congratulations_screen/coin_1.png'),
-		staticUrl('img/congratulations_screen/coin_2.png'),
+		staticUrl('img/congratulations_screen/coin_1.webp'),
+		staticUrl('img/congratulations_screen/coin_2.webp'),
 	];
 	type AnnouncementCoin = {
 		id: number;
@@ -301,10 +301,10 @@
 	// the wide version. Picked here rather than in the template so it's decided once at mount.
 	const TREASURE_ART = staticUrl(
 		isPortraitGameLayout()
-			? 'img/congratulations_screen/treasure_table_mobile.png'
-			: 'img/congratulations_screen/treasure_table.png',
+			? 'img/congratulations_screen/treasure_table_mobile.webp'
+			: 'img/congratulations_screen/treasure_table.webp',
 	);
-	const SPARKLE_ART = staticUrl('img/congratulations_screen/sparkle.png');
+	const SPARKLE_ART = staticUrl('img/congratulations_screen/sparkle.webp');
 	type Sparkle = {
 		id: number;
 		xPct: number;
@@ -820,8 +820,8 @@
 			class="bonus-spin-bg-drop"
 			class:bonus-spin-bg-drop--visible={bgJoined}
 			style:background-image="url({portrait
-				? staticUrl('img/bonus-roulette-background-mobile.png')
-				: staticUrl('img/bonus-roulette-background.png')})"
+				? staticUrl('img/bonus-roulette-background-mobile.webp')
+				: staticUrl('img/bonus-roulette-background.webp')})"
 		></div>
 		<div class="bonus-spin-content">
 			<div class="bonus-spin-stage" bind:this={stageEl}>
@@ -833,7 +833,7 @@
 					style:--label-scale={LABEL_SCALE}
 					style:--label-offset-x={labelOffsetXPx}
 					style:--label-offset-y={labelOffsetYPx}
-					src={staticUrl('img/bonus-roulette-label.png')}
+					src={staticUrl('img/bonus-roulette-label.webp')}
 					alt="Free balls"
 				/>
 				<div class="bonus-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>
@@ -901,8 +901,8 @@
 			class:bonus-announcement--text-visible={announcementTextVisible}
 			class:bonus-announcement--coins-visible={announcementCoinsVisible}
 			style:background-image="url({portrait
-				? staticUrl('img/announcement-message-background-mobile.png')
-				: staticUrl('img/announcement-message-background.png')})"
+				? staticUrl('img/announcement-message-background-mobile.webp')
+				: staticUrl('img/announcement-message-background.webp')})"
 			onclick={onAnnouncementClick}
 		>
 			{#if props.treasureWin}

@@ -1,167 +1,233 @@
+import { Assets } from 'pixi.js';
+
+import { isPortraitGameLayout } from './format';
 import { staticUrl } from './staticUrl';
+import { getBackgroundLandscapeAsset } from './spine/backgroundLandscapeAsset';
+import { getBackgroundPortraitAsset } from './spine/backgroundPortraitAsset';
+import { getBalanceCoinGlowAssets } from './spine/balanceCoinGlowAsset';
+import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvLogoAsset';
+import { getCoinFountainAssets } from './spine/coinFountainAsset';
+import { getGlowNumbersAsset } from './spine/glowNumbersAsset';
+import { loadSpineAsset, spineAssetTreeTasks } from './spine/spineAssetCache';
+import type { SpineAssetDef } from './spine/types';
 
 /**
- * Static images the game paints on (or immediately after) the FIRST render — the board, pegs,
- * multiplier slots, the always-visible betting panel + HUD meters, and the small menu/modal icons.
- * These are the only images the intro splash blocks on, so the game is revealed fully painted.
+ * ══ THE GAME'S ASSET MANIFEST ══════════════════════════════════════════════════════════════════
  *
- * Heavy, feature-gated art (bonus/free-spin roulettes, buy-bonus modal, congrats/announcement
- * screens, the bonus board + level bars) is intentionally NOT here — see {@link DEFERRED_IMAGE_PATHS}.
- * Blocking the splash on all of it made the loader hold ~34 MB of decodes, so on a slow first load
- * the splash lingered (up to the timeout) on the finished, frozen logo. Keep this in sync with the
- * `staticUrl('img/…')` references used by the base game + betting panel components.
+ * Every static file the game can put on screen or play, in one place. The intro splash blocks on ALL
+ * of it (see {@link preloadAllGameAssets}) and only dismisses once it has settled, so nothing is ever
+ * fetched or decoded for the first time mid-game.
+ *
+ * This used to be split into a small "critical" set that gated the splash and a big "deferred" set
+ * warmed in the background after reveal. That kept the splash short but made correctness depend on a
+ * race — anything the player reached before its background fetch landed still popped in — and the
+ * lists drifted from the components (the 1-ball board's `0.1`/`0.3` slot labels, the moon, the mobile
+ * free-spin overlay and every spine skeleton were never in either list at all). One blocking manifest
+ * has no race to lose.
+ *
+ * ⚠️ Adding art/audio to a component? Add it here too. In DEV, anything the game fetches after the
+ * splash has gone is reported by {@link watchForUnpreloadedAssets} — check the console for
+ * "[plinko] asset loaded on demand" before assuming a new asset is covered.
  */
-const CRITICAL_IMAGE_PATHS: readonly string[] = [
-	// Board / play-area art (Pixi textures + CSS backgrounds)
-	'img/game_area_background.png',
+
+/**
+ * Images painted through the DOM (`<img src>`, CSS `background-image`). Warmed with `Image()` +
+ * `decode()`, which puts the bytes in the HTTP cache and the bitmap in the decoded-image cache.
+ *
+ * Images that Pixi draws instead go in {@link PIXI_TEXTURE_PATHS}, and spine art is covered by the
+ * skeleton bundles — see {@link spineAssetTasks}.
+ */
+const DOM_IMAGE_PATHS: readonly string[] = [
+	// ── Board / play area ────────────────────────────────────────────────────────────────────────
+	'img/game_area_background.webp',
+	// Bonus board background, swapped in for the free game.
+	'img/game_area_bonus.webp',
+
+	// ── Static background fallbacks ──────────────────────────────────────────────────────────────
+	// Shown by Background.svelte until the spine stack is live (and permanently if it fails), and by
+	// Game.svelte's portrait layout. The spine renderer loads its own copies as Pixi textures (see
+	// `spineAssetTasks`); these entries are what the plain <img> tags read.
+	'img/BG_landscape.webp',
+	'img/BG_portrait.webp',
+	'img/BG_landscape_FREEGAME.webp',
+	'img/BG_portrait_FREEGAME.webp',
+
+	// ── Free-spin meter (HUD, on screen from launch) ─────────────────────────────────────────────
+	'img/free-spin-label.webp',
+	// Mobile-only gradient under the free-spin frame (Game.svelte).
+	'img/mobile_free_spin_under_frame_overlay.webp',
+
+	// ── Bonus meter (HUD, on screen from launch) ─────────────────────────────────────────────────
+	'img/bonus-bar-marker.webp',
+
+	// ── Betting panel (desktop + mobile) — always visible ────────────────────────────────────────
+	'img/betting-component-frame.webp',
+	// Mobile field frame; also the Yes/No plate in ConfirmPromptModal (both layouts).
+	'img/betting-component-frame-mobile.webp',
+	'img/betting-component-input-decrease.webp',
+	'img/betting-component-input-increase.webp',
+	// Containerless (bare glyph) stepper icons used by the mobile inline steppers.
+	'img/betting-component-input-decrease-containerless.webp',
+	'img/betting-component-input-increase-containerless.webp',
+	'img/main_btn_empty.webp',
+	'img/main_btn_play_icon.webp',
+	'img/auto-bet-btn.webp',
+	'img/auto-bet-stop-btn.webp',
+	'img/auto-bet-btn-mobile.webp',
+	'img/fast-game-btn.webp',
+	'img/fast-game-btn-mobile.webp',
+	'img/loading_vector.webp',
+	// Portrait-only strap behind the mobile action row (see .mobile-play-strap).
+	'img/portait_bet_panel_strap.webp',
+	// Desktop menu button (top-hud). Mobile uses its own asset below.
+	'img/menu-btn.webp',
+	// Mobile menu button — dedicated mobile art, top-left corner.
+	'img/menu-btn-mobile.webp',
+	'img/coin-ico.webp',
+	'img/wallet-ico.webp',
+	// The board's Buy Bonus button is visible from launch; the modal art it opens is further down.
+	'img/buy-bonus-btn.webp',
+
+	// ── Menu + modal icons ───────────────────────────────────────────────────────────────────────
+	'img/hamburg_menu_ico_fair_settings.webp',
+	'img/hamburg_menu_ico_game_rules.webp',
+	'img/hamburg_menu_ico_history.webp',
+	'img/hamburg_menu_ico_how_to_play.webp',
+	'img/close_btn.webp',
+
+	// ── Confirmation prompt (reachable from the player's very first interaction: arming Autobet,
+	//    opening Buy Bonus, or raising the stake to a high bet) ─────────────────────────────────
+	'img/announcement-message-background.webp',
+	'img/announcement-message-background-mobile.webp',
+
+	// ── Free-spin wheel: rotating value disc + top wedge highlight + rope dividers + frame ───────
+	'img/bonus_roulette_v2/wheel_values.webp',
+	'img/bonus_roulette_v2/wheel_base.webp',
+	'img/bonus_roulette_v2/wheel_segment_highlight.webp',
+	'img/bonus_roulette_v2/wheel_divider.webp',
+
+	// ── Bonus wheel: rotating values disc + wedge highlight + static frame ───────────────────────
+	'img/free_bonus_roulette_v2/wheel_values.webp',
+	'img/free_bonus_roulette_v2/wheel_base.webp',
+	'img/free_bonus_roulette_v2/wheel_segment_highlight.webp',
+
+	// ── Roulette backdrops + label ───────────────────────────────────────────────────────────────
+	'img/bonus-roulette-background.webp',
+	'img/bonus-roulette-background-mobile.webp',
+	'img/bonus-roulette-label.webp',
+
+	// ── In-bonus level arch + level-up card ──────────────────────────────────────────────────────
+	'img/bonus-level-base.webp',
+	'img/bonus-level-base-background.webp',
+	'img/bonus-level-up-base.webp',
+	// The 9 arch tiles + their lit variants (`BonusLevel.svelte` LEVEL_BAR_URLS). All 18 mount at once
+	// with the arch, so leaving them out meant 9+ cold requests on the bonus-entry frame.
+	...Array.from({ length: 9 }, (_, i) => `img/bonus-bar-level-${i + 1}.webp`),
+	...Array.from({ length: 9 }, (_, i) => `img/bonus-bar-level-active-${i + 1}.webp`),
+
+	// ── Buy Bonus modal — card frame + Activate button + per-tier art (mirrors BUY_BONUS_TIERS) ──
+	'img/buy_bonus_button.webp',
+	'img/buy_bonus_panel.webp',
+	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.webp`),
+
+	// ── Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen ────────────────────────────
+	'img/congratulations_screen/treasure_table.webp',
+	'img/congratulations_screen/treasure_table_mobile.webp',
+	'img/congratulations_screen/sparkle.webp',
+	// The coins strewn across the treasure table — they mount with it.
+	'img/congratulations_screen/coin_1.webp',
+	'img/congratulations_screen/coin_2.webp',
+];
+
+/**
+ * WIN-CELEBRATION art (`WinCelebration.svelte` + `RapidWinSparkles.svelte`). Split out of
+ * {@link DOM_IMAGE_PATHS} only because these are RETAINED (see `preloadImage`) rather than left for
+ * the GC: the banners are large enough that a dropped decode means the reveal visibly waits on a
+ * re-decode, which is exactly the hitch this manifest exists to kill. Retention is deliberately
+ * limited to this set — pinning every decode in the manifest would cost hundreds of MB.
+ */
+const RETAINED_IMAGE_PATHS: readonly string[] = [
+	// Tier banners — one shows per win; which one isn't known until the round settles, so all three.
+	'img/win_popup/massive_plunder.webp',
+	'img/win_popup/epic_bounty.webp',
+	'img/win_popup/captains_jackpot.webp',
+	// Shared reveal layers
+	'img/win_popup/shine_rays.webp',
+	'img/win_popup/backdrop_shade.webp',
+	'img/win_popup/coin.webp',
+	// Counter glyphs (0–9 + the decimal dot) — also used by the 1-ball rapid sparkles
+	'img/win_popup/dot.webp',
+	...Array.from({ length: 10 }, (_, digit) => `img/win_popup/${digit}.webp`),
+];
+
+/**
+ * Images Pixi draws, loaded through `Assets` under the SAME key their consumer uses (the resolved
+ * URL) so the engine and the meters get a straight cache hit instead of re-fetching and re-decoding.
+ *
+ * Warming these as plain `Image()`s would only fill the HTTP cache — Pixi would still pay for its own
+ * decode + `ImageBitmap` on first use, which is the stall these are here to remove.
+ */
+const PIXI_TEXTURE_PATHS: readonly string[] = [
+	// PlinkoEngine board textures.
 	'img/ball.svg',
-	'img/coin_peg.png',
-	'img/multiplier_slot_spin.png',
-	...[1, 2, 3, 4, 5, 6, 7].map((tier) => `img/multiplier_slot_${tier}.png`),
-	...['0.2', '0.4', '1.5', '5', '20', '50', '100'].map(
-		(label) => `img/multiplier_slot_text_${label}.png`,
+	'img/coin_peg.webp',
+	'img/multiplier_slot_spin.webp',
+	...[1, 2, 3, 4, 5, 6, 7].map((tier) => `img/multiplier_slot_${tier}.webp`),
+	// Slot label art — mirrors `PlinkoEngine.MULTIPLIER_TEXT_LABELS`. `0.1` and `0.3` are the
+	// feature-free 1-ball board's own pockets; they were missing here, so switching to 1 ball/drop
+	// fetched them cold.
+	...['0.1', '0.2', '0.3', '0.4', '1.5', '5', '20', '50', '100'].map(
+		(label) => `img/multiplier_slot_text_${label}.webp`,
 	),
 
-	// Free-spin meter (on screen from launch in the HUD)
-	'img/free-spin-base.png',
-	'img/free-spin-meter.png',
-	'img/free-spin-meter-wheel.png',
-	'img/free-spin-label.png',
-	'img/free-spin-marker.png',
+	// BonusMeterEngine.
+	'img/bonus-bar-base.webp',
+	'img/bonus-bar-fill.webp',
 
-	// Bonus meter bar (on screen from launch in the HUD)
-	'img/bonus-bar-base.png',
-	'img/bonus-bar-fill.png',
-	'img/bonus-bar-marker.png',
-
-	// Betting panel (desktop + mobile) — always visible
-	'img/betting-component-frame.png',
-	// Mobile field frame; also the Yes/No plate in ConfirmPromptModal (both layouts).
-	'img/betting-component-frame-mobile.png',
-	'img/betting-component-input-decrease.png',
-	'img/betting-component-input-increase.png',
-	// Containerless (bare glyph) stepper icons used by the mobile inline steppers.
-	'img/betting-component-input-decrease-containerless.png',
-	'img/betting-component-input-increase-containerless.png',
-	'img/play-btn.png',
-	'img/main_btn_empty.png',
-	'img/main_btn_play_icon.png',
-	'img/pause-btn.png',
-	'img/auto-bet-btn.png',
-	'img/auto-bet-stop-btn.png',
-	'img/fast-game-btn.png',
-	'img/empty-btn.png',
-	'img/loading_vector.png',
-	'img/fast-game-btn-mobile.png',
-	'img/auto-bet-btn-mobile.png',
-	// Portrait-only strap behind the mobile action row (see .mobile-play-strap).
-	'img/portait_bet_panel_strap.png',
-	// Desktop menu button (top-hud). Mobile uses its own asset below.
-	'img/menu-btn.png',
-	// Mobile menu button — dedicated mobile art, top-left corner.
-	'img/menu-btn-mobile.png',
-	'img/coin-ico.png',
-	'img/wallet-ico.png',
-	// The board's Buy Bonus button is visible from launch (desktop) — the modal art it opens is deferred.
-	'img/buy-bonus-btn.png',
-
-	// Menu + modal icons (a tap away from launch; tiny)
-	'img/hamburg_menu_ico_fair_settings.png',
-	'img/hamburg_menu_ico_game_rules.png',
-	'img/hamburg_menu_ico_history.png',
-	'img/hamburg_menu_ico_how_to_play.png',
-	'img/close_btn.png',
+	// FreeSpinMeterEngine.
+	'img/free-spin-base.webp',
+	'img/free-spin-meter.webp',
+	'img/free-spin-meter-wheel.webp',
 ];
 
 /**
- * Heavy, feature-gated art loaded in the BACKGROUND after the game is revealed — never on the
- * splash's critical path. None of this is on screen at launch; the player bets several times (and
- * fills a meter) before any of it is needed, which is ample time for a background fetch to finish,
- * so nothing pops in on first use. Failures are swallowed; the worst case is a single on-demand
- * fetch if the feature somehow fires before the background load reaches that asset.
+ * Sound effects + music. Warmed with a plain `fetch` that reads the body to completion, which is all
+ * that is needed: Howler builds its Howls on mount (EnableSound / EnableMusic) and both its Web Audio
+ * XHR path and its `html5: true` `<audio>` path serve from the HTTP cache.
  *
- * Ordered roughly by how soon each feature can trigger (free-spin roulette first → congrats last).
+ * Mirrors `EnableSound.svelte`'s `soundMap` plus `EnableMusic.svelte`'s two loops. The two music
+ * tracks are ~12 MB of the total — by far the largest single item in the manifest — but they are also
+ * the only assets whose absence is audible for a sustained stretch rather than one frame.
  */
-const DEFERRED_IMAGE_PATHS: readonly string[] = [
-	// FIRST in the deferred list, ahead of the feature art below: this is also the confirmation-prompt
-	// panel (ConfirmPromptModal), which is reachable from the player's very first interaction — arming
-	// Autobet, opening Buy Bonus, or raising the stake to a high bet. Everything after it is gated
-	// behind a meter fill or a bonus, i.e. many rounds away.
-	'img/announcement-message-background.png',
-	'img/announcement-message-background-mobile.png',
+const AUDIO_PATHS: readonly string[] = [
+	// One-shot effects (EnableSound).
+	'sound/bet.mp3',
+	'sound/win.mp3',
+	'sound/pocket.mp3',
+	'sound/peg.wav',
+	'sound/roulette_tick.wav',
+	'sound/placeChip.mp3',
+	'sound/clickingFail.mp3',
+	'sound/startAutoPlay.mp3',
+	'sound/openPopup.mp3',
+	'sound/clickUIButton.mp3',
+	'sound/coin_flip.wav',
+	'sound/coin_peg.wav',
+	// One file, played as two sprite windows (coinShuffleSingle / coinShuffleMulti).
+	'sound/coin_shuffle.mp3',
+	'sound/door_close.ogg',
+	'sound/door_open.ogg',
+	'sound/bonus_level_up.mp3',
 
-	// Bonus board background (swapped in only during the free game)
-	'img/game_area_bonus.png',
-
-	// Free-spin wheel: rotating value disc + top wedge highlight + rope dividers + frame.
-	'img/bonus_roulette_v2/wheel_values.png',
-	'img/bonus_roulette_v2/wheel_base.png',
-	'img/bonus_roulette_v2/wheel_segment_highlight.png',
-	'img/bonus_roulette_v2/wheel_divider.png',
-
-	// Bonus wheel: rotating values disc + wedge highlight + static frame.
-	'img/free_bonus_roulette_v2/wheel_values.png',
-	'img/free_bonus_roulette_v2/wheel_base.png',
-	'img/free_bonus_roulette_v2/wheel_segment_highlight.png',
-
-	// Roulette backdrops + label + in-bonus level bars
-	'img/bonus-roulette-background.png',
-	'img/bonus-roulette-background-mobile.png',
-	'img/bonus-roulette-label.png',
-	'img/bonus-level-base.png',
-	'img/bonus-level-base-background.png',
-	'img/bonus-level-up-base.png',
-	// The 9 level-arch tiles + their lit variants (`BonusLevel.svelte` LEVEL_BAR_URLS). All 18 mount at
-	// once with the arch, so leaving them out meant 9+ cold requests fired on the bonus-entry frame.
-	// Tiny (~156 kB the lot), so there is no reason for them not to be warmed with the rest of the arch.
-	...Array.from({ length: 9 }, (_, i) => `img/bonus-bar-level-${i + 1}.png`),
-	...Array.from({ length: 9 }, (_, i) => `img/bonus-bar-level-active-${i + 1}.png`),
-
-	// Free-game backdrops. The landscape one also loads through the spine renderer (which GPU-warms it),
-	// but the PORTRAIT one is a plain CSS background on mobile with nothing else warming it.
-	'img/BG_landscape_FREEGAME.jpg',
-	'img/BG_portrait_FREEGAME.jpg',
-
-	// Buy Bonus modal — card frame + Activate button + per-tier feature art (keys mirror BUY_BONUS_TIERS)
-	'img/buy_bonus_button.png',
-	'img/buy_bonus_panel.png',
-	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.png`),
-
-	// Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen (needed last)
-	'img/congratulations_screen/treasure_table.png',
-	'img/congratulations_screen/treasure_table_mobile.png',
-	'img/congratulations_screen/sparkle.png',
-	// The coins strewn across the treasure table — they mount with it, so they were cold-fetched on the
-	// bonus-END frame, which is exactly where a hitch is most visible.
-	'img/congratulations_screen/coin_1.png',
-	'img/congratulations_screen/coin_2.png',
+	// Looping music (EnableMusic).
+	'sound/background_music.m4a',
+	'sound/background_music_bonus_mode.mpeg',
 ];
 
 /**
- * WIN-CELEBRATION art (`WinCelebration.svelte` + `RapidWinSparkles.svelte`). Unlike the rest of the
- * deferred set this can fire on the player's very FIRST drop — any round paying ≥ the total bet pops
- * it — so it is warmed ahead of the feature art, and its images are RETAINED (see `preloadImage`)
- * rather than left for the GC: the banners are large enough that a dropped decode means the reveal
- * visibly waits on a re-decode, which is exactly the "still loading" hitch this list exists to kill.
- */
-const WIN_POPUP_IMAGE_PATHS: readonly string[] = [
-	// Tier banners — one shows per win; which one isn't known until the round settles, so all three.
-	'img/win_popup/massive_plunder.png',
-	'img/win_popup/epic_bounty.png',
-	'img/win_popup/captains_jackpot.png',
-	// Shared reveal layers
-	'img/win_popup/shine_rays.png',
-	'img/win_popup/backdrop_shade.png',
-	'img/win_popup/coin.png',
-	// Counter glyphs (0–9 + the decimal dot) — also used by the 1-ball rapid sparkles
-	'img/win_popup/dot.png',
-	...Array.from({ length: 10 }, (_, digit) => `img/win_popup/${digit}.png`),
-];
-
-/**
- * Fonts declared via `@font-face` in `+layout.svelte`. Browsers only fetch a web font the
- * first time a glyph that needs it is rendered, so we load them explicitly here — otherwise
- * e.g. the roulette labels (PotatoSans) flash in an unstyled fallback on first appearance.
+ * Fonts declared via `@font-face` in `+layout.svelte`. Browsers only fetch a web font the first time a
+ * glyph that needs it is rendered, so we load them explicitly — otherwise e.g. the roulette labels
+ * (PotatoSans) flash in an unstyled fallback on first appearance.
  */
 const FONT_SPECS: readonly string[] = [
 	"400 1rem 'Instrument Sans'",
@@ -185,10 +251,57 @@ const FONT_SPECS: readonly string[] = [
 ];
 
 /**
- * Images kept alive for the session. A preloaded `Image` with no reference is GC-eligible, and when
- * it goes so can its decoded bitmap — leaving the HTTP bytes cached but the next `<img>` still paying
- * for a decode on first paint. Holding the element pins the decode. Only used where a mid-game hitch
- * would be visible (the win reveal); the rest stay collectable.
+ * Spine bundles, as load thunks. Everything except the background is orientation-agnostic; the
+ * background tree is picked for the layout the game is about to mount, because a def's overlay ids are
+ * shared across orientations while their files are not (see `spineAssetTreeTasks`).
+ *
+ * The intro logo (`casino_tv_logo`) is NOT here — the loader itself owns it, and releases it on
+ * dismissal.
+ */
+function spineAssetTasks(): (() => Promise<unknown>)[] {
+	const background = isPortraitGameLayout()
+		? getBackgroundPortraitAsset()
+		: getBackgroundLandscapeAsset();
+
+	return [
+		// Base scene + its backdrops, moon/lightning image layers and every free-game overlay spine
+		// (ship, splashes, clouds, tornadoes, rain).
+		...spineAssetTreeTasks(background),
+		// Slot glow strip on the board (PlinkoEngine).
+		() => loadSpineAsset(getGlowNumbersAsset()),
+		// On-win coin fountain (CoinFountainRenderer) — two skeletons, randomly assigned per coin.
+		...getCoinFountainAssets().map((asset) => () => loadSpineAsset(asset)),
+		// Balance-coin light burst (BalanceCoinGlowRenderer) — glow behind the coin, sparkle over it.
+		...getBalanceCoinGlowAssets().map((asset) => () => loadSpineAsset(asset)),
+	];
+}
+
+/**
+ * The OTHER orientation's background files, warmed into the HTTP cache after the game is revealed.
+ *
+ * They cannot be preloaded properly — one alias per overlay id means only one orientation's tree can
+ * be resident in Pixi's cache at a time — but a device that rotates mid-session would otherwise
+ * re-download ~15 MB of skeleton pages before the new scene appears. A raw fetch costs nothing but
+ * cache space (no decode, no GPU texture), so the rotation becomes a decode instead of a download.
+ */
+function otherOrientationBackgroundFiles(): string[] {
+	const other = isPortraitGameLayout()
+		? getBackgroundLandscapeAsset()
+		: getBackgroundPortraitAsset();
+	const overlays = other.bonusOverlays ?? [];
+	return [
+		other.skeleton,
+		other.atlas,
+		...Object.values(other.images),
+		...overlays.flatMap((def) => [def.skeleton, def.atlas, ...Object.values(def.images)]),
+	];
+}
+
+/**
+ * Images kept alive for the session. A preloaded `Image` with no reference is GC-eligible, and when it
+ * goes so can its decoded bitmap — leaving the HTTP bytes cached but the next `<img>` still paying for
+ * a decode on first paint. Holding the element pins the decode. Only used where a mid-game hitch would
+ * be visible (the win reveal); the rest stay collectable.
  */
 const retainedImages: HTMLImageElement[] = [];
 
@@ -211,6 +324,21 @@ function preloadImage(url: string, options: { retain?: boolean } = {}): Promise<
 	});
 }
 
+/**
+ * Pull a file into the HTTP cache. Used for audio (whose players fetch it themselves later) and for
+ * the opposite orientation's spine pages. The body must be READ, not just the headers awaited, or the
+ * response is abandoned part-way and never lands in the cache.
+ */
+async function preloadFile(url: string): Promise<void> {
+	try {
+		const response = await fetch(url, { credentials: 'same-origin' });
+		if (!response.ok) return;
+		await response.arrayBuffer();
+	} catch {
+		/* best-effort — a failed warm-up just means this file is fetched on first use */
+	}
+}
+
 /** Force-load every declared web font; always resolves even if a face is missing. */
 async function preloadFonts(): Promise<void> {
 	if (typeof document === 'undefined' || !document.fonts) return;
@@ -222,62 +350,160 @@ async function preloadFonts(): Promise<void> {
 	}
 }
 
+/** Every file a spine def pulls in, as raw (possibly base-relative) paths. DEV audit only. */
+function spineDefFiles(asset: SpineAssetDef): string[] {
+	return [
+		asset.skeleton,
+		asset.atlas,
+		...Object.values(asset.images),
+		...(asset.backdrop ? [asset.backdrop.src] : []),
+		...(asset.bonusBackdropSrc ? [asset.bonusBackdropSrc] : []),
+		...(asset.imageOverlays ?? []).map((def) => def.src),
+		...(asset.bonusImageOverlays ?? []).map((def) => def.src),
+		...(asset.bonusOverlays ?? []).flatMap((def) => [
+			def.skeleton,
+			def.atlas,
+			...Object.values(def.images),
+		]),
+	];
+}
+
+/**
+ * Every file this module is responsible for, absolute. Used by the DEV on-demand-load audit, so it
+ * also covers the two sets that are warmed OUTSIDE the blocking pass — the intro logo (owned by the
+ * loader component) and the opposite orientation's background — which are legitimately fetched but
+ * are not manifest misses.
+ */
+function coveredUrls(): Set<string> {
+	const absolute = (path: string) => new URL(path, window.location.href).href;
+	const paths = [
+		...[...DOM_IMAGE_PATHS, ...RETAINED_IMAGE_PATHS, ...PIXI_TEXTURE_PATHS, ...AUDIO_PATHS].map(
+			(path) => staticUrl(path),
+		),
+		...spineDefFiles(
+			isPortraitGameLayout() ? getBackgroundPortraitAsset() : getBackgroundLandscapeAsset(),
+		),
+		...spineDefFiles(getGlowNumbersAsset()),
+		...getCoinFountainAssets().flatMap(spineDefFiles),
+		...getBalanceCoinGlowAssets().flatMap(spineDefFiles),
+		...spineDefFiles(getCasinoTvLogoAsset()),
+		CASINO_TV_LOGO_BACKDROP,
+		...otherOrientationBackgroundFiles(),
+	];
+	return new Set(paths.map(absolute));
+}
+
 export type PreloadOptions = {
-	/** Hard cap (ms) so a hung/slow asset can never trap the player on the splash. */
+	/**
+	 * Hard cap (ms) so a hung asset or a dead connection can never trap the player on the splash. This
+	 * is a safety valve, not a budget — it is set far above any realistic full-manifest load, because
+	 * firing it reveals the game part-loaded, which is the exact failure this module exists to prevent.
+	 */
 	timeoutMs?: number;
 };
 
 /**
- * Preload the FIRST-VIEW images + fonts while the intro loader is on screen — the small set the
- * game paints on reveal (board, betting panel, HUD meters, fonts). Resolves once everything has
- * *settled* (loaded or failed) so the loader can dismiss knowing the first frame is fully painted.
- *
- * It always resolves: individual failures are swallowed and `timeoutMs` guarantees it can never
- * hang the splash forever. Heavy feature art is loaded separately by {@link preloadDeferredAssets}.
+ * Load + decode + RETAIN the win-celebration art ({@link RETAINED_IMAGE_PATHS}) so the reveal never
+ * waits on a fetch or a decode. Idempotent: the first call owns the work and every later caller gets
+ * the same promise, so the components can safely warm it on mount as a backstop to the intro preload.
  */
-export function preloadCriticalAssets(options: PreloadOptions = {}): Promise<void> {
+let winPopupWarmup: Promise<void> | undefined;
+export function preloadWinPopupAssets(): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
-	const { timeoutMs = 15000 } = options;
+	winPopupWarmup ??= Promise.allSettled(
+		RETAINED_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path), { retain: true })),
+	).then(() => undefined);
+	return winPopupWarmup;
+}
 
-	const work = Promise.allSettled([
-		...CRITICAL_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
-		preloadFonts(),
-	]).then(() => undefined);
+/**
+ * Preload EVERYTHING in the manifest — DOM images, Pixi textures, spine bundles, audio and fonts —
+ * while the intro loader is on screen. Resolves once every task has *settled* (loaded or failed), so
+ * the splash can dismiss knowing nothing is left to fetch.
+ *
+ * It always resolves: individual failures are swallowed (a missing asset degrades one feature, it must
+ * never trap the player) and `timeoutMs` caps the whole pass.
+ */
+export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void> {
+	if (typeof window === 'undefined') return Promise.resolve();
+	const { timeoutMs = 120_000 } = options;
 
+	const tasks: (() => Promise<unknown>)[] = [
+		...DOM_IMAGE_PATHS.map((path) => () => preloadImage(staticUrl(path))),
+		// Retained as one task: it is idempotent and may already be in flight from a component mount.
+		() => preloadWinPopupAssets(),
+		...PIXI_TEXTURE_PATHS.map((path) => () => Assets.load(staticUrl(path))),
+		...spineAssetTasks(),
+		...AUDIO_PATHS.map((path) => () => preloadFile(staticUrl(path))),
+		() => preloadFonts(),
+	];
+
+	// Counted only so the timeout warning below can say how far it got — the splash shows no progress,
+	// it holds the intro logo on its fully-lit frame instead (see CASINO_TV_LOGO_HOLD_SECONDS).
+	let loaded = 0;
+	const total = tasks.length;
+	const settled = tasks.map((task) =>
+		Promise.resolve()
+			.then(task)
+			.catch(() => undefined)
+			.then(() => {
+				loaded += 1;
+			}),
+	);
+
+	const work = Promise.all(settled).then(() => undefined);
 	const timeout = new Promise<void>((resolve) => {
-		window.setTimeout(resolve, timeoutMs);
+		window.setTimeout(() => {
+			console.warn(
+				`[plinko] asset preload hit its ${timeoutMs} ms cap at ${loaded}/${total}; revealing anyway`,
+			);
+			resolve();
+		}, timeoutMs);
 	});
 
 	return Promise.race([work, timeout]);
 }
 
 /**
- * Load + decode + RETAIN the win-celebration art ({@link WIN_POPUP_IMAGE_PATHS}) so the reveal never
- * waits on a fetch or a decode. Idempotent: the first call owns the work and every later caller gets
- * the same promise, so the components can safely warm it on mount as a backstop to the deferred pass.
+ * Fire-and-forget warm-up for the things that deliberately sit OUTSIDE the blocking manifest — today
+ * just the opposite orientation's background files. Call after the splash has gone.
  */
-let winPopupWarmup: Promise<void> | undefined;
-export function preloadWinPopupAssets(): Promise<void> {
+export function preloadPostRevealAssets(): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
-	winPopupWarmup ??= Promise.allSettled(
-		WIN_POPUP_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path), { retain: true })),
-	).then(() => undefined);
-	return winPopupWarmup;
+	return Promise.allSettled(otherOrientationBackgroundFiles().map(preloadFile)).then(
+		() => undefined,
+	);
 }
 
 /**
- * Preload the heavy, feature-gated art ({@link DEFERRED_IMAGE_PATHS}) in the background. Kicked off
- * fire-and-forget once the game is revealed, so it warms the cache well before any feature triggers
- * without ever gating the splash. Always resolves; failures are swallowed.
+ * DEV-ONLY drift alarm. The manifest is hand-maintained, and the whole point of this module is that it
+ * is COMPLETE — but nothing stops a new component from referencing art nobody added here, which is how
+ * the previous critical/deferred split ended up missing the 1-ball slot labels, the moon and every
+ * spine skeleton.
  *
- * The win-celebration art goes FIRST — every path here is requested at once (subject to the browser's
- * per-host connection limit), so being early in the list is what buys it the first free sockets, and
- * it's the only feature in this set that can fire on the player's first drop.
+ * So: once the splash is gone, watch resource timings for anything under `img/`, `sound/`, `spine/` or
+ * `fonts/` that is not covered above and warn with the path to add. Silent in production.
  */
-export function preloadDeferredAssets(): Promise<void> {
-	if (typeof window === 'undefined') return Promise.resolve();
-	return Promise.allSettled([
-		preloadWinPopupAssets(),
-		...DEFERRED_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
-	]).then(() => undefined);
+export function watchForUnpreloadedAssets(): void {
+	if (!import.meta.env.DEV) return;
+	if (typeof PerformanceObserver === 'undefined') return;
+
+	const covered = coveredUrls();
+	// `fonts/` is watched too, but the faces are requested by family via `document.fonts.load` during
+	// the preload — i.e. before this observer starts — so a hit here means a face nobody declared.
+	const watched = ['img/', 'sound/', 'spine/', 'fonts/'].map((dir) => staticUrl(dir));
+	const reported = new Set<string>();
+
+	const observer = new PerformanceObserver((list) => {
+		for (const entry of list.getEntries()) {
+			const url = entry.name.split('?')[0];
+			if (!watched.some((prefix) => url.startsWith(prefix))) continue;
+			if (covered.has(url) || reported.has(url)) continue;
+			reported.add(url);
+			console.warn(
+				`[plinko] asset loaded on demand (add it to the manifest in lib/preloadAssets.ts): ${url}`,
+			);
+		}
+	});
+	observer.observe({ type: 'resource', buffered: false });
 }

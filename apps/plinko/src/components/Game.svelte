@@ -667,8 +667,8 @@
 	style:background-image={mobile
 		? staticCssUrl(
 				stateGameDerived.isBonusBackgroundActive
-					? 'img/BG_portrait_FREEGAME.jpg'
-					: 'img/BG_portrait.jpg',
+					? 'img/BG_portrait_FREEGAME.webp'
+					: 'img/BG_portrait.webp',
 			)
 		: null}
 	bind:this={gameRootEl}
@@ -689,7 +689,7 @@
 			onclick={openBuyBonus}
 			aria-label="Buy bonus"
 		>
-			<img src={staticUrl('img/buy-bonus-btn.png')} alt="" aria-hidden="true" />
+			<img src={staticUrl('img/buy-bonus-btn.webp')} alt="" aria-hidden="true" />
 		</button>
 	{/if}
 
@@ -700,7 +700,7 @@
 		<button
 			class="mobile-menu-trigger"
 			type="button"
-			style:background-image={staticCssUrl('img/menu-btn-mobile.png')}
+			style:background-image={staticCssUrl('img/menu-btn-mobile.webp')}
 			onclick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
 			aria-label="Menu"
 		></button>
@@ -716,7 +716,7 @@
 				<button
 					class="top-hud-btn top-hud-btn--menu"
 					type="button"
-					style:background-image={staticCssUrl('img/menu-btn.png')}
+					style:background-image={staticCssUrl('img/menu-btn.webp')}
 					onclick={() => (stateGame.menuOpen = !stateGame.menuOpen)}
 					aria-label="Menu"
 				></button>
@@ -768,13 +768,13 @@
 
 				<img
 					class="game-area-frame"
-					src={staticUrl('img/game_area_background.png')}
+					src={staticUrl('img/game_area_background.webp')}
 					alt=""
 					aria-hidden="true"
 				/>
 				<img
 					class="game-area-bonus-overlay"
-					src={staticUrl('img/game_area_bonus.png')}
+					src={staticUrl('img/game_area_bonus.webp')}
 					alt=""
 					aria-hidden="true"
 				/>
@@ -833,7 +833,7 @@
 					<div class="game-area-foot" aria-hidden="true">
 						<img
 							class="game-area-foot-scrim"
-							src={staticUrl('img/mobile_free_spin_under_frame_overlay.png')}
+							src={staticUrl('img/mobile_free_spin_under_frame_overlay.webp')}
 							alt=""
 						/>
 					</div>

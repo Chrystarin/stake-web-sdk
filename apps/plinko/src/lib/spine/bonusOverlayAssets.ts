@@ -30,8 +30,8 @@ const SHIP_BASE = 'spine/ship';
 const TORNADO_BASE = 'spine/tornado';
 const LANDSCAPE_RAIN_BASE = 'spine/landscape_rain';
 const PORTRAIT_RAIN_BASE = 'spine/portrait_rain';
-const MOON_IMAGE = 'img/moon.png';
-const LIGHTNING_IMAGE = 'spine/lightning.png';
+const MOON_IMAGE = 'img/moon.webp';
+const LIGHTNING_IMAGE = 'spine/lightning.webp';
 
 export type Orientation = 'landscape' | 'portrait';
 
@@ -173,7 +173,7 @@ export const getBonusCloudOverlay = (): SpineOverlayDef => ({
 	skeleton: staticAssetPath(`${CLOUD_BASE}/skeleton.json`),
 	atlas: staticAssetPath(`${CLOUD_BASE}/skeleton.atlas`),
 	images: {
-		'skeleton.png': staticAssetPath(`${CLOUD_BASE}/skeleton.png`),
+		'skeleton.png': staticAssetPath(`${CLOUD_BASE}/skeleton.webp`),
 	},
 	animation: 'animation',
 	loop: true,
@@ -210,9 +210,9 @@ export const getBonusSplashOverlay = (
 	skeleton: staticAssetPath(`${SPLASH_BASE}/skeleton.json`),
 	atlas: staticAssetPath(`${SPLASH_BASE}/skeleton.atlas`),
 	images: {
-		'skeleton.png': staticAssetPath(`${SPLASH_BASE}/skeleton.png`),
-		'skeleton_2.png': staticAssetPath(`${SPLASH_BASE}/skeleton_2.png`),
-		'skeleton_3.png': staticAssetPath(`${SPLASH_BASE}/skeleton_3.png`),
+		'skeleton.png': staticAssetPath(`${SPLASH_BASE}/skeleton.webp`),
+		'skeleton_2.png': staticAssetPath(`${SPLASH_BASE}/skeleton_2.webp`),
+		'skeleton_3.png': staticAssetPath(`${SPLASH_BASE}/skeleton_3.webp`),
 	},
 	animation: 'animation',
 	loop: true,
@@ -245,7 +245,7 @@ export const getBonusShipOverlay = (orientation: Orientation): SpineOverlayDef =
 	skeleton: staticAssetPath(`${SHIP_BASE}/portrait.json`),
 	atlas: staticAssetPath(`${SHIP_BASE}/portrait.atlas`),
 	images: {
-		'portrait.png': staticAssetPath(`${SHIP_BASE}/portrait.png`),
+		'portrait.png': staticAssetPath(`${SHIP_BASE}/portrait.webp`),
 	},
 	animation: 'animation',
 	loop: true,
@@ -285,8 +285,8 @@ export const getBonusTornadoOverlay = (
 		images: {
 			// The tornado atlas is TWO pages — frames 7–9 live on `skeleton_2.png`. Both must be mapped
 			// or those frames of the 58-frame sequence render blank.
-			'skeleton.png': staticAssetPath(`${TORNADO_BASE}/skeleton.png`),
-			'skeleton_2.png': staticAssetPath(`${TORNADO_BASE}/skeleton_2.png`),
+			'skeleton.png': staticAssetPath(`${TORNADO_BASE}/skeleton.webp`),
+			'skeleton_2.png': staticAssetPath(`${TORNADO_BASE}/skeleton_2.webp`),
 		},
 		animation: 'animation',
 		loop: true,
@@ -308,7 +308,7 @@ export const getBonusRainOverlay = (orientation: Orientation): SpineOverlayDef =
 				skeleton: staticAssetPath(`${LANDSCAPE_RAIN_BASE}/skeleton.json`),
 				atlas: staticAssetPath(`${LANDSCAPE_RAIN_BASE}/skeleton.atlas`),
 				images: {
-					'skeleton.png': staticAssetPath(`${LANDSCAPE_RAIN_BASE}/skeleton.png`),
+					'skeleton.png': staticAssetPath(`${LANDSCAPE_RAIN_BASE}/skeleton.webp`),
 				},
 				animation: 'animation',
 				loop: true,
@@ -320,7 +320,7 @@ export const getBonusRainOverlay = (orientation: Orientation): SpineOverlayDef =
 				skeleton: staticAssetPath(`${PORTRAIT_RAIN_BASE}/portrait.json`),
 				atlas: staticAssetPath(`${PORTRAIT_RAIN_BASE}/portrait.atlas`),
 				images: {
-					'portrait.png': staticAssetPath(`${PORTRAIT_RAIN_BASE}/portrait.png`),
+					'portrait.png': staticAssetPath(`${PORTRAIT_RAIN_BASE}/portrait.webp`),
 				},
 				animation: 'animation',
 				loop: true,

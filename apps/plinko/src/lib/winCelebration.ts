@@ -30,9 +30,9 @@ export function winTierForMultiplier(multiplier: number, modeMaxWin: number): Wi
 
 /** Headline banner art per tier (in `static/img/win_popup`). */
 export const WIN_TIER_BANNER: Record<WinTier, string> = {
-	massive: 'img/win_popup/massive_plunder.png',
-	epic: 'img/win_popup/epic_bounty.png',
-	captain: 'img/win_popup/captains_jackpot.png',
+	massive: 'img/win_popup/massive_plunder.webp',
+	epic: 'img/win_popup/epic_bounty.webp',
+	captain: 'img/win_popup/captains_jackpot.webp',
 };
 
 /**
@@ -46,15 +46,15 @@ export const WIN_TIER_COIN_COUNT: Record<WinTier, number> = {
 };
 
 /** Static art shared by every tier. */
-export const WIN_RAYS_ART = 'img/win_popup/shine_rays.png';
-export const WIN_BACKDROP_ART = 'img/win_popup/backdrop_shade.png';
-export const WIN_COIN_ART = 'img/win_popup/coin.png';
+export const WIN_RAYS_ART = 'img/win_popup/shine_rays.webp';
+export const WIN_BACKDROP_ART = 'img/win_popup/backdrop_shade.webp';
+export const WIN_COIN_ART = 'img/win_popup/coin.webp';
 
 /** Digit-glyph art for the counter (silver 3D numerals 0–9). */
-export const winDigitArt = (digit: string): string => `img/win_popup/${digit}.png`;
+export const winDigitArt = (digit: string): string => `img/win_popup/${digit}.webp`;
 
 /** Decimal-point glyph art, matched to the digit style (silver 3D dot). */
-export const WIN_DOT_ART = 'img/win_popup/dot.png';
+export const WIN_DOT_ART = 'img/win_popup/dot.webp';
 
 /**
  * Sequence timing (ms), all measured from the moment the overlay mounts. The overlay owns its own

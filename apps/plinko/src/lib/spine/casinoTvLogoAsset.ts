@@ -15,10 +15,10 @@ export const getCasinoTvLogoAsset = (): SpineAssetDef => ({
 	skeleton: staticAssetPath(`${SPINE_BASE}/skeleton.json`),
 	atlas: staticAssetPath(`${SPINE_BASE}/skeleton.atlas`),
 	images: {
-		'skeleton.png': staticAssetPath(`${SPINE_BASE}/skeleton.png`),
-		'skeleton2.png': staticAssetPath(`${SPINE_BASE}/skeleton2.png`),
-		'skeleton3.png': staticAssetPath(`${SPINE_BASE}/skeleton3.png`),
-		'skeleton4.png': staticAssetPath(`${SPINE_BASE}/skeleton4.png`),
+		'skeleton.png': staticAssetPath(`${SPINE_BASE}/skeleton.webp`),
+		'skeleton2.png': staticAssetPath(`${SPINE_BASE}/skeleton2.webp`),
+		'skeleton3.png': staticAssetPath(`${SPINE_BASE}/skeleton3.webp`),
+		'skeleton4.png': staticAssetPath(`${SPINE_BASE}/skeleton4.webp`),
 	},
 	animation: 'animation',
 	loop: false,
@@ -38,10 +38,27 @@ export const getCasinoTvLogoAsset = (): SpineAssetDef => ({
 });
 
 /** Backdrop image shown behind the intro spine (CSS background, cover). */
-export const CASINO_TV_LOGO_BACKDROP = staticAssetPath(`${SPINE_BASE}/casino_tv_logo_backdrop.png`);
+export const CASINO_TV_LOGO_BACKDROP = staticAssetPath(`${SPINE_BASE}/casino_tv_logo_backdrop.webp`);
 
 /**
- * Authored animation length in ms (last keyframe ≈ 3.333s, see skeleton.json). The loader holds
- * the splash this long — the logo fades out right at the end — then dismisses.
+ * Authored animation length in ms (last keyframe ≈ 3.333s, see skeleton.json). The loader dismisses
+ * once the spine's own track has run this far — the logo fades out right at the end.
  */
 export const CASINO_TV_LOGO_DURATION_MS = 3400;
+
+/**
+ * Where the splash HOLDS the animation while the asset preload finishes (seconds into `animation`).
+ *
+ * Read off the authored timeline in `skeleton.json`:
+ *   0 → 0.633s  the `effectsLogo` flicker sequence plays, `logo_adjust` still at alpha 0
+ *   0.667s      `logo_adjust` snaps to full alpha (stepped) — the logo is now fully lit
+ *   0.667 → 2s  it holds there, unchanged
+ *   2 → 3.2s    it fades back to alpha 0
+ *   3.333s      the closing bone-scale settles; nothing is on screen
+ *
+ * So 2s is the LAST frame on which the logo is fully lit. Pausing there shows the player the finished
+ * logo for as long as loading takes; anywhere later and they would be watching it dissolve, and the
+ * splash would sit on an empty screen — which is exactly what the removed progress bar was papering
+ * over. Resuming plays 2 → 3.333s, so the fade-out still runs in full before the game is revealed.
+ */
+export const CASINO_TV_LOGO_HOLD_SECONDS = 2;

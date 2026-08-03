@@ -110,8 +110,8 @@ export class BonusMeterEngine {
     let meterTexture: Texture;
     try {
       [baseTexture, meterTexture] = await Promise.all([
-        Assets.load(staticUrl('img/bonus-bar-base.png')),
-        Assets.load(staticUrl('img/bonus-bar-fill.png'))
+        Assets.load(staticUrl('img/bonus-bar-base.webp')),
+        Assets.load(staticUrl('img/bonus-bar-fill.webp'))
       ]);
     } catch {
       return;

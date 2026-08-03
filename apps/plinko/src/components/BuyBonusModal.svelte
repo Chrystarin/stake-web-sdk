@@ -48,7 +48,7 @@
 			onclick={(e) => e.stopPropagation()}
 		>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
-				<img src={staticUrl('img/close_btn.png')} alt="" aria-hidden="true" />
+				<img src={staticUrl('img/close_btn.webp')} alt="" aria-hidden="true" />
 			</button>
 
 			<h2 class="bb-title">Buy Plinko Bonus</h2>
@@ -60,7 +60,7 @@
 					<div class="bb-card">
 						<img
 							class="bb-card-frame"
-							src={staticUrl('img/buy_bonus_panel.png')}
+							src={staticUrl('img/buy_bonus_panel.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -70,7 +70,7 @@
 							<img
 								class="bb-card-art"
 								class:bb-card-art--superfury={tier.key === 'superfury'}
-								src={staticUrl(`img/buy_bonus_${tier.key}.png`)}
+								src={staticUrl(`img/buy_bonus_${tier.key}.webp`)}
 								alt=""
 								aria-hidden="true"
 							/>
@@ -85,7 +85,7 @@
 							>
 								<img
 									class="bb-activate-bg"
-									src={staticUrl('img/buy_bonus_button.png')}
+									src={staticUrl('img/buy_bonus_button.webp')}
 									alt=""
 									aria-hidden="true"
 								/>

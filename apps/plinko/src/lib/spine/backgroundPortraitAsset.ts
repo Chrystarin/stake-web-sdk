@@ -3,8 +3,8 @@ import { staticAssetPath } from '../staticUrl';
 import type { SpineAssetDef } from './types';
 
 const SPINE_BASE = 'spine/background_portrait';
-const PORTRAIT_IMAGE = 'img/BG_portrait.jpg';
-const PORTRAIT_BONUS_IMAGE = 'img/BG_portrait_FREEGAME.jpg';
+const PORTRAIT_IMAGE = 'img/BG_portrait.webp';
+const PORTRAIT_BONUS_IMAGE = 'img/BG_portrait_FREEGAME.webp';
 
 /** Ambient cloud slots in the base portrait scene, hidden during bonus (replaced by FG_CLOUD). */
 const PORTRAIT_CLOUD_SLOTS = ['cloud1', 'cloud2', 'cloud3', 'cloud5', 'cloud6', 'cloud7'];
@@ -48,8 +48,8 @@ export const getBackgroundPortraitAsset = (): SpineAssetDef => ({
 	skeleton: staticAssetPath(`${SPINE_BASE}/portrait.json`),
 	atlas: staticAssetPath(`${SPINE_BASE}/portrait.atlas`),
 	images: {
-		'portrait.png': staticAssetPath(`${SPINE_BASE}/portrait.png`),
-		'portrait_2.png': staticAssetPath(`${SPINE_BASE}/portrait_2.png`),
+		'portrait.png': staticAssetPath(`${SPINE_BASE}/portrait.webp`),
+		'portrait_2.png': staticAssetPath(`${SPINE_BASE}/portrait_2.webp`),
 	},
 	animation: 'animation',
 	boundsMode: 'authored',

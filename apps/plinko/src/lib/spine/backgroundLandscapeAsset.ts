@@ -3,8 +3,8 @@ import { staticAssetPath } from '../staticUrl';
 import type { SpineAssetDef } from './types';
 
 const SPINE_BASE = 'spine/background_landscape';
-const LANDSCAPE_IMAGE = 'img/BG_landscape.jpg';
-const LANDSCAPE_BONUS_IMAGE = 'img/BG_landscape_FREEGAME.jpg';
+const LANDSCAPE_IMAGE = 'img/BG_landscape.webp';
+const LANDSCAPE_BONUS_IMAGE = 'img/BG_landscape_FREEGAME.webp';
 
 /** Ambient cloud slots in the base scene, hidden during bonus (replaced by the FG_CLOUD overlay). */
 const LANDSCAPE_CLOUD_SLOTS = ['cloud1', 'cloud2', 'cloud3', 'cloud5', 'cloud6', 'cloud7'];
@@ -46,8 +46,8 @@ export const getBackgroundLandscapeAsset = (): SpineAssetDef => ({
 	skeleton: staticAssetPath(`${SPINE_BASE}/skeleton.json`),
 	atlas: staticAssetPath(`${SPINE_BASE}/skeleton.atlas`),
 	images: {
-		'skeleton.png': staticAssetPath(`${SPINE_BASE}/skeleton.png`),
-		'skeleton_2.png': staticAssetPath(`${SPINE_BASE}/skeleton_2.png`),
+		'skeleton.png': staticAssetPath(`${SPINE_BASE}/skeleton.webp`),
+		'skeleton_2.png': staticAssetPath(`${SPINE_BASE}/skeleton_2.webp`),
 	},
 	animation: 'animation',
 	boundsMode: 'authored',

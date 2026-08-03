@@ -93,7 +93,7 @@
 	<div class="info-modal-backdrop" onclick={close} role="presentation">
 		<div class="info-modal-wrap" onclick={(e) => e.stopPropagation()} role="dialog">
 			<button type="button" class="info-modal-close" onclick={close} aria-label="Close">
-				<img src={staticUrl('img/close_btn.png')} alt="" aria-hidden="true" />
+				<img src={staticUrl('img/close_btn.webp')} alt="" aria-hidden="true" />
 			</button>
 			<div class="info-modal">
 				<header class="info-modal-header">

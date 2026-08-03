@@ -212,10 +212,10 @@
 		y: ((VALUES_ART_R - DIVIDER_PNG.offsetY) / DIVIDER_PNG.h) * 100,
 	};
 
-	const valuesSrc = staticUrl('img/bonus_roulette_v2/wheel_values.png');
-	const frameSrc = staticUrl('img/bonus_roulette_v2/wheel_base.png');
-	const highlightSrc = staticUrl('img/bonus_roulette_v2/wheel_segment_highlight.png');
-	const dividerSrc = staticUrl('img/bonus_roulette_v2/wheel_divider.png');
+	const valuesSrc = staticUrl('img/bonus_roulette_v2/wheel_values.webp');
+	const frameSrc = staticUrl('img/bonus_roulette_v2/wheel_base.webp');
+	const highlightSrc = staticUrl('img/bonus_roulette_v2/wheel_segment_highlight.webp');
+	const dividerSrc = staticUrl('img/bonus_roulette_v2/wheel_divider.webp');
 
 	const SEG_ANGLE = 360 / FREE_SPIN_SEGMENTS.length;
 	/** ⚠️ The art and `FREE_SPIN_SEGMENTS` start at DIFFERENT wedges. Both run clockwise in the same
@@ -527,7 +527,7 @@
 				style:--label-scale={LABEL_SCALE}
 				style:--label-offset-x={labelOffsetXPx}
 				style:--label-offset-y={labelOffsetYPx}
-				src={staticUrl('img/free-spin-label.png')}
+				src={staticUrl('img/free-spin-label.webp')}
 				alt="Free spin"
 			/>
 			<div class="free-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>

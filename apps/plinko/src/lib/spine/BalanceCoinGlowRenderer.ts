@@ -7,6 +7,7 @@ import {
 	type BalanceCoinGlowLayerDef,
 	type GlowDepth,
 } from './balanceCoinGlowAsset';
+import { loadSpineAsset } from './spineAssetCache';
 import { readSkeletonData } from './spineSkeletonData';
 
 /** The two boxes the burst is drawn into, straddling the coin img in the DOM. */
@@ -133,11 +134,8 @@ export class BalanceCoinGlowRenderer {
 	}
 
 	private async loadSkeletonData(asset: BalanceCoinGlowLayerDef): Promise<SkeletonData> {
-		const atlasAlias = `${asset.id}-atlas`;
-		const skeletonAlias = `${asset.id}-skeleton`;
-		Assets.add({ alias: atlasAlias, src: asset.atlas, data: { images: asset.images } });
-		Assets.add({ alias: skeletonAlias, src: asset.skeleton });
-		await Assets.load([atlasAlias, skeletonAlias]);
+		// Shared cache — preloaded by the intro loader, and registered with Pixi's resolver exactly once.
+		const { atlasAlias, skeletonAlias } = await loadSpineAsset(asset);
 		const atlas = Assets.get(atlasAlias);
 		const skeletonSource = Assets.get(skeletonAlias);
 		if (!atlas || !skeletonSource) {

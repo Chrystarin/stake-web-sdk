@@ -53,7 +53,7 @@
 	<div class="balance-card" aria-label="Balance">
 		<img
 			class="balance-card-frame"
-			src={staticUrl('img/betting-component-frame.png')}
+			src={staticUrl('img/betting-component-frame.webp')}
 			alt=""
 			aria-hidden="true"
 		/>
@@ -74,7 +74,7 @@
 			<img
 				class="balance-card-coin-img coin-fly-target"
 				data-coin-fly-target="balance"
-				src={staticUrl('img/coin_peg.png')}
+				src={staticUrl('img/coin_peg.webp')}
 				alt=""
 				aria-hidden="true"
 			/>

@@ -604,7 +604,7 @@
 {#snippet bettingFieldFrame()}
 	<img
 		class="bp-field-frame"
-		src={staticUrl('img/betting-component-frame.png')}
+		src={staticUrl('img/betting-component-frame.webp')}
 		alt=""
 		aria-hidden="true"
 	/>
@@ -615,7 +615,7 @@
 {#snippet mobileTopCardFrame()}
 	<img
 		class="bp-field-frame"
-		src={staticUrl('img/betting-component-frame-mobile.png')}
+		src={staticUrl('img/betting-component-frame-mobile.webp')}
 		alt=""
 		aria-hidden="true"
 	/>
@@ -624,13 +624,13 @@
 <!-- The desktop main action button is one round plaque across every state (play / loading / autobet /
      bonus count); only what sits on top of it changes. -->
 {#snippet mainButtonBase()}
-	<img class="bp-btn-play-bg" src={staticUrl('img/main_btn_empty.png')} alt="" aria-hidden="true" />
+	<img class="bp-btn-play-bg" src={staticUrl('img/main_btn_empty.webp')} alt="" aria-hidden="true" />
 {/snippet}
 
 {#snippet mainButtonPlayIcon()}
 	<img
 		class="bp-btn-play-icon"
-		src={staticUrl('img/main_btn_play_icon.png')}
+		src={staticUrl('img/main_btn_play_icon.webp')}
 		alt=""
 		aria-hidden="true"
 	/>
@@ -652,7 +652,7 @@
 					onclick={() => adjustBetAmountStep(-1)}
 				>
 					<img
-						src={staticUrl('img/betting-component-input-decrease.png')}
+						src={staticUrl('img/betting-component-input-decrease.webp')}
 						alt=""
 						aria-hidden="true"
 					/>
@@ -687,7 +687,7 @@
 					onclick={() => adjustBetAmountStep(1)}
 				>
 					<img
-						src={staticUrl('img/betting-component-input-increase.png')}
+						src={staticUrl('img/betting-component-input-increase.webp')}
 						alt=""
 						aria-hidden="true"
 					/>
@@ -753,7 +753,7 @@
 						onclick={() => adjustBetAmountStep(-1)}
 					>
 						<img
-							src={staticUrl('img/betting-component-input-decrease-containerless.png')}
+							src={staticUrl('img/betting-component-input-decrease-containerless.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -772,7 +772,7 @@
 						onclick={() => adjustBetAmountStep(1)}
 					>
 						<img
-							src={staticUrl('img/betting-component-input-increase-containerless.png')}
+							src={staticUrl('img/betting-component-input-increase-containerless.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -792,7 +792,7 @@
 						onclick={() => adjustBallPerDrop(-1)}
 					>
 						<img
-							src={staticUrl('img/betting-component-input-decrease-containerless.png')}
+							src={staticUrl('img/betting-component-input-decrease-containerless.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -811,7 +811,7 @@
 						onclick={() => adjustBallPerDrop(1)}
 					>
 						<img
-							src={staticUrl('img/betting-component-input-increase-containerless.png')}
+							src={staticUrl('img/betting-component-input-increase-containerless.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -833,7 +833,7 @@
 					context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 				}}
 			>
-				<img src={staticUrl('img/fast-game-btn-mobile.png')} alt="" aria-hidden="true" />
+				<img src={staticUrl('img/fast-game-btn-mobile.webp')} alt="" aria-hidden="true" />
 			</button>
 			<!-- The strap art is wrapped WITH the Play button (not dropped straight into the row) so it
 			     is anchored to the button's own box: its socket offset is then a pure function of the
@@ -851,7 +851,7 @@
 				     the CDN subpath. -->
 				<div
 					class="mobile-play-strap"
-					style:--strap-img="url({staticUrl('img/portait_bet_panel_strap.png')})"
+					style:--strap-img="url({staticUrl('img/portait_bet_panel_strap.webp')})"
 					aria-hidden="true"
 				></div>
 				<button
@@ -876,7 +876,7 @@
 					{#if showPlayLoading}
 						<img
 							class="bp-btn-play-spinner"
-							src={staticUrl('img/loading_vector.png')}
+							src={staticUrl('img/loading_vector.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -899,7 +899,7 @@
 					aria-label="Autobet"
 					onclick={onMobileAutoButtonClick}
 				>
-					<img src={staticUrl('img/auto-bet-btn-mobile.png')} alt="" aria-hidden="true" />
+					<img src={staticUrl('img/auto-bet-btn-mobile.webp')} alt="" aria-hidden="true" />
 					{#if (props.autoMode || props.autoPlayStarted) && !autoBetStopping}
 						<span class="mobile-autobet-count-badge">{mobileAutoCountDisplay}</span>
 					{/if}
@@ -923,7 +923,7 @@
 
 		<div class="mobile-bottom-corners">
 			<div class="mobile-corner-info mobile-corner-info--left">
-				<img src={staticUrl('img/coin-ico.png')} alt="" aria-hidden="true" />
+				<img src={staticUrl('img/coin-ico.webp')} alt="" aria-hidden="true" />
 				<span class="mobile-corner-label">{context.i18nDerived.t('Win')}:</span>
 				<span class="mobile-corner-value">{formatWin(displayWinAmount)}</span>
 			</div>
@@ -934,7 +934,7 @@
 				<img
 					class="mobile-balance-wallet coin-fly-target"
 					data-coin-fly-target="balance"
-					src={staticUrl('img/wallet-ico.png')}
+					src={staticUrl('img/wallet-ico.webp')}
 					alt=""
 					aria-hidden="true"
 				/>
@@ -1011,7 +1011,7 @@
 								<span class="bp-btn-auto-ico" aria-hidden="true">
 									<img
 										src={staticUrl(
-											props.autoPlayStarted ? 'img/auto-bet-stop-btn.png' : 'img/auto-bet-btn.png',
+											props.autoPlayStarted ? 'img/auto-bet-stop-btn.webp' : 'img/auto-bet-btn.webp',
 										)}
 										alt=""
 									/>
@@ -1057,7 +1057,7 @@
 								{#if showPlayLoading}
 									<img
 										class="bp-btn-play-spinner"
-										src={staticUrl('img/loading_vector.png')}
+										src={staticUrl('img/loading_vector.webp')}
 										alt=""
 										aria-hidden="true"
 									/>
@@ -1082,7 +1082,7 @@
 								{@render mainButtonBase()}
 								<img
 									class="bp-btn-play-spinner"
-									src={staticUrl('img/loading_vector.png')}
+									src={staticUrl('img/loading_vector.webp')}
 									alt=""
 									aria-hidden="true"
 								/>
@@ -1116,7 +1116,7 @@
 									context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 								}}
 							>
-								<img src={staticUrl('img/fast-game-btn.png')} alt="" aria-hidden="true" />
+								<img src={staticUrl('img/fast-game-btn.webp')} alt="" aria-hidden="true" />
 							</button>
 						</div>
 					</div>
@@ -1140,7 +1140,7 @@
 										onclick={() => adjustBallPerDrop(-1)}
 									>
 										<img
-											src={staticUrl('img/betting-component-input-decrease.png')}
+											src={staticUrl('img/betting-component-input-decrease.webp')}
 											alt=""
 											aria-hidden="true"
 										/>
@@ -1158,7 +1158,7 @@
 										onclick={() => adjustBallPerDrop(1)}
 									>
 										<img
-											src={staticUrl('img/betting-component-input-increase.png')}
+											src={staticUrl('img/betting-component-input-increase.webp')}
 											alt=""
 											aria-hidden="true"
 										/>

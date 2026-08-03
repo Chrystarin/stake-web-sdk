@@ -40,7 +40,7 @@
 		>
 			<img
 				class="cf-frame"
-				src={staticUrl('img/announcement-message-background.png')}
+				src={staticUrl('img/announcement-message-background.webp')}
 				alt=""
 				aria-hidden="true"
 			/>
@@ -56,7 +56,7 @@
 					>
 						<img
 							class="cf-choice-frame"
-							src={staticUrl('img/betting-component-frame-mobile.png')}
+							src={staticUrl('img/betting-component-frame-mobile.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -66,7 +66,7 @@
 					<button type="button" class="cf-choice cf-choice--no" onclick={() => answer(false)}>
 						<img
 							class="cf-choice-frame"
-							src={staticUrl('img/betting-component-frame-mobile.png')}
+							src={staticUrl('img/betting-component-frame-mobile.webp')}
 							alt=""
 							aria-hidden="true"
 						/>

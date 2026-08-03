@@ -18,7 +18,7 @@ export const getGlowNumbersAsset = (): SpineAssetDef => ({
 	skeleton: staticAssetPath(`${SPINE_BASE}/skeleton.json`),
 	atlas: staticAssetPath(`${SPINE_BASE}/skeleton.atlas`),
 	images: {
-		'skeleton.png': staticAssetPath(`${SPINE_BASE}/skeleton.png`),
+		'skeleton.png': staticAssetPath(`${SPINE_BASE}/skeleton.webp`),
 	},
 	animation: 'animation',
 	boundsMode: 'authored',

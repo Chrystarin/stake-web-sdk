@@ -1,5 +1,5 @@
 /**
- * Anchors on the pirate-frame art (`img/game_area_background.png`) — the PNG behind the board that
+ * Anchors on the pirate-frame art (`img/game_area_background.webp`) — the PNG behind the board that
  * carries the skull, the archway and the gold pile.
  *
  * Anything that has to line up with a feature painted into that art measures through here, so the

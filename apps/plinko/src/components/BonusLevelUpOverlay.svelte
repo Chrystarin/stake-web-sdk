@@ -31,7 +31,7 @@
 	>
 		<div
 			class="bonus-level-up-card"
-			style:background-image="url({staticUrl('img/bonus-level-up-base.png')})"
+			style:background-image="url({staticUrl('img/bonus-level-up-base.webp')})"
 		>
 			<!-- Every row is an outlined-glyph sandwich, the same construction the congratulations screens
 			     use (BonusRoulette.svelte): a stroke span carries the rim, a fill span sits on top of it, and

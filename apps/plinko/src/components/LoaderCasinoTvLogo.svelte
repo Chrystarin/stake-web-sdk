@@ -8,9 +8,14 @@
 	import {
 		CASINO_TV_LOGO_BACKDROP,
 		CASINO_TV_LOGO_DURATION_MS,
+		CASINO_TV_LOGO_HOLD_SECONDS,
 		getCasinoTvLogoAsset,
 	} from '../lib/spine/casinoTvLogoAsset';
-	import { preloadCriticalAssets, preloadDeferredAssets } from '../lib/preloadAssets';
+	import {
+		preloadAllGameAssets,
+		preloadPostRevealAssets,
+		watchForUnpreloadedAssets,
+	} from '../lib/preloadAssets';
 	import { stateGame } from '../game/stateGame.svelte';
 
 	/** Fade-out duration of the splash overlay (ms). Kept in sync with the `fade` transition below. */
@@ -64,37 +69,76 @@
 	}
 
 	function finishLoader() {
-		// Reveal the game immediately and start warming the heavy feature art in the background.
+		// Everything in the manifest has settled by here, so the game is revealed fully loaded.
 		loading = false;
 		stateGame.introLoaderComplete = true;
 		props.oncomplete?.();
-		void preloadDeferredAssets();
+		// The only things left outside the blocking pass: the opposite orientation's background files
+		// (see preloadPostRevealAssets), plus a DEV alarm for anything the manifest is missing.
+		void preloadPostRevealAssets();
+		watchForUnpreloadedAssets();
 		// Keep the logo canvas painted through the fade-out, then release it. Fallback timer only —
 		// the onMount cleanup also disposes, so a paused/backgrounded fade can't leak the renderer.
 		setTimeout(disposeRenderer, FADE_OUT_MS + 100);
 	}
 
+	/**
+	 * Resolve once the intro spine's OWN track has reached `seconds`, not once that much wall-clock has
+	 * passed. The two diverge by design: `catchUpMinFps` clamps how far a stalled frame may advance, so
+	 * a busy preload makes the animation lag real time rather than skip — and a wall-clock wait would
+	 * then dismiss the splash mid-fade.
+	 *
+	 * Polled on a timer rather than `requestAnimationFrame`: rAF is frozen in a backgrounded tab, which
+	 * is exactly the case `startHiddenDriver` exists to keep animating, so a rAF poll would strand the
+	 * splash there forever. Resolves immediately if the renderer is gone, so teardown can't hang it.
+	 */
+	function waitForAnimationTime(seconds: number): Promise<void> {
+		return new Promise((resolve) => {
+			const timer = setInterval(() => {
+				if (!disposed && (renderer?.getAnimationTime() ?? Number.POSITIVE_INFINITY) < seconds) {
+					return;
+				}
+				clearInterval(timer);
+				resolve();
+			}, 50);
+		});
+	}
+
 	onMount(() => {
 		renderer = new SpineBackgroundRenderer(host);
 
-		// The first-view image/font preload is kicked off only AFTER the intro spine has loaded + started
-		// rendering — not at mount — so its ~50 parallel image requests + decodes don't compete with the
-		// spine's own atlas download/upload during the opening frames (which was skipping the animation).
-		// Heavy feature art is loaded later still (finishLoader → preloadDeferredAssets). Both always
-		// resolve (failures swallowed + timeout cap), so neither can trap the player on the splash.
+		// The asset preload is kicked off only AFTER the intro spine has loaded + started rendering —
+		// not at mount — so its parallel requests + decodes don't compete with the spine's own atlas
+		// download/upload during the opening frames (which was skipping the animation). It always
+		// resolves (failures swallowed + timeout cap), so it can't trap the player on the splash.
 		let preloadPromise: Promise<void> | undefined;
-		const startPreload = () => (preloadPromise ??= preloadCriticalAssets());
+		const startPreload = () => (preloadPromise ??= preloadAllGameAssets());
 
 		void renderer
 			.init(getCasinoTvLogoAsset())
 			.then(async () => {
 				startHiddenDriver();
-				// Let the logo paint a couple of clean opening frames, then begin the first-view preload.
+				// Let the logo paint a couple of clean opening frames, then begin the preload.
 				await waitForTimeout(250);
 				const preload = startPreload();
-				// Hold the splash until BOTH the logo has played its minimum duration AND the first-view
-				// assets have finished preloading — whichever takes longer.
-				await Promise.all([waitForTimeout(CASINO_TV_LOGO_DURATION_MS - 250), preload]);
+				let preloadSettled = false;
+				void preload.then(() => {
+					preloadSettled = true;
+				});
+
+				// Play the reveal, then — if the assets aren't in yet — FREEZE on the fully-lit logo
+				// rather than letting it dissolve into an empty screen while the player waits.
+				await waitForAnimationTime(CASINO_TV_LOGO_HOLD_SECONDS);
+				if (disposed) return;
+				if (!preloadSettled) {
+					renderer?.setAnimationPaused(true);
+					await preload;
+					if (disposed) return;
+					renderer?.setAnimationPaused(false);
+				}
+
+				// Assets are in: let the fade-out play out in full, then reveal the game.
+				await waitForAnimationTime(CASINO_TV_LOGO_DURATION_MS / 1000);
 				if (disposed) return;
 				finishLoader();
 			})

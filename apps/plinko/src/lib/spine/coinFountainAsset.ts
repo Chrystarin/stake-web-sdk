@@ -20,7 +20,7 @@ const coinAsset = (id: string, folder: string): SpineAssetDef => ({
 	skeleton: staticAssetPath(`spine/${folder}/skeleton.json`),
 	atlas: staticAssetPath(`spine/${folder}/skeleton.atlas`),
 	images: {
-		'skeleton.png': staticAssetPath(`spine/${folder}/skeleton.png`),
+		'skeleton.png': staticAssetPath(`spine/${folder}/skeleton.webp`),
 	},
 	animation: 'horizon',
 	boundsMode: 'authored',

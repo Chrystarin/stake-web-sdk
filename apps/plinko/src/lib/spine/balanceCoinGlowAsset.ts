@@ -53,8 +53,8 @@ const SPARKLE_STAR_BONES = ['sparkle', 'sparkle2'] as const;
 
 /**
  * Balance-coin glow — the light burst around the coin in the BalanceCard, shown only while win coins
- * are merging into it (see CoinFountain's per-arrival gating). Replaces the old static
- * `img/balance_coin_light.png`.
+ * are merging into it (see CoinFountain's per-arrival gating). Replaces the static
+ * `balance_coin_light` image it used to draw (since deleted along with the rest of the unused art).
  *
  * `glow` and `sparkle` are the SAME RIG exported twice with different attachment subsets — identical
  * bones and identical animation timelines, so they stay in step by construction. `glow` attaches its
@@ -73,7 +73,7 @@ const glowAsset = (id: string, folder: string): SpineAssetDef => ({
 	skeleton: staticAssetPath(`spine/${folder}/skeleton.json`),
 	atlas: staticAssetPath(`spine/${folder}/skeleton.atlas`),
 	images: {
-		'skeleton.png': staticAssetPath(`spine/${folder}/skeleton.png`),
+		'skeleton.png': staticAssetPath(`spine/${folder}/skeleton.webp`),
 	},
 	animation: 'animation',
 	boundsMode: 'authored',

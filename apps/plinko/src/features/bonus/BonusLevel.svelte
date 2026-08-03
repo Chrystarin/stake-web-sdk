@@ -14,10 +14,10 @@
 		(props.levelLabels ?? BONUS_LEVEL_LABELS).slice(0, 9).map((v) => String(v)),
 	);
 
-const LEVEL_BAR_URLS = Array.from({ length: 9 }, (_, i) => staticUrl(`img/bonus-bar-level-${i + 1}.png`));
+const LEVEL_BAR_URLS = Array.from({ length: 9 }, (_, i) => staticUrl(`img/bonus-bar-level-${i + 1}.webp`));
 const ACTIVE_LEVEL_BAR_URLS = Array.from(
 	{ length: 9 },
-	(_, i) => staticUrl(`img/bonus-bar-level-active-${i + 1}.png`),
+	(_, i) => staticUrl(`img/bonus-bar-level-active-${i + 1}.webp`),
 );
 </script>
 
@@ -34,11 +34,11 @@ const ACTIVE_LEVEL_BAR_URLS = Array.from(
 	{/each}
 	<img
 		class="bonus-level-base-bg"
-		src={staticUrl('img/bonus-level-base-background.png')}
+		src={staticUrl('img/bonus-level-base-background.webp')}
 		alt=""
 		aria-hidden="true"
 	/>
-	<img class="bonus-level-base" src={staticUrl('img/bonus-level-base.png')} alt="" aria-hidden="true" />
+	<img class="bonus-level-base" src={staticUrl('img/bonus-level-base.webp')} alt="" aria-hidden="true" />
 </div>
 
 <style>

@@ -9,6 +9,7 @@ import {
 import { slotColorForMultiplier } from '../game-logic/slotColors';
 import { formatCoefficientLabel, isMobile } from '../lib/format';
 import { getGlowNumbersAsset } from '../lib/spine/glowNumbersAsset';
+import { loadSpineAsset } from '../lib/spine/spineAssetCache';
 import { readSkeletonData } from '../lib/spine/spineSkeletonData';
 import { staticUrl } from '../lib/staticUrl';
 
@@ -222,15 +223,13 @@ export class PlinkoEngine {
   ] as const;
   /** Hide the spine's baked glyphs (keep the animated glow cards) so the real number reads cleanly. */
   private static readonly HIDE_GLOW_BAKED_NUMBERS = true;
-  /** Guards the global `Assets` alias registration so remounts don't re-add (and warn). */
-  private static glowAssetsRegistered = false;
   /** Authored card width (px) used to derive a UNIFORM display scale (keeps the authored aspect). */
   private static readonly GLOW_REF_CARD_WIDTH = 82;
   /** Card width as a fraction of slot width — ~1 packs the glow cards edge-to-edge (tiny gaps). */
   private static readonly GLOW_WIDTH_FILL = 1.02;
   private static readonly GLOW_Y_OFFSET_RATIO = 0.52;
 
-  /** Multiplier-label IMAGES (`img/multiplier_slot_text_<label>.png`) keyed by the slot's label. */
+  /** Multiplier-label IMAGES (`img/multiplier_slot_text_<label>.webp`) keyed by the slot's label. */
   private readonly multiplierTextTextures: Partial<Record<string, Sprite['texture']>> = {};
   /** Image-based slot labels (parallel to `slotLabels`); a slot uses the sprite OR the text, not both. */
   private slotLabelSprites: (Sprite | undefined)[] = [];
@@ -901,10 +900,10 @@ export class PlinkoEngine {
       };
       const [ballTex, coinPegTex, spinTex, ...tierTex] = await Promise.all([
         loadOptional(staticUrl('img/ball.svg')),
-        loadOptional(staticUrl('img/coin_peg.png')),
-        loadOptional(staticUrl('img/multiplier_slot_spin.png')),
+        loadOptional(staticUrl('img/coin_peg.webp')),
+        loadOptional(staticUrl('img/multiplier_slot_spin.webp')),
         ...([1, 2, 3, 4, 5, 6, 7] as const).map((tier) =>
-          loadOptional(staticUrl(`img/multiplier_slot_${tier}.png`))
+          loadOptional(staticUrl(`img/multiplier_slot_${tier}.webp`))
         )
       ]);
       this.ballTexture = ballTex;
@@ -917,7 +916,7 @@ export class PlinkoEngine {
 
       const textLabels = PlinkoEngine.MULTIPLIER_TEXT_LABELS;
       const textTex = await Promise.all(
-        textLabels.map((label) => loadOptional(staticUrl(`img/multiplier_slot_text_${label}.png`)))
+        textLabels.map((label) => loadOptional(staticUrl(`img/multiplier_slot_text_${label}.webp`)))
       );
       textLabels.forEach((label, i) => {
         if (textTex[i]) this.multiplierTextTextures[label] = textTex[i];
@@ -1285,16 +1284,10 @@ export class PlinkoEngine {
   private async loadGlowSpine(): Promise<void> {
     try {
       const asset = getGlowNumbersAsset();
-      const atlasAlias = `${asset.id}-atlas`;
-      const skeletonAlias = `${asset.id}-skeleton`;
-      // `Assets` is a global singleton; register the aliases only once across engine remounts
-      // (re-adding the same key logs a Pixi resolver "overwriting" warning).
-      if (!PlinkoEngine.glowAssetsRegistered) {
-        Assets.add({ alias: atlasAlias, src: asset.atlas, data: { images: asset.images } });
-        Assets.add({ alias: skeletonAlias, src: asset.skeleton });
-        PlinkoEngine.glowAssetsRegistered = true;
-      }
-      await Assets.load([atlasAlias, skeletonAlias]);
+      // `Assets` is a global singleton; the shared spine cache registers each alias only once across
+      // engine remounts (re-adding the same key logs a Pixi resolver "overwriting" warning) and hits
+      // the entry the intro loader already preloaded, so this resolves without a fetch.
+      const { atlasAlias, skeletonAlias } = await loadSpineAsset(asset);
 
       const atlas = Assets.get(atlasAlias);
       const skeletonSource = Assets.get(skeletonAlias);
