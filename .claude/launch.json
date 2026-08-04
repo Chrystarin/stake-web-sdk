@@ -35,6 +35,22 @@
       "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3017", "--strictPort"],
       "port": 3017,
       "autoPort": false
+    },
+    {
+      "name": "plinko-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "plinko",
+        "exec",
+        "vite",
+        "preview",
+        "--port",
+        "3019",
+        "--strictPort"
+      ],
+      "port": 3019,
+      "autoPort": false
     }
   ]
 }

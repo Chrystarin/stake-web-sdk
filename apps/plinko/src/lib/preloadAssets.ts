@@ -422,6 +422,42 @@ function coveredUrls(): Set<string> {
 	return new Set(paths.map(absolute));
 }
 
+/**
+ * What the preload actually did, readable from a PRODUCTION console via `window.plinkoPreloadReport()`.
+ *
+ * On Stake there is otherwise no signal at all: the drift alarm below is DEV-only, so a player
+ * reporting "art loads when the screen opens" leaves nothing to inspect. The two failures that produce
+ * that symptom are distinguishable here and nowhere else — `cappedOut` means the splash gave up and
+ * revealed a part-loaded game, whereas `lateAssets` with non-zero `transferSize` means something is
+ * being fetched at display time that the manifest never covered.
+ */
+type PreloadReport = {
+	total: number;
+	settled: number;
+	startedAt: number;
+	elapsedMs: number;
+	/** True if the splash revealed the game before the manifest finished. */
+	cappedOut: boolean;
+	revealedAt: number;
+	/** Assets the browser fetched AFTER reveal. `transferSize: 0` is a cache hit and is harmless. */
+	lateAssets: { url: string; transferSize: number; durationMs: number }[];
+};
+
+const report: PreloadReport = {
+	total: 0,
+	settled: 0,
+	startedAt: 0,
+	elapsedMs: 0,
+	cappedOut: false,
+	revealedAt: 0,
+	lateAssets: [],
+};
+
+/** Snapshot of {@link report}. Exposed as `window.plinkoPreloadReport()` once the splash has gone. */
+export function getPreloadReport(): PreloadReport {
+	return { ...report, lateAssets: [...report.lateAssets] };
+}
+
 export type PreloadOptions = {
 	/**
 	 * Hard cap (ms) so a hung asset or a dead connection can never trap the player on the splash. This
@@ -475,10 +511,13 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		// Audio is deliberately absent — see AUDIO_PATHS. It is warmed after reveal instead.
 	];
 
-	// Counted only so the timeout warning below can say how far it got — the splash shows no progress,
-	// it holds the intro logo on its fully-lit frame instead (see CASINO_TV_LOGO_HOLD_SECONDS).
+	// Counted for the timeout warning and for {@link getPreloadReport} — the splash itself shows no
+	// progress, it holds the intro logo on its fully-lit frame (see CASINO_TV_LOGO_HOLD_SECONDS).
 	let loaded = 0;
 	const total = tasks.length;
+	const startedAt = performance.now();
+	report.total = total;
+	report.startedAt = startedAt;
 	const settled = tasks.map((task) =>
 		Promise.resolve()
 			.then(task)
@@ -494,6 +533,7 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 	let timeoutId: number | undefined;
 	const timeout = new Promise<void>((resolve) => {
 		timeoutId = window.setTimeout(() => {
+			report.cappedOut = true;
 			console.warn(
 				`[plinko] asset preload hit its ${timeoutMs} ms cap at ${loaded}/${total}; revealing anyway`,
 			);
@@ -501,7 +541,11 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		}, timeoutMs);
 	});
 
-	return Promise.race([work, timeout]).finally(() => window.clearTimeout(timeoutId));
+	return Promise.race([work, timeout]).finally(() => {
+		window.clearTimeout(timeoutId);
+		report.settled = loaded;
+		report.elapsedMs = Math.round(performance.now() - startedAt);
+	});
 }
 
 /**
@@ -532,17 +576,25 @@ export function preloadPostRevealAssets(): Promise<void> {
 }
 
 /**
- * DEV-ONLY drift alarm. The manifest is hand-maintained, and the whole point of this module is that it
- * is COMPLETE — but nothing stops a new component from referencing art nobody added here, which is how
- * the previous critical/deferred split ended up missing the 1-ball slot labels, the moon and every
- * spine skeleton.
+ * Drift alarm + production black box. The manifest is hand-maintained, and the whole point of this
+ * module is that it is COMPLETE — but nothing stops a new component from referencing art nobody added
+ * here, which is how the previous critical/deferred split ended up missing the 1-ball slot labels, the
+ * moon and every spine skeleton.
  *
  * So: once the splash is gone, watch resource timings for anything under `img/`, `sound/`, `spine/` or
- * `fonts/` that is not covered above and warn with the path to add. Silent in production.
+ * `fonts/` and record it on {@link report}. In DEV, anything not in the manifest also warns with the
+ * path to add.
+ *
+ * The RECORDING half runs in production too, and `window.plinkoPreloadReport()` is published here.
+ * Without it a live "assets load when the screen opens" report is unfalsifiable — every candidate cause
+ * looks identical from the outside. Recording is a handful of resource entries and no console noise.
  */
 export function watchForUnpreloadedAssets(): void {
-	if (!import.meta.env.DEV) return;
 	if (typeof PerformanceObserver === 'undefined') return;
+
+	report.revealedAt = performance.now();
+	(window as unknown as { plinkoPreloadReport?: () => PreloadReport }).plinkoPreloadReport =
+		getPreloadReport;
 
 	const covered = coveredUrls();
 	// `fonts/` is watched too, but the faces are requested by family via `document.fonts.load` during
@@ -554,12 +606,42 @@ export function watchForUnpreloadedAssets(): void {
 		for (const entry of list.getEntries()) {
 			const url = entry.name.split('?')[0];
 			if (!watched.some((prefix) => url.startsWith(prefix))) continue;
-			if (covered.has(url) || reported.has(url)) continue;
+			if (reported.has(url)) continue;
 			reported.add(url);
-			console.warn(
-				`[plinko] asset loaded on demand (add it to the manifest in lib/preloadAssets.ts): ${url}`,
-			);
+
+			// Recorded in every build. A `transferSize` of 0 is a cache/memory hit and costs nothing;
+			// a non-zero one means this was genuinely pulled off the wire while the player waited.
+			const timing = entry as PerformanceResourceTiming;
+			if (report.lateAssets.length < 200) {
+				report.lateAssets.push({
+					url,
+					transferSize: timing.transferSize ?? 0,
+					durationMs: Math.round(timing.duration),
+				});
+			}
+
+			if (import.meta.env.DEV && !covered.has(url)) {
+				console.warn(
+					`[plinko] asset loaded on demand (add it to the manifest in lib/preloadAssets.ts): ${url}`,
+				);
+			}
 		}
 	});
 	observer.observe({ type: 'resource', buffered: false });
+
+	// Self-report, in every build. Nothing is logged when the preload did its job, so a healthy session
+	// stays silent; when it did not, the one line below says which of the two failures happened without
+	// anyone needing to know `plinkoPreloadReport` exists. 8 s is long enough for the first screens to
+	// have been reached but short enough that the player is still in the session that produced it.
+	window.setTimeout(() => {
+		const paid = report.lateAssets.filter((a) => a.transferSize > 0);
+		if (!report.cappedOut && paid.length === 0) return;
+		const kb = Math.round(paid.reduce((sum, a) => sum + a.transferSize, 0) / 1024);
+		console.warn(
+			`[plinko] preload did not cover the session: settled ${report.settled}/${report.total} in ` +
+				`${report.elapsedMs} ms${report.cappedOut ? ' (HIT THE CAP — game revealed part-loaded)' : ''}; ` +
+				`${paid.length} asset(s) fetched from the network after reveal (${kb} KB). ` +
+				`Run window.plinkoPreloadReport() for the list.`,
+		);
+	}, 8_000);
 }
