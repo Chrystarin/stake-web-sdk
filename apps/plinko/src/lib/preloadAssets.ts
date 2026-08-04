@@ -62,7 +62,6 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 
 	// ── Betting panel (desktop + mobile) — always visible ────────────────────────────────────────
 	'img/betting-component-frame.webp',
-	// Mobile field frame; also the Yes/No plate in ConfirmPromptModal (both layouts).
 	'img/betting-component-frame-mobile.webp',
 	'img/betting-component-input-decrease.webp',
 	'img/betting-component-input-increase.webp',
@@ -95,7 +94,15 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/close_btn.webp',
 
 	// ── Confirmation prompt (reachable from the player's very first interaction: arming Autobet,
-	//    opening Buy Bonus, or raising the stake to a high bet) ─────────────────────────────────
+	//    opening Buy Bonus, or raising the stake to a high bet). One frame + two plates per
+	//    variant — see ConfirmPromptModal's LAYOUT block ────────────────────────────────────────
+	...['high_bet', 'autobet', 'bonus_buy'].flatMap((variant) => [
+		`img/confirmation_popup/${variant}_container.webp`,
+		`img/confirmation_popup/${variant}_yes_container.webp`,
+		`img/confirmation_popup/${variant}_no_container.webp`,
+	]),
+
+	// ── Bonus/free-spin congratulations banner ───────────────────────────────────────────────────
 	'img/announcement-message-background.webp',
 	'img/announcement-message-background-mobile.webp',
 

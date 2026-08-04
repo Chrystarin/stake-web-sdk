@@ -3,13 +3,126 @@
 		answerConfirmPrompt,
 		CONFIRM_PROMPT_TITLES,
 		confirmPrompt,
+		type ConfirmPromptKind,
 	} from '../game/confirmPrompt.svelte';
 	import { getContext } from '../game/context';
 	import { staticUrl } from '../lib/staticUrl';
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════════
+	 * LAYOUT KNOBS — tune each prompt's art here. Nothing below this block needs editing.
+	 *
+	 * UNITS (this is the whole trick — read once and every number makes sense):
+	 *   • `panel.maxWidthPx` / `panel.widthVw` size the panel against the VIEWPORT: it renders at
+	 *     `min(maxWidthPx, widthVw vw)`. Its height follows from the art's own aspect ratio.
+	 *   • EVERY other number is a percentage of the PANEL, so the whole prompt scales as one piece:
+	 *       – `x`      → % of panel WIDTH  (0 = left edge, 50 = centre, 100 = right edge)
+	 *       – `y`      → % of panel HEIGHT (0 = top edge,  50 = centre, 100 = bottom edge)
+	 *       – `width`  → % of panel WIDTH
+	 *       – `size`   → % of panel WIDTH (font sizes — width-based so type never jumps when a
+	 *                    variant's art has a different aspect ratio)
+	 *       – `scale`  → plain multiplier applied on top, 1 = as specified above
+	 *   • `x`/`y` are the element's CENTRE, not its top-left. So `x: 50, y: 50` is dead centre of the
+	 *     panel whatever the element's size — move it without having to re-derive an offset.
+	 *
+	 * The art files carry a soft outer glow that runs to the edge of their canvas, so each `aspect`
+	 * below is the FULL canvas ratio (not the visible plate). Leave those alone unless the art is
+	 * re-exported; they exist so the frame is never stretched.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+	type PromptLayout = {
+		/** Art file basenames inside `static/img/confirmation_popup/`. */
+		art: { panel: string; yes: string; no: string };
+		/** Full-canvas aspect ratios of that art — width / height. */
+		aspect: { panel: number; button: number };
+		panel: {
+			/** Hard ceiling so the prompt can't grow without bound on an ultra-wide monitor. */
+			maxWidthPx: number;
+			widthVw: number;
+			scale: number;
+			/** Nudge the whole prompt off centre. % of panel width / height. */
+			offsetX: number;
+			offsetY: number;
+		};
+		/** Portrait override — `widthVw` alone would leave the prompt tiny on a phone. */
+		portrait: { widthVw: number; offsetY: number };
+		/**
+		 * The "Start …?" headline. `shadowX` / `shadowY` / `shadowBlur` are the drop shadow beneath it,
+		 * in `em` of the title's own font size so the shadow scales with the panel instead of staying a
+		 * fixed px. It is drawn TWICE (see `.cf-title`), which is what gives it a dense core rather than
+		 * the washed-out ramp a single blurred shadow produces.
+		 */
+		title: {
+			x: number;
+			y: number;
+			size: number;
+			scale: number;
+			shadowX: number;
+			shadowY: number;
+			shadowBlur: number;
+		};
+		/** The two choice plates. Give them different `y` values to stagger them. */
+		yes: { x: number; y: number; width: number; scale: number };
+		no: { x: number; y: number; width: number; scale: number };
+		/** YES / NO wording drawn on top of the plates. `stroke` is the dark glyph edge. */
+		label: { size: number; offsetX: number; offsetY: number; stroke: number };
+	};
+
+	const LAYOUT: Record<ConfirmPromptKind, PromptLayout> = {
+		highBet: {
+			art: {
+				panel: 'high_bet_container.webp',
+				yes: 'high_bet_yes_container.webp',
+				no: 'high_bet_no_container.webp',
+			},
+			aspect: { panel: 4700 / 3205, button: 1501 / 821 },
+			panel: { maxWidthPx: 1600, widthVw: 65, scale: 0.95, offsetX: 0, offsetY: -10 },
+			portrait: { widthVw: 92, offsetY: -6 },
+			title: { x: 50, y: 36, size: 8.1, scale: 1.05, shadowX: 0, shadowY: 0.08, shadowBlur: 0.035 },
+			yes: { x: 33, y: 63, width: 31, scale: 1 },
+			no: { x: 67, y: 63, width: 31, scale: 1 },
+			label: { size: 6.4, offsetX: 0, offsetY: -0.31, stroke: 0.2 },
+		},
+		autobet: {
+			art: {
+				panel: 'autobet_container.webp',
+				yes: 'autobet_yes_container.webp',
+				no: 'autobet_no_container.webp',
+			},
+			aspect: { panel: 5167 / 2897, button: 1568 / 569 },
+			panel: { maxWidthPx: 1600, widthVw: 69, scale: .95, offsetX: 0, offsetY: -13 },
+			portrait: { widthVw: 94, offsetY: -6 },
+			title: { x: 50, y: 38, size: 8.2, scale: 1.1, shadowX: 0, shadowY: 0.08, shadowBlur: 0.035 },
+			// Plates sit roughly midway between the headline and the bottom rope — this board is the
+			// shortest of the three, so leaving them tucked under the title stranded a wide run of
+			// empty plank below them.
+			yes: { x: 33, y: 64, width: 27.5, scale: 1.05 },
+			no: { x: 67, y: 64, width: 27.5, scale: 1.05 },
+			label: { size: 5.6, offsetX: 0, offsetY: -0.27, stroke: 0.17 },
+		},
+		buyBonus: {
+			art: {
+				panel: 'bonus_buy_container.webp',
+				yes: 'bonus_buy_yes_container.webp',
+				no: 'bonus_buy_no_container.webp',
+			},
+			aspect: { panel: 5280 / 3666, button: 1497 / 819 },
+			panel: { maxWidthPx: 1600, widthVw: 71, scale: 1, offsetX: 0, offsetY: -10 },
+			portrait: { widthVw: 92, offsetY: -6 },
+			// The skull arch eats the top of this board and the coin piles eat the bottom corners, so
+			// the headline sits lower here than on the other two and the plates are narrower.
+			title: { x: 50, y: 44, size: 7.4, scale: 1, shadowX: 0, shadowY: 0.08, shadowBlur: 0.035 },
+			yes: { x: 35, y: 66.5, width: 24, scale: 1.1 },
+			no: { x: 65, y: 66.5, width: 24, scale: 1.1 },
+			label: { size: 5.2, offsetX: 0, offsetY: -0.8, stroke: 0.2 },
+		},
+	};
+
 	const context = getContext();
 
-	const title = $derived(confirmPrompt.kind ? CONFIRM_PROMPT_TITLES[confirmPrompt.kind] : '');
+	const kind = $derived(confirmPrompt.kind);
+	const layout = $derived(kind ? LAYOUT[kind] : null);
+	const title = $derived(kind ? CONFIRM_PROMPT_TITLES[kind] : '');
+
+	const artUrl = (file: string) => staticUrl(`img/confirmation_popup/${file}`);
 
 	function answer(confirmed: boolean) {
 		// Same click SFX as the bet-panel steppers / buy-bonus modal.
@@ -28,7 +141,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-{#if confirmPrompt.kind}
+{#if kind && layout}
 	<!-- Clicking the backdrop is a cancel — same outcome as "No", never a silent commit. -->
 	<div class="cf-backdrop" role="presentation" onclick={() => answer(false)}>
 		<div
@@ -37,43 +150,60 @@
 			aria-modal="true"
 			aria-label={title}
 			onclick={(event) => event.stopPropagation()}
+			style:--panel-max-w="{layout.panel.maxWidthPx}px"
+			style:--panel-vw="{layout.panel.widthVw}vw"
+			style:--panel-vw-p="{layout.portrait.widthVw}vw"
+			style:--panel-aspect={layout.aspect.panel}
+			style:--panel-scale={layout.panel.scale}
+			style:--panel-dx="{layout.panel.offsetX}%"
+			style:--panel-dy="{layout.panel.offsetY}%"
+			style:--panel-dy-p="{layout.portrait.offsetY}%"
+			style:--btn-aspect={layout.aspect.button}
+			style:--label-size="{layout.label.size}cqw"
+			style:--label-dx="{layout.label.offsetX}cqw"
+			style:--label-dy="{layout.label.offsetY}cqw"
+			style:--label-stroke="{layout.label.stroke}cqw"
 		>
-			<img
-				class="cf-frame"
-				src={staticUrl('img/announcement-message-background.webp')}
-				alt=""
-				aria-hidden="true"
-			/>
+			<img class="cf-frame" src={artUrl(layout.art.panel)} alt="" aria-hidden="true" />
 
-			<div class="cf-inner">
-				<h2 class="cf-title">{title}</h2>
+			<h2
+				class="cf-title"
+				style:--x="{layout.title.x}%"
+				style:--y="{layout.title.y}%"
+				style:--scale={layout.title.scale}
+				style:--shadow-x="{layout.title.shadowX}em"
+				style:--shadow-y="{layout.title.shadowY}em"
+				style:--shadow-blur="{layout.title.shadowBlur}em"
+				style:font-size="{layout.title.size}cqw"
+			>
+				{title}
+			</h2>
 
-				<div class="cf-choices">
-					<button
-						type="button"
-						class="cf-choice cf-choice--yes"
-						onclick={() => answer(true)}
-					>
-						<img
-							class="cf-choice-frame"
-							src={staticUrl('img/betting-component-frame-mobile.webp')}
-							alt=""
-							aria-hidden="true"
-						/>
-						<span class="cf-choice-text">Yes</span>
-					</button>
+			<button
+				type="button"
+				class="cf-choice cf-choice--yes"
+				style:--x="{layout.yes.x}%"
+				style:--y="{layout.yes.y}%"
+				style:--w="{layout.yes.width}cqw"
+				style:--scale={layout.yes.scale}
+				onclick={() => answer(true)}
+			>
+				<img class="cf-choice-frame" src={artUrl(layout.art.yes)} alt="" aria-hidden="true" />
+				<span class="cf-choice-text">Yes</span>
+			</button>
 
-					<button type="button" class="cf-choice cf-choice--no" onclick={() => answer(false)}>
-						<img
-							class="cf-choice-frame"
-							src={staticUrl('img/betting-component-frame-mobile.webp')}
-							alt=""
-							aria-hidden="true"
-						/>
-						<span class="cf-choice-text">No</span>
-					</button>
-				</div>
-			</div>
+			<button
+				type="button"
+				class="cf-choice cf-choice--no"
+				style:--x="{layout.no.x}%"
+				style:--y="{layout.no.y}%"
+				style:--w="{layout.no.width}cqw"
+				style:--scale={layout.no.scale}
+				onclick={() => answer(false)}
+			>
+				<img class="cf-choice-frame" src={artUrl(layout.art.no)} alt="" aria-hidden="true" />
+				<span class="cf-choice-text">No</span>
+			</button>
 		</div>
 	</div>
 {/if}
@@ -90,32 +220,39 @@
 		align-items: center;
 		justify-content: center;
 		background: rgba(0, 0, 0, 0.72);
-		padding: 4vh 4vw;
+		/* No padding: the panel is sized and placed purely by its own knobs, and the art's built-in
+		   transparent glow margin already keeps the visible frame off the screen edges. */
+		padding: 0;
 	}
 
 	.cf-panel {
 		position: relative;
-		/* Both the frame art and every type size below are proportional to THIS width, so the panel
-		   scales as one piece: `min(720px, 86vw)` capped, and each `clamp(px, vw, px)` pair below is the
-		   same percentage expressed against each of those two terms.
-		   The px term is in --ui-px so it shrinks with the viewport below the 1024×576 reference. Without
-		   it the 86vw term takes over on a 400×225 popout and the prompt covers 86% of the frame instead
-		   of the 70% (720/1024) it occupies at the reference. */
-		width: min(calc(720 * var(--ui-px)), 86vw);
-		/* announcement-message-background.png is 1919×1080 — draw it at its true ratio, never stretched. */
-		aspect-ratio: 1919 / 1080;
-		display: flex;
+		width: min(var(--panel-max-w), var(--panel-vw));
+		aspect-ratio: var(--panel-aspect);
+		/* THE unit that makes every knob above work: 1cqw = 1% of THIS box's width, so each child's
+		   size and position is a plain percentage of the panel and the whole prompt scales together. */
+		container-type: inline-size;
+		transform: translate(var(--panel-dx), var(--panel-dy)) scale(var(--panel-scale));
 		animation: cf-pop 0.16s ease-out;
+	}
+
+	/* Portrait swaps in the `portrait` knobs. Reassigning `--panel-dy` itself (rather than adding a
+	   second transform) keeps the keyframes below working off one variable. */
+	@media (orientation: portrait) {
+		.cf-panel {
+			width: min(var(--panel-max-w), var(--panel-vw-p));
+			--panel-dy: var(--panel-dy-p);
+		}
 	}
 
 	@keyframes cf-pop {
 		from {
 			opacity: 0;
-			transform: scale(0.94);
+			transform: translate(var(--panel-dx), var(--panel-dy)) scale(calc(var(--panel-scale) * 0.94));
 		}
 		to {
 			opacity: 1;
-			transform: scale(1);
+			transform: translate(var(--panel-dx), var(--panel-dy)) scale(var(--panel-scale));
 		}
 	}
 
@@ -124,66 +261,56 @@
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		object-fit: fill;
+		/* `contain`, not `fill`: the aspect-ratio above already matches the art, so this only ever
+		   guards against a re-export with a slightly different ratio — it letterboxes instead of
+		   distorting the frame. */
+		object-fit: contain;
 		pointer-events: none;
 		user-select: none;
 	}
 
-	.cf-inner {
-		position: relative;
-		z-index: 1;
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		/* Headline sits in the upper third, choices ride the bottom — matching the reference layout. */
-		justify-content: space-between;
-		/* Insets keep the content clear of the frame art's carved wooden border.
-		   ⚠️ Percentage padding resolves against the panel's WIDTH on every side, vertical included — so
-		   at the panel's 1919:1080 ratio these top/bottom values are ~1.78× what they read as. */
-		padding: 10% 9% 12%;
-		box-sizing: border-box;
+	/* `--x` / `--y` are the element's CENTRE within the panel, hence the -50% pre-translate. */
+	.cf-title,
+	.cf-choice {
+		position: absolute;
+		left: var(--x);
+		top: var(--y);
+		transform: translate(-50%, -50%) scale(var(--scale));
 	}
 
 	.cf-title {
 		margin: 0;
+		width: 100%;
 		font-family: 'PiecesOfEight', serif;
 		font-weight: 400;
-		/* 11% of the panel width, written against both terms of the panel's own `min()` (720px / 86vw)
-		   so the headline keeps its proportion at every size instead of drifting once the panel caps.
-		   Both px bounds are in --ui-px, matching the panel — otherwise the 22px floor binds on a
-		   400×225 popout and the headline outgrows the plaque it sits on. */
-		font-size: clamp(calc(22 * var(--ui-px)), 9.4vw, calc(79 * var(--ui-px)));
+		/* font-size is set inline from `title.size` (in cqw). */
 		line-height: 1;
 		text-align: center;
+		text-transform: uppercase;
 		letter-spacing: 0.02em;
-		/* PiecesOfEight ships a very wide space glyph, so "Start Autobet?" reads as a double space at
+		/* PiecesOfEight ships a very wide space glyph, so "START AUTOBET?" reads as a double space at
 		   this size. Pull the word gap back to a single-space rhythm. */
 		word-spacing: -0.14em;
-		/* Gold gradient clipped to the glyphs, matching the bonus congratulations headline. */
-		background-image: linear-gradient(180deg, #fad04a 0%, #f0b82e 56.7%, #de951a 100%);
+		/* Gold gradient clipped to the glyphs. */
+		background-image: linear-gradient(180deg, #f5b936 0%, #ebad26 56.7%, #d18a16 81.67%);
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		color: transparent;
-		/* drop-shadow, NOT text-shadow: with background-clip:text the gradient paints in the background
-		   layer, so a text-shadow would land ON TOP of it. */
-		filter: drop-shadow(0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.8))
-			drop-shadow(0 0 calc(14 * var(--ui-px)) rgba(246, 168, 32, 0.5));
-	}
-
-	.cf-choices {
-		display: flex;
-		justify-content: center;
-		gap: 9%;
-		width: 100%;
+		/* ⚠️ The shadow MUST be a filter, not the `text-shadow` the spec was written as: under
+		   `background-clip: text` the gradient paints in the element's BACKGROUND layer while a
+		   text-shadow paints in the TEXT layer — i.e. in front — so a literal text-shadow would smear
+		   black over the gold instead of falling behind it. drop-shadow composites behind the rendered
+		   glyphs, which is what "shadow beneath the title" actually means.
+		   Offsets are `em`, so the shadow scales with the headline instead of being pinned to px. */
+		filter: drop-shadow(var(--shadow-x) var(--shadow-y) var(--shadow-blur) #000000)
+			drop-shadow(var(--shadow-x) var(--shadow-y) var(--shadow-blur) #000000);
+		pointer-events: none;
 	}
 
 	.cf-choice {
-		position: relative;
-		width: 40%;
-		/* Native ratio of betting-component-frame-mobile.png (252×68) — no distortion. */
-		aspect-ratio: 252 / 68;
+		width: var(--w);
+		aspect-ratio: var(--btn-aspect);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -191,9 +318,7 @@
 		background: none;
 		padding: 0;
 		cursor: pointer;
-		transition:
-			transform 0.1s ease,
-			filter 0.1s ease;
+		transition: filter 0.1s ease;
 	}
 
 	.cf-choice-frame {
@@ -201,7 +326,7 @@
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		object-fit: fill;
+		object-fit: contain;
 		pointer-events: none;
 		user-select: none;
 	}
@@ -209,38 +334,28 @@
 	.cf-choice-text {
 		position: relative;
 		z-index: 1;
-		font-family: 'PotatoSans', sans-serif;
-		/* 4.9% of the panel width — same two-term treatment as .cf-title. */
-		font-size: clamp(calc(13 * var(--ui-px)), 4.2vw, calc(35 * var(--ui-px)));
+		font-family: 'Poppins', sans-serif;
+		font-style: normal;
+		font-weight: 500;
+		font-size: var(--label-size);
 		line-height: 1;
-		letter-spacing: 0.02em;
-		/* White fill with a black edge — legible over the plate's dark centre at any size. The outline
-		   rides --ui-px too: a real 1px edge on 13px type (the popout size) reads as a blob, where at
-		   the reference it's a hairline on 35px type. */
-		color: #ffffff;
-		-webkit-text-stroke: var(--ui-px) #000000;
+		text-align: center;
+		text-transform: uppercase;
+		color: #eaeaea;
+		text-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+		/* The reference's `border: 10px solid #000` is a Figma stroke on the text, not a box — drawn
+		   here as a glyph edge, sized in cqw so it tracks the panel instead of staying a fixed 10px.
+		   Set `label.stroke: 0` above to drop it. */
+		-webkit-text-stroke: var(--label-stroke) #000000;
 		paint-order: stroke fill;
-		text-shadow:
-			var(--ui-px) var(--ui-px) 0 #000000,
-			calc(-1 * var(--ui-px)) var(--ui-px) 0 #000000,
-			var(--ui-px) calc(-1 * var(--ui-px)) 0 #000000,
-			calc(-1 * var(--ui-px)) calc(-1 * var(--ui-px)) 0 #000000,
-			0 calc(2 * var(--ui-px)) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.7);
+		translate: var(--label-dx) var(--label-dy);
 		white-space: nowrap;
-	}
-
-	.cf-choice--yes .cf-choice-text {
-		color: #56e874;
-	}
-	.cf-choice--no .cf-choice-text {
-		color: #ff6056;
 	}
 
 	.cf-choice:hover {
 		filter: brightness(1.08);
-		transform: translateY(-1px);
 	}
 	.cf-choice:active {
-		transform: translateY(1px);
+		filter: brightness(0.94);
 	}
 </style>
