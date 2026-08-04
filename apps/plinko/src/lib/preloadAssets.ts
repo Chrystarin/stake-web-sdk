@@ -1,7 +1,7 @@
 import { Assets } from 'pixi.js';
 
 import { isPortraitGameLayout } from './format';
-import { staticUrl } from './staticUrl';
+import { registerResidentUrl, staticUrl } from './staticUrl';
 import { getBackgroundLandscapeAsset } from './spine/backgroundLandscapeAsset';
 import { getBackgroundPortraitAsset } from './spine/backgroundPortraitAsset';
 import { getBalanceCoinGlowAssets } from './spine/balanceCoinGlowAsset';
@@ -25,11 +25,17 @@ import type { SpineAssetDef } from './spine/types';
  * free-spin overlay and every spine skeleton were never in either list at all). One blocking manifest
  * has no race to lose.
  *
- * "Preloaded" here means RESIDENT, not merely cached. Warming a URL and then dropping the reference
- * only fills the HTTP cache, so the component that shows it later still pays a request and a decode —
- * invisible on a reload (the renderer's caches are already warm) but plainly visible on a cold first
- * run, which is the only run a real player gets. So DOM images are held for the session and Pixi art
- * is loaded under the same cache key its consumer uses.
+ * "Preloaded" here means RESIDENT IN MEMORY, not cached and not merely referenced. Two weaker
+ * definitions were tried and both failed in production:
+ *   1. warm the URL and drop it — only fills the HTTP cache, so the component that shows it later pays
+ *      a request and a decode anyway;
+ *   2. warm it and hold the `HTMLImageElement` — helps only if the browser REUSES that resource for a
+ *      second reference, which Stake's CDN headers stop it doing. Measured live: ten manifest images
+ *      (buy-bonus + confirm-prompt art, 669 KB) preloaded under their exact URLs and every one still
+ *      came off the wire when its screen opened.
+ * So DOM images are fetched as Blobs and published as object URLs through `staticUrl` — a handle to
+ * bytes in this tab, with no cache to consult and no header that can invalidate it. Pixi art stays in
+ * Pixi's own cache under the same key its consumer uses.
  *
  * ⚠️ Adding art/audio to a component? Add it here too. In DEV, anything the game fetches after the
  * splash has gone is reported by {@link watchForUnpreloadedAssets} — check the console for
@@ -37,9 +43,9 @@ import type { SpineAssetDef } from './spine/types';
  */
 
 /**
- * Images painted through the DOM (`<img src>`, CSS `background-image`). Warmed with `Image()` +
- * `decode()` and then RETAINED for the session (see {@link retainedImages}), so the element that
- * eventually shows one neither re-requests it nor re-decodes it.
+ * Images painted through the DOM (`<img src>`, CSS `background-image`). Fetched as Blobs, published as
+ * object URLs and decoded once (see {@link preloadImage}), so whatever renders one later paints from
+ * memory — no request, no revalidation, no decode.
  *
  * Images that Pixi draws instead go in {@link PIXI_TEXTURE_PATHS}, and spine art is covered by the
  * skeleton bundles — see {@link spineAssetTasks}.
@@ -332,25 +338,71 @@ function otherOrientationBackgroundFiles(): string[] {
 const retainedImages: HTMLImageElement[] = [];
 
 /**
- * Load + decode a single image and hold onto it for the session. Always resolves — a missing asset
- * must never block the loader.
+ * Pull a single image into memory and make it resident: fetched as a Blob, published as an object URL
+ * (so {@link staticUrl} hands the in-memory copy to whatever renders it later), then decoded and held.
+ *
+ * The fetch/Blob step is what makes this independent of response headers. Setting `img.src` to the
+ * network URL and keeping the element — which is what this used to do — leaves the browser free to
+ * decide that a *different* element referencing the same URL needs a fresh request, and on Stake it
+ * decides exactly that.
+ *
+ * Always resolves: a missing asset must never block the loader. Failures are recorded on the report so
+ * "settled" can never be mistaken for "succeeded" — every task settling is not the same as every asset
+ * arriving, and that distinction is invisible from the outside.
  */
-function preloadImage(url: string): Promise<void> {
-	return new Promise((resolve) => {
+/**
+ * Cap on concurrent image fetches.
+ *
+ * ⚠️ Not cosmetic, and not a politeness setting. `new Image()` lets the browser schedule loads itself;
+ * `fetch()` does not, and firing the whole manifest at once (~117 calls) makes Chrome fail requests
+ * outright with ERR_INSUFFICIENT_RESOURCES — surfaced to JS as a bare "Failed to fetch". Caught by the
+ * new failure report the moment this module switched to fetch: exactly 13 images died every run, always
+ * the same ones, while serving fine over curl. `Promise.allSettled` then hid it, because a rejected
+ * task still counts as settled and the splash dismissed reporting a healthy 129/129.
+ *
+ * 10 costs nothing on throughput: HTTP/1.1 allows 6 connections per host anyway, and over HTTP/2 the
+ * large files saturate the link long before the slot count matters.
+ */
+const IMAGE_FETCH_LIMIT = 10;
+let imageFetchesInFlight = 0;
+const imageFetchQueue: (() => void)[] = [];
+
+/** Run `fn` once a fetch slot is free. Slots are released even when `fn` throws. */
+async function withImageFetchSlot<T>(fn: () => Promise<T>): Promise<T> {
+	if (imageFetchesInFlight >= IMAGE_FETCH_LIMIT) {
+		await new Promise<void>((resolve) => imageFetchQueue.push(resolve));
+	}
+	imageFetchesInFlight += 1;
+	try {
+		return await fn();
+	} finally {
+		imageFetchesInFlight -= 1;
+		imageFetchQueue.shift()?.();
+	}
+}
+
+async function preloadImage(url: string): Promise<void> {
+	return withImageFetchSlot(() => fetchDecodeAndPublish(url));
+}
+
+async function fetchDecodeAndPublish(url: string): Promise<void> {
+	try {
+		const response = await fetch(url, { credentials: 'same-origin' });
+		if (!response.ok) throw new Error(`HTTP ${response.status}`);
+		const objectUrl = URL.createObjectURL(await response.blob());
 		const img = new Image();
 		retainedImages.push(img);
-		const done = () => resolve();
-		img.onload = () => {
-			// decode() guarantees the bitmap is ready to paint with no first-use hitch.
-			if (typeof img.decode === 'function') {
-				img.decode().then(done, done);
-			} else {
-				done();
-			}
-		};
-		img.onerror = done;
-		img.src = url;
-	});
+		img.src = objectUrl;
+		// decode() guarantees the bitmap is ready to paint with no first-use hitch.
+		if (typeof img.decode === 'function') await img.decode();
+		// Published only after a successful decode, so a truncated or corrupt body can never become the
+		// URL a component paints from.
+		registerResidentUrl(url, objectUrl);
+	} catch (error) {
+		if (report.failed.length < 100) {
+			report.failed.push({ url, reason: String((error as Error)?.message ?? error) });
+		}
+	}
 }
 
 /**
@@ -439,8 +491,28 @@ type PreloadReport = {
 	/** True if the splash revealed the game before the manifest finished. */
 	cappedOut: boolean;
 	revealedAt: number;
-	/** Assets the browser fetched AFTER reveal. `transferSize: 0` is a cache hit and is harmless. */
-	lateAssets: { url: string; transferSize: number; durationMs: number }[];
+	/**
+	 * Assets the browser fetched AFTER reveal. `transferSize: 0` is a cache hit and is harmless.
+	 * `expected` marks the sets that are post-reveal BY DESIGN (audio, the opposite orientation) — they
+	 * are recorded for completeness but are not evidence of anything wrong.
+	 *
+	 * `inManifest` splits the two remaining bugs, which look identical from outside: false means the
+	 * manifest simply never listed this file, true means it WAS preloaded under this exact URL and the
+	 * browser fetched it again anyway (a cache that refused to keep it, or a second reference the
+	 * retention did not cover).
+	 */
+	lateAssets: {
+		url: string;
+		transferSize: number;
+		durationMs: number;
+		expected: boolean;
+		inManifest: boolean;
+	}[];
+	/**
+	 * Manifest images that did NOT arrive. `settled` counts tasks that finished, including ones that
+	 * failed — so without this a totally failed preload still reports a reassuring 129/129.
+	 */
+	failed: { url: string; reason: string }[];
 };
 
 const report: PreloadReport = {
@@ -451,11 +523,12 @@ const report: PreloadReport = {
 	cappedOut: false,
 	revealedAt: 0,
 	lateAssets: [],
+	failed: [],
 };
 
 /** Snapshot of {@link report}. Exposed as `window.plinkoPreloadReport()` once the splash has gone. */
 export function getPreloadReport(): PreloadReport {
-	return { ...report, lateAssets: [...report.lateAssets] };
+	return { ...report, lateAssets: [...report.lateAssets], failed: [...report.failed] };
 }
 
 export type PreloadOptions = {
@@ -601,6 +674,13 @@ export function watchForUnpreloadedAssets(): void {
 	// the preload — i.e. before this observer starts — so a hit here means a face nobody declared.
 	const watched = ['img/', 'sound/', 'spine/', 'fonts/'].map((dir) => staticUrl(dir));
 	const reported = new Set<string>();
+	// Warmed after reveal on purpose (see preloadPostRevealAssets). Without this the black box flags a
+	// perfectly healthy session — the opposite orientation alone is a few hundred KB of honest traffic
+	// right after the splash — and an alarm that always fires tells you nothing.
+	const byDesign = new Set([
+		...AUDIO_PATHS.map((path) => staticUrl(path)),
+		...otherOrientationBackgroundFiles().map((path) => new URL(path, window.location.href).href),
+	]);
 
 	const observer = new PerformanceObserver((list) => {
 		for (const entry of list.getEntries()) {
@@ -617,6 +697,8 @@ export function watchForUnpreloadedAssets(): void {
 					url,
 					transferSize: timing.transferSize ?? 0,
 					durationMs: Math.round(timing.duration),
+					expected: byDesign.has(url),
+					inManifest: covered.has(url),
 				});
 			}
 
@@ -630,18 +712,40 @@ export function watchForUnpreloadedAssets(): void {
 	observer.observe({ type: 'resource', buffered: false });
 
 	// Self-report, in every build. Nothing is logged when the preload did its job, so a healthy session
-	// stays silent; when it did not, the one line below says which of the two failures happened without
-	// anyone needing to know `plinkoPreloadReport` exists. 8 s is long enough for the first screens to
-	// have been reached but short enough that the player is still in the session that produced it.
+	// stays silent. 8 s is long enough for the first screens to have been reached but short enough that
+	// the player is still in the session that produced it.
+	//
+	// ⚠️ The offending paths are printed INLINE rather than parked behind `plinkoPreloadReport()`.
+	// On Stake the game runs in an iframe, so a console evaluating against the top frame cannot see the
+	// hook at all ("is not a function") — a report nobody can read is not a report. The hook stays for
+	// local use; the log is what actually travels.
 	window.setTimeout(() => {
-		const paid = report.lateAssets.filter((a) => a.transferSize > 0);
+		const paid = report.lateAssets.filter((a) => a.transferSize > 0 && !a.expected);
+		if (report.failed.length > 0) {
+			console.warn(
+				`[plinko] ${report.failed.length} manifest image(s) never arrived during the preload:\n` +
+					report.failed
+						.map((f) => `  ${f.reason.padEnd(12)} ${f.url.replace(/^https?:\/\/[^/]+\//, '')}`)
+						.join('\n'),
+			);
+		}
 		if (!report.cappedOut && paid.length === 0) return;
-		const kb = Math.round(paid.reduce((sum, a) => sum + a.transferSize, 0) / 1024);
+		const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+		const lines = paid
+			.sort((a, b) => b.transferSize - a.transferSize)
+			.map(
+				(a) =>
+					`  ${a.inManifest ? 'IN-MANIFEST    ' : 'NOT-IN-MANIFEST'} ${kb(a.transferSize).padStart(9)}  ` +
+					`${a.durationMs} ms  ${a.url.replace(/^https?:\/\/[^/]+\//, '')}`,
+			);
 		console.warn(
 			`[plinko] preload did not cover the session: settled ${report.settled}/${report.total} in ` +
 				`${report.elapsedMs} ms${report.cappedOut ? ' (HIT THE CAP — game revealed part-loaded)' : ''}; ` +
-				`${paid.length} asset(s) fetched from the network after reveal (${kb} KB). ` +
-				`Run window.plinkoPreloadReport() for the list.`,
+				`${paid.length} asset(s) fetched from the network after reveal ` +
+				`(${kb(paid.reduce((sum, a) => sum + a.transferSize, 0))}):\n` +
+				lines.join('\n') +
+				`\n  NOT-IN-MANIFEST = never preloaded, add it to lib/preloadAssets.ts.` +
+				`\n  IN-MANIFEST = preloaded under this exact URL and re-fetched anyway.`,
 		);
 	}, 8_000);
 }
