@@ -36,10 +36,14 @@
 			volume: NORMAL_VOLUME,
 			// HTML5 streaming is better suited to a long music file than buffering it fully.
 			html5: true,
+			// ⚠️ Must not preload — see the note on `unlock()` below. Loading an `html5: true` source
+			// before Howler's own first-gesture handler has run logs "HTML5 Audio pool exhausted".
+			preload: false,
 			onloaderror: (_id, err) => {
 				console.warn('[plinko] background music failed to load', err);
 			},
 		});
+		trackedVolume.set(normalHowl, NORMAL_VOLUME);
 		music = normalHowl;
 
 		const bonusHowl = new Howl({
@@ -50,10 +54,12 @@
 			loop: true,
 			volume: BONUS_VOLUME,
 			html5: true,
+			preload: false,
 			onloaderror: (_id, err) => {
 				console.warn('[plinko] bonus background music failed to load', err);
 			},
 		});
+		trackedVolume.set(bonusHowl, BONUS_VOLUME);
 		bonusMusic = bonusHowl;
 
 		// Unlock playback on the first user gesture. Re-apply the music state SYNCHRONOUSLY inside the
@@ -62,14 +68,31 @@
 		const unlock = () => {
 			if (audioUnlocked) return;
 			audioUnlocked = true;
+			// First load of both tracks. Deferred to here (rather than Howler's default preload) because
+			// Howler fills its pool of unlocked `<audio>` nodes — `Howler._html5AudioPool` — from *inside*
+			// its own first-gesture handler. An `html5: true` Howl that loads before that finds the pool
+			// empty, and `_obtainHtml5Audio()`'s fallback probes a bare `new Audio().play()` which always
+			// rejects (that element has no source), logging "HTML5 Audio pool exhausted, returning
+			// potentially locked audio object" once per track on every page load. `Howler.html5PoolSize`
+			// in sound.ts cannot prevent it: the size is only read when the pool is filled, long after
+			// mount. The bytes are already in the HTTP cache from the loader's preload (AUDIO_PATHS in
+			// preloadAssets.ts), so waiting for the gesture costs nothing.
+			normalHowl.load();
+			bonusHowl.load();
 			applyMusicState();
 		};
-		const gestureEvents = ['pointerdown', 'touchend', 'keydown'] as const;
-		const opts = { once: true, passive: true } as const;
-		for (const evt of gestureEvents) window.addEventListener(evt, unlock, opts);
+		// Howler registers ITS unlock listener on `document`, in the CAPTURE phase, for exactly these
+		// four events — from inside the first `new Howl()` above. Matching the target, phase and event
+		// list puts us immediately after it: same-target capture listeners fire in registration order,
+		// so the pool is guaranteed to be full by the time `load()` runs.
+		// ⚠️ Do not "modernise" this to `pointerdown`: that is a different, EARLIER event, so it would
+		// fire before Howler's handler and re-open the exact bug this ordering exists to avoid.
+		const gestureEvents = ['touchstart', 'touchend', 'click', 'keydown'] as const;
+		const opts = { capture: true, passive: true } as const;
+		for (const evt of gestureEvents) document.addEventListener(evt, unlock, opts);
 
 		return () => {
-			for (const evt of gestureEvents) window.removeEventListener(evt, unlock);
+			for (const evt of gestureEvents) document.removeEventListener(evt, unlock, opts);
 			fadeTimers.forEach((timer) => clearInterval(timer));
 			fadeTimers.clear();
 			normalHowl.stop();
@@ -89,6 +112,21 @@
 
 	const clampVol = (v: number) => Math.min(1, Math.max(0, v));
 
+	// ⚠️ `howl.volume()` cannot be read back reliably. While an html5 source is still loading (or while
+	// Howler's `_playLock` is up), `volume(v)` pushes onto the Howl's internal `_queue` instead of
+	// applying, and the getter keeps returning the PREVIOUS value. Since `preload: false` guarantees the
+	// tracks are unloaded on the first ramp, a read-back start value would equal the target, `fadeTo`
+	// would early-return without ever creating a ramp, and the queued `volume(0)` would then replay on
+	// load — leaving the track playing at volume 0 for the whole session. So mirror every volume we set
+	// and ramp from that. (Queued steps replay in order once loaded, so the ramp still lands on target.)
+	const trackedVolume = new Map<Howl, number>();
+
+	function setVolume(howl: Howl, v: number) {
+		const vol = clampVol(v);
+		trackedVolume.set(howl, vol);
+		howl.volume(vol);
+	}
+
 	/** Ramp a track towards `target`, starting playback first if it needs to be audible. When ramping
 	 * down to silence, pause once it reaches 0 so the paused loop stops consuming a stream. */
 	function fadeTo(howl: Howl, target: number, ms: number) {
@@ -105,7 +143,7 @@
 		// BEFORE play(): Howler re-applies the Howl's stored volume when an html5 source starts, so a
 		// volume set after play() gets clobbered.
 		if (typeof document !== 'undefined' && document.hidden) {
-			howl.volume(clampVol(target));
+			setVolume(howl, target);
 			if (target > 0) {
 				if (!howl.playing()) howl.play();
 			} else {
@@ -114,10 +152,10 @@
 			return;
 		}
 		if (target > 0 && !howl.playing()) {
-			howl.volume(0);
+			setVolume(howl, 0);
 			howl.play();
 		}
-		const start = howl.volume();
+		const start = trackedVolume.get(howl) ?? 0;
 		if (start === target) {
 			if (target <= 0) howl.pause();
 			return;
@@ -126,11 +164,11 @@
 		let i = 0;
 		const timer = setInterval(() => {
 			i += 1;
-			howl.volume(clampVol(start + (target - start) * (i / steps)));
+			setVolume(howl, start + (target - start) * (i / steps));
 			if (i >= steps) {
 				clearInterval(timer);
 				fadeTimers.delete(howl);
-				howl.volume(clampVol(target));
+				setVolume(howl, target);
 				if (target <= 0) howl.pause();
 			}
 		}, FADE_STEP_MS);
