@@ -206,9 +206,14 @@ const PIXI_TEXTURE_PATHS: readonly string[] = [
  * that is needed: Howler builds its Howls on mount (EnableSound / EnableMusic) and both its Web Audio
  * XHR path and its `html5: true` `<audio>` path serve from the HTTP cache.
  *
- * Mirrors `EnableSound.svelte`'s `soundMap` plus `EnableMusic.svelte`'s two loops. The two music
- * tracks are ~12 MB of the total — by far the largest single item in the manifest — but they are also
- * the only assets whose absence is audible for a sustained stretch rather than one frame.
+ * Mirrors `EnableSound.svelte`'s `soundMap` plus `EnableMusic.svelte`'s two loops.
+ *
+ * ⚠️ Warmed AFTER reveal ({@link preloadPostRevealAssets}), NOT on the blocking path. The two music
+ * tracks alone are ~12 MB of a ~39 MB critical path, and blocking on them pushed the splash past its
+ * own timeout on slow connections — which reveals the game part-loaded and makes ART pop in, the exact
+ * failure this module exists to prevent. Audio degrades far more gracefully: an unwarmed track simply
+ * streams (Howler's `<audio>` path is built for it), where an unwarmed image is a visible hole. So
+ * pictures get the guarantee and sound gets the leftovers.
  */
 const AUDIO_PATHS: readonly string[] = [
 	// One-shot effects (EnableSound).
@@ -420,8 +425,15 @@ function coveredUrls(): Set<string> {
 export type PreloadOptions = {
 	/**
 	 * Hard cap (ms) so a hung asset or a dead connection can never trap the player on the splash. This
-	 * is a safety valve, not a budget — it is set far above any realistic full-manifest load, because
-	 * firing it reveals the game part-loaded, which is the exact failure this module exists to prevent.
+	 * is a safety valve, not a budget — firing it reveals the game part-loaded, which is the exact
+	 * failure this module exists to prevent.
+	 *
+	 * ⚠️ It must stay far above a realistic full-manifest load, and "realistic" is a function of the
+	 * PAYLOAD, not of taste. The blocking set is ~27 MB (art + spine + fonts; audio was moved off it
+	 * precisely because it pushed this over). Measured against a throttled connection, cold:
+	 *   3.0 Mbps → reveal at ~108 s      1.8 Mbps → reveal at ~146 s
+	 * The old 120 s cap sat *inside* that range, so every player below ~3 Mbps got a part-loaded game
+	 * and blamed the preload. Re-derive this if the payload changes materially; do not just nudge it.
 	 */
 	timeoutMs?: number;
 };
@@ -451,7 +463,7 @@ export function preloadWinPopupAssets(): Promise<void> {
  */
 export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
-	const { timeoutMs = 120_000 } = options;
+	const { timeoutMs = 300_000 } = options;
 
 	const tasks: (() => Promise<unknown>)[] = [
 		...DOM_IMAGE_PATHS.map((path) => () => preloadImage(staticUrl(path))),
@@ -459,8 +471,8 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		() => preloadWinPopupAssets(),
 		...PIXI_TEXTURE_PATHS.map((path) => () => Assets.load(staticUrl(path))),
 		...spineAssetTasks(),
-		...AUDIO_PATHS.map((path) => () => preloadFile(staticUrl(path))),
 		() => preloadFonts(),
+		// Audio is deliberately absent — see AUDIO_PATHS. It is warmed after reveal instead.
 	];
 
 	// Counted only so the timeout warning below can say how far it got — the splash shows no progress,
@@ -493,12 +505,28 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 }
 
 /**
- * Fire-and-forget warm-up for the things that deliberately sit OUTSIDE the blocking manifest — today
- * just the opposite orientation's background files. Call after the splash has gone.
+ * Fire-and-forget warm-up for the things that deliberately sit OUTSIDE the blocking manifest: all
+ * audio ({@link AUDIO_PATHS}) and the opposite orientation's background files. Call after the splash
+ * has gone.
+ *
+ * The two are NOT equally urgent, so they are not warmed together. Audio starts immediately — a player
+ * can reach a sound within a second of the reveal. The opposite orientation is ~15 MB that only
+ * matters if the device is rotated, so it waits for idle rather than competing with the audio (and
+ * with whatever the player is doing) over a slow link.
  */
 export function preloadPostRevealAssets(): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
-	return Promise.allSettled(otherOrientationBackgroundFiles().map(preloadFile)).then(
+
+	const warmOtherOrientation = () => {
+		void Promise.allSettled(otherOrientationBackgroundFiles().map(preloadFile));
+	};
+	if (typeof requestIdleCallback === 'function') {
+		requestIdleCallback(warmOtherOrientation, { timeout: 10_000 });
+	} else {
+		setTimeout(warmOtherOrientation, 3_000);
+	}
+
+	return Promise.allSettled(AUDIO_PATHS.map((path) => preloadFile(staticUrl(path)))).then(
 		() => undefined,
 	);
 }

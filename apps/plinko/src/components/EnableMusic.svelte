@@ -75,8 +75,13 @@
 			// rejects (that element has no source), logging "HTML5 Audio pool exhausted, returning
 			// potentially locked audio object" once per track on every page load. `Howler.html5PoolSize`
 			// in sound.ts cannot prevent it: the size is only read when the pool is filled, long after
-			// mount. The bytes are already in the HTTP cache from the loader's preload (AUDIO_PATHS in
-			// preloadAssets.ts), so waiting for the gesture costs nothing.
+			// mount.
+			//
+			// The bytes are usually already cached — but by `preloadPostRevealAssets()`, which starts at
+			// reveal, NOT by the blocking splash pass: 12 MB of music on the critical path pushed the
+			// splash past its timeout on slow links and got art revealed part-loaded (see AUDIO_PATHS).
+			// So on a slow first run this may still be streaming when the gesture lands, which is
+			// exactly what `html5: true` is for — it plays as it arrives instead of waiting.
 			normalHowl.load();
 			bonusHowl.load();
 			applyMusicState();
