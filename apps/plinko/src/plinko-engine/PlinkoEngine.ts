@@ -282,7 +282,6 @@ export class PlinkoEngine {
     this.resizeCanvasToContainer();
   };
 
-  private ballTexture?: Sprite['texture'];
   private coinPegTexture?: Sprite['texture'];
   private multiplierSlotSpinTexture?: Sprite['texture'];
   private readonly multiplierSlotTextures: Partial<Record<number, Sprite['texture']>> = {};
@@ -898,15 +897,15 @@ export class PlinkoEngine {
           return undefined;
         }
       };
-      const [ballTex, coinPegTex, spinTex, ...tierTex] = await Promise.all([
-        loadOptional(staticUrl('img/ball.svg')),
+      // No ball art here on purpose: balls are drawn as vector circles in `drawBallsPixi`, so there
+      // is no ball texture to load.
+      const [coinPegTex, spinTex, ...tierTex] = await Promise.all([
         loadOptional(staticUrl('img/coin_peg.webp')),
         loadOptional(staticUrl('img/multiplier_slot_spin.webp')),
         ...([1, 2, 3, 4, 5, 6, 7] as const).map((tier) =>
           loadOptional(staticUrl(`img/multiplier_slot_${tier}.webp`))
         )
       ]);
-      this.ballTexture = ballTex;
       this.coinPegTexture = coinPegTex;
       this.multiplierSlotSpinTexture = spinTex;
       for (let i = 0; i < 7; i++) {
@@ -922,7 +921,6 @@ export class PlinkoEngine {
         if (textTex[i]) this.multiplierTextTextures[label] = textTex[i];
       });
     } catch {
-      this.ballTexture = undefined;
       this.coinPegTexture = undefined;
       this.multiplierSlotSpinTexture = undefined;
     }

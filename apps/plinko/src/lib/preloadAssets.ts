@@ -180,8 +180,7 @@ const WIN_POPUP_IMAGE_PATHS: readonly string[] = [
  * decode + `ImageBitmap` on first use, which is the stall these are here to remove.
  */
 const PIXI_TEXTURE_PATHS: readonly string[] = [
-	// PlinkoEngine board textures.
-	'img/ball.svg',
+	// PlinkoEngine board textures. No ball art: balls are vector circles (`drawBallsPixi`).
 	'img/coin_peg.webp',
 	'img/multiplier_slot_spin.webp',
 	...[1, 2, 3, 4, 5, 6, 7].map((tier) => `img/multiplier_slot_${tier}.webp`),
