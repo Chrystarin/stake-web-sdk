@@ -25,6 +25,12 @@ import type { SpineAssetDef } from './spine/types';
  * free-spin overlay and every spine skeleton were never in either list at all). One blocking manifest
  * has no race to lose.
  *
+ * "Preloaded" here means RESIDENT, not merely cached. Warming a URL and then dropping the reference
+ * only fills the HTTP cache, so the component that shows it later still pays a request and a decode —
+ * invisible on a reload (the renderer's caches are already warm) but plainly visible on a cold first
+ * run, which is the only run a real player gets. So DOM images are held for the session and Pixi art
+ * is loaded under the same cache key its consumer uses.
+ *
  * ⚠️ Adding art/audio to a component? Add it here too. In DEV, anything the game fetches after the
  * splash has gone is reported by {@link watchForUnpreloadedAssets} — check the console for
  * "[plinko] asset loaded on demand" before assuming a new asset is covered.
@@ -32,7 +38,8 @@ import type { SpineAssetDef } from './spine/types';
 
 /**
  * Images painted through the DOM (`<img src>`, CSS `background-image`). Warmed with `Image()` +
- * `decode()`, which puts the bytes in the HTTP cache and the bitmap in the decoded-image cache.
+ * `decode()` and then RETAINED for the session (see {@link retainedImages}), so the element that
+ * eventually shows one neither re-requests it nor re-decodes it.
  *
  * Images that Pixi draws instead go in {@link PIXI_TEXTURE_PATHS}, and spine art is covered by the
  * skeleton bundles — see {@link spineAssetTasks}.
@@ -147,12 +154,11 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 
 /**
  * WIN-CELEBRATION art (`WinCelebration.svelte` + `RapidWinSparkles.svelte`). Split out of
- * {@link DOM_IMAGE_PATHS} only because these are RETAINED (see `preloadImage`) rather than left for
- * the GC: the banners are large enough that a dropped decode means the reveal visibly waits on a
- * re-decode, which is exactly the hitch this manifest exists to kill. Retention is deliberately
- * limited to this set — pinning every decode in the manifest would cost hundreds of MB.
+ * {@link DOM_IMAGE_PATHS} only because it has its own idempotent entry point
+ * ({@link preloadWinPopupAssets}) that those components call on mount as a backstop to the intro
+ * preload. Both lists are retained the same way.
  */
-const RETAINED_IMAGE_PATHS: readonly string[] = [
+const WIN_POPUP_IMAGE_PATHS: readonly string[] = [
 	// Tier banners — one shows per win; which one isn't known until the round settles, so all three.
 	'img/win_popup/massive_plunder.webp',
 	'img/win_popup/epic_bounty.webp',
@@ -304,18 +310,31 @@ function otherOrientationBackgroundFiles(): string[] {
 }
 
 /**
- * Images kept alive for the session. A preloaded `Image` with no reference is GC-eligible, and when it
- * goes so can its decoded bitmap — leaving the HTTP bytes cached but the next `<img>` still paying for
- * a decode on first paint. Holding the element pins the decode. Only used where a mid-game hitch would
- * be visible (the win reveal); the rest stay collectable.
+ * Images kept alive for the session — EVERY DOM image in the manifest.
+ *
+ * A preloaded `Image` with no reference is GC-eligible, and when it goes so does its place in the
+ * renderer's memory cache: the next element to reference that URL re-requests it (a revalidation at
+ * best, a full fetch if the cache policy is unfriendly) and re-decodes it. That is the "it still has
+ * to load when it appears" hitch, and it is FIRST-RUN ONLY — a reload finds the renderer's caches
+ * already warm from the previous load, which is exactly why it looks fine the second time.
+ *
+ * Retention used to be limited to the win-popup art on the grounds that pinning the whole manifest
+ * would cost hundreds of MB. That figure was the sum of the decoded RGBA (~226 MB), which is not what
+ * holding an `HTMLImageElement` actually pins: the decoded frames live in the browser's own capped,
+ * evicting decode cache, while the element keeps the ENCODED resource alive — and all 86 DOM images
+ * are 5.9 MB encoded on disk. Measured on the renderer process (hold refs + GC, versus drop refs +
+ * GC): **≈37 MB**. That buys "nothing loads mid-game", which is the whole point of this module.
  */
 const retainedImages: HTMLImageElement[] = [];
 
-/** Load + decode a single image. Always resolves — a missing asset must never block the loader. */
-function preloadImage(url: string, options: { retain?: boolean } = {}): Promise<void> {
+/**
+ * Load + decode a single image and hold onto it for the session. Always resolves — a missing asset
+ * must never block the loader.
+ */
+function preloadImage(url: string): Promise<void> {
 	return new Promise((resolve) => {
 		const img = new Image();
-		if (options.retain) retainedImages.push(img);
+		retainedImages.push(img);
 		const done = () => resolve();
 		img.onload = () => {
 			// decode() guarantees the bitmap is ready to paint with no first-use hitch.
@@ -383,7 +402,7 @@ function spineDefFiles(asset: SpineAssetDef): string[] {
 function coveredUrls(): Set<string> {
 	const absolute = (path: string) => new URL(path, window.location.href).href;
 	const paths = [
-		...[...DOM_IMAGE_PATHS, ...RETAINED_IMAGE_PATHS, ...PIXI_TEXTURE_PATHS, ...AUDIO_PATHS].map(
+		...[...DOM_IMAGE_PATHS, ...WIN_POPUP_IMAGE_PATHS, ...PIXI_TEXTURE_PATHS, ...AUDIO_PATHS].map(
 			(path) => staticUrl(path),
 		),
 		...spineDefFiles(
@@ -409,7 +428,7 @@ export type PreloadOptions = {
 };
 
 /**
- * Load + decode + RETAIN the win-celebration art ({@link RETAINED_IMAGE_PATHS}) so the reveal never
+ * Load + decode + retain the win-celebration art ({@link WIN_POPUP_IMAGE_PATHS}) so the reveal never
  * waits on a fetch or a decode. Idempotent: the first call owns the work and every later caller gets
  * the same promise, so the components can safely warm it on mount as a backstop to the intro preload.
  */
@@ -417,7 +436,7 @@ let winPopupWarmup: Promise<void> | undefined;
 export function preloadWinPopupAssets(): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
 	winPopupWarmup ??= Promise.allSettled(
-		RETAINED_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path), { retain: true })),
+		WIN_POPUP_IMAGE_PATHS.map((path) => preloadImage(staticUrl(path))),
 	).then(() => undefined);
 	return winPopupWarmup;
 }
@@ -425,7 +444,8 @@ export function preloadWinPopupAssets(): Promise<void> {
 /**
  * Preload EVERYTHING in the manifest — DOM images, Pixi textures, spine bundles, audio and fonts —
  * while the intro loader is on screen. Resolves once every task has *settled* (loaded or failed), so
- * the splash can dismiss knowing nothing is left to fetch.
+ * the splash can dismiss knowing nothing is left to fetch OR decode — the DOM images are held for the
+ * session (see {@link retainedImages}) and the rest stay resident in Pixi's cache.
  *
  * It always resolves: individual failures are swallowed (a missing asset degrades one feature, it must
  * never trap the player) and `timeoutMs` caps the whole pass.
@@ -436,7 +456,7 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 
 	const tasks: (() => Promise<unknown>)[] = [
 		...DOM_IMAGE_PATHS.map((path) => () => preloadImage(staticUrl(path))),
-		// Retained as one task: it is idempotent and may already be in flight from a component mount.
+		// Kept as one task: it is idempotent and may already be in flight from a component mount.
 		() => preloadWinPopupAssets(),
 		...PIXI_TEXTURE_PATHS.map((path) => () => Assets.load(staticUrl(path))),
 		...spineAssetTasks(),
@@ -458,8 +478,11 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 	);
 
 	const work = Promise.all(settled).then(() => undefined);
+	// Cancelled once the work wins, or the timer still fires `timeoutMs` into a perfectly healthy
+	// session and cries wolf ("hit its cap at 148/148") long after the splash has gone.
+	let timeoutId: number | undefined;
 	const timeout = new Promise<void>((resolve) => {
-		window.setTimeout(() => {
+		timeoutId = window.setTimeout(() => {
 			console.warn(
 				`[plinko] asset preload hit its ${timeoutMs} ms cap at ${loaded}/${total}; revealing anyway`,
 			);
@@ -467,7 +490,7 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		}, timeoutMs);
 	});
 
-	return Promise.race([work, timeout]);
+	return Promise.race([work, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
 /**

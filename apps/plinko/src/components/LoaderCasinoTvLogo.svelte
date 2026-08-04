@@ -76,7 +76,16 @@
 		props.oncomplete?.();
 		// The only things left outside the blocking pass: the opposite orientation's background files
 		// (see preloadPostRevealAssets), plus a DEV alarm for anything the manifest is missing.
-		void preloadPostRevealAssets();
+		//
+		// Deferred to idle rather than fired here: it is ~15 MB, and on a cold first run it would
+		// otherwise contend with whatever the player touches in the first seconds of a revealed game.
+		// Nothing on screen needs it — it only pays off if the device is later rotated.
+		const warmOtherOrientation = () => void preloadPostRevealAssets();
+		if (typeof requestIdleCallback === 'function') {
+			requestIdleCallback(warmOtherOrientation, { timeout: 10_000 });
+		} else {
+			setTimeout(warmOtherOrientation, 3_000);
+		}
 		watchForUnpreloadedAssets();
 		// Keep the logo canvas painted through the fade-out, then release it. Fallback timer only —
 		// the onMount cleanup also disposes, so a paused/backgrounded fade can't leak the renderer.
