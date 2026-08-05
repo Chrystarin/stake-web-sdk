@@ -23,3 +23,13 @@ Alpha survives either way, so a naive check passes — compare full RGBA.
 
 `img/` art has no such constraint (Pixi and the DOM both premultiply on upload, so RGB under
 alpha=0 never reaches the screen); lossy is used there when it beats lossless by a worthwhile margin.
+
+## Mobile Autobet stop icon (2026-08-05)
+
+| master | installed as | encode |
+|---|---|---|
+| `autoplay_stop_btn_mobile.png` | `static/img/auto-bet-stop-btn-mobile.webp` | lossless |
+
+93x90, same box as `auto-bet-btn-mobile.webp` — a drop-in swap, no layout knobs to re-tune. Encoded
+lossless despite being a plain (non-atlas) image: it is a flat icon with a hard edge, where lossy's
+usual win over PNG is smallest and least worth the risk of banding.
