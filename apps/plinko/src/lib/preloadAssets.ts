@@ -86,6 +86,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/auto-bet-btn.webp',
 	'img/auto-bet-stop-btn.webp',
 	'img/auto-bet-btn-mobile.webp',
+	'img/auto-bet-stop-btn-mobile.webp',
 	'img/fast-game-btn.webp',
 	'img/fast-game-btn-mobile.webp',
 	'img/loading_vector.webp',

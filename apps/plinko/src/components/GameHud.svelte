@@ -913,12 +913,22 @@
 					class:mobile-icon-btn--on={props.autoMode || props.autoPlayStarted}
 					disabled={(autoBetConfigLocked && !props.autoPlayStarted) || autoBetStopping}
 					aria-pressed={props.autoMode || props.autoPlayStarted}
-					aria-label="Autobet"
+					aria-label={props.autoPlayStarted ? 'Stop autobet' : 'Autobet'}
 					onclick={onMobileAutoButtonClick}
 				>
 					<!-- No remaining-rounds badge here: the count moved onto the Play plaque, inside the
-					     spinning ring (matching desktop). This button is just the Autobet toggle / Stop. -->
-					<img src={staticUrl('img/auto-bet-btn-mobile.webp')} alt="" aria-hidden="true" />
+					     spinning ring (matching desktop). This button is just the Autobet toggle / Stop —
+					     and, as on desktop, it swaps to the STOP artwork for the life of a run so the icon
+					     says what a press will do. -->
+					<img
+						src={staticUrl(
+							props.autoPlayStarted
+								? 'img/auto-bet-stop-btn-mobile.webp'
+								: 'img/auto-bet-btn-mobile.webp',
+						)}
+						alt=""
+						aria-hidden="true"
+					/>
 				</button>
 				{#if autoPanelOpen}
 					<div class="mobile-autobet-panel">
