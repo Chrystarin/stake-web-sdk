@@ -370,39 +370,49 @@
 	const RAPID_BET_THROTTLE_MS = 30;
 	let lastRapidBetAt = 0;
 
-	async function placeBet() {
+	/**
+	 * Every synchronous precondition a wager has to clear before it may be dispatched. Returns false
+	 * when this press must be dropped — the two branches that the player would otherwise get no
+	 * explanation for (offline, unaffordable) raise their own toast, and a resumable round kicks off
+	 * the resume, exactly as they did when these checks lived inline in `placeBet`.
+	 *
+	 * Split out of `placeBet` so that a caller which has to commit state BEFORE betting can ask the
+	 * same question first, instead of discovering the press was dropped only by its side effects never
+	 * arriving. `startBuyBonus` is that caller — see the note there.
+	 */
+	function canDispatchWagerNow(): boolean {
 		// Replay is passive playback of a recorded round — never place a wager.
-		if (isReplay) return;
+		if (isReplay) return false;
 		// Offline: gameplay is suspended behind the "No Internet Connection" overlay. Don't fire a
 		// bet (nor queue an autobet round) that would immediately fail against the RGS.
 		if (isPlinkoOffline()) {
 			showToast('No Internet Connection', 'error');
-			return;
+			return false;
 		}
 		// Rapid 1-ball mode: throttle a mashed / held Bet button so it can't fire faster than
 		// RAPID_BET_THROTTLE_MS. Throttled clicks are dropped, not buffered, so betting halts the moment
 		// the player stops clicking (no trailing balls). See RAPID_BET_THROTTLE_MS.
 		if (isRapidSingleBallMode() && performance.now() - lastRapidBetAt < RAPID_BET_THROTTLE_MS)
-			return;
+			return false;
 		// Ignore a bet while the previous round is still settling (machine not yet idle) — the
 		// idle-only xstate machine would drop the BET and leave `isSubmitting` stuck. In rapid 1-ball
 		// mode the click is simply dropped (the throttle above already prevents lost-click spam).
 		if (stateGame.isSubmitting || stateGame.dropRoundActive || stateXstateDerived.isPlaying()) {
-			return;
+			return false;
 		}
 
 		// Hold the bet until the full-screen WinCelebration finishes. Placing a new wager clears
-		// `showWinPopup` (below), which would cut the reveal → count-up → merge timeline off mid-play.
-		// The Play button is already disabled on `showWinPopup`; this guards the Space-hotkey path.
-		// Rapid 1-ball mode has no win popup, so it's naturally unaffected.
+		// `showWinPopup` (in `placeBet` below), which would cut the reveal → count-up → merge timeline
+		// off mid-play. The Play button is already disabled on `showWinPopup`; this guards the
+		// Space-hotkey path. Rapid 1-ball mode has no win popup, so it's naturally unaffected.
 		if (stateGame.showWinPopup && !isRapidSingleBallMode()) {
-			return;
+			return false;
 		}
 
 		if (hasActiveRoundToResume()) {
 			showToast('Finishing your previous round…', 'info');
 			context.eventEmitter.broadcast({ type: 'resumeBet' });
-			return;
+			return false;
 		}
 
 		if (!canAffordPlinkoWager()) {
@@ -414,8 +424,14 @@
 			} else {
 				showToast('Insufficient Balance');
 			}
-			return;
+			return false;
 		}
+
+		return true;
+	}
+
+	async function placeBet() {
+		if (!canDispatchWagerNow()) return;
 
 		if (isRapidSingleBallMode()) lastRapidBetAt = performance.now();
 		stateGame.showWinPopup = false;
@@ -505,6 +521,11 @@
 	// Buy bonus — can't open mid-round / mid-bonus / in replay, and NOT on the single-ball (rapid) tier,
 	// which has no meters / bonus feature (the trigger button stays visible there but greyed to half
 	// opacity and disabled).
+	//
+	// The full-screen win celebration counts as "mid-round" here, exactly as it does for the Play button
+	// (see `playDisabled` below). The round's balls have landed by then, so none of the other flags are
+	// still set — yet the reveal owns the screen and `placeBet` refuses to dispatch behind it. Without
+	// this the badge stayed live all through a Massive Plunder / Epic Bounty / Captain's Jackpot reveal.
 	const buyBonusDisabled = $derived.by(() => {
 		stateGame.isSubmitting;
 		stateGame.dropRoundActive;
@@ -518,6 +539,7 @@
 			stateGame.ballPerDrop === 1 ||
 			isBetControlsLocked() ||
 			isGameOngoing() ||
+			stateGame.showWinPopup ||
 			stateGame.bonusRoundActive
 		);
 	});
@@ -558,11 +580,35 @@
 	 * once, the roulette lands on the bought entry balls, and chain hits add more on top. The pending
 	 * mode is cleared by the revert effect once the round fully settles. */
 	function startBuyBonus(tier: BuyBonusTier) {
-		// Re-check: the tier can go unavailable (ball-per-drop switch, round start) while the prompt is up.
-		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1 || buyBonusDisabled) return;
+		// Re-check: the tier can go unavailable (ball-per-drop switch, round start, a win celebration
+		// starting) while the prompt is up. Say so rather than no-op — the player just pressed Yes.
+		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1) return;
+		if (buyBonusDisabled) {
+			showToast('Finishing the current round…', 'info');
+			return;
+		}
 		stateGame.buyBonusModalOpen = false;
-		// Bonus-only buy → mode is per tier (bpd-independent).
+		// Bonus-only buy → mode is per tier (bpd-independent). Set (and synced) BEFORE the dispatch check
+		// below so the affordability test prices the BUY, not the selected tier's ordinary wager.
 		stateGame.pendingBuyBonusMode = buyBonusModeName(tier.key);
+		syncPlinkoBetModeFromUi();
+
+		// Everything after this point is a ONE-WAY DOOR: it wipes both meters and slides the
+		// congratulations screen in, which crossfades to the bonus music and flips the whole UI into
+		// bonus mode at full cover — and nothing undoes any of it if the wager then never leaves.
+		// `placeBet` drops a press silently on several preconditions, so committing the presentation
+		// first and hoping is what stranded the game "in bonus" with empty bars and a dead Play button
+		// when a buy was fired during a win reveal (`showWinPopup` still up). The badge is now disabled
+		// for that whole window, but ask outright rather than rely on it: the confirm prompt sits open
+		// across an arbitrary gap, and offline / resume-pending / a still-settling round machine can all
+		// arrive during it. If the bet can't go out, drop the pending mode and leave the player in the
+		// base game with nothing spent.
+		if (!canDispatchWagerNow()) {
+			stateGame.pendingBuyBonusMode = null;
+			syncPlinkoBetModeFromUi();
+			return;
+		}
+
 		// A bought bonus jumps straight into the bonus round with NO trigger fill-up, so seed the "Free
 		// Bonus" meter to its EMPTY in-bonus baseline instead of flashing it full. Showing it full here
 		// (and again from the book's full bonus_meter_start / the bonus-start snap) made the bar animate
@@ -580,7 +626,6 @@
 		// slide. A failed bet unmounts this via `releaseRoundInteractionLocks` → `bonusRouletteOpen = false`.
 		stateGame.serverBonusFreeBalls = undefined;
 		stateGame.bonusRouletteOpen = true;
-		syncPlinkoBetModeFromUi();
 		placeBet();
 	}
 
