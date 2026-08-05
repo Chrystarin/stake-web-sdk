@@ -1774,7 +1774,7 @@
 	}
 
 	/* Geometric CLONE of .game-area-frame's box: same left/width/transform, with the height pinned by
-	   the frame art's native aspect (1142×1010) instead of `height: auto`. `.game-area-frame` is an
+	   the frame art's native aspect (2284×2018) instead of `height: auto`. `.game-area-frame` is an
 	   <img>, so its box height is aspect-derived and can't be referenced by a sibling — this empty
 	   div reproduces that box so percentages inside it resolve against the FRAME, not the container.
 	   Being a child of .container, it also inherits the scale(--portrait-fit-scale) squeeze that
@@ -1784,7 +1784,7 @@
 		top: 0;
 		left: 50%;
 		width: 125%;
-		aspect-ratio: 1142 / 1010;
+		aspect-ratio: 2284 / 2018;
 		transform: translateX(-50%);
 		pointer-events: none;
 
