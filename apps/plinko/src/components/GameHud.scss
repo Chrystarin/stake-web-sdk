@@ -876,10 +876,15 @@
 		--bp-play-active-boost 0.12s ease,
 		opacity 0.12s ease;
 	/* Hold-to-drop (bonus free balls): keep a long press a press — no scroll-steal (it would fire
-	   pointercancel and cut the stream), no selection, no iOS long-press callout. */
+	   pointercancel and cut the stream), no selection, no iOS long-press callout, and no native tap
+	   highlight box over the plaque (the press feedback is the brightness bump below). The highlight is
+	   also killed globally on :root in +layout.svelte; it is restated here because this block is the
+	   checklist of native touch behaviours the Play button opts out of, and its absence from that list
+	   is precisely what shipped the blue rectangle QA reported on mobile. */
 	touch-action: none;
 	user-select: none;
 	-webkit-touch-callout: none;
+	-webkit-tap-highlight-color: transparent;
 
 	/* Excluded while disabled/soft-disabled — an unaffordable or mid-round button must not invite a
 	   click. Those keep amplitude 0, so the paused pulse resolves to the resting values. */
@@ -1434,6 +1439,7 @@
 	align-items: center;
 	justify-content: center;
 	cursor: pointer;
+	transition: transform 0.12s ease;
 
 	img {
 		width: 100%;
@@ -1441,6 +1447,13 @@
 		object-fit: contain;
 		display: block;
 		pointer-events: none;
+	}
+
+	/* These steppers had no press state of their own and were relying on the browser's tap highlight
+	   for touch feedback — now suppressed on :root (see +layout.svelte), so give them the same
+	   scale-down press the other controls use rather than leaving the tap looking dead. */
+	&:active:not(:disabled) {
+		transform: scale(0.9);
 	}
 
 	&:disabled {
@@ -1643,10 +1656,12 @@
 	// Feeds the desktop plaque/spinner overlays reused here — main_btn_empty.png draws its disc 3.125%
 	// high, so the spinner raises onto the disc centre (see .bp-btn-play-spinner).
 	--bp-play-disc-rise: 3.125%;
-	/* See .bp-btn-play — hold-to-drop needs a long press to stay a press on touch. */
+	/* See .bp-btn-play — hold-to-drop needs a long press to stay a press on touch, and the native tap
+	   highlight must not draw a box over the plaque (this is THE button QA reported it on). */
 	touch-action: none;
 	user-select: none;
 	-webkit-touch-callout: none;
+	-webkit-tap-highlight-color: transparent;
 
 	/* Press feedback is a BRIGHTNESS bump, not a scale change — override, don't compose with, the
 	   generic `.mobile-icon-btn:active` rule above. `transform` isn't additive, so a scale-down there
@@ -1760,6 +1775,13 @@
 	line-height: 1;
 	cursor: pointer;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	transition: transform 0.12s ease;
+
+	/* Same reason as .mobile-top-step: no press state of its own, and the native tap highlight it was
+	   falling back to is now suppressed on :root. Matches .bp-autobet-option, its desktop twin. */
+	&:active:not(:disabled) {
+		transform: scale(0.97);
+	}
 
 	&:disabled {
 		opacity: 0.55;

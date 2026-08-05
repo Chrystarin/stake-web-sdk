@@ -46,6 +46,20 @@
 :root{--ui-px:1px;}
 @media (min-aspect-ratio: 1/1){:root{--ui-px:min(1px, calc(100vw / 1024), calc(100vh / 576));}}
 
+/* ── NO NATIVE TAP HIGHLIGHT ─────────────────────────────────────────────────────────────────────
+   Mobile browsers paint a translucent box over whatever element a touch lands on — blue in most
+   Android WebViews, grey on iOS. On the round Play/Bet plaque that reads as a square highlight
+   flashing around a circular button, which is what QA raised against the Bet button: the press was
+   showing the browser's rectangle instead of the button's own brightness ramp. Desktop looked right
+   only because a MOUSE press produces no tap highlight at all — the styling was never platform-
+   specific, the native box simply had nothing to overdraw there.
+
+   Declared on the root rather than per-button because -webkit-tap-highlight-color is INHERITED: one
+   declaration covers the HUD, the modals, the menu and anything added later, so the same complaint
+   can't resurface on the next control someone adds. Every control keeps supplying its own press
+   feedback via :active (GameHud.scss — brightness on the Play buttons, scale on the smaller ones). */
+:root{-webkit-tap-highlight-color:transparent;}
+
 @font-face{font-family:'Instrument Sans';src:url(${JSON.stringify(staticUrl('fonts/Instrument_Sans/static/InstrumentSans-Regular.ttf'))}) format('truetype');font-weight:400;}
 
 @font-face{font-family:'Instrument Sans';src:url(${JSON.stringify(staticUrl('fonts/Instrument_Sans/static/InstrumentSans-SemiBold.ttf'))}) format('truetype');font-weight:600;}
