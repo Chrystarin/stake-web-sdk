@@ -1,4 +1,4 @@
-import { Application, Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Sprite, Text, type Ticker } from 'pixi.js';
 import {
   Spine,
   Physics,
@@ -189,7 +189,18 @@ export class PlinkoEngine {
 
   private app?: Application;
   private readonly world = new Container();
+  /**
+   * Idle peg bodies. This is geometry that only changes when the board is laid out, so it is
+   * tessellated once and then left alone — a drop frame no longer re-issues ~530 primitives for a
+   * field that isn't moving. See `rebuildStaticPegs`.
+   */
+  private readonly pegStaticGraphics = new Graphics();
+  /** Only the pegs lit by a bounce this frame; cleared and rebuilt per frame (usually 0–4 pegs). */
   private readonly pegGraphics = new Graphics();
+  /** True while `pegGraphics` holds geometry, so an unlit frame clears it exactly once. */
+  private pegGraphicsHasContent = false;
+  /** Set whenever peg positions/size change; the idle layer is rebuilt on the next draw. */
+  private pegStaticDirty = true;
   private readonly featuredPegLayer = new Container();
   private readonly labelLayer = new Container();
   private readonly bulletsLayer = new Container();
@@ -303,6 +314,8 @@ export class PlinkoEngine {
   /** Coin diameter as a fraction of the lane spacing — scales the coins with the board at any viewport. */
   private static readonly COIN_SIZE_FACTOR = 0.9;
   private readonly pegsByRow = new Map<number, Peg[]>();
+  /** The featured (coin) pegs themselves — three of them, laid out every draw pass. */
+  private readonly featuredPegs: Peg[] = [];
   private featuredPegKeys = new Set<string>();
   /** Per-row regular (non-featured) pegs — precomputed so the bounce hot path avoids `.filter` allocations. */
   private readonly regularPegsByRow = new Map<number, Peg[]>();
@@ -344,14 +357,34 @@ export class PlinkoEngine {
    * triangle so the enlarged coins read as one tight cluster. No peg is added back in their place.
    */
   private static readonly REMOVED_PEG_KEYS = new Set(['3:4', '4:4', '4:5']);
-  private animTickerBound = (): void => this.animateFrame();
+  private animTickerBound = (ticker: Ticker): void => this.animateFrame(ticker.deltaMS);
   private tickerRegistered = false;
-  /** Fixed physics step used when manually advancing a backgrounded tab (matches ~60fps rAF). */
-  private static readonly HIDDEN_FRAME_MS = 1000 / 60;
+  /**
+   * The one physics step the whole engine advances in (~60fps). A rendered frame is only a sampling
+   * rate: it runs however many of these fit the real time elapsed, so a drop covers the same ground
+   * per second at 144 Hz, at 60 Hz, and on a device painting at 15 fps under a 4x CPU throttle.
+   */
+  private static readonly FIXED_STEP_MS = 1000 / 60;
   /** Cap on physics steps per background tick, so a long hidden stretch can't fast-forward minutes. */
   private static readonly HIDDEN_MAX_STEPS_PER_TICK = 120;
   /** Sub-frame leftover carried between background ticks so paced advancement stays accurate. */
   private hiddenStepCarryMs = 0;
+  /**
+   * Longest real frame the accumulator will honour. A stall longer than this (GC pause, a tab that
+   * just came back, a debugger break) is billed as this much time so the backlog can never explode
+   * into a spiral of death — the drop simply loses that slice rather than teleporting.
+   */
+  private static readonly MAX_FRAME_DELTA_MS = 100;
+  /** Hard cap on fixed steps per rendered frame (MAX_FRAME_DELTA_MS / FIXED_STEP_MS). */
+  private static readonly MAX_STEPS_PER_FRAME = 6;
+  /** Sub-step remainder carried between rendered frames so the pacing stays exact. */
+  private frameStepCarryMs = 0;
+  /** Smoothed cost of a rendered frame, used to shed effect work when the device is struggling. */
+  private smoothedFrameMs = 1000 / 60;
+  /** Below ~45fps: halve the effect-layer redraw rate and drop the balls' inner highlights. */
+  private static readonly SLOW_FRAME_MS = 22;
+  /** Below ~25fps (a 4x-throttled device): redraw effect layers only every third frame. */
+  private static readonly VERY_SLOW_FRAME_MS = 40;
   private readonly BASE_VIEWPORT_WIDTH = 1920;
   private readonly MAX_RENDER_RESOLUTION = 2;
 
@@ -863,6 +896,7 @@ export class PlinkoEngine {
     this.hostElement.appendChild(app.canvas as HTMLCanvasElement);
 
     this.world.sortableChildren = true;
+    this.pegStaticGraphics.zIndex = 0.9;
     this.pegGraphics.zIndex = 1;
     this.featuredPegLayer.zIndex = 1.5;
     this.slotAssetLayer.zIndex = 2;
@@ -871,6 +905,7 @@ export class PlinkoEngine {
     this.ballsGraphics.zIndex = 2.6;
     this.labelLayer.zIndex = 4;
 
+    this.world.addChild(this.pegStaticGraphics);
     this.world.addChild(this.pegGraphics);
     this.world.addChild(this.featuredPegLayer);
     this.world.addChild(this.slotAssetLayer);
@@ -1691,6 +1726,9 @@ export class PlinkoEngine {
     this.regularPegsByRow.clear();
     this.featuredRowsSet.clear();
     this.clusterSpanByRow.clear();
+    this.featuredPegs.length = 0;
+    // Peg coordinates and radius have just been recomputed, so the cached idle bodies are stale.
+    this.pegStaticDirty = true;
 
     let centroidX = 0;
     let centroidY = 0;
@@ -1698,6 +1736,7 @@ export class PlinkoEngine {
     for (const peg of this.pegs) {
       peg.isFeatured = this.featuredPegKeys.has(peg.key);
       if (peg.isFeatured) {
+        this.featuredPegs.push(peg);
         this.featuredRowsSet.add(peg.row);
         centroidX += peg.x;
         centroidY += peg.y;
@@ -2642,33 +2681,67 @@ export class PlinkoEngine {
   advanceWhileHidden(deltaSeconds: number): void {
     if (!this.app || !this.isAnimating) return;
     const elapsedMs = this.hiddenStepCarryMs + Math.max(0, deltaSeconds) * 1000;
-    let steps = Math.floor(elapsedMs / PlinkoEngine.HIDDEN_FRAME_MS);
+    let steps = Math.floor(elapsedMs / PlinkoEngine.FIXED_STEP_MS);
     if (steps > PlinkoEngine.HIDDEN_MAX_STEPS_PER_TICK) {
       // Drop the backlog after a long stall so returning/odd timers can't fast-forward minutes.
       steps = PlinkoEngine.HIDDEN_MAX_STEPS_PER_TICK;
       this.hiddenStepCarryMs = 0;
     } else {
-      this.hiddenStepCarryMs = elapsedMs - steps * PlinkoEngine.HIDDEN_FRAME_MS;
+      this.hiddenStepCarryMs = elapsedMs - steps * PlinkoEngine.FIXED_STEP_MS;
     }
+    const now = Date.now();
     for (let i = 0; i < steps && this.isAnimating; i++) {
-      this.animateFrame();
+      this.stepPhysics(now - (steps - 1 - i) * PlinkoEngine.FIXED_STEP_MS);
+      this.retireFinishedBalls();
     }
   }
 
-  private animateFrame(): void {
+  /**
+   * Ticker callback. Rendered frames are a sampling rate, not a clock: this converts the real time
+   * since the last paint into whole FIXED_STEP_MS physics steps, runs them, then draws ONCE. A drop
+   * therefore falls at the same wall-clock speed whether the device paints at 144 Hz, 60 Hz, or the
+   * ~15 fps of a 4x CPU throttle — where the old one-advance-per-paint loop ran 4x slow.
+   *
+   * Never force a minimum of one step: above 60 Hz a frame legitimately steps zero times and the
+   * carry averages it out. Forcing one would make a 144 Hz display run 2.4x fast again.
+   */
+  private animateFrame(deltaMS: number): void {
     if (!this.app) return;
-
     if (!this.isAnimating) return;
 
-    const currentTime = Date.now();
-    this.frameTick++;
+    const frameMs = Math.min(
+      PlinkoEngine.MAX_FRAME_DELTA_MS,
+      Math.max(0, Number.isFinite(deltaMS) ? deltaMS : PlinkoEngine.FIXED_STEP_MS)
+    );
+    this.smoothedFrameMs += (frameMs - this.smoothedFrameMs) * 0.15;
 
-    let activeBalls = 0;
+    const elapsedMs = this.frameStepCarryMs + frameMs;
+    let steps = Math.floor(elapsedMs / PlinkoEngine.FIXED_STEP_MS);
+    if (steps > PlinkoEngine.MAX_STEPS_PER_FRAME) steps = PlinkoEngine.MAX_STEPS_PER_FRAME;
+    // Clamped to a single step so a capped frame can't hand the next one a pre-loaded backlog.
+    this.frameStepCarryMs = Math.min(
+      elapsedMs - steps * PlinkoEngine.FIXED_STEP_MS,
+      PlinkoEngine.FIXED_STEP_MS
+    );
+    if (steps === 0) return;
 
+    const frameTime = Date.now();
+    for (let i = 0; i < steps && this.isAnimating; i++) {
+      // Bounce arcs, peg glows and slot bounces are all wall-clock timed, so each sub-step gets its
+      // own instant. Handing four sub-steps of one throttled frame the same `now` would desync the
+      // hops from the path advance they belong to — the ball would slide between pegs.
+      this.stepPhysics(frameTime - (steps - 1 - i) * PlinkoEngine.FIXED_STEP_MS);
+    }
+
+    this.drawFrame(frameTime);
+    this.retireFinishedBalls();
+  }
+
+  /** One fixed physics step: advance every ball, fire its events, then separate overlaps. No drawing. */
+  private stepPhysics(currentTime: number): void {
     for (let i = 0; i < this.balls.length; i++) {
       const ball = this.balls[i];
       if (ball.isDropping) {
-        activeBalls++;
         const previousX = ball.x;
         const previousY = ball.y;
         this.updateBallPhysics(ball, currentTime);
@@ -2774,7 +2847,7 @@ export class PlinkoEngine {
 
         ball.prevX = previousX;
         ball.prevY = previousY;
-        // Always run peg collisions so the ball still bounces; peg glow/scale is gated in drawAllPegsPixi.
+        // Always run peg collisions so the ball still bounces; peg glow/scale is gated in drawActivePegs.
         this.checkForBounce(ball, currentTime);
 
         if (!ball.targetReached && ball.currentPoint >= 0.99) {
@@ -2792,34 +2865,45 @@ export class PlinkoEngine {
           });
         }
       } else if (ball.scale > 0) {
-        activeBalls++;
         ball.scale *= 0.93;
         if (ball.scale < 0.05) ball.scale = 0;
       }
     }
 
     this.resolveBallCollisions();
+  }
 
-    const heavyLoad = this.balls.length >= 8;
-    const shouldRedrawEffectLayers = !heavyLoad || this.frameTick % 2 === 0;
-    if (shouldRedrawEffectLayers) {
-      const hasSlotVisuals = this.hasActiveSlotVisuals(currentTime);
-      const hasPegVisuals = this.hasActivePegVisuals(currentTime);
-      if (hasSlotVisuals) {
+  /**
+   * One rendered frame's worth of drawing, however many physics steps preceded it.
+   *
+   * Balls are redrawn every frame — they carry the motion, so skipping them is what actually reads
+   * as stutter. The effect layers (peg glows, slot bounces) are decorative and get thinned out when
+   * the frame budget is already blown, either by a big ball burst or by a slow/throttled device.
+   */
+  private drawFrame(currentTime: number): void {
+    this.frameTick++;
+
+    const slowFrame = this.smoothedFrameMs > PlinkoEngine.SLOW_FRAME_MS;
+    const verySlowFrame = this.smoothedFrameMs > PlinkoEngine.VERY_SLOW_FRAME_MS;
+    const heavyLoad = this.balls.length >= 8 || slowFrame;
+    const effectInterval = verySlowFrame ? 3 : heavyLoad ? 2 : 1;
+    if (this.frameTick % effectInterval === 0) {
+      if (this.hasActiveSlotVisuals(currentTime)) {
         this.drawAllSlotsPixi(currentTime);
       }
-      if (hasPegVisuals) {
-        this.pegGraphics.clear();
-        this.drawAllPegsPixi(currentTime);
-      }
+      this.drawActivePegs(currentTime);
     }
-    // Keep balls rendered every frame so motion stays visually smooth.
-    this.drawBallsPixi();
+    this.drawBallsPixi(slowFrame);
+  }
 
+  /** Compact out balls that have finished and faded, and park the ticker once nothing is moving. */
+  private retireFinishedBalls(): void {
+    let activeBalls = 0;
     let nextLiveBallIndex = 0;
     for (let i = 0; i < this.balls.length; i++) {
       const ball = this.balls[i];
       if (ball.scale > 0 || ball.isDropping) {
+        activeBalls++;
         this.balls[nextLiveBallIndex++] = ball;
       }
     }
@@ -2828,17 +2912,13 @@ export class PlinkoEngine {
     if (activeBalls === 0) {
       this.isAnimating = false;
       this.stopTicker();
+      this.frameStepCarryMs = 0;
+      this.smoothedFrameMs = PlinkoEngine.FIXED_STEP_MS;
+      // Also runs for the hidden-tab driver: rAF is paused there, so this is the scene state the
+      // renderer will paint the moment the tab comes back. Without it the settled balls would still
+      // be sitting in `ballsGraphics` and would flash back on screen mid-drop.
       this.drawStaticPyramid();
     }
-  }
-
-  private hasActivePegVisuals(currentTime: number): boolean {
-    for (let i = 0; i < this.pegs.length; i++) {
-      const peg = this.pegs[i];
-      if (peg.bounceEffect > 0) return true;
-      if (peg.isTouched && currentTime - peg.bounceTime <= 1000) return true;
-    }
-    return false;
   }
 
   private hasActiveSlotVisuals(currentTime: number): boolean {
@@ -2886,6 +2966,12 @@ export class PlinkoEngine {
     const repulsion = this.pyramidConfig.ballRepulsionScale * this.elementScale;
     const passes = dropping.length >= 4 ? 3 : 2;
 
+    // Sweep and prune on y. Balls in a burst are strung out down the board, so once `b` is further
+    // than one separation below `a` nothing after it can touch `a` either and the inner loop stops.
+    // A 50-ball burst goes from ~3.7k distance tests per physics step to a few hundred — and with a
+    // fixed timestep a throttled frame runs several steps, so this is now paid several times over.
+    dropping.sort((a, b) => a.y - b.y);
+
     for (let pass = 0; pass < passes; pass++) {
       for (let i = 0; i < dropping.length; i++) {
         const a = dropping[i];
@@ -2893,6 +2979,7 @@ export class PlinkoEngine {
           const b = dropping[j];
           const dx = b.x - a.x;
           const dy = b.y - a.y;
+          if (dy >= minSep) break;
           const distSq = dx * dx + dy * dy;
           if (distSq >= minSepSq) continue;
 
@@ -3241,89 +3328,126 @@ export class PlinkoEngine {
     }
   }
 
-  private drawAllPegsPixi(currentTime: number): void {
+  /** True when this featured peg wears the coin art (so it draws no classic peg body of its own). */
+  private featuredPegCoinSprite(peg: Peg): Sprite | undefined {
+    const sprite = this.featuredPegSprites.get(peg.key);
+    if (!sprite || !this.coinPegTexture || (sprite.texture.width ?? 0) <= 0) return undefined;
+    return sprite;
+  }
+
+  /**
+   * Coin size tracks the LANE SPACING (not the height-only peg radius) so it scales with the board
+   * at every viewport/aspect — the spacing includes the horizontal width-fit the radius ignores.
+   */
+  private coinBaseSize(): number {
+    return this.pegSpacingXForRow(4) * PlinkoEngine.COIN_SIZE_FACTOR;
+  }
+
+  /** Only three of these, so they are laid out on every draw pass rather than being cached. */
+  private layoutFeaturedPegSprites(currentTime: number): void {
+    const base = this.coinBaseSize();
+    for (let i = 0; i < this.featuredPegs.length; i++) {
+      const peg = this.featuredPegs[i];
+      const sprite = this.featuredPegCoinSprite(peg);
+      if (!sprite) continue;
+      const size = base * (1 + this.pegGlowIntensity(peg, currentTime) * 0.5);
+      const tw = sprite.texture.width || 1;
+      sprite.scale.set(size / tw);
+      // Pull the coin SPRITE toward the cluster centroid (the middle space) so the three coins
+      // sit closer together. Peg grid positions (regular + featured) are untouched — visual only.
+      const pull = PlinkoEngine.COIN_CLUSTER_PULL;
+      sprite.position.set(
+        peg.x + (this.featuredCentroidX - peg.x) * pull,
+        peg.y + (this.featuredCentroidY - peg.y) * pull
+      );
+      sprite.visible = true;
+    }
+  }
+
+  /** 0 when the peg is dark. Read-only — the decay/expiry lives in `drawActivePegs`. */
+  private pegGlowIntensity(peg: Peg, currentTime: number): number {
+    if (peg.bounceEffect <= 0 || !this.animationEnabled) return 0;
+    const duration = this.pyramidConfig.bounceEffectDuration;
+    const elapsed = currentTime - peg.bounceTime;
+    if (elapsed >= duration || elapsed < 0) return 0;
+    return peg.bounceEffect * Math.sin((elapsed / duration) * Math.PI);
+  }
+
+  /**
+   * The ~130 idle peg bodies, tessellated once per layout instead of being re-issued every frame.
+   * At four primitives each that is ~530 draw commands a drop frame no longer rebuilds — the single
+   * largest per-frame cost the board had, and the one that hurt most on a throttled device.
+   */
+  private rebuildStaticPegs(): void {
+    const g = this.pegStaticGraphics;
+    g.clear();
+    const pr = this.pegRadius;
+    for (let i = 0; i < this.pegs.length; i++) {
+      const peg = this.pegs[i];
+      // A coin peg wears its sprite instead of a body, and only ever adds glow on top.
+      if (peg.isFeatured && this.featuredPegCoinSprite(peg)) continue;
+      this.drawClassicPegIdleBody(g, peg, pr);
+    }
+    this.pegStaticDirty = false;
+  }
+
+  /**
+   * Per-frame peg layer: only the pegs currently lit by a bounce, drawn OVER the cached idle bodies.
+   * The hit art is an opaque white disc, so the body underneath shows through only as a hairline of
+   * its own outline inside the white rim — sub-pixel at every board size.
+   */
+  private drawActivePegs(currentTime: number): void {
+    if (this.pegStaticDirty) this.rebuildStaticPegs();
+    this.layoutFeaturedPegSprites(currentTime);
+
     const g = this.pegGraphics;
     const pr = this.pegRadius;
-    // Coin size tracks the LANE SPACING (not the height-only peg radius) so it scales with the board
-    // at every viewport/aspect — the spacing includes the horizontal width-fit the radius ignores.
-    const coinBaseSize = this.pegSpacingXForRow(4) * PlinkoEngine.COIN_SIZE_FACTOR;
-    this.pegs.forEach((peg) => {
-      if (peg.isTouched && currentTime - peg.bounceTime > 1000) {
+    let lit = 0;
+
+    for (let i = 0; i < this.pegs.length; i++) {
+      const peg = this.pegs[i];
+      if (peg.bounceEffect <= 0) continue;
+
+      const duration = this.pyramidConfig.bounceEffectDuration;
+      const elapsed = currentTime - peg.bounceTime;
+      if (elapsed >= duration) {
+        peg.bounceEffect = 0;
         peg.isTouched = false;
+        continue;
       }
-      let glowIntensity = 0;
-      let hitProgress = 0;
-      if (peg.bounceEffect > 0) {
-        const elapsed = currentTime - peg.bounceTime;
-        if (elapsed < this.pyramidConfig.bounceEffectDuration) {
-          const progress = elapsed / this.pyramidConfig.bounceEffectDuration;
-          const bounceValue = Math.sin(progress * Math.PI);
-          if (this.animationEnabled) {
-            hitProgress = progress;
-            glowIntensity = peg.bounceEffect * bounceValue;
-          }
-          peg.bounceEffect *= 0.95;
-        } else {
-          peg.bounceEffect = 0;
-        }
-      }
+      const glowIntensity = this.pegGlowIntensity(peg, currentTime);
+      peg.bounceEffect *= 0.95;
+      if (glowIntensity <= 0) continue;
 
-      const isFeaturedPeg = peg.isFeatured;
+      // Cleared lazily so a frame with nothing lit doesn't touch the context at all.
+      if (lit === 0) g.clear();
+      lit++;
 
-      if (isFeaturedPeg) {
-        const sprite = this.featuredPegSprites.get(peg.key);
-        const hasCoinSprite = !!(
-          sprite &&
-          this.coinPegTexture &&
-          (sprite.texture.width ?? 0) > 0
-        );
-        if (hasCoinSprite && sprite) {
-          const coinGrow = glowIntensity > 0 ? 1 + glowIntensity * 0.5 : 1;
-          // Lane-spacing-based so the coins scale with the board (see `coinBaseSize`).
-          const size = coinBaseSize * coinGrow;
-          const tw = sprite.texture.width || 1;
-          sprite.scale.set(size / tw);
-          // Pull the coin SPRITE toward the cluster centroid (the middle space) so the three coins
-          // sit closer together. Peg grid positions (regular + featured) are untouched — visual only.
-          const pull = PlinkoEngine.COIN_CLUSTER_PULL;
-          sprite.position.set(
-            peg.x + (this.featuredCentroidX - peg.x) * pull,
-            peg.y + (this.featuredCentroidY - peg.y) * pull
-          );
-          sprite.visible = true;
-        }
-        if (glowIntensity > 0) {
-          const expansion = Math.min(1, hitProgress * 1.35);
-          const radialRadius = pr * (1 + expansion * 3.2);
-          g.circle(peg.x, peg.y, radialRadius).fill({
-            color: 0xffea00,
-            alpha: Math.min(0.5, glowIntensity * 0.42)
-          });
-          g.circle(peg.x, peg.y, radialRadius * 0.72).fill({
-            color: 0xfff24a,
-            alpha: Math.min(0.44, glowIntensity * 0.36)
-          });
-          g.circle(peg.x, peg.y, radialRadius + pr * 0.38).stroke({
-            width: Math.max(1.6, pr * 0.34),
-            color: 0xffd100,
-            alpha: Math.min(0.56, glowIntensity * 0.46)
-          });
-        }
-        if (!hasCoinSprite) {
-          if (glowIntensity > 0) {
-            this.drawClassicPegHitGlow(g, peg, pr, glowIntensity);
-          } else {
-            this.drawClassicPegIdleBody(g, peg, pr);
-          }
-        }
-      } else {
-        if (glowIntensity > 0) {
-          this.drawClassicPegHitGlow(g, peg, pr, glowIntensity);
-        } else {
-          this.drawClassicPegIdleBody(g, peg, pr);
-        }
+      if (peg.isFeatured) {
+        const expansion = Math.min(1, (elapsed / duration) * 1.35);
+        const radialRadius = pr * (1 + expansion * 3.2);
+        g.circle(peg.x, peg.y, radialRadius).fill({
+          color: 0xffea00,
+          alpha: Math.min(0.5, glowIntensity * 0.42)
+        });
+        g.circle(peg.x, peg.y, radialRadius * 0.72).fill({
+          color: 0xfff24a,
+          alpha: Math.min(0.44, glowIntensity * 0.36)
+        });
+        g.circle(peg.x, peg.y, radialRadius + pr * 0.38).stroke({
+          width: Math.max(1.6, pr * 0.34),
+          color: 0xffd100,
+          alpha: Math.min(0.56, glowIntensity * 0.46)
+        });
       }
-    });
+      // Featured pegs fall back to the classic body when the coin art failed to load.
+      if (!peg.isFeatured || !this.featuredPegCoinSprite(peg)) {
+        this.drawClassicPegHitGlow(g, peg, pr, glowIntensity);
+      }
+    }
+
+    if (lit === 0 && this.pegGraphicsHasContent) g.clear();
+    this.pegGraphicsHasContent = lit > 0;
   }
 
   private drawClassicPegIdleBody(g: Graphics, peg: Peg, pr: number): void {
@@ -3551,10 +3675,15 @@ export class PlinkoEngine {
     };
   }
 
-  private drawBallsPixi(): void {
+  /**
+   * `underLoad` drops each ball's two inner highlight circles, taking a ball from three primitives
+   * to one. Passed true for a big burst OR a slow/throttled frame — the highlights are a specular
+   * detail nobody reads on a moving ball, and cutting them keeps the motion itself smooth.
+   */
+  private drawBallsPixi(underLoad = false): void {
     const g = this.ballsGraphics;
     g.clear();
-    const useSimpleBallRender = this.balls.length >= 12;
+    const useSimpleBallRender = underLoad || this.balls.length >= 12;
     for (let i = 0; i < this.balls.length; i++) {
       const ball = this.balls[i];
       if (ball.scale <= 0) continue;
@@ -3585,12 +3714,14 @@ export class PlinkoEngine {
   private drawStaticPyramid(): void {
     const now = Date.now();
     this.pegGraphics.clear();
+    this.pegGraphicsHasContent = false;
+    this.pegStaticDirty = true;
     for (const sp of this.slotSprites) {
       if (sp) sp.visible = false;
     }
 
     this.drawAllSlotsPixi(now);
-    this.drawAllPegsPixi(now);
+    this.drawActivePegs(now);
 
     this.drawBallsPixi();
   }
@@ -3656,6 +3787,9 @@ export class PlinkoEngine {
     });
     this.isAnimating = false;
     this.stopTicker();
+    this.frameStepCarryMs = 0;
+    this.hiddenStepCarryMs = 0;
+    this.smoothedFrameMs = PlinkoEngine.FIXED_STEP_MS;
     this.drawStaticPyramid();
   }
 
