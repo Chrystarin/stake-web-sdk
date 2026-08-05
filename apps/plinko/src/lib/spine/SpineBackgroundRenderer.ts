@@ -223,7 +223,18 @@ export class SpineBackgroundRenderer {
 				backgroundAlpha: 0,
 				antialias: true,
 				autoDensity: true,
-				resolution: window.devicePixelRatio || 1,
+				// Cap at 2, matching every other Pixi app in the game (PlinkoEngine's
+				// MAX_RENDER_RESOLUTION, both meters, the coin fountain, the balance glow). This was the
+				// last renderer still taking the raw `devicePixelRatio`, and it is the FULL-VIEWPORT one,
+				// so it dominated fill rate on phones: measured at 414x896 DPR 3 its backing store was
+				// 1242x2688 = 3.34 MP, against 1.48 MP for the equally full-screen overlays beside it —
+				// 48% of every canvas pixel in the game, redrawn 60 times a second. Capping halves it.
+				//
+				// Devices at DPR <= 2 (all desktops, Retina Macs) are completely unaffected; only phones,
+				// which is exactly where the frame budget is tightest. Safe visually because the scene is
+				// a soft painterly backdrop with no text or hairlines, and it now simply matches the
+				// sharpness of the board and balls drawn on top of it rather than exceeding them.
+				resolution: Math.min(2, window.devicePixelRatio || 1),
 				preference: 'webgl',
 			});
 

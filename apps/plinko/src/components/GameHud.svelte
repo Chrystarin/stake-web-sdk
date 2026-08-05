@@ -731,7 +731,13 @@
 				class="mobile-free-spin-meter"
 				class:mobile-free-spin-meter--hidden={stateGame.ballPerDrop === 1}
 			>
-				<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+				<!-- `visible` mirrors the `--hidden` class above: hiding it only stops it being COMPOSITED,
+				     so the meter must also be told to stop drawing, or it keeps spinning its wheel at 60fps
+				     behind `visibility: hidden` for the whole 1-ball tier. -->
+				<FreeSpinMeter
+					progress={props.spinMeterProgress ?? 0}
+					visible={stateGame.ballPerDrop !== 1}
+				/>
 			</div>
 		</div>
 
@@ -992,7 +998,11 @@
 			class:bp-free-spin-meter-wrap--hidden={stateGame.ballPerDrop === 1}
 		>
 			<div class="bp-free-spin-meter">
-				<FreeSpinMeter progress={props.spinMeterProgress ?? 0} />
+				<!-- `visible` mirrors the `--hidden` class on the wrap — see the mobile copy above. -->
+				<FreeSpinMeter
+					progress={props.spinMeterProgress ?? 0}
+					visible={stateGame.ballPerDrop !== 1}
+				/>
 			</div>
 		</div>
 

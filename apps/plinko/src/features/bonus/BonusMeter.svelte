@@ -4,7 +4,10 @@
 	import { BonusMeterEngine } from './BonusMeterEngine';
 	import { staticUrl } from '../../lib/staticUrl';
 
-	type Props = { progress?: number };
+	/** `visible` — whether the meter is actually on screen. It stays MOUNTED when hidden (churning the
+	 *  WebGL canvas flashes white on slower GPUs), so this is what stops the marker-tracking loop below
+	 *  running for the whole 1-ball tier. Defaults to true so Storybook use needs no prop. */
+	type Props = { progress?: number; visible?: boolean };
 
 	const props: Props = $props();
 
@@ -27,16 +30,20 @@
 			markerReady = true;
 		});
 
-		let rafId = 0;
-		const tick = () => {
+		return () => engine?.destroy();
+	});
+
+	// The marker is an HTML <img>, so it can't ride the Pixi scene graph — it samples the engine's
+	// published tip position every frame instead. Only while the meter is on screen: hidden, this was a
+	// permanent rAF loop running for the whole session with nothing to show for it.
+	// (The engine's own canvas is separately render-on-demand — see BonusMeterEngine.renderNow.)
+	$effect(() => {
+		if (!(props.visible ?? true)) return;
+		let rafId = requestAnimationFrame(function tick() {
 			syncMarker();
 			rafId = requestAnimationFrame(tick);
-		};
-		rafId = requestAnimationFrame(tick);
-		return () => {
-			cancelAnimationFrame(rafId);
-			engine?.destroy();
-		};
+		});
+		return () => cancelAnimationFrame(rafId);
 	});
 
 	$effect(() => {

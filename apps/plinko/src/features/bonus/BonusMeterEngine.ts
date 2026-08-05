@@ -106,6 +106,19 @@ export class BonusMeterEngine {
     this.hostElement.appendChild(app.canvas as HTMLCanvasElement);
     this.app = app;
 
+    // RENDER ON DEMAND. Pixi's Application starts a ticker that re-renders the stage every frame; this
+    // scene only changes when the fill animates (`animateProgress` → `updateMeterFill`) or the host
+    // resizes, so those 60 repaints/second were redrawing an identical picture — including a full
+    // render-to-texture pass for `glowFilter`. Measured on an emulated phone (414x896, DPR 3): this
+    // meter alone was 539 of the game's 898 draw calls/second, and it is `visibility: hidden` for the
+    // whole 1-ball tier, so most of that was for pixels nobody could see. Every mutation path now ends
+    // in `renderNow()` instead.
+    //
+    // ⚠️ This does NOT touch the level-up gate. `reportBonusMeterRenderedProgress` is called from
+    // `updateMeterFill`, which is driven by this engine's own rAF loop, not by the Pixi ticker — so the
+    // "wait for a visibly full bar" handshake still reports on exactly the same schedule as before.
+    app.ticker.stop();
+
     let baseTexture: Texture;
     let meterTexture: Texture;
     try {
@@ -474,6 +487,20 @@ export class BonusMeterEngine {
     };
   }
 
+  /**
+   * Paint one frame. Replaces the per-frame ticker render stopped in {@link initPixi} — call it after
+   * anything that changes what the meter should look like.
+   *
+   * Synchronous rather than rAF-coalesced on purpose: every caller is already inside a frame (the
+   * progress rAF, or the resize rAF), and rendering right after the mutation keeps the scene-graph
+   * write and the draw in the same frame in that order. Deferring the draw to a later callback is what
+   * made the free-spin meter's fill visibly stutter — see `FreeSpinMeterEngine.startFrameTicker`.
+   */
+  private renderNow(): void {
+    if (!this.app) return;
+    this.app.renderer.render(this.app.stage);
+  }
+
   private setMarkerPosition(x: number, y: number): void {
     this.markerLeftPx = x;
     this.markerTopPx = y + this.markerSizePx * this.markerVerticalNudgeFraction;
@@ -508,11 +535,15 @@ export class BonusMeterEngine {
     this.updateMeterFill();
     const diff = Math.abs(this.displayedProgress - this.targetProgress);
     if (diff > 0.0005) {
+      // Exactly one draw per animating frame (the ticker no longer draws — see `renderNow`).
+      this.renderNow();
       this.progressAnimRafId = requestAnimationFrame((ts) => this.animateProgress(ts));
       return;
     }
     this.displayedProgress = this.targetProgress;
     this.updateMeterFill();
+    // Final frame of the animation: draw the settled bar, then go quiet until something changes.
+    this.renderNow();
     this.lastProgressAnimTs = null;
   }
 }

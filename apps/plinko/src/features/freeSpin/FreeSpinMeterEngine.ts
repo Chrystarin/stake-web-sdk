@@ -8,6 +8,30 @@ export class FreeSpinMeterEngine {
 		this.setTargetProgress(value);
 	}
 
+	/**
+	 * Start/stop drawing to match whether this meter is on screen.
+	 *
+	 * The meter is PERMANENTLY MOUNTED and shown/hidden with `visibility` so its WebGL canvas is never
+	 * churned (recreating it flashes white for a frame on slower GPUs — the whole reason for the
+	 * keep-mounted design). But a mounted Pixi Application keeps its ticker running, so while hidden it
+	 * went on spinning the wheel and re-rasterising the bar 60 times a second for pixels nobody can
+	 * see: 180 draw calls/second measured on an emulated phone, for the entire 1-ball tier.
+	 *
+	 * Stopping the TICKER (not destroying anything) leaves the canvas, its GL context and its last
+	 * rendered frame completely intact, so showing it again is instant and flash-free.
+	 *
+	 * ⚠️ Deliberately not a `maxFPS` cap: unlike the background renderer this scene has nothing to
+	 * settle while hidden, and the wheel's rotation is delta-time driven, so it picks up correctly
+	 * wherever it resumes.
+	 */
+	setVisible(visible: boolean): void {
+		const ticker = this.app?.ticker;
+		if (!ticker) return;
+		if (visible === ticker.started) return;
+		if (visible) ticker.start();
+		else ticker.stop();
+	}
+
 
   
   progress = 1;

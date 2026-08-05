@@ -813,7 +813,12 @@
 						stateGame.ballPerDrop !== 1 || stateGame.bonusRoundActive
 					)}
 				>
-					<BonusMeter progress={bonusMeterProgress} />
+					<!-- `visible` mirrors the `--hidden` class on the wrap: hiding it only stops it being
+					     COMPOSITED, so the meter must also be told to stop its marker-tracking loop. -->
+					<BonusMeter
+						progress={bonusMeterProgress}
+						visible={stateGame.ballPerDrop !== 1 || stateGame.bonusRoundActive}
+					/>
 				</div>
 
 				<!-- The multi-ball (10/20/50) win reveal is the full-screen <WinCelebration /> overlay
