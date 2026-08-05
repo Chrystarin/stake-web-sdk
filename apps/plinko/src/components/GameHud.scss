@@ -1718,14 +1718,15 @@
 	opacity: 1;
 }
 
-.hud-play-count-badge,
-.mobile-autobet-count-badge {
+/* The centred count on the mobile Play plaque. Base size is the bonus free-balls count, which reads
+   large on the plaque; a running Autobet's rounds-left uses the --auto modifier below. */
+.hud-play-count-badge {
 	position: absolute;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
 	color: #f0f6ff;
-	font-size: clamp(14px, 3.74vw, 22px);
+	font-size: clamp(28px, 7.48vw, 44px);
 	font-weight: 800;
 	line-height: 1;
 	text-shadow: 0 0.08vw 0.2vw rgba(0, 0, 0, 0.55);
@@ -1733,10 +1734,21 @@
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
 }
 
-/* Free-balls-remaining count on the mobile Play plaque during a bonus round: 100% bigger than the
-   shared badge size above (autobet count stays the shared size). */
-.hud-play-count-badge {
-	font-size: clamp(28px, 7.48vw, 44px);
+/* Rounds left in a running Autobet, sitting INSIDE the spinning ring (the mobile twin of desktop's
+   .bp-bonus-count-badge). Two deliberate differences from the bonus count above:
+   - Smaller, because an Autobet run reaches 3 digits (100) and has to clear the ring's small hole,
+     where the free-balls count is at most 2.
+   - Raised onto the DISC's centre, not the button box's: main_btn_empty draws its disc
+     --bp-play-disc-rise high, and the spinner is raised by the same amount — so the number only
+     agrees with the arrows around it if it rides up too.
+   Above the spinner (z-index 3) so the digits stay legible where they overlap the arcs. */
+.hud-play-count-badge--auto {
+	top: calc(50% - var(--bp-play-disc-rise));
+	font-size: clamp(18px, 4.8vw, 28px);
+	z-index: 4;
+	text-shadow:
+		0 0.08vw 0.28vw rgba(0, 0, 0, 0.9),
+		0 0 0.5vw rgba(0, 0, 0, 0.75);
 }
 
 .mobile-autobet-wrap {

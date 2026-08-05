@@ -264,6 +264,13 @@
 	// remaining-rounds badge, so the player can't re-arm it and no stale count lingers.
 	const autoBetStopping = $derived(props.autoPlayStarted && stateGame.autoPlayStopping);
 
+	// An Autobet run that is genuinely running (not winding down after a mid-run bonus). On mobile this
+	// drives BOTH the permanent spinner on the Play plaque and the rounds-left count centred inside it:
+	// the count rides the ring, matching desktop, instead of being stamped over the Autobet toggle.
+	// Deliberately not `showPlayLoading`: that drops out between rounds, which would blink the ring (and
+	// the count inside it) off in the gap between one round settling and the next being submitted.
+	const autoBetRunning = $derived(props.autoPlayStarted && !autoBetStopping);
+
 	function formatMoney(value: number) {
 		const formatted = value.toLocaleString('en-US', {
 			minimumFractionDigits: 2,
@@ -857,12 +864,12 @@
 				<button
 					type="button"
 					class="mobile-icon-btn mobile-icon-btn--play"
-					class:mobile-icon-btn--play-loading={showPlayLoading}
+					class:mobile-icon-btn--play-loading={showPlayLoading || autoBetRunning}
 					class:mobile-icon-btn--soft-disabled={isPlayButtonSoftInsufficient}
 					disabled={isPlayButtonHardDisabled}
 					aria-label="Bet"
 					aria-disabled={isPlayButtonSoftInsufficient}
-					aria-busy={showPlayLoading}
+					aria-busy={showPlayLoading || autoBetRunning}
 					onclick={onMainActionClick}
 					onpointerdown={onPlayPointerDown}
 					onpointerup={onPlayPointerRelease}
@@ -873,18 +880,28 @@
 					     main_btn_play_icon.png) via the shared snippets, replacing play-btn-mobile.png. The
 					     plaque is drawn in every state; only the overlay (spinner / icon) changes. -->
 					{@render mainButtonBase()}
-					{#if showPlayLoading}
+					<!-- The ring spins for a gated round AND for the whole Autobet run, so the rounds-left
+					     count below always has its arrows to sit inside. -->
+					{#if showPlayLoading || autoBetRunning}
 						<img
 							class="bp-btn-play-spinner"
 							src={staticUrl('img/loading_vector.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
-					{:else if props.hasPendingBonusBalls}
+					{/if}
+					{#if props.hasPendingBonusBalls}
 						<!-- During a bonus round the mobile Play button matches desktop: the play icon is
 						     dropped and the plaque shows only the number of free balls left. -->
 						<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
-					{:else}
+					{:else if autoBetRunning}
+						<!-- Rounds left in the running Autobet, centred in the spinning ring — the same place
+						     desktop puts it (see .bp-bonus-count-badge). It is NOT stamped over the Autobet
+						     toggle any more; that button is purely the Stop control while a run is up. -->
+						<span class="hud-play-count-badge hud-play-count-badge--auto">
+							{mobileAutoCountDisplay}
+						</span>
+					{:else if !showPlayLoading}
 						{@render mainButtonPlayIcon()}
 					{/if}
 				</button>
@@ -899,10 +916,9 @@
 					aria-label="Autobet"
 					onclick={onMobileAutoButtonClick}
 				>
+					<!-- No remaining-rounds badge here: the count moved onto the Play plaque, inside the
+					     spinning ring (matching desktop). This button is just the Autobet toggle / Stop. -->
 					<img src={staticUrl('img/auto-bet-btn-mobile.webp')} alt="" aria-hidden="true" />
-					{#if (props.autoMode || props.autoPlayStarted) && !autoBetStopping}
-						<span class="mobile-autobet-count-badge">{mobileAutoCountDisplay}</span>
-					{/if}
 				</button>
 				{#if autoPanelOpen}
 					<div class="mobile-autobet-panel">
