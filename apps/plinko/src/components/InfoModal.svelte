@@ -1,8 +1,13 @@
 <script lang="ts">
 	import { stateBet } from 'state-shared';
 
+	import config from '../game/config';
 	import { buyBonusCost, plinkoBetLimits } from '../game/plinkoBet';
-	import { BUY_BONUS_TIERS } from '../game/plinkoBetMode';
+	import {
+		BUY_BONUS_TIERS,
+		PLINKO_BET_MODE_BY_BALLS,
+		buyBonusModeName,
+	} from '../game/plinkoBetMode';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
 	import {
 		BOARD_SLOT_MULTIPLIERS,
@@ -143,6 +148,59 @@
 			value: isBonus ? Infinity : parseFloat(label),
 		};
 	}).sort((a, b) => a.value - b.value);
+
+	/**
+	 * Declared RTP + max win PER BET MODE, read from `config.betModes` — the same table published to the
+	 * RGS, so the rules state exactly what the math declares.
+	 *
+	 * `max_win` is a multiple of BET PER BALL, not of the total bet (math `wincap_for_balls`: "per
+	 * stake_per_ball"; the client agrees — see `bookEventHandlerMap`'s note that the payout multiplier is
+	 * "normalized to the PER-BALL stake, NOT win ÷ total-bet"). A bare "480×" therefore reads as 480× the
+	 * total bet and overstates every mode whose cost is above 1, so both framings are published: the
+	 * per-ball cap and `max_win ÷ cost`, which is the same ceiling expressed against the wager the player
+	 * actually places.
+	 */
+	function betModeFacts(mode: string, label: string) {
+		const modeConfig = config.betModes[mode as keyof typeof config.betModes];
+		const cost = modeConfig?.cost ?? 0;
+		const maxWin = modeConfig?.max_win ?? 0;
+		return {
+			label,
+			rtpPercent: (modeConfig?.rtp ?? 0) * 100,
+			maxWinPerBall: maxWin,
+			// Exact for every published pair (100/1, 250/10, 300/20, 400/50, 260/80, 290/100, 330/150,
+			// 480/250); trimmed rather than fixed-width so 8× doesn't render as "8.00×".
+			maxWinTotalBet: cost > 0 ? maxWin / cost : 0,
+		};
+	}
+
+	const baseModeRows = BALL_PER_DROP_TIERS.map((balls) =>
+		betModeFacts(PLINKO_BET_MODE_BY_BALLS[balls], `${balls} Ball per Drop`),
+	);
+	const buyModeRows = BUY_BONUS_TIERS.map((tier) =>
+		betModeFacts(buyBonusModeName(tier.key), `Buy Bonus — ${tier.name}`),
+	);
+	const allModeRows = [...baseModeRows, ...buyModeRows];
+
+	/** Game-wide declared RTP, and the modes that differ from it (the feature-free 1-ball tier). */
+	const gameRtpPercent = config.rtp * 100;
+	const offRtpModes = allModeRows.filter(
+		(row) => Math.abs(row.rtpPercent - gameRtpPercent) > 0.001,
+	);
+
+	/** Headline caps: the biggest of each framing across every mode. */
+	const maxWinPerBallCap = Math.max(...allModeRows.map((row) => row.maxWinPerBall));
+	const maxWinTotalBetCap = Math.max(...allModeRows.map((row) => row.maxWinTotalBet));
+
+	/** `95.7` → "95.7%"; whole percentages keep their trailing `.0` so the column reads evenly. */
+	function formatRtp(percent: number) {
+		return `${percent.toFixed(1)}%`;
+	}
+
+	/** `8` → "8×", `3.25` → "3.25×", `1.92` → "1.92×" — no forced decimals on whole multiples. */
+	function formatTimes(value: number) {
+		return `${Number(value.toFixed(2))}×`;
+	}
 
 	/** Grouped amount without forcing decimals on whole numbers (e.g. 0.01, 2,500, 50,000). */
 	function formatLimit(value: number) {
@@ -291,15 +349,47 @@
 								across more pockets and raises the top potential payout. A single ball can pay at most
 								{formatMultiplier(Math.max(...BOARD_SLOT_MULTIPLIERS))}; the 1 Ball per Drop tier has no
 								bonus features, so that is also its maximum payout, while from 10 balls up bonus rounds
-								reach your tier's max payout of 250× to 400×.
+								reach your tier's own cap ({baseModeRows
+									.filter((row) => row.maxWinPerBall > baseModeRows[0].maxWinPerBall)
+									.map((row) => formatTimes(row.maxWinPerBall))
+									.join(' / ')} your Bet per Ball at
+								{BALL_PER_DROP_TIERS.slice(1).join(' / ')} balls). Every mode's cap is listed under Key
+								Features below.
 							</p>
 
 							<h3 class="info-section-title">Key Features &amp; Settings</h3>
 							<p>
-								<strong>RTP</strong> — Approximately 95.5%.
+								<strong>RTP</strong> — {formatRtp(gameRtpPercent)}.
+								{#if offRtpModes.length}
+									The {offRtpModes.map((row) => row.label).join(' and ')}
+									{offRtpModes.length === 1 ? 'tier plays' : 'tiers play'} a different board with no
+									bonus features, and {offRtpModes.length === 1 ? 'returns' : 'return'}
+									{offRtpModes.map((row) => formatRtp(row.rtpPercent)).join(' and ')}.
+								{/if}
 							</p>
 							<p>
-								<strong>Max Win</strong> — Up to x480.
+								<strong>Max Win</strong> — up to {formatTimes(maxWinPerBallCap)} your Bet per Ball, which
+								is up to {formatTimes(maxWinTotalBetCap)} your total bet. The cap is declared per bet mode:
+							</p>
+							<table class="info-rules-table">
+								<thead>
+									<tr>
+										<th>Bet mode</th>
+										<th>Max win (× Bet per Ball)</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each allModeRows as row (row.label)}
+										<tr>
+											<td>{row.label}</td>
+											<td>{formatTimes(row.maxWinPerBall)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+							<p>
+								Every multiplier in this game — pockets, wheels and these caps — is applied to your
+								<strong>Bet per Ball</strong>, not to your total bet for the round.
 							</p>
 							<p>
 								<strong>Volatility</strong> — High. Most balls settle near the center for small returns,
@@ -545,9 +635,12 @@
 								{formatMultiplier(Math.max(...BOARD_SLOT_MULTIPLIERS))} your Bet per Ball on a single ball.
 							</li>
 							<li>
-								With the bonus features in play, a round can reach your tier's maximum payout — 250×
-								at 10 balls per drop, up to 400× at 50. The 1 Ball per Drop tier has no bonus
-								features, so its maximum payout is the board's top pocket,
+								With the bonus features in play, a round can reach your tier's maximum payout —
+								{#each baseModeRows.slice(1) as row, index (row.label)}{index > 0
+										? ', '
+										: ''}{formatTimes(row.maxWinPerBall)} at {BALL_PER_DROP_TIERS[index + 1]}{/each}
+								balls per drop, each measured against your Bet per Ball. The 1 Ball per Drop tier has no
+								bonus features, so its maximum payout is the board's top pocket,
 								{formatMultiplier(Math.max(...ONE_BALL_BOARD_SLOT_MULTIPLIERS))}.
 							</li>
 						</ul>
@@ -589,8 +682,17 @@
 
 						<h3 class="info-section-title">Key Features</h3>
 						<ul>
-							<li><strong>RTP</strong> — Approximately 95.5%</li>
-							<li><strong>Max Win</strong> — Up to x480.</li>
+							<li>
+								<strong>RTP</strong> — {formatRtp(gameRtpPercent)}{#if offRtpModes.length}, except the
+									{offRtpModes.map((row) => row.label).join(' and ')}
+									{offRtpModes.length === 1 ? 'tier' : 'tiers'} at
+									{offRtpModes.map((row) => formatRtp(row.rtpPercent)).join(' and ')}{/if}.
+							</li>
+							<li>
+								<strong>Max Win</strong> — up to {formatTimes(maxWinPerBallCap)} your Bet per Ball (up to
+								{formatTimes(maxWinTotalBetCap)} your total bet). The cap is per bet mode — see the Game
+								Rules for the full table.
+							</li>
 							<li>
 								<strong>Auto</strong> — Pick a number of rounds and the game drops automatically for
 								you. Press Auto again to stop and return to manual play.

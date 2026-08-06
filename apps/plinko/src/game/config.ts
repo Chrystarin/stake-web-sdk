@@ -22,7 +22,9 @@ export default {
 	betModes: {
 		// max_win is PER-TIER (mirror of math plinko_data.WINCAP_BY_BALLS): each tier's advertised max
 		// win must be achievable in that tier's own books (Stake: max win hits >= 1/20,000,000). The
-		// folded bonus's organic ceiling rises with ball count, so the caps ascend 200/250/300/400.
+		// folded bonus's organic ceiling rises with ball count, so the caps ascend 100/250/300/400.
+		// Each is a multiple of BET PER BALL (math `wincap_for_balls`: "per stake_per_ball"), so the
+		// cap against the total bet falls as balls rise (400× at 50 balls is 8× the wager).
 		// onedrop is FEATURE-FREE (no bonus, no free spin — see `isSingleBallMode`), so it plays its own
 		// board: RTP is that board's EV (0.954) and the advertised max win is its top pocket, 100×.
 		onedrop: {

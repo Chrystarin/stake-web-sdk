@@ -11,8 +11,8 @@ const MAX_STAKE_PER_BALL_OPTIONS = BET_PER_BALL_PRESETS.length;
 
 /**
  * Headline payout-multiplier cap (relative to the per-ball play amount) — mirror of math `wincap`.
- * The cap is PER-TIER (200/250/300/400); the displayed "max payout" is the GAME maximum, so use the
- * highest tier cap (fiftydrop, 400×) — the largest win any tier can produce.
+ * The cap is PER-MODE (100/250/300/400 base, 260/290/330/480 buy), so the displayed "max payout" is
+ * the GAME maximum: the max over EVERY mode, which is buysuperfury at 480× — NOT the top base tier.
  */
 const PLINKO_WINCAP = Math.max(
 	...Object.values(config.betModes).map((m) => m.max_win ?? 0),
@@ -86,9 +86,12 @@ export function plinkoBetModeCost(): number {
 }
 
 /**
- * Max win (payout-multiplier cap, = round win ÷ total wager ceiling) of the ACTIVE bet mode — the per-tier
- * `max_win` from `config.betModes` (200/250/300/400 base; 260/290/330/480 buy). Drives the win-popup tier,
- * which scales with how close the round got to THIS mode's ceiling. Falls back to the game-wide wincap.
+ * Max win of the ACTIVE bet mode — the per-mode `max_win` from `config.betModes` (100/250/300/400 base;
+ * 260/290/330/480 buy). This is a cap on the PER-BALL payout multiplier (math `wincap_for_balls`: "per
+ * stake_per_ball"), NOT on round-win ÷ total-wager: at 50 balls the 400× cap is 8× the total bet. Drives
+ * the win-popup tier, which scales with how close the round got to THIS mode's ceiling — the comparison
+ * is sound because `winPopupMultiplier` is normalized the same way (see `bookEventHandlerMap`). Falls
+ * back to the game-wide wincap.
  */
 export function plinkoActiveModeMaxWin(): number {
 	const mode = plinkoActiveBetMode();

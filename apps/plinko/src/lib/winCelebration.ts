@@ -13,8 +13,9 @@ export type WinTier = 'massive' | 'epic' | 'captain';
  *   • Massive Plunder — up to 25% of max win
  *   • Epic Bounty      — 26%–75% of max win
  *   • Captain's Jackpot — 76% of max win and above
- * Both `winPopupMultiplier` and `max_win` are the round-payout-÷-total-wager multiplier, so their ratio
- * is a clean 0…1 fraction (a round can reach — but never exceed — its mode's cap). Edit here to re-tune.
+ * Both `winPopupMultiplier` and `max_win` are normalized to the PER-BALL stake (NOT round-payout ÷
+ * total-wager — see `bookEventHandlerMap`), so their ratio is a clean 0…1 fraction (a round can reach —
+ * but never exceed — its mode's cap). Edit here to re-tune.
  */
 export const WIN_TIER_MAX_WIN_FRACTION = {
 	epic: 0.26,
