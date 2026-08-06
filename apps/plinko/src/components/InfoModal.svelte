@@ -364,7 +364,7 @@
 
 							<h3 class="info-section-title">Key Features &amp; Settings</h3>
 							<p>
-								<strong>RTP</strong> — {formatRtp(gameRtpPercent)}.
+								<strong>RTP</strong> — Approximately {formatRtp(gameRtpPercent)}.
 								{#if offRtpModes.length}
 									The {offRtpModes.map((row) => row.label).join(' and ')}
 									{offRtpModes.length === 1 ? 'tier plays' : 'tiers play'} a different board with no
@@ -688,7 +688,7 @@
 						<h3 class="info-section-title">Key Features</h3>
 						<ul>
 							<li>
-								<strong>RTP</strong> — {formatRtp(gameRtpPercent)}{#if offRtpModes.length}, except the
+								<strong>RTP</strong> — Approximately {formatRtp(gameRtpPercent)}{#if offRtpModes.length}, except the
 									{offRtpModes.map((row) => row.label).join(' and ')}
 									{offRtpModes.length === 1 ? 'tier' : 'tiers'} at
 									{offRtpModes.map((row) => formatRtp(row.rtpPercent)).join(' and ')}{/if}.
