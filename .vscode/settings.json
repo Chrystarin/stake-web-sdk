@@ -22,7 +22,7 @@
 	"search.exclude": {
 		"**/node_modules": true
 	},
-	"files.autoSave": "off",
+	"files.autoSave": "afterDelay",
 	"diffEditor.ignoreTrimWhitespace": false,
 	"breadcrumbs.enabled": true,
 	"terminal.integrated.env.osx": {
