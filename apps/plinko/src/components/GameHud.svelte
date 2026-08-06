@@ -156,12 +156,23 @@
 	 *
 	 * The `!autoPlayStarted` exemption at each call site keeps the toggle (Stop) and the count options live
 	 * DURING a run, where picking a count only retargets the remaining rounds.
+	 *
+	 * The full-screen win celebration (`showWinPopup`) is the same kind of hole. By the time it plays the
+	 * balls have all landed and the round has settled, so BOTH `controlsLocked` and `isGameOngoing()` read
+	 * false — yet `isAutoBetRoundBusy` (the autobet loop's own gate) still holds on the popup so the reveal
+	 * isn't torn down by the next drop. The menu therefore opened over a live celebration, and picking a
+	 * count started a run that immediately gave up on its very first round: "Autobet Started" and "Autobet
+	 * Finished" back to back, with nothing played. Locking on the popup here restores the same
+	 * "menu is offered ⟺ a run can actually start" invariant. (The rapid 1-ball tier never shows this
+	 * popup — see the `isRapidSingleBallMode` early return in the `finalWin` handler — so nothing is
+	 * needlessly locked there.)
 	 */
 	const autoBetConfigLocked = $derived.by(() => {
 		stateGame.isAnimating;
 		stateGame.expectedOutcomeByBallId.size;
 		stateGame.pendingSpacedSpawnTimers;
-		return controlsLocked || isGameOngoing();
+		stateGame.showWinPopup;
+		return controlsLocked || isGameOngoing() || stateGame.showWinPopup;
 	});
 	// If a drop starts while the count panel is open (possible on the rapid 1-ball tier, where Play stays
 	// live mid-drop) its options go disabled — close the panel too so it can't sit open and inert.

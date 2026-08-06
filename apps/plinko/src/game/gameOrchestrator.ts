@@ -1676,13 +1676,22 @@ async function placeAutoBetRound(onBet: () => void): Promise<boolean> {
 }
 
 /**
- * Arms and starts an Autobet run. Returns FALSE when the run could not start (balls still in flight) —
- * callers must then clear `stateGame.autoMode` rather than leave Autobet armed-but-idle. An armed-idle
- * Autobet turns the main Play button into a "start autobet" control, so the next ordinary Play press
- * silently fires the whole run: see `selectAutoBetCount` in GameHud.
+ * Arms and starts an Autobet run. Returns FALSE when the run could not start (balls still in flight, or
+ * a win celebration still on screen) — callers must then clear `stateGame.autoMode` rather than leave
+ * Autobet armed-but-idle. An armed-idle Autobet turns the main Play button into a "start autobet"
+ * control, so the next ordinary Play press silently fires the whole run: see `selectAutoBetCount` in
+ * GameHud.
+ *
+ * The `showWinPopup` guard mirrors `isAutoBetRoundBusy` below: refusing a start the loop is about to
+ * abandon anyway is what keeps the two toasts honest. Without it a start during the celebration
+ * announced "Autobet Started", failed its first `placeAutoBetRound`, and fell straight through to
+ * `finishAutoBet`'s "Autobet Finished" — a completed-run notification for a run that never placed a bet.
+ * The UI gate (`autoBetConfigLocked`) already keeps the count menu shut during the popup; this is the
+ * backstop for the paths that don't consult it — notably `startArmedAutoBetRun`, which re-validates only
+ * after the confirm prompt is answered, and the prompt can be answered while the reveal is up.
  */
 export function startAutoBet(onBet: () => void): boolean {
-	if (isGameOngoing()) return false;
+	if (isGameOngoing() || stateGame.showWinPopup) return false;
 	stateGame.autoPlayStarted = true;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
