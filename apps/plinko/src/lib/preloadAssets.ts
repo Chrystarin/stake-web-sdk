@@ -94,6 +94,8 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/portait_bet_panel_strap.webp',
 	// Landscape-only gradient behind the whole betting panel, total bet included (see .bp-panel-scrim).
 	'img/betting_panel_bottom_overlay.webp',
+	// Landscape-only bar behind the total-bet readout, on top of the one above (see .bp-total-overlay).
+	'img/betting_panel_total_bet_bottom_overlay.webp',
 	// Desktop menu button (top-hud). Mobile uses its own asset below.
 	'img/menu-btn.webp',
 	// Mobile menu button — dedicated mobile art, top-left corner.

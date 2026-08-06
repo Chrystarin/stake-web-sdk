@@ -98,3 +98,41 @@ peak alpha if art redelivers this file; don't re-apply it to an already-renormal
 
 Lossless despite being `img/` art: at 28 KB it is only ~2 KB above lossy q90, and a smooth gradient
 stretched across the full viewport is the worst case for lossy banding. Not worth 2 KB.
+
+## Total-bet backdrop bar (2026-08-06)
+
+| master | installed as | encode |
+|---|---|---|
+| `betting_panel_total_bet_bottom_overlay.png` | `static/img/betting_panel_total_bet_bottom_overlay.webp` | lossless |
+
+1979x189 RGBA. A flat **black** bar at a uniform alpha 110 (43%), feathered to zero on all four edges
+— 27 px in from the left and 26 px from the right, 21 px from top and bottom (11.1% of the height).
+Drawn on `.bp-total-overlay::before`, stacked on top of the panel backdrop above so the readout gets a
+darker plinth than the rest of the row.
+
+⚠️ **Installed CROPPED to a top-feathered slab: 1979x189 → 1926x166** — master `x 27..1952`,
+`y 0..165`. Three of the four feathered edges are cut off; only the top one is kept.
+
+`.bp-total-overlay::before` stretches this to the full viewport with `background-size: 100% 100%`,
+which stretches any soft edge along with everything else. Every edge except the top abuts a hard
+boundary — the viewport sides and the viewport floor — so a feather there doesn't blend into
+anything, it just reads as the bar failing to reach the screen edge (the master fell about 1% of the
+viewport short on each side, and short of the bottom). The top feather is the one edge that borders
+something to blend INTO, the panel backdrop above, so it stays.
+
+Crop bounds were read off the alpha channel, taking the flat core as `peak - 2` to absorb the ±1
+dither in it. Re-derive them the same way if art redelivers this file; don't reuse these numbers.
+
+Replaced a hand-tuned CSS `rgba(3, 4, 19, …)` tint plus a `mask-image` fade. Both are gone: the fade
+did the same job as the art's own top feather, so keeping it would fade an already-faded edge twice.
+Note the colour change is the point — the old tint was a navy a shade *under* the panel art's own
+`rgb(7, 33, 48)`, so it blended in and its entire alpha range moved the band only ~18/255; black has
+somewhere to go.
+
+Lossless is both smaller AND exact here (13 KB cropped, against 34 KB for the uncropped master at
+lossy q90) — unusually, lossy *loses* on size, because the image is one flat colour and a soft edge,
+which is what lossless WebP compresses best and what DCT handles worst.
+
+It goes into a box roughly 10x wider than it is tall, so `background-size: 100% 100%` squashes it ~4x
+vertically. That is safe only because it is a flat bar with no shape in it; the top feather squashes
+with it (still 13% of the height, ~6 px at 1920w) and stays soft.

@@ -1247,7 +1247,13 @@
 	     Hidden during a bonus round: drops are free balls, so a total-bet readout is meaningless there —
 	     the rest of the HUD keeps the normal-mode layout. -->
 	{#if !stateGame.bonusRoundActive}
-		<div class="bp-total-overlay" aria-label="Total bet">
+		<div
+			class="bp-total-overlay"
+			aria-label="Total bet"
+			style:--bp-total-scrim-img="url({staticUrl(
+				'img/betting_panel_total_bet_bottom_overlay.webp',
+			)})"
+		>
 			<span class="bp-play-total-label">{betLabel}</span>
 			<span class="bp-play-total-value" aria-live="polite">
 				{formatMoney(displayTotalBet)}
