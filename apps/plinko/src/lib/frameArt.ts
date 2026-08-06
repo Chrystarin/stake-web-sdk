@@ -12,31 +12,30 @@ export type FramePoint = { x: number; y: number };
 /**
  * Intrinsic size of the art — only a fallback for before the image reports its own.
  *
- * The V3 art re-renders the same composition at 2× (was 1142×1010), so every anchor below is simply
- * its old numerator doubled. Verified by re-measuring both files with one method: the cavity lands at
- * x 0.51007 / halfW 0.10114 of the width in BOTH, and y 0.37277 → 0.37265 of the height (a quarter of
- * a pixel). Height is 2018, not 2×1010 — a 0.1% aspect change the layout absorbs (see the
- * `.game-area-foot` clone in Game.svelte).
+ * The `game_area_frame` drop re-renders the same composition at 1× (V3 was 2284×2018, exactly 2× of
+ * this), so every anchor below is its V3 numerator halved. Both maths below only ever use these two
+ * as a ratio, so the fallback is aspect-sensitive and nothing else — but keep them at the art's real
+ * size anyway, since that is what the loaded image reports and what `.game-area-foot` mirrors.
  */
-const FRAME_NATURAL_W = 2284;
-const FRAME_NATURAL_H = 2018;
+const FRAME_NATURAL_W = 1142;
+const FRAME_NATURAL_H = 1009;
 
 /**
  * The black void behind the skull's teeth, where balls are thrown up out of. Measured off the art
  * as the contiguous run of near-black pixels between the teeth and the gold pile: it spans
- * x 942..1394, y 738..766 of the source image, so its centre is (1166, 754).
+ * x 468..697, y 368..384 of the source image, so its centre is (583, 376).
  */
 export const SKULL_MOUTH_CAVITY: FramePoint = {
-	x: 1166 / FRAME_NATURAL_W,
-	y: 754 / FRAME_NATURAL_H,
+	x: 583 / FRAME_NATURAL_W,
+	y: 376 / FRAME_NATURAL_H,
 };
 
 /**
- * Half the cavity's width (of the x 942..1394 run above), as a fraction of the art. Balls are thrown
+ * Half the cavity's width (of the x 468..697 run above), as a fraction of the art. Balls are thrown
  * from a point offset to one side of `SKULL_MOUTH_CAVITY` rather than from its centre; this bounds
  * that offset so the spawn stays on black instead of creeping onto a tooth.
  */
-export const SKULL_MOUTH_CAVITY_HALF_W = 226 / FRAME_NATURAL_W;
+export const SKULL_MOUTH_CAVITY_HALF_W = 114 / FRAME_NATURAL_W;
 
 /** The gold pile heaped in the mouth, just below the cavity — origin of the win coin fountain. */
 export const SKULL_GOLD_PILE: FramePoint = { x: 0.508, y: 0.39 };
