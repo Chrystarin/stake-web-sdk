@@ -5,16 +5,27 @@
 	import { BUY_BONUS_TIERS } from '../game/plinkoBetMode';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
 	import {
+		BOARD_SLOT_MULTIPLIERS,
+		ONE_BALL_BOARD_SLOT_MULTIPLIERS,
+	} from '../game-logic/boardMultipliers';
+	import {
 		BALL_PER_DROP_TIERS,
 		BONUS_LEVEL_LABELS,
 		BONUS_LEVELUP_PEGS,
 		BONUS_WHEEL_FREE_BALLS,
+		FREE_SPIN_SEGMENTS,
+		FREE_SPIN_WEIGHTS,
 		bonusInDropForBalls,
 		bonusLevelBalls,
 		bonusMeterTierFor,
 		spinMeterTierFor,
 	} from '../game-logic/constants';
-	import { currencySign as currencySignFor, formatWinAmount } from '../lib/format';
+	import { slotColorForRateIndex } from '../game-logic/slotColors';
+	import {
+		currencySign as currencySignFor,
+		formatCoefficientLabel,
+		formatWinAmount,
+	} from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
@@ -87,6 +98,63 @@
 	const wheelSegmentCount = BONUS_WHEEL_FREE_BALLS.length;
 	const wheelMinBalls = Math.min(...BONUS_WHEEL_FREE_BALLS);
 	const wheelMaxBalls = Math.max(...BONUS_WHEEL_FREE_BALLS);
+
+	/** `100` / `1.5` / `0.2` — the same label the pocket is painted with on the board. */
+	function formatMultiplier(value: number) {
+		return `${formatCoefficientLabel(value)}×`;
+	}
+
+	/**
+	 * Pocket paytable, read off the board tables themselves.
+	 *
+	 * Both boards are symmetric, so one row covers the mirrored PAIR at that distance from the center
+	 * (2 pockets) and the last row is the lone center pocket. Rows run edge → center, i.e. highest
+	 * multiplier first. The 1-ball column is a separate board, not a variant of the shared one: it pays
+	 * its center (0.1×) and lifts the two pockets either side (0.2× → 0.3×) because that tier has no
+	 * feature meters to feed — enumerating both is the only way a player can see that.
+	 */
+	const boardCenterIndex = Math.floor(BOARD_SLOT_MULTIPLIERS.length / 2);
+	const paytableRows = BOARD_SLOT_MULTIPLIERS.slice(0, boardCenterIndex + 1).map(
+		(shared, index) => ({
+			index,
+			shared,
+			oneBall: ONE_BALL_BOARD_SLOT_MULTIPLIERS[index],
+			isCenter: index === boardCenterIndex,
+			color: slotColorForRateIndex([...BOARD_SLOT_MULTIPLIERS], index),
+		}),
+	);
+
+	/**
+	 * Free-spin wheel segments, sorted low → high with BONUS last (the stored order is the wheel's
+	 * clockwise layout, which is meaningless in a paytable). Both chances come from the mirrored
+	 * weights rather than 1/length, so an unequal reweight in the math shows up here instead of being
+	 * papered over by a hardcoded percentage.
+	 *
+	 * THE WHEEL HAS TWO DISTRIBUTIONS, and quoting only the first is what makes a published "BONUS
+	 * 12.5%" wrong. A free spin fired from the BASE DROP draws over all segments. A free spin fired
+	 * INSIDE a bonus round re-rolls a BONUS landing (math `simulate_bonus_round`: `while segment ==
+	 * "BONUS": re-pick`) so a bonus can't recurse into itself — there, BONUS is impossible and its
+	 * weight redistributes across the numeric segments (12.5% → 14.3% each on equal weights).
+	 */
+	const freeSpinTotalWeight = FREE_SPIN_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
+	const freeSpinNumericWeight = FREE_SPIN_SEGMENTS.reduce(
+		(sum, label, index) => (label === 'BONUS' ? sum : sum + (FREE_SPIN_WEIGHTS[index] ?? 0)),
+		0,
+	);
+	const freeSpinRows = FREE_SPIN_SEGMENTS.map((label, index) => {
+		const isBonus = label === 'BONUS';
+		const weight = FREE_SPIN_WEIGHTS[index] ?? 0;
+		return {
+			label,
+			isBonus,
+			// BONUS has no numeric value; Infinity parks it at the end of the sort.
+			value: isBonus ? Infinity : parseFloat(label),
+			chance: freeSpinTotalWeight > 0 ? (weight / freeSpinTotalWeight) * 100 : 0,
+			// null = cannot land at all once a bonus round is running.
+			inBonusChance:
+				isBonus || freeSpinNumericWeight <= 0 ? null : (weight / freeSpinNumericWeight) * 100,
+		};
+	}).sort((a, b) => a.value - b.value);
 
 	/** Grouped amount without forcing decimals on whole numbers (e.g. 0.01, 2,500, 50,000). */
 	function formatLimit(value: number) {
@@ -179,27 +247,63 @@
 
 							<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
 							<p>
-								The bottom of the board features a row of colored multiplier slots (from low in the
-								center to high on the edges); the dead-center pocket is the SPIN (0×) slot, which
-								pays nothing but fills the Free Spin meter. On the 1 Ball per Drop tier there are no
-								bonus features, so that pocket is an ordinary paying slot (0.1×) instead.
+								The bottom of the board features a row of colored multiplier slots, running from low in
+								the center to high on the edges.
 							</p>
-							<ul>
-								<li>
-									<strong>Low-value slots</strong> (near the center, green/yellow) = small returns, below
-									1×.
-								</li>
-								<li>
-									<strong>High-value slots</strong> (outer edges, orange through pink/magenta) = huge
-									multipliers (up to 100× per ball). The 1 Ball per Drop tier has no bonus features,
-									so 100× is also its maximum payout; from 10 balls up, bonus rounds reach your
-									tier's max payout of 250× to 400×.
-								</li>
-							</ul>
+							<p>
+								Every ball pays <strong>Bet per Ball × the multiplier of the pocket it lands in</strong
+								>. The board has {BOARD_SLOT_MULTIPLIERS.length} pockets, mirrored around the center, so
+								each row below is the matching PAIR of pockets at that distance from the middle:
+							</p>
+							<table class="info-rules-table info-paytable">
+								<thead>
+									<tr>
+										<th>Pockets</th>
+										<th>10 / 20 / 50 Ball per Drop</th>
+										<th>1 Ball per Drop</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each paytableRows as row (row.index)}
+										<tr>
+											<td>
+												<span
+													class="info-paytable-swatch"
+													style:background={row.color}
+													aria-hidden="true"
+												></span>
+												{row.isCenter ? '1 (center)' : '2'}
+											</td>
+											<td>
+												{formatMultiplier(row.shared)}
+												{#if row.isCenter}
+													<span class="info-rules-note">SPIN slot — pays nothing, fills the meter</span>
+												{/if}
+											</td>
+											<td>{formatMultiplier(row.oneBall)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+							<p>
+								The two tiers play <strong>different boards</strong>. On 10 / 20 / 50 balls the center
+								pocket is the SPIN slot: it pays {formatMultiplier(
+									BOARD_SLOT_MULTIPLIERS[boardCenterIndex],
+								)} and feeds the Free Spin meter instead. The 1 Ball per Drop tier has no meters to feed,
+								so its center pays {formatMultiplier(
+									ONE_BALL_BOARD_SLOT_MULTIPLIERS[boardCenterIndex],
+								)} and the pocket either side of it pays {formatMultiplier(
+									ONE_BALL_BOARD_SLOT_MULTIPLIERS[boardCenterIndex - 1],
+								)} rather than {formatMultiplier(BOARD_SLOT_MULTIPLIERS[boardCenterIndex - 1])}. Every
+								other pocket is identical on both boards.
+							</p>
 							<p>
 								The board layout is fixed — you control your own risk through your Bet per Ball and
 								Ball per Drop, not a difficulty or rows setting. Dropping more balls spreads them
-								across more pockets and raises the top potential payout.
+								across more pockets and raises the top potential payout. A single ball can pay at most
+								{formatMultiplier(Math.max(...BOARD_SLOT_MULTIPLIERS))}; the 1 Ball per Drop tier has no
+								bonus features, so that is also its maximum payout, while from 10 balls up bonus rounds
+								reach your tier's max payout of 250× to 400×.
 							</p>
 
 							<h3 class="info-section-title">Key Features &amp; Settings</h3>
@@ -222,10 +326,46 @@
 								SPIN (0×) slot. When it fills during a drop, a wheel adds a multiplier of your Bet
 								per Ball, from 0.5× up to 20×, on top of your win.
 							</p>
+							<p>The wheel's {FREE_SPIN_SEGMENTS.length} segments are:</p>
+							<table class="info-rules-table">
+								<thead>
+									<tr>
+										<th>Segment</th>
+										<th>Pays</th>
+										<th>From a drop</th>
+										<th>During a bonus</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each freeSpinRows as row (row.label)}
+										<tr>
+											<td>{row.label}</td>
+											<td>
+												{#if row.isBonus}
+													Chains straight into a Bonus round
+												{:else}
+													{row.value} × your Bet per Ball
+												{/if}
+											</td>
+											<td>{row.chance.toFixed(1)}%</td>
+											<td>
+												{#if row.inBonusChance === null}
+													Cannot land
+												{:else}
+													{row.inBonusChance.toFixed(1)}%
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
 							<p>
-								One segment of that wheel is BONUS, which chains straight into a Bonus round. The
-								Free Spin feature is not available on the single-ball drop.
+								A free spin can also fire while a bonus round is already running. That wheel
+								<strong>cannot land on BONUS</strong> — a bonus can't start another bonus inside itself
+								— so it always pays one of the multipliers, and each of them is correspondingly more
+								likely.
 							</p>
+							<p>The Free Spin feature is not available on the single-ball drop.</p>
 							<p><strong>Bonus</strong> — free balls</p>
 							<ul>
 								<li>
@@ -384,19 +524,54 @@
 							edges. The board layout is fixed — you tune your own risk through Bet per Ball and
 							Ball per Drop rather than a difficulty or rows setting.
 						</p>
+						<p>
+							Each row below is the mirrored pair of pockets at that distance from the middle:
+						</p>
+						<table class="info-rules-table info-paytable">
+							<thead>
+								<tr>
+									<th>Pockets</th>
+									<th>10 / 20 / 50 Ball per Drop</th>
+									<th>1 Ball per Drop</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each paytableRows as row (row.index)}
+									<tr>
+										<td>
+											<span
+												class="info-paytable-swatch"
+												style:background={row.color}
+												aria-hidden="true"
+											></span>
+											{row.isCenter ? '1 (center)' : '2'}
+										</td>
+										<td>
+											{formatMultiplier(row.shared)}
+											{#if row.isCenter}
+												<span class="info-rules-note">SPIN slot — fills the Free Spin meter</span>
+											{/if}
+										</td>
+										<td>{formatMultiplier(row.oneBall)}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
 						<ul>
 							<li>
-								<strong>Center pockets</strong> pay the least (down to 0×), so balls that drift to the
-								middle return little or nothing.
+								<strong>Center pockets</strong> pay the least, so balls that drift to the middle return
+								little or nothing — on 10 / 20 / 50 balls the center pocket pays nothing at all and
+								feeds the Free Spin meter instead.
 							</li>
 							<li>
-								<strong>Edge pockets</strong> pay the most — up to 100× your Bet per Ball on a single
-								ball.
+								<strong>Edge pockets</strong> pay the most — up to
+								{formatMultiplier(Math.max(...BOARD_SLOT_MULTIPLIERS))} your Bet per Ball on a single ball.
 							</li>
 							<li>
 								With the bonus features in play, a round can reach your tier's maximum payout — 250×
 								at 10 balls per drop, up to 400× at 50. The 1 Ball per Drop tier has no bonus
-								features, so its maximum payout is the board's top pocket, 100×.
+								features, so its maximum payout is the board's top pocket,
+								{formatMultiplier(Math.max(...ONE_BALL_BOARD_SLOT_MULTIPLIERS))}.
 							</li>
 						</ul>
 
@@ -408,8 +583,11 @@
 								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.spinHits}{/each}
 								hits at
 								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.balls}{/each}
-								balls per drop; when it fills during a drop, a wheel spins and adds a multiplier (from
-								0.5× up to 20×) of your Bet per Ball on top of your win; landing on
+								balls per drop; when it fills during a drop, a wheel spins and adds a multiplier of your
+								Bet per Ball on top of your win. Its {FREE_SPIN_SEGMENTS.length} segments are
+								{#each freeSpinRows as row, index (row.label)}{index > 0
+										? ', '
+										: ''}{row.isBonus ? 'BONUS' : formatMultiplier(row.value)}{/each}, and landing on
 								<strong>BONUS</strong> chains straight into a bonus round. (Not available on the single-ball
 								drop.)
 							</li>
@@ -699,6 +877,28 @@
 		display: block;
 		color: #9ab8d0;
 		font-size: calc(12 * var(--ui-px));
+	}
+	/* Paytable rows carry the pocket's own board color, so the row can be matched to the slot on screen
+	 * rather than to a name for it. Colors come from `slotColorForRateIndex`, the same function the
+	 * board paints with. */
+	.info-paytable-swatch {
+		display: inline-block;
+		width: calc(10 * var(--ui-px));
+		height: calc(10 * var(--ui-px));
+		margin-right: calc(6 * var(--ui-px));
+		border-radius: calc(3 * var(--ui-px));
+		vertical-align: baseline;
+	}
+	/* The payout columns are the point of this table, so they carry the accent instead of the leading
+	 * pocket-count column that `.info-rules-table` would otherwise highlight. */
+	.info-paytable td:first-child {
+		color: #d6e8f7;
+		font-weight: 600;
+	}
+	.info-paytable td:nth-child(2),
+	.info-paytable td:nth-child(3) {
+		color: #7ec8ff;
+		font-weight: 700;
 	}
 	.info-section-title {
 		margin: calc(18 * var(--ui-px)) 0 calc(8 * var(--ui-px));
