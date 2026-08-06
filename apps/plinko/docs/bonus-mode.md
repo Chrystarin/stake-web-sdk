@@ -185,6 +185,17 @@ to target with a lever that does **not** touch the board:
 | --- | --- | --- |
 | 10 / 20 / 50 | `BONUS_IN_DROP_RATE` — the quota of drops that force a bonus | `BONUS_METER_TIER[..].max` — the natural trigger rate |
 | buy tiers | `BUY_BONUS_TIER_DEFS[..].peg_hit_prob` — how fast a bought bonus climbs the shared ladder | `entry_balls` at a fixed cost |
+| 1 | **the board itself** (`ONE_BALL_BOARD_SLOT_MULTIPLIERS`) — feature-free, so its pocket values *are* its RTP | — |
+
+Solve those levers with **`rtp_audit.py`**, not the older `measure_tuning_capped.py` / `verify_buybonus.py`.
+Both of those average sampled payouts, and the board's 100× corners leave ~0.2 % of noise on the read at
+their sample counts; the quota lever is ~11 RTP points per 0.001, so solving from them put the published
+`tendrop` at 95.01 % and `twentydrop` at 95.38 %. `rtp_audit.py` takes the feature-fire rates from the
+binomial in closed form and folds the board in as its exact analytic EV × the sampled ball count, reading
+every mode to ±0.01–0.03 %.
+
+Sim counts matter too: Stake grades RTP off the published LUT, so each figure carries `sd_book/sqrt(n)`
+of sampling error. See the sizing note in the math `run.py`.
 
 The level-up ladder itself is deliberately **not** a per-mode lever — it is the one number the player
 reads off the screen, so it has to mean the same thing everywhere.

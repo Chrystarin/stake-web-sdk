@@ -26,12 +26,15 @@ export default {
 		// Each is a multiple of BET PER BALL (math `wincap_for_balls`: "per stake_per_ball"), so the
 		// cap against the total bet falls as balls rise (400× at 50 balls is 8× the wager).
 		// onedrop is FEATURE-FREE (no bonus, no free spin — see `isSingleBallMode`), so it plays its own
-		// board: RTP is that board's EV (0.954) and the advertised max win is its top pocket, 100×.
+		// board: RTP is that board's EV and the advertised max win is its top pocket, 100×. The board was
+		// re-cut (center 0.1× → 0.2×, sides 0.3× → 0.25×) to lift that EV 0.954 → 0.95657, because a tier
+		// sitting 0.30% under the 0.957 every other mode targets was the biggest term in the cross-mode
+		// RTP spread Stake rejected. Mirror of math `declared_rtp_for_balls(1)`.
 		onedrop: {
 			cost: 1.0,
 			feature: true,
 			buyBonus: false,
-			rtp: 0.954,
+			rtp: 0.95657,
 			max_win: 100.0,
 		},
 		tendrop: {
@@ -56,13 +59,16 @@ export default {
 			max_win: 400.0,
 		},
 		// BUY BONUS modes — one per tier (bonus-only; cost is ×bet-per-ball, independent of balls-per-drop).
-		// cost comes from the rule-set PDF; the math tunes the bonus entry balls so each mode's RTP ≈ 95.7%
-		// at that fixed cost. is_feature=false → one-shot. Per-tier max_win = the tier's advertised cap.
+		// cost comes from the rule-set PDF; the math tunes each tier's in-bonus coin-peg probability (with
+		// entry balls as the coarse lever) so every mode lands at RTP ≈ 95.7% at that fixed cost.
+		// is_feature=false → one-shot. Per-tier max_win = the tier's advertised cap, raised/lowered from
+		// 260/290/330/480 — each new cap is still inside that tier's organic payout tail, so it stays
+		// achievable (measured 1/2.7k–1/10k of buys, against a 1/20,000,000 floor).
 		// Must mirror the published math config.json (plinko_data.BUY_BONUS_TIER_DEFS).
-		buystandard: { cost: 80.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 260.0 },
-		buyenhanced: { cost: 100.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 290.0 },
-		buypremium: { cost: 150.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 330.0 },
-		buysuperfury: { cost: 250.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 480.0 },
+		buystandard: { cost: 80.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 250.0 },
+		buyenhanced: { cost: 100.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 300.0 },
+		buypremium: { cost: 150.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 350.0 },
+		buysuperfury: { cost: 250.0, feature: false, buyBonus: true, rtp: 0.957, max_win: 500.0 },
 	},
 	/** [rowTierIndex 0..12] → slot multipliers (matches stake-math-sdk plinko_data.COEFFICIENT_SETS). */
 	coefficientSets: tierTable(DEFAULT_SLOT_MULTIPLIERS) as number[][],

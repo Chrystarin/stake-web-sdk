@@ -38,11 +38,21 @@ export const isPortraitGameLayout = (): boolean => {
 	return w <= 820;
 };
 
+/**
+ * Board-pocket label. This is what the player READS off the pocket they are about to be paid from
+ * (`PlinkoEngine` slot `labelText`), so it must not round a value away: it keeps up to TWO decimals and
+ * drops trailing zeros — 100 → "100", 1.5 → "1.5", 0.25 → "0.25", 0.2 → "0.2", 0 → "0".
+ *
+ * ⚠️ It used to be one decimal, which printed the 1-ball board's 0.25× pocket as "0.3" — a pocket
+ * labelled 20% above what it pays. Every value that existed under the old rule renders identically here.
+ * `alignCoefficientSet` matches server coefficients to board slots on these labels, so the two sides stay
+ * consistent as long as both go through this function.
+ */
 export const formatCoefficientLabel = (value: number): string => {
 	if (value == null || Number.isNaN(value)) return '';
 	if (value > 999_999) return `${(value / 1_000_000).toFixed(1)}m`;
 	if (value > 999) return `${(value / 1_000).toFixed(1)}k`;
-	return Number(value).toFixed(value % 1 === 0 ? 0 : 1);
+	return String(Number(value.toFixed(2)));
 };
 
 /**

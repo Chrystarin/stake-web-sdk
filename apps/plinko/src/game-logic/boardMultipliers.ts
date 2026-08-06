@@ -13,11 +13,15 @@ export const BOARD_SLOT_MULTIPLIERS = [
 /** 1-BALL BOARD (the `onedrop` tier only) — mirror of math `plinko_data.ONE_BALL_BOARD_SLOT_MULTIPLIERS`.
  * That tier is FEATURE-FREE (no free spin, no bonus — see `isSingleBallMode`), so the center pocket has
  * no spin meter to feed: leaving it at 0× would make it a dead slot hit ~20.9% of the time and strand
- * the tier at the bare board EV (~89.6%), under the 90% compliance floor. Here the center pays 0.1× and
- * the two pockets either side go 0.2× → 0.3×, funding the tier to ~95.4%. Nothing else moves.
+ * the tier at the bare board EV (~89.6%), under the 90% compliance floor. Here the center pays 0.2× and
+ * the two pockets either side go 0.2× → 0.25×, funding the tier to 95.657%. Nothing else moves.
+ * ⚠️ THESE POCKET VALUES *ARE* the tier's RTP — with no feature and no quota to tune, `onedrop` returns
+ * exactly this board's EV. They were center 0.1× / sides 0.3× (95.396%), which left the tier 0.30% below
+ * the 95.7% every other mode is tuned to and was the largest term in the cross-mode RTP spread Stake
+ * rejected. Do not adjust them without re-running the math's `rtp_audit.py`.
  * ⚠️ Balls landing center on this tier are NOT flagged `hitSpinSlot` by the math, so they pay normally. */
 export const ONE_BALL_BOARD_SLOT_MULTIPLIERS = [
-	100, 50, 20, 5, 1.5, 0.4, 0.3, 0.1, 0.3, 0.4, 1.5, 5, 20, 50, 100,
+	100, 50, 20, 5, 1.5, 0.4, 0.25, 0.2, 0.25, 0.4, 1.5, 5, 20, 50, 100,
 ] as const;
 
 /** Per-balls-per-drop board override. Only tiers listed here differ from `BOARD_SLOT_MULTIPLIERS`. */

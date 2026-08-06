@@ -17,9 +17,9 @@ they carry sampling error in the last digit and should be re-confirmed with
 | Rows (math contract) | 14 → 15 pockets |
 | Shared board (`BOARD_SLOT_MULTIPLIERS`) | `100, 50, 20, 5, 1.5, 0.4, 0.2, 0, 0.2, 0.4, 1.5, 5, 20, 50, 100` |
 | Shared board EV per ball | **0.89635** *(derived)* |
-| 1-ball board (`onedrop` only) | `100, 50, 20, 5, 1.5, 0.4, 0.3, 0.1, 0.3, 0.4, 1.5, 5, 20, 50, 100` |
-| 1-ball board EV per ball | **0.95396** *(derived)* |
-| Centre pocket (index 7) | Free-spin pocket on 10 / 20 / 50 — pays 0×, feeds the spin meter. On `onedrop` it is an ordinary paying pocket (0.1×). |
+| 1-ball board (`onedrop` only) | `100, 50, 20, 5, 1.5, 0.4, 0.25, 0.2, 0.25, 0.4, 1.5, 5, 20, 50, 100` |
+| 1-ball board EV per ball | **0.95657** *(derived)* — this **is** the `onedrop` RTP; that tier has no feature and no quota |
+| Centre pocket (index 7) | Free-spin pocket on 10 / 20 / 50 — pays 0×, feeds the spin meter. On `onedrop` it is an ordinary paying pocket (0.2×). |
 | P(ball lands centre) | **0.20947** = C(14,7)/2¹⁴ *(derived)* |
 | Target RTP (`TARGET_RTP`) | 0.957 |
 | Compliance band | 90.00 % – 96.70 %, all modes inside a 1.00 %-wide window |
@@ -37,10 +37,10 @@ Per ball, independent of where the ball lands, `hitBonusPeg` is rolled at this p
 | `tendrop` | 0.18 | 18 |
 | `twentydrop` | 0.18 | 18 |
 | `fiftydrop` | 0.18 | 18 |
-| `buystandard` | **0.0447** | 4.5 |
-| `buyenhanced` | **0.0292** | 2.9 |
-| `buypremium` | **0.0252** | 2.5 |
-| `buysuperfury` | **0.0283** | 2.8 |
+| `buystandard` | **0.04487** | 4.5 |
+| `buyenhanced` | **0.02931** | 2.9 |
+| `buypremium` | **0.02515** | 2.5 |
+| `buysuperfury` | **0.02846** | 2.8 |
 
 `BONUS_PEG_HIT_PROB = 0.18` remains as the default for any mode not listed.
 
@@ -61,14 +61,14 @@ coin-peg hits reach `max`. The maximum **scales up with the ball count**, as int
 | Mode | Balls / drop | Meter max | Mean pegs per drop | Natural fire rate *(derived)* | Quota `BONUS_IN_DROP_RATE` | Total bonus rate *(derived)* |
 | --- | --- | --- | --- | --- | --- | --- |
 | `onedrop` | 1 | 20 (cosmetic, never fires) | 0.18 | — | 0 | **0** |
-| `tendrop` | 10 | **7** | 1.8 | 0.0440 % (1 in 2,272) | 0.283 % | 0.327 % (1 in 306) |
-| `twentydrop` | 20 | **9** | 3.6 | 0.4877 % (1 in 205) | 0.253 % | 0.740 % (1 in 135) |
-| `fiftydrop` | 50 | **17** | 9.0 | 0.5005 % (1 in 200) | 1.350 % | 1.844 % (1 in 54) |
+| `tendrop` | 10 | **7** | 1.8 | 0.0440 % (1 in 2,272) | 0.323 % | 0.367 % (1 in 273) |
+| `twentydrop` | 20 | **9** | 3.6 | 0.4877 % (1 in 205) | 0.298 % | 0.786 % (1 in 127) |
+| `fiftydrop` | 50 | **17** | 9.0 | 0.5005 % (1 in 200) | 1.333 % | 1.834 % (1 in 55) |
 
 `start_ratio` is 0 on all three tiers — no head start.
 
 Note the shape: the *absolute* bar rises (7 → 9 → 17) while the bar as a *fraction of the ball
-count* falls (0.70 → 0.45 → 0.34). That is what makes a 50-ball drop reach the bonus about 5.6×
+count* falls (0.70 → 0.45 → 0.34). That is what makes a 50-ball drop reach the bonus about 5×
 more often per drop than a 10-ball drop. The 10-ball bar was deliberately raised 6 → 7 when the
 entry wheel went back to a mean of 60 free balls: at 6 that tier's natural fire rate alone put it at
 96.198 % RTP, i.e. above target with a zero quota and no lever left.
@@ -159,48 +159,77 @@ Earned bonus (wheel entry, mean 60 balls), escalating ladder, p = 0.18:
 The bonus payout distribution is tier-independent apart from two things: the in-bonus free-spin
 threshold (6 / 10 / 21 — a 10-ball tier fires it far more easily) and the wincap that clips the tail.
 
-Buy bonuses on the shared ladder, each at its own coin-peg probability — **measured against the real
-`GameState.simulate_bonus_round`** (`verify_buybonus.py`, n = 150,000 per tier):
+Buy bonuses on the shared ladder, each at its own coin-peg probability — **measured through the real
+`GameState.simulate_bonus_round`** (`rtp_audit.py`, n = 150,000 per tier):
 
-| Mode | Entry | Peg prob | Cost | Wincap | RTP | P(wincap hit) | Mean level | L≥2 | Mean balls | Max balls seen |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `buystandard` | 72 | 0.0447 | 80 | 260× | **95.64 %** | 0.0147 % (1 in 6,803) | 1.22 | 21.9 % | 76 | 132 |
-| `buyenhanced` | 95 | 0.0292 | 100 | 290× | **95.76 %** | 0.0173 % (1 in 5,780) | 1.15 | 14.6 % | 98 | 155 |
-| `buypremium` | 145 | 0.0252 | 150 | 330× | **95.74 %** | 0.0880 % (1 in 1,136) | 1.30 | 30.5 % | 151 | 205 |
-| `buysuperfury` | 239 | 0.0283 | 250 | 480× | **95.68 %** | 0.0527 % (1 in 1,898) | 1.84 | 80.7 % | 257 | 299 |
+| Mode | Entry | Peg prob | Cost | Wincap | RTP | P(wincap hit) | Mean level | Mean balls | Max balls seen |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `buystandard` | 72 | 0.04487 | 80 | 250× | **95.689 %** | 0.0300 % (1 in 3,333) | 1.22 | 77 | 132 |
+| `buyenhanced` | 95 | 0.02931 | 100 | 300× | **95.659 %** | 0.0087 % (1 in 11,494) | 1.15 | 98 | 155 |
+| `buypremium` | 145 | 0.02515 | 150 | 350× | **95.706 %** | 0.0440 % (1 in 2,273) | 1.30 | 151 | 205 |
+| `buysuperfury` | 239 | 0.02846 | 250 | 500× | **95.762 %** | 0.0327 % (1 in 3,058) | 1.85 | 257 | 299 |
 
-* Buy-mode spread 0.121 %. With the base modes at 95.700 % the seven feature modes span
-  **95.64 %–95.76 % (0.12 %)**; including the feature-free `onedrop` at 95.40 %, 0.36 %. Limit 1.00 %.
+And the four base modes at the same measurement (the 1-ball tier is closed-form — it has no feature):
+
+| Mode | Quota | Wincap | RTP |
+| --- | --- | --- | --- |
+| `onedrop` | — (feature-free) | 100× | **95.657 %** *(derived)* |
+| `tendrop` | 0.00323 | 250× | **95.703 %** |
+| `twentydrop` | 0.00298 | 300× | **95.707 %** |
+| `fiftydrop` | 0.01333 | 400× | **95.698 %** |
+
+* **All eight published modes span 95.657 %–95.762 %: a 0.104 % cross-mode spread against Stake's
+  0.50 % limit.** It was 0.66 % (see §9).
 * Every advertised max win is produced far above the 1 / 20,000,000 achievability floor.
 * Largest book seen is 299 balls — nowhere near the ~5,200-ball runaway that the old flat buy bar
   existed to prevent.
 * The level-up *frequency* is unchanged from the old flat bars (mean level was 1.22 / 1.12 / 1.29 /
   1.87). Only the bar the player watches is different: the same threshold everywhere, filled by
   fewer, larger ticks.
+* ⚠️ Don't re-tune on the last ~0.05 % of a buy tier. A bought bonus's ball count is heavy-tailed (a
+  rare level 5–6 adds 160–320 balls at once), so the estimator's own uncertainty is ~±0.05 % per tier
+  even at n = 150,000 — larger than its printed SE, which only covers the sampled ball-count variance.
 
 ## 8. Max win (wincap) ladder
 
 `WINCAP_BY_BALLS` / `BUY_BONUS_TIER_DEFS[..].wincap`. The advertised max must be achievable
 (≥ 1 / 20,000,000), which is why it is per-mode rather than flat.
 
-| Mode | Max win (× bet per ball) |
-| --- | --- |
-| `onedrop` | 100× (the board's top pocket — that tier has no features) |
-| `tendrop` | 250× |
-| `twentydrop` | 300× |
-| `fiftydrop` | 400× |
-| `buystandard` | 260× |
-| `buyenhanced` | 290× |
-| `buypremium` | 330× |
-| `buysuperfury` | 480× |
+| Mode | Max win (× bet per ball) | Measured hit rate |
+| --- | --- | --- |
+| `onedrop` | 100× (the board's top pocket — that tier has no features) | 2 / 16,384 = 1 in 8,192 *(derived)* |
+| `tendrop` | 250× | per bonus, see §7 |
+| `twentydrop` | 300× | per bonus, see §7 |
+| `fiftydrop` | 400× | per bonus, see §7 |
+| `buystandard` | 250× | 1 in 3,043 buys *(modelled)* |
+| `buyenhanced` | 300× | 1 in 10,000 buys *(modelled)* |
+| `buypremium` | 350× | 1 in 2,692 buys *(modelled)* |
+| `buysuperfury` | 500× | 1 in 3,043 buys *(modelled)* |
+
+The buy caps were raised/lowered from 260 / 290 / 330 / 480 on request. Each still sits inside its tier's
+**organic** payout tail (raw maxima of 294 / 336 / 436 / 598 were seen above the respective caps at
+n = 70,000 per tier), so every advertised max win is still produced far above the 1 / 20,000,000
+achievability floor. Moving a cap by ±10–20× barely moves RTP — it only re-prices the ~0.01–0.04 % of
+bonuses that reach it — so `peg_hit_prob` remains the lever that holds each buy tier at target.
 
 ## 9. Declared RTP per mode
 
 | Mode | Declared RTP | Why |
 | --- | --- | --- |
-| `onedrop` | 0.95396 | Feature-free — the board is all it pays, so publishing 0.957 would overstate it. |
-| `tendrop` / `twentydrop` / `fiftydrop` | 0.957 | Tuned to `TARGET_RTP` by the bonus quota. |
-| all 4 buy modes | 0.957 | Tuned to `TARGET_RTP` by `entry_balls` at the PDF-fixed cost. |
+| `onedrop` | 0.95657 | Feature-free — the board is all it pays, so this is its board EV exactly. Publishing 0.957 would overstate it by 0.043 %. |
+| `tendrop` / `twentydrop` / `fiftydrop` | 0.957 | Tuned to `TARGET_RTP` by the bonus quota (`BONUS_IN_DROP_RATE`). |
+| all 4 buy modes | 0.957 | Tuned to `TARGET_RTP` by `peg_hit_prob` at the PDF-fixed cost and fixed `entry_balls`. |
+
+### Why these moved
+
+`onedrop` used to declare 0.95396 and its board used to pay centre 0.1× / sides 0.3×. That left it
+**0.30 % below** the 95.70 % every other mode targets, and the low tiers' quotas had been solved from a
+sampled-payout tuner whose ~0.2 % of noise mis-set them (published `tendrop` 95.01 %, `twentydrop`
+95.38 %). Together those two things produced a **0.66 % cross-mode RTP spread against Stake's 0.50 %
+limit**. The fix was to re-cut the 1-ball board to 95.657 %, re-solve every lever with the closed-form
+`rtp_audit.py`, and raise the published sim counts so the graded LUT means carry ≤ 0.10 % of sampling
+error each (see the sizing note in the math `run.py` — at the old counts the range breached 0.50 % about
+40 % of the time even with identical true RTPs).
 
 ## 10. Client mirrors that must stay in step
 

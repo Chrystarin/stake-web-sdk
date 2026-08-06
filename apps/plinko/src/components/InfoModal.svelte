@@ -114,7 +114,7 @@
 	 * Both boards are symmetric, so one row covers the mirrored PAIR at that distance from the center
 	 * (2 pockets) and the last row is the lone center pocket. Rows run edge → center, i.e. highest
 	 * multiplier first. The 1-ball column is a separate board, not a variant of the shared one: it pays
-	 * its center (0.1×) and lifts the two pockets either side (0.2× → 0.3×) because that tier has no
+	 * its center (0.2×) and lifts the two pockets either side (0.2× → 0.25×) because that tier has no
 	 * feature meters to feed — enumerating both is the only way a player can see that.
 	 */
 	const boardCenterIndex = Math.floor(BOARD_SLOT_MULTIPLIERS.length / 2);
@@ -155,7 +155,7 @@
 	 *
 	 * `max_win` is a multiple of BET PER BALL, not of the total bet (math `wincap_for_balls`: "per
 	 * stake_per_ball"; the client agrees — see `bookEventHandlerMap`'s note that the payout multiplier is
-	 * "normalized to the PER-BALL stake, NOT win ÷ total-bet"). A bare "480×" therefore reads as 480× the
+	 * "normalized to the PER-BALL stake, NOT win ÷ total-bet"). A bare "500×" therefore reads as 500× the
 	 * total bet and overstates every mode whose cost is above 1, so both framings are published: the
 	 * per-ball cap and `max_win ÷ cost`, which is the same ceiling expressed against the wager the player
 	 * actually places.
@@ -168,8 +168,8 @@
 			label,
 			rtpPercent: (modeConfig?.rtp ?? 0) * 100,
 			maxWinPerBall: maxWin,
-			// Exact for every published pair (100/1, 250/10, 300/20, 400/50, 260/80, 290/100, 330/150,
-			// 480/250); trimmed rather than fixed-width so 8× doesn't render as "8.00×".
+			// Exact for every published pair (100/1, 250/10, 300/20, 400/50, 250/80, 300/100, 350/150,
+			// 500/250); trimmed rather than fixed-width so 8× doesn't render as "8.00×".
 			maxWinTotalBet: cost > 0 ? maxWin / cost : 0,
 		};
 	}
@@ -182,10 +182,15 @@
 	);
 	const allModeRows = [...baseModeRows, ...buyModeRows];
 
-	/** Game-wide declared RTP, and the modes that differ from it (the feature-free 1-ball tier). */
+	/**
+	 * Game-wide declared RTP, and the modes that differ from it once rounded to the precision the rules
+	 * actually print. Comparing raw values instead would disclose the feature-free 1-ball tier (95.657%
+	 * against a 95.7% headline) by printing "returns 95.7%" — the same figure, so the sentence would
+	 * carry no information. A mode only earns a callout when its published number READS differently.
+	 */
 	const gameRtpPercent = config.rtp * 100;
 	const offRtpModes = allModeRows.filter(
-		(row) => Math.abs(row.rtpPercent - gameRtpPercent) > 0.001,
+		(row) => formatRtp(row.rtpPercent) !== formatRtp(gameRtpPercent),
 	);
 
 	/** Headline caps: the biggest of each framing across every mode. */
