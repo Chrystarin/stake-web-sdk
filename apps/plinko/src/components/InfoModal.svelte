@@ -14,7 +14,6 @@
 		BONUS_LEVELUP_PEGS,
 		BONUS_WHEEL_FREE_BALLS,
 		FREE_SPIN_SEGMENTS,
-		FREE_SPIN_WEIGHTS,
 		bonusInDropForBalls,
 		bonusLevelBalls,
 		bonusMeterTierFor,
@@ -126,33 +125,22 @@
 
 	/**
 	 * Free-spin wheel segments, sorted low → high with BONUS last (the stored order is the wheel's
-	 * clockwise layout, which is meaningless in a paytable). Both chances come from the mirrored
-	 * weights rather than 1/length, so an unequal reweight in the math shows up here instead of being
-	 * papered over by a hardcoded percentage.
+	 * clockwise layout, which is meaningless in a paytable).
 	 *
-	 * THE WHEEL HAS TWO DISTRIBUTIONS, and quoting only the first is what makes a published "BONUS
-	 * 12.5%" wrong. A free spin fired from the BASE DROP draws over all segments. A free spin fired
-	 * INSIDE a bonus round re-rolls a BONUS landing (math `simulate_bonus_round`: `while segment ==
-	 * "BONUS": re-pick`) so a bonus can't recurse into itself — there, BONUS is impossible and its
-	 * weight redistributes across the numeric segments (12.5% → 14.3% each on equal weights).
+	 * Deliberately NO landing chances here. The wheel has two distributions — a spin from the base drop
+	 * draws over all segments, while one fired inside a bonus round re-rolls a BONUS landing (math
+	 * `simulate_bonus_round`: `while segment == "BONUS": re-pick`) so a bonus can't recurse into itself
+	 * — and `FREE_SPIN_WEIGHTS` is only a display mirror of the math's table. Publishing a percentage
+	 * off a mirror risks stating odds the server doesn't honor, so the rules list what each segment
+	 * PAYS and leave the odds to the math. The BONUS-can't-land rule is still stated, in prose.
 	 */
-	const freeSpinTotalWeight = FREE_SPIN_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
-	const freeSpinNumericWeight = FREE_SPIN_SEGMENTS.reduce(
-		(sum, label, index) => (label === 'BONUS' ? sum : sum + (FREE_SPIN_WEIGHTS[index] ?? 0)),
-		0,
-	);
-	const freeSpinRows = FREE_SPIN_SEGMENTS.map((label, index) => {
+	const freeSpinRows = FREE_SPIN_SEGMENTS.map((label) => {
 		const isBonus = label === 'BONUS';
-		const weight = FREE_SPIN_WEIGHTS[index] ?? 0;
 		return {
 			label,
 			isBonus,
 			// BONUS has no numeric value; Infinity parks it at the end of the sort.
 			value: isBonus ? Infinity : parseFloat(label),
-			chance: freeSpinTotalWeight > 0 ? (weight / freeSpinTotalWeight) * 100 : 0,
-			// null = cannot land at all once a bonus round is running.
-			inBonusChance:
-				isBonus || freeSpinNumericWeight <= 0 ? null : (weight / freeSpinNumericWeight) * 100,
 		};
 	}).sort((a, b) => a.value - b.value);
 
@@ -332,8 +320,6 @@
 									<tr>
 										<th>Segment</th>
 										<th>Pays</th>
-										<th>From a drop</th>
-										<th>During a bonus</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -347,14 +333,6 @@
 													{row.value} × your Bet per Ball
 												{/if}
 											</td>
-											<td>{row.chance.toFixed(1)}%</td>
-											<td>
-												{#if row.inBonusChance === null}
-													Cannot land
-												{:else}
-													{row.inBonusChance.toFixed(1)}%
-												{/if}
-											</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -362,8 +340,7 @@
 							<p>
 								A free spin can also fire while a bonus round is already running. That wheel
 								<strong>cannot land on BONUS</strong> — a bonus can't start another bonus inside itself
-								— so it always pays one of the multipliers, and each of them is correspondingly more
-								likely.
+								— so it always pays one of the multipliers.
 							</p>
 							<p>The Free Spin feature is not available on the single-ball drop.</p>
 							<p><strong>Bonus</strong> — free balls</p>
