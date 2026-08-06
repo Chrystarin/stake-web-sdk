@@ -26,9 +26,10 @@
 	position: absolute;
 	left: 50%;
 	/* Lifted off the viewport bottom by 0.95vw. This originally carved out room for the total-bet pill
-	   that used to sit BELOW the PLAY button; that readout is now a full-width overlay bar OUTSIDE this
-	   panel (see .bp-total-overlay) which is tall enough to sit BEHIND the whole row, so the lift is no
-	   longer load-bearing for it — it just sets how high the row rides within the scrim.
+	   that used to sit BELOW the PLAY button; that readout is now a full-width bar OUTSIDE this panel
+	   (see .bp-total-overlay), and the art backdrop behind both (see .bp-panel-scrim) is tall enough to
+	   cover the whole row, so the lift is no longer load-bearing for it — it just sets how high the row
+	   rides within the scrim.
 	   ⚠️ BalanceCard.svelte is a SIBLING solved against this panel's geometry, not a child: its own
 	   `bottom` (2.822vw) is derived from this lift. Any change here must be mirrored there by the same
 	   delta or the balance plaque drifts off the row centre. */
@@ -694,19 +695,97 @@
 	gap: clamp(0.6vw, 0.9vw, 124vw);
 }
 
-/* Total bet (bet-per-ball × ball-per-drop) on a FULL-WIDTH flat dark OVERLAY BAR flush to the very
-   bottom edge of the game — a muted "Bet" label on the left and the total value on the right. This
-   bar is the container for the readout (it replaced the old gold-rimmed pill).
+/* Art backdrop for the ENTIRE landscape betting panel — the control row, the balance card and the
+   total-bet readout all sit on this one gradient. It replaced a flat dark bar + `backdrop-filter`
+   scrim that was drawn only behind the total bet; that CSS backdrop is gone, and the fade is now
+   whatever the art says it is.
+   A SIBLING of `.game-bottom-panel` (a child of `.game-content`, which is 100vw and `position:
+   relative`), so it escapes that panel's `scale(0.9)`/centre transform and spans the FULL viewport
+   width, pinned to the bottom edge. z-index 5 puts it beneath both the panel (20) and the total-bet
+   readout (10) — every control draws over it, and it only tints the water behind them.
+   ⚠️ Mounted in the landscape branch only. Portrait has its own art (`.mobile-play-strap`). */
+.bp-panel-scrim {
+	/* ┌─ HEIGHT KNOB ─────────────────────────────────────────────────────────────────────────────┐
+	   How far the scrim's top edge sits ABOVE the PLAY button's top edge, in vw. This is the ONLY
+	   value to touch when retuning how far up the tint reaches — leave --bp-panel-scrim-base alone,
+	   it's a solved constant.
+	     0vw  = flush with the top of the PLAY disc (current)
+	    +2vw  = 2vw of scrim above the disc
+	    -1vw  = stops 1vw short of it
+	   The art always fills the resulting box (see `background-size` below), so this STRETCHES or
+	   COMPRESSES the fade rather than cropping it: bigger = a taller, gentler ramp; smaller = a
+	   shorter, steeper one. Applies in the bonus round too — `--bonus` only subtracts the panel's
+	   descent from the same total.
+	   ⚠️ Don't go below about -6vw: the scrim would be shorter than the total-bet readout at the
+	   bottom (2.5vw tall), leaving that text sitting on bare water with nothing behind it.
+	   └───────────────────────────────────────────────────────────────────────────────────────────┘ */
+	--bp-panel-scrim-rise: 3.75vw;
+
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	width: 100%;
+	/* Baseline height — the knob's zero point, NOT a knob itself.
+	   Top edge lands exactly on the PLAY button's top edge. Solved from the three constants stacked
+	   between the viewport bottom and that edge — all of them OUTSIDE this rule, because the scrim is a
+	   SIBLING of the panel rather than a child and so can't read its custom properties:
+	     0.95vw               `.game-bottom-panel`'s bottom lift (outside the panel, NOT scaled)
+	   + (0.15 + 0.5)vw       the panel's own padding-bottom plus `.bottom-panel-chrome`'s, the two gaps
+	                          sitting under the button — both INSIDE the panel, so both take its scale(0.9)
+	   + 6.46875 x 1.0925 vw  `.bp-btn-play`'s width — aspect-locked, so this is its height too — i.e.
+	                          its base size x --bp-height-boost, again scaled by 0.9
+	   = 0.95 + 0.585 + 6.35946 = 7.89446vw. (Measured 7.8925vw in the browser; the 0.002 is rounding.)
+	   The disc's ART starts at the very top of its box — main_btn_empty.png's alpha bbox is y=0..119 of
+	   128, i.e. the reserved empty space is at the BOTTOM (see `--bp-play-disc-rise`) — so the box's top
+	   edge IS the visible disc's top edge, and no correction is needed here.
+	   ⚠️ Hand-solved against four other rules: `.game-bottom-panel` (bottom, padding-bottom, scale),
+	   `.bottom-panel-chrome` (padding-bottom), `.bp-btn-play` (width) and --bp-height-boost. Change any
+	   of those and this must move with them — the same sibling arrangement BalanceCard.svelte lives with. */
+	--bp-panel-scrim-base: calc(0.95vw + (0.15vw + 0.5vw) * 0.9 + 6.46875vw * 1.0925 * 0.9);
+
+	height: calc(var(--bp-panel-scrim-base) + var(--bp-panel-scrim-rise));
+	z-index: 5;
+	pointer-events: none;
+	/* Set inline by GameHud.svelte so SvelteKit's `base` resolves — see lib/staticUrl.ts. */
+	background-image: var(--bp-panel-scrim-img);
+	background-repeat: no-repeat;
+	/* Fills the box on BOTH axes, so the art's full fade — fully transparent at the top edge through to
+	   FULLY OPAQUE at the bottom — always lands inside the height above, however that height is retuned.
+	   (That bottom edge is opaque because the installed WebP's alpha was renormalised; the delivered
+	   master only reaches 86%. See art-source/README.md before re-encoding it.)
+	   The box is no longer at the art's native 1955 x 307 ratio, and that is fine here specifically
+	   because the art is a PURE VERTICAL gradient: it is uniform across every row, so squashing it only
+	   makes the ramp steeper and there is no shape to distort. `contain`/`cover` would be wrong — either
+	   would crop the transparent top away and re-introduce the hard edge this art exists to avoid.
+	   ⚠️ Only safe while the art stays a flat vertical gradient. If it ever gains detail, go back to a
+	   ratio-locked height. */
+	background-size: 100% 100%;
+	background-position: bottom center;
+}
+
+/* Bonus round: the betting panel is nudged lower (`.game-bottom-panel--bonus` drops its `bottom` from
+   0.95vw to -0.1vw, a 1.05vw descent), taking the PLAY button down with it. The scrim is a sibling
+   pinned to the viewport bottom, so it keeps its top on that button's edge by shedding exactly that
+   1.05vw of height. Re-uses the base + rise from `.bp-panel-scrim` (same element, so both custom
+   properties are in scope) — so --bp-panel-scrim-rise is honoured here too and there is only ever one
+   height to tune. ⚠️ Keep the delta in step with `.game-bottom-panel--bonus` — same constant
+   BalanceCard.svelte's `--bonus` variant mirrors. */
+.bp-panel-scrim--bonus {
+	height: calc(var(--bp-panel-scrim-base) + var(--bp-panel-scrim-rise) - 1.05vw);
+}
+
+/* Total bet (bet-per-ball × ball-per-drop) flush to the very bottom edge of the game — a muted "Bet"
+   label on the left and the total value on the right. This element is now ONLY a text layout box: it
+   has no backdrop of its own (the dark bar and its frosted blur are gone), and the readout sits on
+   `.bp-panel-scrim` along with the rest of the panel.
    Rendered as a SIBLING of `.game-bottom-panel`, so it escapes that panel's `scale(0.9)`/centre
    transform: it is a child of `.game-content` (100vw wide, `position: relative`), which lets it
-   span the FULL viewport width and pin to the bottom edge with left/right/bottom: 0. No outline.
-   The bar is TALLER than the empty band below the betting controls, so its top deliberately rides up
-   INTO the control row. That is fine because z-index (10) puts it BENEATH `.game-bottom-panel`
-   (z-index 20): the buttons and fields draw over the scrim, and the faded top edge just tints the
-   water behind them. ⚠️ The readout itself is NOT protected by that stacking — it centres directly
-   under the PLAY disc, so the text is pinned to the BOTTOM of the bar (align-items: flex-end +
-   bottom padding) instead of being centred in it. Extra height therefore grows upward only, into the
-   fade, and never slides the glyphs up behind the disc. */
+   span the FULL viewport width and pin to the bottom edge with left/right/bottom: 0.
+   z-index 10 sits above the scrim (5) and below the panel (20). ⚠️ The readout centres directly under
+   the PLAY disc, so the text is pinned to the BOTTOM of the box (align-items: flex-end + bottom
+   padding) rather than centred in it: extra height then grows upward only and never slides the glyphs
+   up behind the disc. */
 .bp-total-overlay {
 	position: absolute;
 	left: 0;
@@ -721,8 +800,8 @@
 	/* Gap between the "Bet" label and the value. */
 	gap: 0.7vw;
 	height: 2.5vw;
-	/* Pins the readout to the bottom of the bar, so growing the bar moves the scrim's top edge and
-	   nothing else. This IS the vertical-position knob for the "Bet"/value line: smaller = lower.
+	/* Pins the readout to the bottom of the box. This IS the vertical-position knob for the "Bet"/value
+	   line: smaller = lower.
 	   6.1px at 1920w leaves a 4px gap under the glyphs. ⚠️ That is not the same as the padding: the
 	   label/value are translated DOWN 0.14em (2.1px) for optical centring, and that transform shifts
 	   the painted glyphs but not the layout box — so the visible gap is always 2.1px less than the
@@ -741,33 +820,9 @@
 	color: #efeadd;
 	white-space: nowrap;
 	pointer-events: none;
-	/* The scrim itself lives on ::before, NOT here — see below. This element only lays out the text. */
+	/* No backdrop of its own — the readout sits on `.bp-panel-scrim`, the art gradient shared by the
+	   whole panel. This element only lays out the text. */
 	background: none;
-}
-
-/* Edge-to-edge dark scrim, on a pseudo-element so the frosted blur and the top-edge fade apply to the
-   BACKDROP ONLY and never touch the label/value (both of which sit at z-index 1 above this).
-   ⚠️ `filter: blur()` on the bar itself would smear the text — `backdrop-filter` blurs what shows
-   THROUGH it instead, which is what gives the glassy look.
-   The top edge dissolves into the ship deck/water rather than ending on a hard line: the mask ramps
-   the whole layer (fill AND blur together, so the frost fades out with the tint) from fully
-   transparent at the top edge to full strength partway down.
-   ⚠️ The ramp MUST finish above the text. With the bar at 6vw and the text pinned to the bottom, the
-   label/value line box starts 96px down a 115px bar at 1920w = 84%, so the mask reaches full opacity at
-   78%: every glyph then sits on the solid part of the scrim and none of it is dimmed by the fade. If
-   the bar's height or the text's bottom padding changes, re-derive that 78%.
-   No box-shadow — an upward halo would re-draw the hard edge the fade is there to remove. */
-.bp-total-overlay::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	z-index: 0;
-	pointer-events: none;
-	background: rgba(3, 4, 19, 0.61);
-	backdrop-filter: blur(6.2px);
-	-webkit-backdrop-filter: blur(6.2px);
-	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.8) 20%, #000 100%);
-	// -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.6) 43%, #000 %);
 }
 
 /* "Bet" label, sitting to the LEFT of the value inside the bar. Uppercase to match the other

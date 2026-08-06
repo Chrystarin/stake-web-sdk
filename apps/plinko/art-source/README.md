@@ -52,3 +52,24 @@ black, not on a tooth.
 93x90, same box as `auto-bet-btn-mobile.webp` — a drop-in swap, no layout knobs to re-tune. Encoded
 lossless despite being a plain (non-atlas) image: it is a flat icon with a hard edge, where lossy's
 usual win over PNG is smallest and least worth the risk of banding.
+
+## Landscape betting-panel backdrop (2026-08-06)
+
+| master | installed as | encode |
+|---|---|---|
+| `betting_panel_bottom_overlay.png` | `static/img/betting_panel_bottom_overlay.webp` | lossless, **alpha renormalised** |
+
+1955x307 RGBA, a pure vertical gradient (transparent for the top ~27%, then ramping down). Drawn
+full-viewport-width behind the entire landscape betting panel — see `.bp-panel-scrim` in
+`GameHud.scss` — where it replaced the CSS `backdrop-filter` bar that used to sit behind the total-bet
+readout alone.
+
+⚠️ **This is the one installed image that is not a straight re-encode of its master.** The master
+tops out at **alpha 219** (86%), so the bottom of the panel stayed slightly see-through. The installed
+WebP has its alpha channel linearly rescaled `min(255, round(a * 255 / 219))`, which lands the bottom
+edge on a true 255 and leaves 0 at 0 — so the fade keeps its shape and the transparent top edge is
+untouched, only the ramp's range is stretched to full. Re-derive that divisor from the master's actual
+peak alpha if art redelivers this file; don't re-apply it to an already-renormalised WebP.
+
+Lossless despite being `img/` art: at 28 KB it is only ~2 KB above lossy q90, and a smooth gradient
+stretched across the full viewport is the worst case for lossy banding. Not worth 2 KB.

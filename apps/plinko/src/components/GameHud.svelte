@@ -996,6 +996,24 @@
 		</div>
 	</div>
 {:else}
+	<!-- Art scrim behind the WHOLE landscape betting panel — the controls row, the balance card and the
+	     total-bet readout all sit on this one gradient (it replaced the flat dark bar that used to be
+	     drawn only behind the total bet). A SIBLING of `.game-bottom-panel`, so it escapes that panel's
+	     `scale(0.9)`/centre transform and can span the full 100vw of `.game-content` and pin to the
+	     bottom edge. Rendered unconditionally: during a bonus round the total-bet readout goes away but
+	     the panel does not, so the backdrop stays — it only shortens by the 1.05vw the panel drops (see
+	     `.bp-panel-scrim--bonus`), keeping its top edge on the PLAY button.
+	     A DIV with a background rather than an <img>: its height is solved against the PLAY button's top
+	     edge, not from the art's own size, and the gradient then fills that box. The URL rides in on a
+	     custom property so SvelteKit's `base` still resolves it — the convention documented in
+	     lib/staticUrl.ts — since a bundled SCSS `url()` can't see the CDN subpath. -->
+	<div
+		class="bp-panel-scrim"
+		class:bp-panel-scrim--bonus={stateGame.bonusRoundActive}
+		style:--bp-panel-scrim-img="url({staticUrl('img/betting_panel_bottom_overlay.webp')})"
+		aria-hidden="true"
+	></div>
+
 	<!-- During a bonus round the panel is nudged slightly LOWER (see `.game-bottom-panel--bonus`) since
 	     the bottom total-bet overlay is gone, leaving room below. -->
 	<div class="game-bottom-panel" class:game-bottom-panel--bonus={stateGame.bonusRoundActive}>
@@ -1219,11 +1237,12 @@
 		</div>
 	</div>
 
-	<!-- Total bet (bet-per-ball × ball-per-drop, or a hovered Autobet run cost) on a full-width dark
-	     OVERLAY BAR flush to the very bottom edge of the game — a "Bet" label on the left and the total
-	     value on the right. Rendered as a SIBLING of `.game-bottom-panel` (not inside it) so it escapes
-	     that panel's `scale(0.9)`/centre transform: it is a child of `.game-content`, which is 100vw
-	     wide and `position: relative`, letting the bar span the full viewport and pin to the bottom.
+	<!-- Total bet (bet-per-ball × ball-per-drop, or a hovered Autobet run cost) flush to the very bottom
+	     edge of the game — a "Bet" label on the left and the total value on the right. This element now
+	     carries NO backdrop of its own: the readout sits on `.bp-panel-scrim`, the one gradient shared by
+	     the whole panel. Rendered as a SIBLING of `.game-bottom-panel` (not inside it) so it escapes that
+	     panel's `scale(0.9)`/centre transform: it is a child of `.game-content`, which is 100vw wide and
+	     `position: relative`, letting it span the full viewport and pin to the bottom.
 	     Hidden during a bonus round: drops are free balls, so a total-bet readout is meaningless there —
 	     the rest of the HUD keeps the normal-mode layout. -->
 	{#if !stateGame.bonusRoundActive}
