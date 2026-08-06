@@ -49,6 +49,47 @@ Verified: both pages re-decode byte-identical to the masters across **full RGBA*
 see the `pma:true` warning above), the atlas' declared page sizes match the encoded files, and the
 served skeleton reports the v4 bounds. 8.8 MB of PNG → 5.5 MB of WebP.
 
+### ⚠️ Installed `skeleton.json` is patched: the `ocean` mesh is moved down
+
+The `ocean` slot's `oceanAnim/` mesh sits high enough that the animated sea rides over the horizon in
+`img/BG_landscape.webp`. The installed file has that mesh **translated down 16 authored units**
+(`y -= 16`, so 448.84..1191.37 → 432.84..1175.37). A translation, not a scale: the water keeps its
+proportions and its texture, and `uvs` / `triangles` / `hull` / the 90-frame `sequence` are untouched.
+The animation has no `deform` timeline, so mesh vertices are never animated and this cannot be fought
+by playback.
+
+**16 is the tuning value**, and it was arrived at by eye rather than solved — 52 (as a compression)
+read too low, 26 still a touch low. ~7 screen px at 1280 wide; one authored unit ≈ `skeletonScale x
+spineScale` = 0.5 x 0.8776 ≈ 0.44 px, scaling with viewport width. More negative = lower. Re-apply by
+rewriting the `"vertices"` array of `"oceanAnim/"`, adding the shift to every odd (y) entry.
+
+⚠️ **Only a load-time edit to this file works.** An equivalent adjustment applied to the parsed
+`SkeletonData` at runtime (a `meshOffsetY` option on the asset def, applied in `readSkeletonData`) was
+built, verified to reach the live attachment's vertices — and had no effect on the rendered frame at
+all. That approach was reverted; don't rebuild it without first working out why. Related unknown: the
+`ocean` slot resists inspection — every property looks healthy (90 non-null sequence regions, textures
+resolved, alpha 0x76) yet its geometry appeared not to influence output under several test methods.
+Note that runtime vertex mutation is NOT a valid way to test this: the renderer caches mesh geometry
+after construction, so post-construction edits to `attachment.vertices` change nothing for ANY mesh.
+
+### Related: the sea and the horizon drift apart with aspect ratio
+
+Whatever value the shift above is tuned to is only right at ONE aspect. `spineFit.ts` gives the Spine
+layer a vertical offset proportional to viewport HEIGHT (`offsetYVh: -0.21`) while the horizon it has
+to meet is painted into a backdrop that scales with viewport WIDTH. Reduced from
+`computeSpineOverlayTransform`, the gap between the delivered mesh top and the painted horizon is
+`0.21 x VH - 0.100157 x VW` — zero only at aspect 2.0967, ~23 px at 16:9, ~40 px at 16:10, ~59 px at
+4:3, and negative (sea short of the horizon) beyond 2.1:1.
+
+The durable fix is to express that offset in viewport WIDTH: at the delivered mesh, `-0.118136 x VW`
+is **exactly equivalent at 16:9** (both are -151.2 px at 1280x720) and holds the sea on the horizon at
+every aspect. It needs an `offsetYVw` option on `FitConfig`, and it moves the whole Spine layer — not
+just the sea — at non-16:9 aspects, so check it against the frame art before adopting.
+
+Horizon row measured at y=467.5 of `BG_landscape.webp` (2879x1620) as the sharpest luminance edge in
+the upper half: 135 -> 55 between rows 467 and 468. Note that edge is itself a hard seam where a
+rectangular strip of sea texture is composited over the sky painting, not a soft painted horizon.
+
 ## Game area frame (2026-08-06)
 
 | master | installed as | encode |
