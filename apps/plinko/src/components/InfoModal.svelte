@@ -4,6 +4,16 @@
 	import { buyBonusCost, plinkoBetLimits } from '../game/plinkoBet';
 	import { BUY_BONUS_TIERS } from '../game/plinkoBetMode';
 	import { stateGame, type InfoModalTab } from '../game/stateGame.svelte';
+	import {
+		BALL_PER_DROP_TIERS,
+		BONUS_LEVEL_LABELS,
+		BONUS_LEVELUP_PEGS,
+		BONUS_WHEEL_FREE_BALLS,
+		bonusInDropForBalls,
+		bonusLevelBalls,
+		bonusMeterTierFor,
+		spinMeterTierFor,
+	} from '../game-logic/constants';
 	import { currencySign as currencySignFor, formatWinAmount } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
@@ -43,6 +53,40 @@
 	function formatWin(value: number) {
 		return formatWinAmount(value, currencySign);
 	}
+
+	/**
+	 * Feature-trigger thresholds, per balls-per-drop tier, read straight from the meter tables so the
+	 * published rules can never drift from the numbers the meters actually use. Only the tiers that can
+	 * fire a feature are listed — the 1-ball tier has neither meter, and is called out in prose instead.
+	 * `hits` is what THIS drop must land: the free-spin meter seeds at a per-tier head start
+	 * (`spinMeterTierFor().start`), so its remaining hits are max − start, not max.
+	 */
+	const meterRows = BALL_PER_DROP_TIERS.filter(bonusInDropForBalls).map((balls) => {
+		const bonus = bonusMeterTierFor(balls);
+		const spin = spinMeterTierFor(balls);
+		return {
+			balls,
+			bonusHits: bonus.max - bonus.start,
+			spinHits: spin.max - spin.start,
+			spinStart: spin.start,
+			spinMax: spin.max,
+		};
+	});
+
+	/** Bonus re-trigger ladder: index i is the hits needed to LEAVE level i+1, i.e. to REACH level i+2. */
+	const bonusLevelRows = BONUS_LEVELUP_PEGS.map((pegs, index) => ({
+		level: index + 2,
+		pegs,
+		freeBalls: bonusLevelBalls(index + 2),
+	}));
+
+	/** Top of the level ladder (the bonus can't climb past it). */
+	const maxBonusLevel = BONUS_LEVEL_LABELS.length;
+
+	/** Entry-wheel free-ball award range, from the painted wheel values. */
+	const wheelSegmentCount = BONUS_WHEEL_FREE_BALLS.length;
+	const wheelMinBalls = Math.min(...BONUS_WHEEL_FREE_BALLS);
+	const wheelMaxBalls = Math.max(...BONUS_WHEEL_FREE_BALLS);
 
 	/** Grouped amount without forcing decimals on whole numbers (e.g. 0.01, 2,500, 50,000). */
 	function formatLimit(value: number) {
@@ -190,21 +234,79 @@
 								</li>
 								<li>
 									When it fills during a drop, a wheel awards a batch of free balls that drop
-									automatically at no extra cost.
+									automatically at no extra cost. The wheel has {wheelSegmentCount} segments paying
+									from <strong>{wheelMinBalls} to {wheelMaxBalls} free balls</strong>.
 								</li>
 							</ul>
+
 							<p>
-								Strong bonus rounds can level up as more coin pegs are hit during the bonus,
-								awarding even more free balls.
+								<strong>Trigger conditions</strong> — how many hits each meter needs to fill and fire
+								the feature, for every Ball per Drop tier:
+							</p>
+							<table class="info-rules-table">
+								<thead>
+									<tr>
+										<th>Ball per Drop</th>
+										<th>Bonus meter</th>
+										<th>Free Spin meter</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each meterRows as row (row.balls)}
+										<tr>
+											<td>{row.balls}</td>
+											<td>{row.bonusHits} coin-peg hits</td>
+											<td>
+												{row.spinHits} SPIN-slot hits
+												{#if row.spinStart > 0}
+													<span class="info-rules-note"
+														>(meter starts {row.spinStart} of {row.spinMax} filled)</span
+													>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+							<p>
+								Both meters are per-drop: they fill from the current drop's hits and reset each
+								round, so they don't carry over between bets. The <strong>1 Ball per Drop</strong> tier
+								has neither feature — its meters are display only and can never fire.
+							</p>
+
+							<p>
+								<strong>Level up (re-trigger)</strong> — once a bonus round is running, coin-peg hits
+								from the free balls fill the meter again. Each fill levels the round up and awards a
+								further batch of free balls:
+							</p>
+							<table class="info-rules-table">
+								<thead>
+									<tr>
+										<th>Level reached</th>
+										<th>Coin-peg hits needed</th>
+										<th>Free balls awarded</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each bonusLevelRows as row (row.level)}
+										<tr>
+											<td>{row.level}</td>
+											<td>{row.pegs}</td>
+											<td>+{row.freeBalls.toLocaleString('en-US')}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+							<p>
+								Each level needs its own run of hits, counted from that level's balls — reaching
+								level 3 takes {bonusLevelRows[1]?.pegs} hits after the {bonusLevelRows[0]?.pegs} that
+								reached level 2, not {bonusLevelRows[1]?.pegs} in total. The ladder stops at
+								<strong>level {maxBonusLevel}</strong>, the highest a bonus round can reach.
 							</p>
 							<ul>
 								<li>
 									Free balls are staked at your current Bet per Ball and drop on their own — you
 									don't pay anything extra for them.
-								</li>
-								<li>
-									Both meters are per-drop: they fill from the current drop's hits and reset each
-									round, so they don't carry over between bets.
 								</li>
 							</ul>
 							<p>
@@ -234,7 +336,8 @@
 							<p>
 								<strong>Bigger tiers, bigger batch</strong> — each higher tier drops a larger batch of
 								free balls, so the bought balls are the reward. The round can still level up and chain
-								into extra balls as coin pegs are hit during the bonus.
+								into extra balls as coin pegs are hit during the bonus, on the same level ladder (and
+								the same level {maxBonusLevel} cap) as a naturally triggered bonus.
 							</p>
 							<p>
 								A bought bonus plays exactly like a naturally triggered one: the free balls drop at
@@ -301,16 +404,25 @@
 						<ul>
 							<li>
 								<strong>Free Spin</strong> — Balls that land in the center pockets fill the Free
-								Spin meter beside the board. When it fills during a drop, a wheel spins and adds a
-								multiplier (from 0.5× up to 20×) of your Bet per Ball on top of your win; landing on
+								Spin meter beside the board. It fills on
+								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.spinHits}{/each}
+								hits at
+								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.balls}{/each}
+								balls per drop; when it fills during a drop, a wheel spins and adds a multiplier (from
+								0.5× up to 20×) of your Bet per Ball on top of your win; landing on
 								<strong>BONUS</strong> chains straight into a bonus round. (Not available on the single-ball
 								drop.)
 							</li>
 							<li>
-								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus meter.
-								When it fills, a wheel awards a batch of free balls that drop automatically at no extra
-								cost. Strong bonus rounds can level up and award even more balls. (Not available on the
-								single-ball drop.)
+								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus meter,
+								which takes
+								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.bonusHits}{/each}
+								hits at
+								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.balls}{/each}
+								balls per drop. When it fills, a wheel awards {wheelMinBalls}–{wheelMaxBalls} free balls
+								that drop automatically at no extra cost. More coin-peg hits during the bonus level the
+								round up for even more balls, to a maximum of level {maxBonusLevel} — see the Game Rules
+								for the full ladder. (Not available on the single-ball drop.)
 							</li>
 							<li>
 								<strong>Buy Bonus</strong> — Skip the wait and trigger the bonus instantly. Tap the Buy
@@ -556,6 +668,37 @@
 		color: #7ec8ff;
 		font-size: calc(14 * var(--ui-px));
 		font-weight: 600;
+	}
+	/* Threshold tables inside the Rules copy (feature triggers, bonus level ladder). Sized in --ui-px
+	 * like the rest of the modal so they downscale with the 400×225 popout instead of overflowing. */
+	.info-rules-table {
+		width: 100%;
+		table-layout: fixed;
+		border-collapse: collapse;
+		margin: 0 0 calc(12 * var(--ui-px));
+		font-size: calc(13 * var(--ui-px));
+	}
+	.info-rules-table th {
+		text-align: left;
+		padding: calc(6 * var(--ui-px)) calc(8 * var(--ui-px));
+		color: #fff;
+		font-weight: 700;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+	}
+	.info-rules-table td {
+		padding: calc(6 * var(--ui-px)) calc(8 * var(--ui-px));
+		color: #d6e8f7;
+		vertical-align: top;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.info-rules-table td:first-child {
+		color: #7ec8ff;
+		font-weight: 700;
+	}
+	.info-rules-note {
+		display: block;
+		color: #9ab8d0;
+		font-size: calc(12 * var(--ui-px));
 	}
 	.info-section-title {
 		margin: calc(18 * var(--ui-px)) 0 calc(8 * var(--ui-px));
