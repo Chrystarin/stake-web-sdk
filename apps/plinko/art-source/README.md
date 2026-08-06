@@ -12,7 +12,7 @@ rather than from an already-lossy WebP.
 | master | installed as | encode |
 |---|---|---|
 | `PlinkoFrame.png` | `static/img/game_area_background.webp` — **superseded, see below** | lossy q90 |
-| `BASE GAME/Landscape/v3/skeleton.{atlas,json,png}` + `skeleton_2.png` | `static/spine/background_landscape/` | lossless |
+| `BASE GAME/Landscape/v3/skeleton.{atlas,json,png}` + `skeleton_2.png` | `static/spine/background_landscape/` — **superseded, see below** | lossless |
 | `BASE GAME/portrait/v3/portrait.{atlas,json,png}` + `portrait_2.png` | `static/spine/background_portrait/` | lossless |
 | `FREE GAME/SHIP/v3/portrait.{atlas,json,png}` | `static/spine/ship/` | lossless |
 
@@ -23,6 +23,31 @@ Alpha survives either way, so a naive check passes — compare full RGBA.
 
 `img/` art has no such constraint (Pixi and the DOM both premultiply on upload, so RGB under
 alpha=0 never reaches the screen); lossy is used there when it beats lossless by a worthwhile margin.
+
+## Landscape background spine, v4 (2026-08-06)
+
+| master | installed as | encode |
+|---|---|---|
+| `v4/skeleton.{atlas,json,png}` + `skeleton_2.png` | `static/spine/background_landscape/` | lossless, `exact=True` |
+
+Replaces the V3 landscape drop of the row above. A like-for-like re-export, not a re-rig: same Spine
+4.3.23, same single `animation`, the same 37 slots and 62 bones under the same names — checked rather
+than assumed, because `backgroundLandscapeAsset.ts` addresses `animation` and the `cloud1..7` / `moon`
+/ `ship` slots by name, and `boundsMode: 'authored'` means the skeleton's own bounds drive the fit.
+Authored height moved 2007.806 → 2009.9592 with `y` -3.170 → -5.323, i.e. 2.15 units more at the
+bottom — under a thousandth of the height, so no re-tuning of the fit constants.
+
+Both atlas pages were repacked, so the page sizes changed (2045x2032 → 2048x2046, 2032x1457 →
+1967x1432) and the regions moved. The `.atlas` and `.json` must therefore be installed **together**
+with the images — a v4 atlas against a v3 page samples garbage.
+
+⚠️ The atlas keeps its `skeleton.png` / `skeleton_2.png` page names on purpose. Nothing rewrites the
+file on disk; `backgroundLandscapeAsset.ts` maps those names to the `.webp` URLs in its `images`
+block. Renaming them inside the atlas breaks that lookup.
+
+Verified: both pages re-decode byte-identical to the masters across **full RGBA** (not alpha alone —
+see the `pma:true` warning above), the atlas' declared page sizes match the encoded files, and the
+served skeleton reports the v4 bounds. 8.8 MB of PNG → 5.5 MB of WebP.
 
 ## Game area frame (2026-08-06)
 
