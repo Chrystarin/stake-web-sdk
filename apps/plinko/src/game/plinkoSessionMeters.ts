@@ -21,9 +21,15 @@ let rgsSessionSpinMeter = 0;
 /**
  * Bonus meter / level are a PER-TIER SESSION meter — each balls-per-drop tier keeps its own running
  * value for the current play session (resets on a full page reload; no cross-device persistence). A
- * fresh tier lazily initializes to its tier base (`bonusMeterTierFor(tier).start`: 0 on 1/10-ball,
- * 1/8 on 20-ball, 1/4 on 50-ball). Keyed by the REAL selected tier (`stateGame.ballPerDrop`) — never
- * the HUD's display value, which shows 1 during a bonus round.
+ * fresh tier lazily initializes to its tier base (`bonusMeterTierFor(tier).start`), which is 0 on
+ * EVERY tier — `BONUS_METER_TIER` is `startRatio: 0` throughout, so the bonus meter always starts
+ * EMPTY. (The 0 / 1/8 / 1/4 head start belongs to the SPIN meter, `SPIN_METER_TIER` — don't confuse
+ * the two.) Keyed by the REAL selected tier (`stateGame.ballPerDrop`) — never the HUD's display
+ * value, which shows 1 during a bonus round.
+ *
+ * DISPLAY CONTINUITY ONLY: the math is stateless per drop (each book resets both meters and must fill
+ * them within that drop to fire), so this store can never create or suppress a feature — the book is
+ * authoritative for every trigger and payout.
  */
 const rgsSessionBonusMeterByTier: Record<number, number> = {};
 const rgsSessionBonusLevelByTier: Record<number, number> = {};
