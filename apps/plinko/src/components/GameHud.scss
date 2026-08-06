@@ -820,9 +820,38 @@
 	color: #efeadd;
 	white-space: nowrap;
 	pointer-events: none;
-	/* No backdrop of its own — the readout sits on `.bp-panel-scrim`, the art gradient shared by the
-	   whole panel. This element only lays out the text. */
+	/* The scrim lives on ::before, NOT here — see below. This element only lays out the text. */
 	background: none;
+}
+
+/* Edge-to-edge dark bar behind the total-bet readout, ON TOP of `.bp-panel-scrim`'s art gradient —
+   the two stack (scrim at z-index 5, this at 10), so this deepens the bottom band rather than being
+   the panel's only backdrop the way it once was. It is what gives the readout its own darker plinth.
+   On a pseudo-element so the tint and the top-edge fade apply to the BACKDROP ONLY and never touch
+   the label/value, both of which sit at z-index 1 above this.
+   The top edge dissolves instead of ending on a hard line: the mask ramps the layer from fully
+   transparent at the top to full strength partway down. ⚠️ The ramp must finish above the text — the
+   readout is pinned to the bottom of a 2.5vw box, so with the mask solid from 100% and the glyphs in
+   the lowest ~40%, every glyph sits on the solid part. Re-derive if the height or bottom padding moves.
+   No box-shadow — an upward halo would re-draw the hard edge the fade exists to remove.
+   ⚠️ `backdrop-filter` is kept for the case where this bar extends past the scrim, but it is close to
+   a no-op in the normal layout: what sits behind it here is `.bp-panel-scrim`, which the alpha
+   renormalisation made fully opaque at the bottom edge, so there is little left showing through TO
+   blur. Drop it if it ever costs more than it shows — on mobile GPUs a live backdrop-filter is not
+   free, and this one spans the full viewport width. */
+.bp-total-overlay::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	/* The original 0.61 tint taken down 5% twice: 0.61 x 0.95^2 = 0.5505, i.e. 0.55 once alpha is
+	   quantised to 8 bits (no point writing the extra digits). Lightened because this bar is doubled up
+	   with `.bp-panel-scrim`'s art gradient rather than being the readout's only backdrop. */
+	background: rgba(3, 4, 19, 0.55);
+	backdrop-filter: blur(6.2px);
+	-webkit-backdrop-filter: blur(6.2px);
+	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.8) 20%, #000 100%);
 }
 
 /* "Bet" label, sitting to the LEFT of the value inside the bar. Uppercase to match the other

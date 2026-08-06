@@ -1238,9 +1238,10 @@
 	</div>
 
 	<!-- Total bet (bet-per-ball × ball-per-drop, or a hovered Autobet run cost) flush to the very bottom
-	     edge of the game — a "Bet" label on the left and the total value on the right. This element now
-	     carries NO backdrop of its own: the readout sits on `.bp-panel-scrim`, the one gradient shared by
-	     the whole panel. Rendered as a SIBLING of `.game-bottom-panel` (not inside it) so it escapes that
+	     edge of the game — a "Bet" label on the left and the total value on the right. It keeps its own
+	     dark bar (`.bp-total-overlay::before`), which stacks ON TOP of `.bp-panel-scrim`'s art gradient
+	     to give the readout a darker plinth than the rest of the panel gets.
+	     Rendered as a SIBLING of `.game-bottom-panel` (not inside it) so it escapes that
 	     panel's `scale(0.9)`/centre transform: it is a child of `.game-content`, which is 100vw wide and
 	     `position: relative`, letting it span the full viewport and pin to the bottom.
 	     Hidden during a bonus round: drops are free balls, so a total-bet readout is meaningless there —
