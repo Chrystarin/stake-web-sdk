@@ -1199,12 +1199,19 @@
 		cursor: not-allowed;
 	}
 
+	/* 54px = the 67.5px the badge actually rendered at on mobile, scaled down 20%. Note that size came
+	   from the base rule's `min-width`/`min-height` floors, NOT its `width` — in portrait `--ui-px` is
+	   a hard 1px (see +layout.svelte), so `calc(67.5 * var(--ui-px))` outranked the declared width. The
+	   floors are therefore restated here as well; overriding width/height alone would leave the badge
+	   pinned at 67.5px. */
 	.buy-bonus-trigger--mobile {
 		top: 10px;
 		right: 10px;
 		left: auto;
-		width: 62px;
-		height: 62px;
+		width: 54px;
+		height: 54px;
+		min-width: 54px;
+		min-height: 54px;
 	}
 
 	/* Mobile menu button — top-left, mirroring the mobile Buy-Bonus badge (top-right). Uses the
