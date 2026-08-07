@@ -32,6 +32,24 @@ export const BOARD_SLOT_MULTIPLIERS_BY_BALLS: Record<number, readonly number[]> 
 	1: ONE_BALL_BOARD_SLOT_MULTIPLIERS,
 };
 
+/**
+ * Every distinct pocket label any board can show — i.e. exactly the set of
+ * `img/multiplier_slot_text_<label>.webp` files that has to exist, and the set worth preloading.
+ *
+ * Derived from the board tables rather than listed by hand. It was written out twice (the engine's
+ * texture load and `preloadAssets`), and both copies had to be remembered whenever a board was re-cut:
+ * the preload list had already fallen behind once, so switching to 1 ball/drop fetched that tier's
+ * labels cold. A label with no asset still falls back to a Pixi `Text`, so a miss is invisible in
+ * review — which is exactly why this should not be a hand-maintained list.
+ */
+export const BOARD_LABELS: readonly string[] = [
+	...new Set(
+		[BOARD_SLOT_MULTIPLIERS, ...Object.values(BOARD_SLOT_MULTIPLIERS_BY_BALLS)]
+			.flatMap((board) => [...board])
+			.map(formatCoefficientLabel),
+	),
+];
+
 /** The board a balls-per-drop tier plays (the shared board unless the tier has its own table). */
 export function boardMultipliersForBallsPerDrop(ballsPerDrop: number): readonly number[] {
 	return (

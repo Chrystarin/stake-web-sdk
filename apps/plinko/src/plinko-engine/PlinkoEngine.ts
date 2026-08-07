@@ -6,6 +6,7 @@ import {
   type Slot as SpineSlot,
   type Attachment as SpineAttachment
 } from '@esotericsoftware/spine-pixi-v8';
+import { BOARD_LABELS } from '../game-logic/boardMultipliers';
 import { slotColorForMultiplier } from '../game-logic/slotColors';
 import { formatCoefficientLabel, isMobile } from '../lib/format';
 import { getGlowNumbersAsset } from '../lib/spine/glowNumbersAsset';
@@ -245,20 +246,10 @@ export class PlinkoEngine {
   /** Image-based slot labels (parallel to `slotLabels`); a slot uses the sprite OR the text, not both. */
   private slotLabelSprites: (Sprite | undefined)[] = [];
   /** Label image files (loaded once, matched to slots by `slot.labelText`). A label without an asset
-   * falls back to a Pixi Text. `0.1` / `0.3` are the feature-free 1-ball board's own pockets (centre +
-   * the two either side — see `ONE_BALL_BOARD_SLOT_MULTIPLIERS`); they share the same uniform scale and
-   * placement as every other label, and being no wider than `100` they don't shrink the others. */
-  private static readonly MULTIPLIER_TEXT_LABELS = [
-    '0.1',
-    '0.2',
-    '0.3',
-    '0.4',
-    '1.5',
-    '5',
-    '20',
-    '50',
-    '100'
-  ] as const;
+   * falls back to a Pixi Text — silently, so a missing one is easy to ship. `BOARD_LABELS` derives the
+   * set from the board tables so it cannot fall behind a re-cut; every label shares the same uniform
+   * scale and placement, and none is wider than `100`, so none shrinks the others. */
+  private static readonly MULTIPLIER_TEXT_LABELS = BOARD_LABELS;
   /** Label image height as a fraction of the slot body height (drives the shared scale). */
   private static readonly SLOT_TEXT_HEIGHT_RATIO = 0.72;
   /** Cap the (widest) label to this fraction of the slot width — applied uniformly to all labels. */

@@ -1,5 +1,6 @@
 import { Assets } from 'pixi.js';
 
+import { BOARD_LABELS } from '../game-logic/boardMultipliers';
 import { isPortraitGameLayout } from './format';
 import { registerResidentUrl, staticUrl } from './staticUrl';
 import { getBackgroundLandscapeAsset } from './spine/backgroundLandscapeAsset';
@@ -195,12 +196,10 @@ const PIXI_TEXTURE_PATHS: readonly string[] = [
 	'img/coin_peg.webp',
 	'img/multiplier_slot_spin.webp',
 	...[1, 2, 3, 4, 5, 6, 7].map((tier) => `img/multiplier_slot_${tier}.webp`),
-	// Slot label art — mirrors `PlinkoEngine.MULTIPLIER_TEXT_LABELS`. `0.1` and `0.3` are the
-	// feature-free 1-ball board's own pockets; they were missing here, so switching to 1 ball/drop
-	// fetched them cold.
-	...['0.1', '0.2', '0.3', '0.4', '1.5', '5', '20', '50', '100'].map(
-		(label) => `img/multiplier_slot_text_${label}.webp`,
-	),
+	// Slot label art. Same derived set the engine loads (`BOARD_LABELS`), so a board re-cut can't leave
+	// a tier's labels out of the preload — which is what previously made switching to 1 ball/drop fetch
+	// them cold.
+	...BOARD_LABELS.map((label) => `img/multiplier_slot_text_${label}.webp`),
 
 	// BonusMeterEngine.
 	'img/bonus-bar-base.webp',

@@ -225,3 +225,35 @@ which is what lossless WebP compresses best and what DCT handles worst.
 It goes into a box roughly 10x wider than it is tall, so `background-size: 100% 100%` squashes it ~4x
 vertically. That is safe only because it is a flat bar with no shape in it; the top feather squashes
 with it (still 13% of the height, ~6 px at 1920w) and stays soft.
+
+## Slot labels for the re-cut 1-ball board (2026-08-07)
+
+| master | installed as | encode |
+|---|---|---|
+| `multiplier_slot_text_2.png` | `static/img/multiplier_slot_text_2.webp` | lossless |
+| `multiplier_slot_text_0.png` | `static/img/multiplier_slot_text_0.webp` | lossless |
+
+17x21 and 18x21 RGBA, the same 21 px cap height as every other `multiplier_slot_text_*` label, so
+they inherit the shared uniform scale with nothing to re-tune. Encoded lossless (494 B / 500 B) like
+the rest of the set: these are tiny hard-edged glyphs, exactly where lossy's win over lossless is
+smallest and banding is most visible. Default `exact=False` is fine here — the `exact=True` rule in
+the V3 section above is a *spine atlas* constraint (`pma:true` pages upload RGB verbatim); plain
+`img/` art is premultiplied on upload, so RGB under alpha=0 never reaches the screen.
+
+Both labels exist because the 1-ball board was re-cut (8009704): its two 1.5x pockets became 2.0x,
+and its centre went back to 0x. `2` is a value no board carried before; `0` was never *printed*
+before either — on 10 / 20 / 50 the centre is the SPIN slot and draws `multiplier_slot_spin.webp`
+with an empty label, and the 1-ball tier is the only one that prints a centre value.
+
+The label set is no longer written out by hand. `BOARD_LABELS` in `game-logic/boardMultipliers.ts`
+derives it from the board tables, and both the engine's texture load and `preloadAssets` read it, so
+a board re-cut can't leave a label unencoded or unpreloaded. That had already happened once — the
+preload list fell behind and switching to 1 ball/drop fetched that tier's labels cold — and it fails
+*quietly*, because a label with no asset silently falls back to a rendered Pixi `Text`.
+
+⚠️ Adding a pocket value to any board therefore adds a required asset. `BOARD_LABELS` names it;
+`multiplier_slot_text_<label>.webp` must exist or that pocket renders in the fallback font.
+
+`multiplier_slot_text_0.1.webp` and `_0.3.webp` are now unreferenced — they were the previous 1-ball
+board's centre and its neighbours. Kept in `static/img/` rather than deleted, since re-cutting that
+board again is cheap and they are ~700 B each, but nothing loads them.
