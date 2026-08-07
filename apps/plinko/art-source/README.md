@@ -90,6 +90,54 @@ Horizon row measured at y=467.5 of `BG_landscape.webp` (2879x1620) as the sharpe
 the upper half: 135 -> 55 between rows 467 and 468. Note that edge is itself a hard seam where a
 rectangular strip of sea texture is composited over the sky painting, not a soft painted horizon.
 
+## Installed background skeletons are patched (re-apply after ANY re-export)
+
+Both delivered background skeletons carry hand edits. A re-export silently drops them, so re-apply
+this list — and re-read the ⚠️ above: for the sea meshes, a load-time edit to the file is the ONLY
+approach known to work.
+
+| file | what | value |
+|---|---|---|
+| `background_landscape/skeleton.json` | `ocean` mesh translated down | `y -= 16` (see the section above) |
+| `background_landscape/skeleton.json` | `moon` attachment moved + resized | x -1086.5876, y 1438.5964, scale 2.23403319 |
+| `background_landscape/skeleton.json` | `ship` bone moved + resized | x -870.6417, y 1101.2533, scale 0.96976015 |
+| `background_portrait/portrait.json` | `Ocean` mesh translated down | `y -= 40` (see below) |
+| `background_portrait/portrait.json` | `ship` bone moved + resized | x -315.94, y 1261.6728, scale 1.55030337 |
+
+The `moon` and `ship` edits exist so the BASE game draws them at the same size and place the FREE game
+does — the free game hides these slots and draws its own copies (`bonusOverlayAssets.ts`), and the two
+sets did not agree. They are solved against that file's `scaleMul` / `offsetXVw` / `offsetYScene`
+knobs, so re-derive them if those knobs change. ⚠️ `scaleMul` is applied by `applyOverlayFit` as
+`spine.scale`, i.e. about the skeleton ROOT — NOT as a bone scale about the bone's own origin. Getting
+that wrong is invisible in landscape (`scaleMul: 1`) and wrong by 129 authored units in portrait (0.9).
+
+### ⚠️ Installed `portrait.json` is patched: the `Ocean` mesh is moved down
+
+Same failure as landscape: the animated sea rode over the painted horizon, here by enough that even
+fully-opaque water sat ~2px above it. The installed file has the `Ocean` slot's `oceanAnim/` mesh
+**translated down 40 authored units** (`y -= 40`, so 633.04..1374.04 -> 593.04..1334.04). A
+translation only — `uvs` / `triangles` / `hull` / the 90-frame `sequence` are untouched, and x is
+untouched. The animation has no `deform` timeline and no `Ocean` slot timeline, so mesh vertices are
+never animated and playback cannot fight this.
+
+**40 was solved, not eyeballed**, because the mesh edge is not the water edge. The mesh top maps to
+`v = 0` and the sea texture fades out over roughly the first 8 of its 95 atlas rows, so ~31 authored
+units of the mesh top is fully transparent padding. Measured at 375x812: the horizon sits at screen
+y 201.04, the mesh top was at 170.75 (30.29px high), and one screen px is 2.2 authored units. 40 puts
+the faint edge 2.0px BELOW the horizon and full-strength water 16px below, which keeps the animation
+reaching the horizon; 66.78 would have made the mesh top flush and left a 14-28px dead band where only
+the painted backdrop shows. More negative = lower.
+
+Horizon row measured at y=436 of `BG_portrait.webp` (922x1761) as the sharpest luminance edge in the
+upper 60%: mean row luminance 124.7 -> 69.3, a drop ~7x larger than any other candidate.
+`BG_portrait_FREEGAME.webp` puts its horizon on the SAME row 436, so this one value serves both modes.
+
+Unlike landscape, this alignment is stable across aspect ratios. The portrait backdrop sets
+`coverHeight`, so on anything taller than its own 922x1761 (0.5236) both the horizon and the scene
+scale with viewport HEIGHT and the gap is a pure ratio. Verified live: faint edge 2.01px below the
+horizon at 375x812, 2.21px at 414x896, and still 2.65px at 360x640 — which is past the crossover and
+therefore width-driven, so both regimes hold.
+
 ## Game area frame (2026-08-06)
 
 | master | installed as | encode |
