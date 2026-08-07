@@ -43,8 +43,10 @@ export const isPortraitGameLayout = (): boolean => {
  * (`PlinkoEngine` slot `labelText`), so it must not round a value away: it keeps up to TWO decimals and
  * drops trailing zeros — 100 → "100", 1.5 → "1.5", 0.25 → "0.25", 0.2 → "0.2", 0 → "0".
  *
- * ⚠️ It used to be one decimal, which printed the 1-ball board's 0.25× pocket as "0.3" — a pocket
- * labelled 20% above what it pays. Every value that existed under the old rule renders identically here.
+ * ⚠️ No shipped pocket needs the second decimal today — this is a guard. Under the previous one-decimal
+ * rule a 0.25× pocket printed as "0.3", i.e. labelled 20% above what it pays, and a 0.25× pocket was a
+ * live candidate while the 1-ball board was being re-cut. Every value either rule can render comes out
+ * identical, so the guard costs nothing.
  * `alignCoefficientSet` matches server coefficients to board slots on these labels, so the two sides stay
  * consistent as long as both go through this function.
  */

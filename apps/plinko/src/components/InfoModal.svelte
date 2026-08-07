@@ -113,9 +113,9 @@
 	 *
 	 * Both boards are symmetric, so one row covers the mirrored PAIR at that distance from the center
 	 * (2 pockets) and the last row is the lone center pocket. Rows run edge → center, i.e. highest
-	 * multiplier first. The 1-ball column is a separate board, not a variant of the shared one: it pays
-	 * its center (0.2×) and lifts the two pockets either side (0.2× → 0.25×) because that tier has no
-	 * feature meters to feed — enumerating both is the only way a player can see that.
+	 * multiplier first. The 1-ball column is a separate board, not a variant of the shared one: it lifts
+	 * its 1.5× pockets to 2× to make up for the bonus features that tier does not have — enumerating both
+	 * is the only way a player can see that.
 	 */
 	const boardCenterIndex = Math.floor(BOARD_SLOT_MULTIPLIERS.length / 2);
 	const paytableRows = BOARD_SLOT_MULTIPLIERS.slice(0, boardCenterIndex + 1).map(
@@ -127,6 +127,14 @@
 			color: slotColorForRateIndex([...BOARD_SLOT_MULTIPLIERS], index),
 		}),
 	);
+
+	/**
+	 * Which pockets the 1-ball board actually changes, derived rather than named in the prose. The
+	 * paragraph below used to spell out "its center pays X and the pocket either side pays Y", which
+	 * silently became false the moment the board was re-cut somewhere else. Deriving it means the rules
+	 * follow the table instead of having to be remembered alongside it.
+	 */
+	const boardDiffs = paytableRows.filter((row) => row.oneBall !== row.shared);
 
 	/**
 	 * Free-spin wheel segments, sorted low → high with BONUS last (the stored order is the wheel's
@@ -184,7 +192,7 @@
 
 	/**
 	 * Game-wide declared RTP, and the modes that differ from it once rounded to the precision the rules
-	 * actually print. Comparing raw values instead would disclose the feature-free 1-ball tier (95.657%
+	 * actually print. Comparing raw values instead would disclose the feature-free 1-ball tier (95.745%
 	 * against a 95.7% headline) by printing "returns 95.7%" — the same figure, so the sentence would
 	 * carry no information. A mode only earns a callout when its published number READS differently.
 	 */
@@ -340,13 +348,20 @@
 								The two tiers play <strong>different boards</strong>. On 10 / 20 / 50 balls the center
 								pocket is the SPIN slot: it pays {formatMultiplier(
 									BOARD_SLOT_MULTIPLIERS[boardCenterIndex],
-								)} and feeds the Free Spin meter instead. The 1 Ball per Drop tier has no meters to feed,
+								)} and feeds the Free Spin meter instead. The 1 Ball per Drop tier has no meter to feed,
 								so its center pays {formatMultiplier(
 									ONE_BALL_BOARD_SLOT_MULTIPLIERS[boardCenterIndex],
-								)} and the pocket either side of it pays {formatMultiplier(
-									ONE_BALL_BOARD_SLOT_MULTIPLIERS[boardCenterIndex - 1],
-								)} rather than {formatMultiplier(BOARD_SLOT_MULTIPLIERS[boardCenterIndex - 1])}. Every
-								other pocket is identical on both boards.
+								)} and nothing more.
+								{#if boardDiffs.length}
+									It has no bonus features either, so it makes that up in the board itself: its
+									{#each boardDiffs as diff, index (diff.index)}{index > 0
+											? index === boardDiffs.length - 1
+												? ' and its '
+												: ', its '
+											: ''}{formatMultiplier(diff.shared)} pockets pay {formatMultiplier(
+											diff.oneBall,
+										)}{/each}. Every other pocket is identical on both boards.
+								{/if}
 							</p>
 							<p>
 								The board layout is fixed — you control your own risk through your Bet per Ball and
@@ -631,9 +646,12 @@
 						</table>
 						<ul>
 							<li>
-								<strong>Center pockets</strong> pay the least, so balls that drift to the middle return
-								little or nothing — on 10 / 20 / 50 balls the center pocket pays nothing at all and
-								feeds the Free Spin meter instead.
+								<strong>Center pockets</strong> pay the least — the center pocket itself pays nothing
+								at all on every tier. On 10 / 20 / 50 balls it at least feeds the Free Spin meter; on
+								1 Ball per Drop there is no meter, so that tier pays more on its
+								{#each boardDiffs as diff, index (diff.index)}{index > 0 ? ' and ' : ''}{formatMultiplier(
+										diff.shared,
+									)}{/each} pockets instead.
 							</li>
 							<li>
 								<strong>Edge pockets</strong> pay the most — up to

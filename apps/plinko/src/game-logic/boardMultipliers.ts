@@ -11,17 +11,20 @@ export const BOARD_SLOT_MULTIPLIERS = [
 ] as const;
 
 /** 1-BALL BOARD (the `onedrop` tier only) — mirror of math `plinko_data.ONE_BALL_BOARD_SLOT_MULTIPLIERS`.
- * That tier is FEATURE-FREE (no free spin, no bonus — see `isSingleBallMode`), so the center pocket has
- * no spin meter to feed: leaving it at 0× would make it a dead slot hit ~20.9% of the time and strand
- * the tier at the bare board EV (~89.6%), under the 90% compliance floor. Here the center pays 0.2× and
- * the two pockets either side go 0.2× → 0.25×, funding the tier to 95.657%. Nothing else moves.
+ * That tier is FEATURE-FREE (no free spin, no bonus — see `isSingleBallMode`), so nothing but the board
+ * funds it and the shared table's ~89.6% EV is under the 90% compliance floor. Here the two 1.5× pockets
+ * pay 2.0× instead — they land 12.2% of the time, so that single step is worth +6.11 points and puts the
+ * tier at 95.745%. Everything else, the 0× center included, is identical to the shared board.
  * ⚠️ THESE POCKET VALUES *ARE* the tier's RTP — with no feature and no quota to tune, `onedrop` returns
  * exactly this board's EV. They were center 0.1× / sides 0.3× (95.396%), which left the tier 0.30% below
  * the 95.7% every other mode is tuned to and was the largest term in the cross-mode RTP spread Stake
- * rejected. Do not adjust them without re-running the math's `rtp_audit.py`.
- * ⚠️ Balls landing center on this tier are NOT flagged `hitSpinSlot` by the math, so they pay normally. */
+ * rejected. The 1.5× pockets are the dial because they land 3× less often than the middle three, so they
+ * resolve 3× finer: one decimal in the middle is worth 2–4 RTP points, far too coarse to correct 0.30%.
+ * Do not adjust them without re-running the math's `rtp_audit.py`.
+ * ⚠️ Balls landing center on this tier are NOT flagged `hitSpinSlot` by the math. The payout is the same
+ * either way (this board's center is 0× too) — a tier with no meter just must not report meter hits. */
 export const ONE_BALL_BOARD_SLOT_MULTIPLIERS = [
-	100, 50, 20, 5, 1.5, 0.4, 0.25, 0.2, 0.25, 0.4, 1.5, 5, 20, 50, 100,
+	100, 50, 20, 5, 2.0, 0.4, 0.2, 0, 0.2, 0.4, 2.0, 5, 20, 50, 100,
 ] as const;
 
 /** Per-balls-per-drop board override. Only tiers listed here differ from `BOARD_SLOT_MULTIPLIERS`. */
@@ -64,8 +67,8 @@ export function boardMultiplierAtIndex(
 }
 
 /** Payout multiple for a landed ball. ALWAYS the board value at the landed pocket: the spin pocket pays
- * 0 because the shared board's center IS 0, not because of the `hitSpinSlot` flag — the 1-ball board
- * pays its center (that tier has no spin meter). */
+ * 0 because every board's center IS 0, not because of the `hitSpinSlot` flag — the 1-ball board carries
+ * no such flag at all (no meter to feed) and still pays its center's 0. */
 export function resolveOutcomeMultiplier(
 	outcome: { rateIndex: number; multiplier: number; hitSpinSlot?: boolean },
 	coefficients: readonly number[],

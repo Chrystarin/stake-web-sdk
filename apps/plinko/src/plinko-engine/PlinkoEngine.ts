@@ -3497,12 +3497,11 @@ export class PlinkoEngine {
   /**
    * Match the pocket beside centre as the reference slot size for all multiplier assets.
    *
-   * This used to search for the slot LABELLED "0.2" — which is the shared board's `middle - 1` pocket,
-   * the same slot this picks. Keying it on the label made the asset scale depend on the pocket VALUES:
-   * the 1-ball board has no 0.2× beside centre, so it fell through to this index anyway, and once that
-   * board's centre became 0.2× the search would have latched onto centre instead (distance 0 from
-   * middle → a visibly different `heightScale` on that tier alone). Position is what the scale actually
-   * wants, so take it directly and let boards be re-cut freely.
+   * This used to search for the slot LABELLED "0.2", which is the shared board's `middle - 1` pocket —
+   * the same slot this picks, on every board shipped so far. Keying it on a pocket VALUE made the asset
+   * scale hostage to the board tables: a 1-ball board whose centre paid 0.2× would have matched centre
+   * first, distance 0 from middle, and given that one tier a visibly different `heightScale`. Position
+   * is what the scale actually wants, so take it directly and let boards be re-cut freely.
    */
   private updateUniformSlotAssetScale(): void {
     const middle = this.getMiddleSlotIndex();

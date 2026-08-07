@@ -17,9 +17,9 @@ they carry sampling error in the last digit and should be re-confirmed with
 | Rows (math contract) | 14 → 15 pockets |
 | Shared board (`BOARD_SLOT_MULTIPLIERS`) | `100, 50, 20, 5, 1.5, 0.4, 0.2, 0, 0.2, 0.4, 1.5, 5, 20, 50, 100` |
 | Shared board EV per ball | **0.89635** *(derived)* |
-| 1-ball board (`onedrop` only) | `100, 50, 20, 5, 1.5, 0.4, 0.25, 0.2, 0.25, 0.4, 1.5, 5, 20, 50, 100` |
-| 1-ball board EV per ball | **0.95657** *(derived)* — this **is** the `onedrop` RTP; that tier has no feature and no quota |
-| Centre pocket (index 7) | Free-spin pocket on 10 / 20 / 50 — pays 0×, feeds the spin meter. On `onedrop` it is an ordinary paying pocket (0.2×). |
+| 1-ball board (`onedrop` only) | `100, 50, 20, 5, 2.0, 0.4, 0.2, 0, 0.2, 0.4, 2.0, 5, 20, 50, 100` |
+| 1-ball board EV per ball | **0.95745** *(derived)* — this **is** the `onedrop` RTP; that tier has no feature and no quota |
+| Centre pocket (index 7) | Pays 0× on **every** tier. On 10 / 20 / 50 it feeds the spin meter; `onedrop` has no meter, so it is simply a 0× pocket there. |
 | P(ball lands centre) | **0.20947** = C(14,7)/2¹⁴ *(derived)* |
 | Target RTP (`TARGET_RTP`) | 0.957 |
 | Compliance band | 90.00 % – 96.70 %, all modes inside a 1.00 %-wide window |
@@ -173,13 +173,14 @@ And the four base modes at the same measurement (the 1-ball tier is closed-form 
 
 | Mode | Quota | Wincap | RTP |
 | --- | --- | --- | --- |
-| `onedrop` | — (feature-free) | 100× | **95.657 %** *(derived)* |
+| `onedrop` | — (feature-free) | 100× | **95.745 %** *(derived)* |
 | `tendrop` | 0.00323 | 250× | **95.703 %** |
 | `twentydrop` | 0.00298 | 300× | **95.707 %** |
 | `fiftydrop` | 0.01333 | 400× | **95.698 %** |
 
-* **All eight published modes span 95.657 %–95.762 %: a 0.104 % cross-mode spread against Stake's
-  0.50 % limit.** It was 0.66 % (see §9).
+* **All eight published modes span 95.659 %–95.762 %: a 0.103 % cross-mode spread against Stake's
+  0.50 % limit.** It was 0.66 % (see §9). `onedrop` at 95.745 % now sits inside the pack — the range
+  is set by the buy tiers, not by it.
 * Every advertised max win is produced far above the 1 / 20,000,000 achievability floor.
 * Largest book seen is 299 balls — nowhere near the ~5,200-ball runaway that the old flat buy bar
   existed to prevent.
@@ -216,7 +217,7 @@ bonuses that reach it — so `peg_hit_prob` remains the lever that holds each bu
 
 | Mode | Declared RTP | Why |
 | --- | --- | --- |
-| `onedrop` | 0.95657 | Feature-free — the board is all it pays, so this is its board EV exactly. Publishing 0.957 would overstate it by 0.043 %. |
+| `onedrop` | 0.95745 | Feature-free — the board is all it pays, so this is its board EV exactly. Publishing 0.957 would understate it by 0.045 %. |
 | `tendrop` / `twentydrop` / `fiftydrop` | 0.957 | Tuned to `TARGET_RTP` by the bonus quota (`BONUS_IN_DROP_RATE`). |
 | all 4 buy modes | 0.957 | Tuned to `TARGET_RTP` by `peg_hit_prob` at the PDF-fixed cost and fixed `entry_balls`. |
 
@@ -226,7 +227,7 @@ bonuses that reach it — so `peg_hit_prob` remains the lever that holds each bu
 **0.30 % below** the 95.70 % every other mode targets, and the low tiers' quotas had been solved from a
 sampled-payout tuner whose ~0.2 % of noise mis-set them (published `tendrop` 95.01 %, `twentydrop`
 95.38 %). Together those two things produced a **0.66 % cross-mode RTP spread against Stake's 0.50 %
-limit**. The fix was to re-cut the 1-ball board to 95.657 %, re-solve every lever with the closed-form
+limit**. The fix was to re-cut the 1-ball board to 95.745 %, re-solve every lever with the closed-form
 `rtp_audit.py`, and raise the published sim counts so the graded LUT means carry ≤ 0.10 % of sampling
 error each (see the sizing note in the math `run.py` — at the old counts the range breached 0.50 % about
 40 % of the time even with identical true RTPs).
@@ -243,3 +244,17 @@ error each (see the sizing note in the math `run.py` — at the old counts the r
 | `BUY_BONUS_TIER_DEFS` (cost / wincap / entry) | `betModes` in `src/game/config.ts`, `BUY_BONUS_TIERS` in `src/game/plinkoBetMode.ts` |
 | `BONUS_LEVELUP_PEG_HITS_BY_LEVEL` | `BONUS_LEVELUP_PEGS` in `constants.ts` — **fallback only**; the book's `bonusRound.levelupPegs` wins |
 | `BONUS_PEG_HIT_PROB_BY_MODE` | **no mirror needed** — every coin-peg hit is authored per ball in the book (`outcomes[].hitBonusPeg`); exported to `config_fe_*.json` as `bonusPegHitProbByMode` for reference only |
+
+### Why the 1-ball board changes the 1.5× pockets
+
+`onedrop` has no feature and no quota, so its pocket values *are* its RTP — and it needed a **+0.30 %**
+correction. The three centre pockets look like the obvious dial, but they are hit 20.9 % (centre) and
+36.7 % (the pair either side) of the time, so **one decimal place there is worth 2.09 % and 3.67 % of
+RTP** — a 2–4 point instrument for a 0.30 % job. No one-decimal pair lands within 1.2 % of target (the
+old 0.1× / 0.3× board was itself the best of them), and the closest clean pair at all, 0.25× / 0.2×,
+needs a two-decimal pocket label.
+
+The 1.5× pockets are hit only 12.2 %, so they resolve 3× finer: a single 0.5 step is worth +6.11 points
+and lands 0.045 % from target. It is also the smallest possible departure from the shared board — two
+pockets, one decimal, and the whole middle of the board keeps the meaning it has on every other tier,
+centre 0× included.

@@ -27,14 +27,14 @@ export default {
 		// cap against the total bet falls as balls rise (400× at 50 balls is 8× the wager).
 		// onedrop is FEATURE-FREE (no bonus, no free spin — see `isSingleBallMode`), so it plays its own
 		// board: RTP is that board's EV and the advertised max win is its top pocket, 100×. The board was
-		// re-cut (center 0.1× → 0.2×, sides 0.3× → 0.25×) to lift that EV 0.954 → 0.95657, because a tier
-		// sitting 0.30% under the 0.957 every other mode targets was the biggest term in the cross-mode
-		// RTP spread Stake rejected. Mirror of math `declared_rtp_for_balls(1)`.
+		// re-cut (its two 1.5× pockets pay 2.0×) to lift that EV 0.954 → 0.95745, because a tier sitting
+		// 0.30% under the 0.957 every other mode targets was the biggest term in the cross-mode RTP
+		// spread Stake rejected. Mirror of math `declared_rtp_for_balls(1)`.
 		onedrop: {
 			cost: 1.0,
 			feature: true,
 			buyBonus: false,
-			rtp: 0.95657,
+			rtp: 0.95745,
 			max_win: 100.0,
 		},
 		tendrop: {
