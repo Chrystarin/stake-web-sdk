@@ -197,7 +197,7 @@
 	{ "name": "light", "parent": "lamp1", "x": 115.40893, "y": -2.4143066 },
 	{ "name": "lamp2", "parent": "root", "length": 236.91736, "rotation": -89.7062, "x": 1427.1306, "y": 1158.9402 },
 	{ "name": "light2", "parent": "lamp2", "x": 115.40893, "y": -2.4143066 },
-	{ "name": "ship", "parent": "root", "length": 164.08215, "rotation": 90, "x": -820.9356, "y": 1110.006 },
+	{ "name": "ship", "parent": "root", "length": 164.08215, "rotation": 90, "x": -870.6417, "y": 1101.2533, "scaleX": 0.96976015, "scaleY": 0.96976015 },
 	{
 		"name": "flagA4",
 		"parent": "root",
@@ -456,7 +456,7 @@
 				}
 			},
 			"moon": {
-				"moon": { "x": -845.6933, "y": 1462.8798, "scaleX": 2.370925, "scaleY": 2.370925, "width": 457, "height": 457 }
+				"moon": { "x": -1086.5876, "y": 1438.5964, "scaleX": 2.23403319, "scaleY": 2.23403319, "width": 457, "height": 457 }
 			},
 			"ocean": {
 				"oceanAnim/": {
