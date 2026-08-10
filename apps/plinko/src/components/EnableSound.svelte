@@ -5,6 +5,7 @@
 	import { stateGame } from '../game/stateGame.svelte';
 	import { staticUrl } from '../lib/staticUrl';
 	import {
+		installPlinkoAudioResume,
 		loadPlinkoSound,
 		playPlinkoSound,
 		type LoadSoundOptions,
@@ -62,6 +63,10 @@
 		for (const [name, url] of Object.entries(soundMap)) {
 			loadPlinkoSound(name as SoundEffectName, url, soundOptions[name as SoundEffectName]);
 		}
+		// Keep the Web Audio context running for the whole session — the autoplay policy blocks it on a
+		// fresh load, and the browser suspends it again on backgrounding / orientation change, which
+		// Howler's own one-shot unlock never recovers from. See installPlinkoAudioResume.
+		return installPlinkoAudioResume();
 	});
 
 	context.eventEmitter.subscribeOnMount({

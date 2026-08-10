@@ -4,8 +4,10 @@
 	import { PlinkoEngine, type BallDroppedEvent } from '../plinko-engine/PlinkoEngine';
 	import { getContext } from '../game/context';
 	import {
+		isDropBatchPending,
 		isRapidSingleBallMode,
 		registerBonusBallOutcome,
+		settleInFlightBallsWithoutAnimation,
 		takeAuthoritativeBonusOutcome,
 	} from '../game/gameOrchestrator';
 	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
@@ -172,6 +174,12 @@
 			eng?.destroy();
 			engine = undefined;
 			stateGame.plinkoEngineReady = false;
+			// The engine just took every ball in the air with it, so nothing is left to fire the
+			// `onBallDropped` callbacks the round is waiting on. Settle them here or the drop batch stays
+			// pending for good and the game soft-locks (see settleInFlightBallsWithoutAnimation). The board
+			// no longer unmounts on rotation — this covers the remaining teardown paths (init failure, hot
+			// reload, leaving the game).
+			if (isDropBatchPending()) settleInFlightBallsWithoutAnimation();
 		};
 	});
 

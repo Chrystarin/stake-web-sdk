@@ -822,18 +822,17 @@
 					aria-hidden="true"
 				/>
 
-				{#if mobile}
-					<div class="pixi-stage-wrap">
-						<PlinkoBoard
-							coefficients={boardCoefficients}
-							rows={stateGame.rowCount}
-							animationEnabled={stateGame.animationEnabled}
-							animationSpeed={stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal}
-							{onBallDropped}
-							onCoinPegHit={handleCoinPegHit}
-						/>
-					</div>
-				{:else}
+				<!-- ⚠️ ONE mount, both layouts — never split this on `mobile`. `mobile` flips the instant the
+				     device is rotated, and a `{#if mobile}` around the board made Svelte DESTROY and rebuild
+				     <PlinkoBoard> on every rotation: the Pixi engine went with it, taking every ball still in
+				     the air. Their outcomes stayed in `expectedOutcomeByBallId` with no engine left to land
+				     them, so `isDropBatchPending()` never went false — the round never settled, Play stuck on
+				     its loading spinner, and an Autobet run froze until a page refresh.
+				     The wrap is rendered unconditionally instead; it is styled for BOTH layouts (`.container
+				     .pixi-stage-wrap` for desktop/landscape, `.game-root--mobile … .pixi-stage-wrap` for
+				     portrait), so a rotation is now a plain resize of a live board — which the engine already
+				     handles by remapping the in-flight balls onto the new geometry. -->
+				<div class="pixi-stage-wrap">
 					<PlinkoBoard
 						coefficients={boardCoefficients}
 						rows={stateGame.rowCount}
@@ -842,7 +841,7 @@
 						{onBallDropped}
 						onCoinPegHit={handleCoinPegHit}
 					/>
-				{/if}
+				</div>
 
 				<!-- Bonus meter is PERMANENTLY MOUNTED and only shown/hidden via `visibility` (see
 				     `--hidden` below). It must never be `{#if}`-unmounted on a Ball-Per-Drop change: the

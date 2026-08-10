@@ -1032,6 +1032,38 @@ export function waitForDropBatchCompletion(maxMs = 30_000): Promise<void> {
 }
 
 /**
+ * Land every ball still in the air WITHOUT its animation, then clear the spawn backlog.
+ *
+ * Recovery for a board that disappears mid-drop: the Pixi engine owns the balls, so once it is
+ * destroyed the `onBallDropped` callbacks that settle them can never fire. Left alone,
+ * `isDropBatchPending()` stays true for the rest of the session — the round never settles, the Play
+ * button is stuck showing its loading spinner, an Autobet run stalls, and only a page reload gets the
+ * game back.
+ *
+ * Every ball is settled through the normal `onBallLanded` path, so its authoritative outcome still
+ * credits the win, the round's history row and the meters. Balls whose spawn timer died before they
+ * were created never registered an outcome, so they can only be dropped from the counter — the
+ * round's total is re-asserted from the book's `finalWin` at settlement either way.
+ */
+export function settleInFlightBallsWithoutAnimation() {
+	const coeffs = stateGame.coefficients.length > 0 ? stateGame.coefficients : [];
+	// Snapshot the ids first: `onBallLanded` takes each outcome off the map as it settles it.
+	for (const ballId of [...stateGame.expectedOutcomeByBallId.keys()]) {
+		const outcome = stateGame.expectedOutcomeByBallId.get(ballId);
+		if (!outcome) continue;
+		onBallLanded(
+			ballId,
+			resolveOutcomeMultiplier(outcome, coeffs),
+			outcome.hitSpinSlot === true,
+			outcome.rateIndex,
+		);
+	}
+	stateGame.pendingSpacedSpawnTimers = 0;
+	// Nothing is falling any more — hand the displayed balance back to the authoritative value.
+	maybeReleaseRapidBalanceShadow();
+}
+
+/**
  * Open the in-bonus free-spin wheel for `entry` (a queued `freeSpinTrigger` payload). The wheel lands
  * on the math-authored segment; its `stake × M` is added to the bonus total when the wheel LANDS
  * (`onFreeSpinRouletteFinished` → additive credit). After it closes, that handler re-invokes this

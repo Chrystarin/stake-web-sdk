@@ -168,9 +168,32 @@ export class PlinkoEngine {
 		}
 		/** Slots + multipliers come from coefficient rows; wait until they exist (config or RGS hydrate) before rebuilding. */
 		if (this.rows && this.pixiReady && this.app) {
+			const prevWidth = this.containerWidth;
+			const prevHeight = this.containerHeight;
 			this.updateContainerSize();
 			this.ensureLayoutDimensionsFromRendererIfNeeded();
 			this.rebuildScene();
+			// `rebuildScene` re-measures the host and regenerates every peg and slot, but the balls already
+			// in the air keep the coordinates (and `Peg` references) of the layout they were spawned into.
+			// The resize path remaps them for exactly this reason; this path — driven by the host's
+			// ResizeObserver, which is what a portrait↔landscape rotation trips — has to do the same, or the
+			// drop carries on falling through geometry that no longer exists and the balls leave the visible
+			// board. Rescaling is a no-op when only the coefficients changed (identical host size), and never
+			// double-applies: `refreshLayoutSync` / `resizeCanvasToContainer` run afterwards with the new
+			// dimensions already in place, so their own remap scales by 1.
+			if (this.balls.length) {
+				if (this.containerWidth !== prevWidth || this.containerHeight !== prevHeight) {
+					this.remapActiveBallsForResize(
+						prevWidth,
+						prevHeight,
+						this.containerWidth,
+						this.containerHeight,
+					);
+				}
+				// Always rebind: `generatePegs` replaced every `Peg` object, so a path still pointing at the
+				// old ones would light up detached pegs (no bounce visual) for the rest of the drop.
+				this.rebindActiveBallPathPegs();
+			}
 		}
 	}
 

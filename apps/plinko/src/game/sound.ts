@@ -72,6 +72,86 @@ export function loadPlinkoSound(
 	}
 }
 
+/**
+ * Bring Howler's Web Audio context back to `running` if anything has suspended it.
+ *
+ * Howler only ever resumes the context from inside `play()`, and only when IT was the one that
+ * suspended it (its 30s idle auto-suspend) or when iOS reports the context as `interrupted`. A
+ * context the BROWSER suspended leaves `Howler.state` reading `running`, so nothing in the library
+ * touches it: every later `play()` is swallowed into a stalled graph and the game runs silent with no
+ * error. That is the state the page lands in after the autoplay policy blocks the freshly created
+ * context (a reload), after the tab is backgrounded, and after an orientation change on iOS.
+ *
+ * Nothing here can start audio without a user gesture — that is the browser's rule — but it does mean
+ * the FIRST interaction of any kind brings the sound back, instead of the game staying mute for the
+ * rest of the session.
+ */
+export function resumePlinkoAudio(): void {
+	// `state` and `_autoResume` are Howler internals — real, stable, and simply absent from @types.
+	const howler = Howler as unknown as {
+		ctx?: AudioContext;
+		state?: string;
+		_autoResume?: () => void;
+	};
+	const ctx = howler.ctx;
+	if (!ctx || typeof ctx.resume !== 'function') return;
+	// Already live — do nothing at all. This is the common case (these listeners fire on every tap and
+	// every resize frame of a rotation), so it has to stay free.
+	if (ctx.state === 'running') return;
+	// Let Howler resume it first where it can: that path also clears its own suspend bookkeeping and
+	// emits `resume` to every Howl, which a bare `ctx.resume()` would leave inconsistent.
+	try {
+		howler._autoResume?.();
+	} catch {
+		// Never let audio housekeeping break a UI event handler.
+	}
+	void ctx
+		.resume()
+		.then(() => {
+			howler.state = 'running';
+		})
+		.catch(() => {
+			// Still gesture-locked — the next interaction will try again.
+		});
+}
+
+/**
+ * Keep the audio context alive for the life of the page: resume it on any user interaction, and
+ * whenever the page comes back into view or is re-laid-out (an orientation change fires both
+ * `orientationchange` and a `resize`, and on iOS it can leave the context interrupted).
+ *
+ * Deliberately NOT a one-shot. Howler removes its own unlock listeners the moment audio first
+ * unlocks, so a context suspended LATER — rotate the device, switch apps, come back — was never
+ * recovered by anything. These listeners stay for the whole session so every later interruption is
+ * picked up by the next tap.
+ *
+ * Returns a teardown for the caller's `onMount`.
+ */
+export function installPlinkoAudioResume(): () => void {
+	if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+	const onVisible = () => {
+		if (!document.hidden) resumePlinkoAudio();
+	};
+	// `pointerdown` deliberately included alongside Howler's own four: a touch that is consumed by a
+	// canvas/preventDefault handler may never become a `click` or `touchend`.
+	const gestureEvents = ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown'] as const;
+	const gestureOpts = { capture: true, passive: true } as const;
+	for (const evt of gestureEvents) document.addEventListener(evt, resumePlinkoAudio, gestureOpts);
+	document.addEventListener('visibilitychange', onVisible);
+	window.addEventListener('pageshow', resumePlinkoAudio);
+	window.addEventListener('orientationchange', resumePlinkoAudio);
+	window.addEventListener('resize', resumePlinkoAudio, { passive: true });
+	return () => {
+		for (const evt of gestureEvents) {
+			document.removeEventListener(evt, resumePlinkoAudio, gestureOpts);
+		}
+		document.removeEventListener('visibilitychange', onVisible);
+		window.removeEventListener('pageshow', resumePlinkoAudio);
+		window.removeEventListener('orientationchange', resumePlinkoAudio);
+		window.removeEventListener('resize', resumePlinkoAudio);
+	};
+}
+
 export function playPlinkoSound(name: SoundEffectName, rate = 1): void {
 	const howl = howls.get(name);
 	if (!howl) return;
