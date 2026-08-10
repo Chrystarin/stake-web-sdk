@@ -29,6 +29,7 @@ import { releaseRoundInteractionLocks } from './meterFlow';
 import { playBet } from './bookEventHandlerMap';
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import { installPlinkoDevDebug } from './devDebug';
+import { installPlinkoMeterTrace } from './plinkoMeterTrace';
 
 const primaryMachines = createPrimaryMachines<Bet>({
 	// MUST stay synchronous: the shared `resumeGame` does `bet: onResumeGameActive(betToResume)`
@@ -121,3 +122,4 @@ export const gameActor = createGameActor(intermediateMachines);
 
 syncPlinkoBetModeFromUi();
 installPlinkoDevDebug();
+installPlinkoMeterTrace();

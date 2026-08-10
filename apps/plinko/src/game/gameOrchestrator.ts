@@ -18,6 +18,7 @@ import { formatCoefficientLabel, formatHistoryDate, formatHistoryMultiplier } fr
 import { meterController } from './stateGame.svelte';
 import { stateGame, stateGameDerived, type HistoryChip, type HistoryEntry } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
+import { traceBonusMeterWrite } from './plinkoMeterTrace';
 import { stateXstateDerived } from './stateXstate';
 import {
 	bonusMeterTierStart,
@@ -218,10 +219,39 @@ function isBonusRoundBlockingSettlement(): boolean {
 	if (stateGame.bonusBallsRemaining > 0 || stateGame.bonusRoundActive) return true;
 	if (stateGame.pendingSpinRouletteAfterBonusLevelDepletion) return true;
 	if (stateGame.freeSpinRouletteOpen) return true;
-	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin') {
-		return true;
-	}
+	// ANY roulette flow holds settlement open, not just a free spin's.
+	//
+	// The book-driven bonus wheel awaits its own close (`runBonusRouletteFlow`), but the client
+	// meter-fallback trigger (`onCoinPegHit` → `onMeterFull` → `triggerRoulette`) is fire-and-forget:
+	// nothing awaited it, so `playBet` ran on to its `finally` → `forceUnlockBettingControls`, which
+	// bumps `rouletteOpenGeneration` and clears the flow — cancelling the wheel's opener mid-flight (or
+	// tearing the wheel down the instant it appeared). The player saw a bonus meter hit max with no
+	// bonus, and the run stopped. `triggerRoulette` bounds its own wait, so a flow cannot park here.
+	//
+	// Deliberately NOT also gated on `bonusRouletteOpen`: the buy-bonus flow raises that flag directly
+	// (Game.svelte, before the wager leaves) without ever beginning a flow, and a buy book that carried
+	// no `bonusRoulette` event would then hold settlement open for the full completion timeout.
+	if (stateGame.rouletteFlowInProgress) return true;
 	return false;
+}
+
+/**
+ * True anywhere inside a bonus round's life — from the wheel that awards it through the last free ball,
+ * its level-up celebrations, and the congratulations screen on the way out.
+ *
+ * Broader than `isBonusRoundBlockingSettlement` on purpose: settlement must land BEHIND the end screen
+ * (so the balance credits before the player dismisses it), but the Autobet loop must not treat any of
+ * these as "the round is over".
+ */
+export function isBonusRoundInProgress(): boolean {
+	return (
+		stateGame.bonusRoundActive ||
+		stateGame.bonusBallsRemaining > 0 ||
+		stateGame.bonusLevelUpPending ||
+		stateGame.bonusEndAnnouncementOpen ||
+		stateGame.bonusRouletteOpen ||
+		(stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'bonus')
+	);
 }
 
 /** Wait until bonus balls are played, any follow-up wheel closes, and the end screen is dismissed. */
@@ -518,7 +548,10 @@ async function completeBonusMeterThenLevelUp(reveal: () => void, settleBar: () =
 		stateGame.bonusMeterHoldFull = true;
 		// Keep the logical value in step with the pinned display: the "ready to level up" tile blink and the
 		// in-bonus fill guard in `onCoinPegHit` both read `bonusMeterValue >= bonusMeterMax`.
-		if (stateGame.bonusMeterMax > 0) stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+		if (stateGame.bonusMeterMax > 0) {
+			traceBonusMeterWrite('completeBonusMeterThenLevelUp', stateGame.bonusMeterMax);
+			stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+		}
 		const startedAt = Date.now();
 		// Play out the balls already in the air first — the level-up card must not cover a board that is
 		// still resolving the drop that earned it. (No-op on the depletion path: nothing is left falling.)
@@ -722,6 +755,7 @@ export function awardBonusBalls(count: number) {
 		// EXCEPTION — a bought bonus (trigger mode) has no trigger fill-up: it opens straight on the
 		// empty level-1 in-bonus meter, so snapping to full here would flash the bar full → empty on
 		// entry. Start it EMPTY instead and let the in-bonus fill take over.
+		traceBonusMeterWrite('awardBonusBalls:snapFull', isPlinkoTriggerMode(stateBet.activeBetModeKey) ? 0 : stateGame.bonusMeterMax);
 		stateGame.bonusMeterValue = isPlinkoTriggerMode(stateBet.activeBetModeKey)
 			? 0
 			: stateGame.bonusMeterMax;
@@ -810,6 +844,60 @@ export function stopBonusBallHoldDrop(): void {
 	if (bonusHoldDropTimer === null) return;
 	clearInterval(bonusHoldDropTimer);
 	bonusHoldDropTimer = null;
+}
+
+let autoBetBonusDropTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * True while an Autobet run owns the bonus round — i.e. it should drop the free balls itself and
+ * auto-dismiss the wheel / congratulations screens instead of waiting for a player who isn't there.
+ *
+ * Goes false the moment the player presses Stop, which is the whole point: the run places no further
+ * wagers, the driver below shuts down, and whatever free balls are left go back to being player-driven
+ * (they are already won — stopping Autobet must never forfeit them). Replay drives its own bonus balls
+ * (`tickReplayBonusBalls`) and must not be double-driven.
+ */
+export function isAutoBetDrivingBonus(): boolean {
+	return stateGame.autoPlayStarted && !stateGame.autoPlayStopping && !isReplayMode();
+}
+
+/**
+ * AUTOBET BONUS DRIVER. A bonus round drops its free balls on player Play presses; an Autobet run has
+ * no player, so it streams them out itself at the hold-to-drop cadence until the round is played out —
+ * then the loop settles the round and moves on to the next wager, so the run reaches the count the
+ * player actually selected.
+ *
+ * Kept on its OWN timer rather than sharing `bonusHoldDropTimer`: the player can still press/hold Play
+ * during an auto-driven bonus, and a shared timer would let their release (`stopBonusBallHoldDrop`)
+ * silently kill the run's stream.
+ *
+ * Like the held stream this re-checks `canDropBonusBallNow()` every tick instead of stopping, so it
+ * PAUSES for a level-up reward / wheel / end-of-level gap and resumes on its own once the next batch of
+ * free balls is awarded. Idempotent — safe to call from a reactive effect on every state change.
+ */
+export function syncAutoBetBonusBallDriver(): void {
+	if (!isAutoBetDrivingBonus() || !stateGame.bonusRoundActive) {
+		stopAutoBetBonusBallDriver();
+		return;
+	}
+	if (autoBetBonusDropTimer !== null) return;
+	if (canDropBonusBallNow()) playOneBonusBall();
+	autoBetBonusDropTimer = setInterval(() => {
+		// Bonus played out, or the player stopped the run — hand the board back rather than leaving a
+		// timer idling behind a run that no longer exists.
+		if (!isAutoBetDrivingBonus() || !stateGame.bonusRoundActive) {
+			stopAutoBetBonusBallDriver();
+			return;
+		}
+		if (canDropBonusBallNow()) playOneBonusBall();
+	}, bonusHoldDropIntervalMs());
+}
+
+/** Idempotent — called from the driver itself, from Stop, and when the run finishes. */
+export function stopAutoBetBonusBallDriver(): void {
+	if (autoBetBonusDropTimer === null) return;
+	clearInterval(autoBetBonusDropTimer);
+	autoBetBonusDropTimer = null;
 }
 
 /**
@@ -1219,10 +1307,21 @@ export function resetBonusRoundVisualState() {
 	bonusLevelPegThreshold = 0;
 	bonusLevelOwnPegs = 0;
 	bonusLevelCarryPegs = 0;
+	// Put the bar's MAX back to the base-game one before resetting its value.
+	//
+	// In-bonus, `sizeBonusMeterForLevel` repurposes `bonusMeterMax` as the current level's peg threshold.
+	// Nothing here used to restore it, so the base-game bar kept measuring itself against that leftover
+	// threshold until some later book happened to carry `bonusMeterMax` (the `plinkoDrop` handler only
+	// assigns it when present) or a tier switch re-seeded it. Whenever the leftover was SMALLER than the
+	// tier's hits-to-fill, the bar read FULL before the math's trigger count was reached — the player saw
+	// a full meter with no bonus. `bonusMeterBaseMax` is never touched by the in-bonus sizing, so it is
+	// the base-game value to come back to.
+	if (stateGame.bonusMeterBaseMax > 0) stateGame.bonusMeterMax = stateGame.bonusMeterBaseMax;
 	// Bonus consumed: reset to the tier base start (0 on 1/10-ball, 1/8 on 20-ball, 1/4 on 50-ball).
 	// Persisted as well as displayed: a display-only reset leaves the in-bonus value in the session store,
 	// and the next balance change re-runs `applyRgsSessionMetersToDisplay`, which would snap the bar back
 	// up to it moments after the bonus ended.
+	traceBonusMeterWrite('resetBonusRoundVisualState', Math.min(bonusMeterTierStart(), stateGame.bonusMeterMax || bonusMeterTierStart()));
 	stateGame.bonusMeterValue = Math.min(bonusMeterTierStart(), stateGame.bonusMeterMax || bonusMeterTierStart());
 	updateRgsSessionBonusMeter(stateGame.bonusMeterValue, 0);
 	stateGame.bonusMeterOverflowValue = 0;
@@ -1659,6 +1758,14 @@ function isAutoBetRoundBusy(): boolean {
 		stateGame.isSubmitting ||
 		stateGame.dropRoundActive ||
 		stateGame.bonusBallsRemaining > 0 ||
+		// The bonus round is played out INSIDE the round the run already paid for, so it must hold the
+		// loop for its whole life — including the gaps where no ball is in flight and no wager has been
+		// placed: a committed-but-uncelebrated level-up, and the congratulations screen on its way out.
+		// Settlement deliberately lands behind that screen (see `isBonusRoundBlockingSettlement`), which
+		// releases the round's own locks, so without these the next wager could fire over it.
+		stateGame.bonusRoundActive ||
+		stateGame.bonusLevelUpPending ||
+		stateGame.bonusEndAnnouncementOpen ||
 		// A still-falling ball does not hold the round open on the rapid 1-ball tier — see above.
 		(!isRapidSingleBallMode() && isGameOngoing()) ||
 		stateGame.freeSpinRouletteOpen ||
@@ -1684,10 +1791,16 @@ function autoBetDelay(ms: number): Promise<void> {
 
 /** Wait until the current autobet round fully settles (balls, wheels, wallet). */
 async function waitForAutoBetRoundIdle(): Promise<boolean> {
-	const started = Date.now();
+	let started = Date.now();
 	let sawActiveRound = false;
 
 	while (Date.now() - started < AUTO_BET_ROUND_IDLE_TIMEOUT_MS) {
+		// The idle timeout is a stall backstop for a BASE drop, which is over in seconds. A bonus round
+		// plays out inside the same round and is legitimately far longer (a Super Fury-sized award plus
+		// its level-ups is hundreds of free balls), so it must not be measured against that budget —
+		// keep the clock parked while one is running. The bonus has its own terminating conditions
+		// (`waitForBonusRoundCompletion` / `settleBonusRoundWhenFinished`), so this cannot run away.
+		if (isBonusRoundInProgress()) started = Date.now();
 		if (isAutoBetRoundBusy()) sawActiveRound = true;
 		if (sawActiveRound && !isAutoBetRoundBusy()) {
 			await autoBetDelay(AUTO_BET_INTER_ROUND_DELAY_MS);
@@ -1723,7 +1836,10 @@ async function placeAutoBetRound(onBet: () => void): Promise<boolean> {
  * after the confirm prompt is answered, and the prompt can be answered while the reveal is up.
  */
 export function startAutoBet(onBet: () => void): boolean {
-	if (isGameOngoing() || stateGame.showWinPopup) return false;
+	// A bonus round already on the board belongs to the round that paid for it — arming a run into the
+	// middle of one would have the driver adopt free balls the run never wagered for. Let the player
+	// finish it, then start.
+	if (isGameOngoing() || stateGame.showWinPopup || isBonusRoundInProgress()) return false;
 	stateGame.autoPlayStarted = true;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
@@ -1735,9 +1851,16 @@ export function startAutoBet(onBet: () => void): boolean {
 	return true;
 }
 
+/**
+ * Stop the run. Safe at ANY point, including mid-bonus: the free balls left in the funnel are already
+ * won, so this never forfeits them — it stops the auto-driver and hands them back to the player, who
+ * finishes the bonus round by hand. The loop then settles that round and ends the run without placing
+ * another wager (`playAutoRounds` checks `autoPlayStopping` on the way out).
+ */
 export function stopAutoBet() {
 	stateGame.autoPlayStopping = true;
 	stateGame.autoMode = false;
+	stopAutoBetBonusBallDriver();
 }
 
 async function playAutoRounds(roundsLeft: number, onBet: () => void): Promise<void> {
@@ -1788,6 +1911,7 @@ function finishAutoBet() {
 		clearTimeout(autoBetTimer);
 		autoBetTimer = null;
 	}
+	stopAutoBetBonusBallDriver();
 	stateGame.autoPlayStarted = false;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
@@ -1797,6 +1921,7 @@ function finishAutoBet() {
 	if (
 		!stateXstateDerived.isPlaying() &&
 		!isGameOngoing() &&
+		!isBonusRoundInProgress() &&
 		stateGame.bonusBallsRemaining <= 0
 	) {
 		stateGame.isSubmitting = false;

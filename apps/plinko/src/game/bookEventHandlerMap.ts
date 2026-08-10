@@ -53,6 +53,8 @@ import {
 	applySpinMeterDisplay,
 	bonusMeterBookValuesAreBetRelative,
 	buildBetMetaPlayConditions,
+	rememberRgsBonusMeterMax,
+	rememberRgsSpinMeterMax,
 	resolveRgsBonusLevelStart,
 	resolveRgsBonusMeterStart,
 	resolveRgsSpinMeterStart,
@@ -114,16 +116,28 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 				bookEvent.ballsPerDrop ?? plinkoBallsPerDrop(),
 			);
 		}
+		if (!stateGame.serverMeterLimitsActive) {
+			meterController.setBallPerDrop(ballsPerDrop);
+		}
+		// ⚠️ ORDER MATTERS — the math's maxima are assigned AFTER `setBallPerDrop`, never before.
+		//
+		// `setBallPerDrop` → `rebuildMeterTierMaxima` writes BOTH maxima from the local per-tier constants,
+		// and `serverMeterLimitsActive` is never actually set (`applyAuthoritativeMeterConfig` has no
+		// callers), so that branch always runs. Assigning the book's values first therefore had them
+		// overwritten by the bootstrap constants on every single round — the bar then measured "full"
+		// against the constant instead of against the number the math fires on.
 		if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
+			// Per-tier, so the per-drop re-seed at the end of every round keeps the math's max.
+			rememberRgsSpinMeterMax(bookBallsPerDrop || ballsPerDrop, bookEvent.spinMeterMax);
 			stateGame.spinMeterBaseMax = bookEvent.spinMeterMax;
 			stateGame.spinMeterMax = bookEvent.spinMeterMax;
 		}
 		if (bookEvent.bonusMeterMax && bookEvent.bonusMeterMax > 0) {
+			// Remember it per tier so the re-seed paths (`seedBonusMeterForCurrentTier`, which runs from
+			// several reactive effects) keep using the math's max rather than falling back to the constant.
+			rememberRgsBonusMeterMax(bookBallsPerDrop || ballsPerDrop, bookEvent.bonusMeterMax);
 			stateGame.bonusMeterBaseMax = bookEvent.bonusMeterMax;
 			stateGame.bonusMeterMax = bookEvent.bonusMeterMax;
-		}
-		if (!stateGame.serverMeterLimitsActive) {
-			meterController.setBallPerDrop(ballsPerDrop);
 		}
 		// Carry the session meters into this bet so they accumulate across rounds instead of
 		// resetting. `betSpinMeterStart` = served book start, or the persisted session value when

@@ -11,7 +11,13 @@ import {
 } from './gameOrchestrator';
 import { coefficientsForTier } from '../game-logic/constants';
 import config from './config';
-import { seedBonusMeterForCurrentTier, seedSpinMeterForCurrentTier } from './plinkoSessionMeters';
+import { traceBonusMeterWrite, traceBonusMeterWriteAfter } from './plinkoMeterTrace';
+import {
+	clampBonusMeterToTriggerCeiling,
+	hasActiveRgsSession,
+	seedBonusMeterForCurrentTier,
+	seedSpinMeterForCurrentTier,
+} from './plinkoSessionMeters';
 import { meterController } from './stateGame.svelte';
 import { stateGame } from './stateGame.svelte';
 
@@ -22,6 +28,27 @@ function resetBonusMeterForRouletteIfNeeded() {
 
 export type RouletteSource = 'spin' | 'bonus';
 
+/**
+ * May a CLIENT-SIDE meter fill fire a feature wheel? Only when there is no live RGS session.
+ *
+ * On a live session every payout-affecting outcome must come from the served book — including the
+ * wheel's landing segment. The client meter fallbacks below have no book behind them: they open a wheel
+ * with no `serverBonusFreeBalls` / `serverFreeSpinSegment`, so `resolveWinnerIndex` finds no
+ * authoritative segment and `assertAuthoritativeOutcome` fires (throws in DEV, degrades the session in
+ * production). This is also what the folded-bonus design already states elsewhere — see
+ * `isFeatureTriggerImminent` and `isPlayActionBlockedByBonusRoulette`: live, the bonus and the free spin
+ * are fired by the served base book's `bonusRoulette` / `freeSpinTrigger` events, never by the meter.
+ *
+ * The fallbacks stay for dev / local-book / story playback, where there is no book to author an outcome
+ * and a client roll is legitimate. On a live session the meters still FILL (the bar reads correctly);
+ * they simply never trigger.
+ *
+ * This was masked until the wheel was made to survive settlement: the fallback's opener used to be
+ * cancelled by `forceUnlockBettingControls` before it could mount a wheel, so the illegal spin never
+ * actually happened — it just killed the Autobet run on its way past.
+ */
+const clientMeterMayTriggerFeature = () => !hasActiveRgsSession();
+
 let rouletteCloseWaiters: Array<() => void> = [];
 /** Bumped when a round ends so in-flight `triggerRoulette` openers are ignored. */
 let rouletteOpenGeneration = 0;
@@ -29,10 +56,21 @@ let rouletteOpenGeneration = 0;
 const isDropPipelineBusy = () =>
 	stateGame.expectedOutcomeByBallId.size > 0 || stateGame.pendingSpacedSpawnTimers > 0;
 
+/**
+ * Longest a wheel opener will sit on the drop pipeline before opening anyway.
+ *
+ * This wait is an rAF loop, and rAF is throttled/parked when the tab is hidden — so without a ceiling
+ * a backgrounded tab can leave a roulette flow begun-but-never-opened indefinitely. That now matters
+ * more than it used to: `isBonusRoundBlockingSettlement` holds the round open while a flow is in
+ * progress, so a stalled opener would stall settlement with it.
+ */
+const DROP_PIPELINE_IDLE_TIMEOUT_MS = 15_000;
+
 const waitForDropPipelineIdle = (): Promise<void> =>
 	new Promise((resolve) => {
+		const started = Date.now();
 		const check = () => {
-			if (!isDropPipelineBusy()) resolve();
+			if (!isDropPipelineBusy() || Date.now() - started >= DROP_PIPELINE_IDLE_TIMEOUT_MS) resolve();
 			else requestAnimationFrame(check);
 		};
 		check();
@@ -90,24 +128,42 @@ export function releaseRoundInteractionLocks(preserveInFlightBalls = false) {
 	forceUnlockBettingControls(preserveInFlightBalls);
 }
 
+/**
+ * Undo the Autobet pause a `triggerRoulette` latched when its wheel then never opened.
+ *
+ * The pause is set SYNCHRONOUSLY (so nothing can slip a wager in between) but the wheel opens from a
+ * detached async body that can still bail. Leaving the pause behind after a bail parks the run on a
+ * wheel that will never appear — which is exactly how a full bonus meter used to end an Autobet run
+ * with no bonus to show for it.
+ */
+function releaseAutoPlayRoulettePause(source: RouletteSource) {
+	if (source === 'spin') stateGame.autoPlayPausedByFreeSpin = false;
+}
+
 export function triggerRoulette(source: RouletteSource) {
 	if (stateGame.rouletteFlowInProgress) {
 		stateGame.pendingRouletteSource = source;
 		return;
 	}
-	if (stateGame.autoPlayStarted) {
-		// Free spin PAUSES Autobet (it resumes after the wheel closes); a bonus TERMINATES the run — the
-		// player plays the bonus round out manually, and Autobet does not place further bets.
-		if (source === 'spin') stateGame.autoPlayPausedByFreeSpin = true;
-		else stateGame.autoPlayStopping = true;
-	}
+	// Both features PAUSE Autobet rather than end it. A free spin parks the loop on this flag and resumes
+	// once the wheel closes; a bonus needs no flag — it is played out INSIDE the round the loop is already
+	// waiting on (`isAutoBetRoundBusy` covers its whole life) and the run drives its free balls itself,
+	// see `syncAutoBetBonusBallDriver`. Stopping the run mid-bonus stays possible and hands the remaining
+	// free balls back to the player.
+	if (stateGame.autoPlayStarted && source === 'spin') stateGame.autoPlayPausedByFreeSpin = true;
 	meterController.beginRoulette(source);
 	const openGeneration = rouletteOpenGeneration;
 	void (async () => {
 		await waitForDropPipelineIdle();
-		if (openGeneration !== rouletteOpenGeneration) return;
+		if (openGeneration !== rouletteOpenGeneration) {
+			releaseAutoPlayRoulettePause(source);
+			return;
+		}
 		// Ignore stale opener attempts if roulette source changed in-between.
-		if (!stateGame.rouletteFlowInProgress || stateGame.activeRouletteSource !== source) return;
+		if (!stateGame.rouletteFlowInProgress || stateGame.activeRouletteSource !== source) {
+			releaseAutoPlayRoulettePause(source);
+			return;
+		}
 		if (source === 'spin') {
 			stateGame.freeSpinRouletteOpen = true;
 			return;
@@ -157,9 +213,24 @@ export function onCoinPegHit(ballId: number) {
 			}
 		} else {
 			// TRIGGER drop: provisional fill toward the per-tier max (authoritative `bonusMeter` events
-			// confirm it).
+			// confirm it) — but never past the ceiling: a round the book will not fire on must not show a
+			// completed bar. See `triggerPhaseBonusMeterCeiling`.
+			const beforeAuthoritativeBump = stateGame.bonusMeterValue;
 			meterController.bumpBonusMeterVisual(1);
+			clampBonusMeterToTriggerCeiling();
+			traceBonusMeterWriteAfter('onCoinPegHit:authoritativeBump', beforeAuthoritativeBump);
 		}
+		return;
+	}
+
+	// LIVE RGS SESSION: fill the bar, never TRIGGER from it. See `clientMeterMayTriggerFeature`.
+	if (!clientMeterMayTriggerFeature()) {
+		const beforeLiveBump = stateGame.bonusMeterValue;
+		meterController.bumpBonusMeterVisual(1);
+		// Same ceiling as the authoritative branch above — this path was missing it, so a book the RGS
+		// never fires on could still be filled to a completed bar from peg hits alone.
+		clampBonusMeterToTriggerCeiling();
+		traceBonusMeterWriteAfter('onCoinPegHit:liveRgsBump', beforeLiveBump);
 		return;
 	}
 
@@ -191,6 +262,13 @@ export function onSpinSlotLand(ballId?: number) {
 
 	if (stateGame.authoritativeMeterFlow) {
 		// Provisional animation only — authoritative value comes from RGS `spinMeter` book events.
+		meterController.bumpSpinMeterVisual(1);
+		return;
+	}
+
+	// LIVE RGS SESSION: fill the bar, never TRIGGER from it. Same reasoning as the bonus meter above —
+	// `FreeSpinRoulette` would spin with no authoritative `targetSegmentIndex` and trip the same guard.
+	if (!clientMeterMayTriggerFeature()) {
 		meterController.bumpSpinMeterVisual(1);
 		return;
 	}

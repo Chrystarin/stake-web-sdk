@@ -270,9 +270,11 @@
 			: String(stateGame.autoRoundsLeft),
 	);
 
-	// A bonus that fires mid-Autobet terminates the run (see `triggerRoulette`): while it winds down
-	// (still `autoPlayStarted` but `autoPlayStopping`) the Autobet toggle goes inert and drops its
-	// remaining-rounds badge, so the player can't re-arm it and no stale count lingers.
+	// The run has been stopped and is winding down (still `autoPlayStarted` but `autoPlayStopping`): the
+	// Autobet toggle goes inert and drops its remaining-rounds badge, so the player can't re-arm it and no
+	// stale count lingers. A mid-run bonus no longer lands here — it PAUSES the run (the round drives its
+	// own free balls, see `syncAutoBetBonusBallDriver`) rather than ending it, so this is now reached only
+	// by a deliberate Stop press or an unaffordable wager.
 	const autoBetStopping = $derived(props.autoPlayStarted && stateGame.autoPlayStopping);
 
 	// An Autobet run that is genuinely running (not winding down after a mid-run bonus). On mobile this
@@ -373,7 +375,7 @@
 
 	function onAutoButtonClick(event: MouseEvent) {
 		event.stopPropagation();
-		// Inert while a mid-Autobet bonus is terminating the run.
+		// Inert once a stop is already winding the run down.
 		if (autoBetStopping) return;
 		if (autoBetConfigLocked && !props.autoPlayStarted) return;
 		// Same click SFX as the bet-panel steppers.
@@ -516,8 +518,9 @@
 			showToast('Insufficient Balance');
 			return;
 		}
-		// While a mid-Autobet bonus terminates the run the main button is the (bonus / plain) Play button,
-		// never the Autobet stop — so don't treat a press as "stop autobet".
+		// With free balls pending the main button is the bonus Play button, never the Autobet stop — a
+		// press must drop a ball. (That is also what lets the player finish an auto-driven bonus by hand
+		// after stopping the run: Stop lives on the side Autobet toggle, which stays live throughout.)
 		if (props.hasPendingBonusBalls || !props.autoMode || autoBetStopping) {
 			props.onPlay();
 			return;
@@ -567,7 +570,7 @@
 
 	function onMobileAutoButtonClick(event: MouseEvent) {
 		event.stopPropagation();
-		// Inert while a mid-Autobet bonus is terminating the run.
+		// Inert once a stop is already winding the run down.
 		if (autoBetStopping) return;
 		if (props.autoPlayStarted) {
 			onAutoGameStopClick();

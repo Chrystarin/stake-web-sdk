@@ -9,6 +9,7 @@ import {
 	spinMeterTierFor,
 } from '../game-logic/constants';
 import { plinkoBallsPerDrop } from './plinkoBet';
+import { traceBonusMeterWrite } from './plinkoMeterTrace';
 import { stateGame } from './stateGame.svelte';
 import type { BookEvent } from './typesBookEvent';
 
@@ -33,6 +34,77 @@ let rgsSessionSpinMeter = 0;
  */
 const rgsSessionBonusMeterByTier: Record<number, number> = {};
 const rgsSessionBonusLevelByTier: Record<number, number> = {};
+
+/**
+ * Math-authored bonus-meter MAX per balls-per-drop tier, learned from served `plinkoDrop` books.
+ *
+ * THE MATH IS THE SOURCE OF TRUTH for how full "full" is. `BONUS_METER_TIER` in game-logic/constants is
+ * only a BOOTSTRAP: it sizes the bar before any book for that tier has arrived, and it is all there is
+ * in dev / local-book play with no RGS. The moment a book publishes a tier's `bonusMeterMax`, that value
+ * wins for the rest of the session.
+ *
+ * Keeping the local constant authoritative is what let the two drift: `BONUS_METER_TIER[10]` was raised
+ * 6 → 7 while books still shipped 6, so whichever wrote last decided where the bar completed. One hit
+ * either way is the difference between a bar that fills exactly when the math fires and a bar the player
+ * watches hit max with no bonus behind it (see `warnIfBonusMeterFilledWithoutFiring`).
+ *
+ * Keyed by the BOOK's own balls-per-drop, not the UI selector: the max belongs to the tier the book was
+ * generated for.
+ */
+const rgsBonusMeterMaxByTier: Record<number, number> = {};
+
+/** Learn a tier's authoritative bonus-meter max from a served book. Ignores absent / non-positive. */
+export function rememberRgsBonusMeterMax(ballsPerDrop: number, max: number | undefined): void {
+	const value = Number(max);
+	if (!(value > 0)) return;
+	rgsBonusMeterMaxByTier[Math.max(1, Math.floor(ballsPerDrop))] = Math.floor(value);
+}
+
+/** A tier's bonus-meter max: the math's if a book has published one, else the local bootstrap. */
+export function bonusMeterMaxForTier(ballsPerDrop: number): number {
+	const tier = Math.max(1, Math.floor(ballsPerDrop));
+	return rgsBonusMeterMaxByTier[tier] ?? bonusMeterTierFor(tier).max;
+}
+
+/**
+ * Math-authored spin-meter MAX per balls-per-drop tier — the free-spin twin of `rgsBonusMeterMaxByTier`,
+ * for the same reason: the math decides where "full" is, and `SPIN_METER_TIER` only bootstraps the bar
+ * until a book for that tier says otherwise.
+ *
+ * This one drifts even more readily than the bonus meter's. The spin meter is PER-DROP, so
+ * `seedSpinMeterForCurrentTier` re-runs from `syncSpinMeterAfterBet` at the end of EVERY round — without
+ * this cache each of those re-seeds put the local constant straight back, discarding the max the book had
+ * just published.
+ */
+const rgsSpinMeterMaxByTier: Record<number, number> = {};
+
+/** Learn a tier's authoritative spin-meter max from a served book. Ignores absent / non-positive. */
+export function rememberRgsSpinMeterMax(ballsPerDrop: number, max: number | undefined): void {
+	const value = Number(max);
+	if (!(value > 0)) return;
+	rgsSpinMeterMaxByTier[Math.max(1, Math.floor(ballsPerDrop))] = Math.floor(value);
+}
+
+/** A tier's spin-meter max: the math's if a book has published one, else the local bootstrap. */
+export function spinMeterMaxForTier(ballsPerDrop: number): number {
+	const tier = Math.max(1, Math.floor(ballsPerDrop));
+	return rgsSpinMeterMaxByTier[tier] ?? spinMeterTierFor(tier).max;
+}
+
+/**
+ * The tier's per-drop spin-meter START, rescaled onto `max`.
+ *
+ * Unlike the bonus meter (`startRatio` 0 on every tier, so its start is always 0), the spin meter has a
+ * real head start — 0 / 1/8 / 1/4 of max by tier. `SPIN_METER_TIER` stores that as an ABSOLUTE value
+ * precomputed against the LOCAL max, so pairing it with a math-authored max that differs would misplace
+ * the head start — and if the math's max were the smaller of the two, the clamp would seat the bar at
+ * FULL on the first frame of every round. Rescale by the ratio instead of trusting the absolute.
+ */
+function spinMeterStartForTier(ballsPerDrop: number, max: number): number {
+	const tier = spinMeterTierFor(ballsPerDrop);
+	if (!(tier.max > 0)) return 0;
+	return Math.min(max, Math.round(max * (tier.start / tier.max)));
+}
 /** Dev-only mirror of the per-tier bonus meter / level when no live session is configured. */
 const devRgsBonusMeterByTier: Record<number, number> = {};
 const devRgsBonusLevelByTier: Record<number, number> = {};
@@ -191,8 +263,32 @@ export function buildBetMetaSpinMeter(): Record<string, unknown> {
 	return buildBetMetaPlayConditions();
 }
 
-/** Apply in-memory RGS session meters to HUD (display only until next book). */
+/**
+ * Apply in-memory RGS session meters to HUD (display only until next book).
+ *
+ * ⚠️ Runs from PlinkoAuthenticate's seeding `$effect`, which depends on the BALANCE — so it re-fires on
+ * the win credit at the end of every round, and again on every bonus-ball credit. That makes it the one
+ * writer that can repaint the bars at an arbitrary moment, and it writes a value from the SESSION store
+ * rather than from the round in flight.
+ *
+ * Both meters are PER-DROP: the live bar belongs to the current round's book (or, mid-bonus, to the
+ * in-bonus level meter, which the session store knows nothing about). Repainting from the store while
+ * either owns the bar resurrects an EARLIER round's fill over a book that never moved the meter — the
+ * player sees a full bar with no bonus behind it, and the book carries no `bonusMeter` event to explain
+ * it (which is exactly the shape reported: `flaggedPegHits: 0` with the bar at max).
+ *
+ * So this only seeds the bars when nothing else owns them: at launch, and in the idle gap between
+ * rounds. It is a display seed, never a mid-round correction.
+ */
 export function applyRgsSessionMetersToDisplay(): void {
+	if (
+		stateGame.dropRoundActive ||
+		stateGame.bonusRoundActive ||
+		stateGame.bonusBallsRemaining > 0 ||
+		stateGame.rouletteFlowInProgress
+	) {
+		return;
+	}
 	applySpinMeterDisplay(getRgsSessionSpinMeter());
 	applyBonusMeterDisplay(getRgsSessionBonusMeter(), getRgsSessionBonusLevel());
 }
@@ -303,7 +399,12 @@ export function resetSpinMeterSession(): void {
  * and re-seeds here when the player switches tier.
  */
 export function seedSpinMeterForCurrentTier(): void {
-	const { max, start } = spinMeterTierFor(activeMeterTierBalls());
+	// MAX from `spinMeterMaxForTier` (math's if published, local constant only as bootstrap), and the
+	// head start rescaled onto it — see `spinMeterStartForTier`. Taking the constant's max here is what
+	// used to discard the book's own value at the end of every round.
+	const tierBalls = activeMeterTierBalls();
+	const max = spinMeterMaxForTier(tierBalls);
+	const start = spinMeterStartForTier(tierBalls, max);
 	stateGame.spinMeterBaseMax = max;
 	stateGame.spinMeterMax = max;
 	stateGame.spinMeterValue = Math.min(Math.max(0, start), max);
@@ -339,9 +440,15 @@ export function seedBonusMeterForCurrentTier(): void {
 	// PER-DROP bonus meter (Option A): reset to the current tier's start + max each round (no cross-bet
 	// carry — statelessness). Identical in spirit to `seedSpinMeterForCurrentTier`. 1-ball start is 0
 	// (cosmetic, never fires).
-	const { max, start } = bonusMeterTierFor(plinkoBallsPerDrop());
+	//
+	// The MAX comes from `bonusMeterMaxForTier`, not the local constant: this function re-runs from
+	// several reactive paths, so taking the constant here is what used to stomp the math's own max back
+	// to the bootstrap value between rounds.
+	const { start } = bonusMeterTierFor(plinkoBallsPerDrop());
+	const max = bonusMeterMaxForTier(plinkoBallsPerDrop());
 	stateGame.bonusMeterBaseMax = max;
 	stateGame.bonusMeterMax = max;
+	traceBonusMeterWrite('seedBonusMeterForCurrentTier', Math.min(Math.max(0, start), max));
 	stateGame.bonusMeterValue = Math.min(Math.max(0, start), max);
 	stateGame.bonusMeterLevel = 0;
 	// Push the seed into the session store too — otherwise the previous tier's value is left behind and
@@ -494,6 +601,7 @@ export function deriveBonusMeterFromBookEvents(events: BookEvent[]): DerivedBonu
  */
 export function applyBonusMeterDisplay(bonusMeter: number, bonusLevel?: number): void {
 	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : bonusMeter;
+	traceBonusMeterWrite('applyBonusMeterDisplay', Math.min(Math.max(0, bonusMeter), max));
 	stateGame.bonusMeterValue = Math.min(Math.max(0, bonusMeter), max);
 	if (bonusLevel != null) {
 		stateGame.bonusMeterLevel = Math.max(0, Math.floor(bonusLevel));
@@ -516,6 +624,44 @@ export function updateRgsSessionBonusMeter(bonusMeter: number, bonusLevel: numbe
 	}
 }
 
+/**
+ * Ceiling for the TRIGGER-phase bar: it may only COMPLETE on a round the book actually fires on.
+ *
+ * `BONUS_METER_TIER` documents `max` as the hits-to-fill the math itself triggers at, so a full bar is a
+ * promise of a bonus. Books have been observed reaching `bonusMeterMax` with no `bonusRoulette` behind
+ * them — and with `hitBonusPeg` flagged on none of their outcomes, so the fill came from the book's own
+ * `bonusMeter` events rather than from anything the player could see happen on the board. Rendering that
+ * as a completed bar makes a promise the round then breaks.
+ *
+ * The whole book is known up front (`activeBookEvents` is assigned before playback begins), so when it
+ * carries no wheel we hold the bar one notch short — the same "never complete what nothing will consume"
+ * rule the in-bonus meter already applies in `onCoinPegHit`. On a firing round the ceiling is `max`, so
+ * the bar completes exactly when the bonus arrives, which is the invariant players actually read.
+ *
+ * This is presentation only: it changes no outcome, no award and no payout. The underlying book
+ * inconsistency is still reported by `warnIfBonusMeterFilledWithoutFiring`.
+ */
+export function triggerPhaseBonusMeterCeiling(max: number): number {
+	if (!(max > 0)) return max;
+	const events = stateGame.activeBookEvents ?? [];
+	// No served book in play (dev/local seeding, pre-first-bet) — the client fallback owns the fill there,
+	// so don't second-guess it.
+	if (events.length === 0) return max;
+	if (events.some((event) => event.type === 'bonusRoulette')) return max;
+	return Math.max(0, max - 1);
+}
+
+/** Hold the trigger-phase bar under its ceiling after a provisional client bump. */
+export function clampBonusMeterToTriggerCeiling(): void {
+	if (stateGame.bonusRoundActive) return;
+	const ceiling = triggerPhaseBonusMeterCeiling(stateGame.bonusMeterMax);
+	if (stateGame.bonusMeterValue > ceiling) {
+		traceBonusMeterWrite('clampBonusMeterToTriggerCeiling', ceiling);
+		traceBonusMeterWrite('applyBonusMeterBookEvent:atCeiling', ceiling);
+		stateGame.bonusMeterValue = ceiling;
+	}
+}
+
 /** Apply a `bonusMeter` book event to the HUD. The TRIGGER-phase meter (no `eventMax`) is per-drop and
  * only increases toward the per-tier max. The IN-BONUS "energy" meter (with `eventMax` = the level-up
  * threshold) is set DIRECTLY so it can RESET to empty on a level-up and fill exactly as the book says. */
@@ -527,6 +673,7 @@ export function applyBonusMeterBookEvent(
 	if (eventMax && eventMax > 0) {
 		// In-bonus level-up meter: starts empty each level, fills to `eventMax`, resets on level-up.
 		stateGame.bonusMeterMax = eventMax;
+		traceBonusMeterWrite('applyBonusMeterBookEvent:inBonus', Math.max(0, Math.min(Math.floor(bookValue), eventMax)));
 		stateGame.bonusMeterValue = Math.max(0, Math.min(Math.floor(bookValue), eventMax));
 		stateGame.bonusMeterLevel = bookLevel;
 		return;
@@ -535,13 +682,15 @@ export function applyBonusMeterBookEvent(
 	const betRelative = stateGame.bonusMeterBookValuesAreBetRelative;
 	const sessionValue = bonusMeterSessionValueFromBook(bookValue, betStart, betRelative);
 	const max = stateGame.bonusMeterMax > 0 ? stateGame.bonusMeterMax : sessionValue;
-	const capped = Math.min(sessionValue, max);
-	if (capped >= max) {
-		stateGame.bonusMeterValue = max;
+	const ceiling = triggerPhaseBonusMeterCeiling(max);
+	const capped = Math.min(sessionValue, ceiling);
+	if (capped >= ceiling) {
+		stateGame.bonusMeterValue = ceiling;
 		stateGame.bonusMeterLevel = bookLevel;
-		setRgsSessionBonusMeter(max, bookLevel);
+		setRgsSessionBonusMeter(ceiling, bookLevel);
 		return;
 	}
+	traceBonusMeterWrite('applyBonusMeterBookEvent:raise', Math.max(stateGame.bonusMeterValue, capped));
 	stateGame.bonusMeterValue = Math.max(stateGame.bonusMeterValue, capped);
 	stateGame.bonusMeterLevel = bookLevel;
 	setRgsSessionBonusMeter(stateGame.bonusMeterValue, bookLevel);
@@ -553,9 +702,63 @@ function bonusMeterConsumedThisRound(events: BookEvent[]): boolean {
 	return events.some((event) => event.type === 'bonusRoulette');
 }
 
+/**
+ * DIAGNOSTIC for "the bar went full but no bonus came".
+ *
+ * `BONUS_METER_TIER` defines `max` as the hits-to-fill that the MATH itself fires on, and the client bar
+ * is credited once per book-authored `hitBonusPeg` outcome — so a full bar and a `bonusRoulette` event
+ * should coincide. When they don't, this logs the numbers needed to tell the two causes apart:
+ *
+ *  - `bonusMeterMax` ≠ `resolvedMax` → the CLIENT bar was measured against the wrong threshold (see the
+ *    max restore in `resetBonusRoundVisualState` and the per-tier cache above).
+ *  - they agree → the BOOK filled its own meter to max without emitting `bonusRoulette`. A math/RGS
+ *    question, not a client one. `flaggedPegHits` says whether the fill was even attributable to
+ *    coin-peg outcomes the player could watch land: 0 means the meter moved purely on `bonusMeter`
+ *    events with nothing on the board behind it.
+ *
+ * Keyed on the BOOK's own peak, not the displayed bar: the bar is now deliberately held one notch short
+ * on a non-firing round (`triggerPhaseBonusMeterCeiling`), so it can no longer be the signal.
+ *
+ * Warn-only, both in dev and production: a full bar with no bonus costs the player nothing, so this must
+ * never interrupt a live round the way the fairness guard's DEV throw did.
+ */
+function warnIfBonusMeterFilledWithoutFiring(events: BookEvent[]): void {
+	if (events.some((event) => event.type === 'bonusRoulette')) return;
+	const max = bonusMeterMaxForTier(plinkoBallsPerDrop());
+	if (!(max > 0)) return;
+	const bonusMeterEvents = events.filter(
+		(event): event is Extract<BookEvent, { type: 'bonusMeter' }> => event.type === 'bonusMeter',
+	);
+	const bookPeak = bonusMeterEvents.reduce(
+		(peak, event) => Math.max(peak, Math.floor(event.value)),
+		0,
+	);
+	if (bookPeak < max) return;
+	const drop = getPlinkoDrop(events);
+	const flaggedPegHits = (drop?.outcomes ?? []).filter(
+		(outcome) => (outcome as { hitBonusPeg?: boolean }).hitBonusPeg === true,
+	).length;
+	console.warn('[plinko] book bonus meter reached max but the book fired no bonus', {
+		bookPeak,
+		bookBonusMeterValues: bonusMeterEvents.map((event) => event.value),
+		displayedBonusMeterValue: stateGame.bonusMeterValue,
+		bonusMeterMax: stateGame.bonusMeterMax,
+		bonusMeterBaseMax: stateGame.bonusMeterBaseMax,
+		// What the bar SHOULD be sized to (math's if published) vs the local bootstrap constant. These
+		// two disagreeing is the client-side cause; them agreeing points at the book instead.
+		resolvedMax: max,
+		bootstrapTierMax: bonusMeterTierFor(plinkoBallsPerDrop()).max,
+		ballsPerDrop: plinkoBallsPerDrop(),
+		bookBonusMeterMax: drop?.bonusMeterMax,
+		bookBonusMeterStart: drop?.bonusMeterStart,
+		flaggedPegHits,
+	});
+}
+
 /** After a bet book finishes: leave the round's achieved fill on screen and persist it. */
-export async function syncBonusMeterAfterBet(_events: BookEvent[]): Promise<void> {
+export async function syncBonusMeterAfterBet(events: BookEvent[]): Promise<void> {
 	if (stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
+	warnIfBonusMeterFilledWithoutFiring(events);
 	// The meter is still PER-DROP — it is re-seeded from the next book's own `bonusMeterStart` when that
 	// bet starts (see the `plinkoDrop` handler) — but it must NOT be wiped here. The balls have only just
 	// landed, so resetting on round completion yanked the bar back down in front of the player before they

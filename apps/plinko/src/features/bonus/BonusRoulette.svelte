@@ -556,15 +556,46 @@
 		};
 	});
 
-	function resolveWinnerIndex(): number {
-		if (props.targetFreeBalls != null) {
-			const match = segments.findIndex((s) => s.freeBalls === props.targetFreeBalls);
-			if (match >= 0) return match;
+	/** Wedge whose value is closest to `freeBalls` — display-only fallback, see `resolveWinnerIndex`. */
+	function nearestSegmentIndex(freeBalls: number): number {
+		let best = 0;
+		for (let i = 1; i < segments.length; i++) {
+			const closer =
+				Math.abs(segments[i].freeBalls - freeBalls) < Math.abs(segments[best].freeBalls - freeBalls);
+			if (closer) best = i;
 		}
-		// Provably-fair guard: a live spin must resolve to the book's `targetFreeBalls` segment. Falling
-		// back to segment 0 / a client-random segment live would break fairness, so surface it (throws in DEV).
+		return best;
+	}
+
+	function resolveWinnerIndex(): number {
+		const target = props.targetFreeBalls;
+		if (target != null) {
+			const match = segments.findIndex((s) => s.freeBalls === target);
+			if (match >= 0) return match;
+			// The book authored a count this wheel has no wedge for — e.g. a BUY-BONUS entry count (72 /
+			// 95 / 145 / 239) reaching a base-mode round, where `skipSpin` is false so the wheel actually
+			// spins. That is NOT a fairness violation and must not be treated as one: nothing here is
+			// client-random, and the award is the book's number either way (`afterSpin` takes
+			// `targetFreeBalls` whenever `serverAuthoritative`, never the landed wedge's own value). So
+			// land on the nearest wedge for the visual and carry on.
+			//
+			// Tripping the guard here THREW in DEV, from inside a `setTimeout` — so the spin never settled,
+			// `onFinished` never fired, `waitForRouletteClose()` never resolved, and `playBet` hung with it.
+			// That is the "Autobet stopped on the free balls roulette" hang. Warn loudly instead: the
+			// underlying math/RGS mismatch still needs fixing, it just must not strand the round.
+			console.warn(
+				'[plinko] bonus wheel has no wedge for the book free-ball count — landing on the nearest wedge',
+				{
+					targetFreeBalls: target,
+					wheelSegments: segments.map((s) => s.freeBalls),
+					awarded: target,
+				},
+			);
+			return nearestSegmentIndex(target);
+		}
+		// No authoritative count at all — this really would be a client-random outcome.
 		assertAuthoritativeOutcome('BonusRoulette spin without a matching authoritative segment', {
-			targetFreeBalls: props.targetFreeBalls,
+			targetFreeBalls: target,
 			serverAuthoritative: props.serverAuthoritative,
 		});
 		if (props.serverAuthoritative) return 0;
@@ -664,10 +695,13 @@
 		);
 	}
 
-	/** Replay has no player to dismiss the "press anywhere" screen — show it briefly, then advance.
-	 * Measured from the start of the slide-down, so it must clear the 1s slide plus a beat of readable
-	 * hold before auto-advancing. */
+	/** Replay and Autobet have no player to dismiss the "press anywhere" screen — show it briefly, then
+	 * advance. Measured from the start of the slide-down, so it must clear the 1s slide plus a beat of
+	 * readable hold before auto-advancing. */
 	const AUTO_DISMISS_DELAY_MS = 2000;
+
+	/** How often the auto-dismiss re-checks after arriving too early — see `scheduleAutoDismiss`. */
+	const AUTO_DISMISS_RETRY_MS = 250;
 
 	/** How long the congratulations screen takes to slide down and fully cover the view — matches the
 	 * `.bonus-announcement` transform transition (1s). The text also fades in at this mark. */
@@ -776,9 +810,34 @@
 				);
 			}),
 		);
-		if (props.autoDismiss) {
-			timers.push(setTimeout(() => onAnnouncementClick(), AUTO_DISMISS_DELAY_MS));
-		}
+		if (props.autoDismiss) scheduleAutoDismiss(AUTO_DISMISS_DELAY_MS);
+	}
+
+	let autoDismissDone = false;
+
+	/**
+	 * Auto-dismiss for the callers with no player to press "anywhere" (replay, and an Autobet run
+	 * driving its own bonus round).
+	 *
+	 * RETRIES rather than firing once. `onAnnouncementClick` is a deliberate no-op until the screen has
+	 * finished sliding down (`announcementCoversScreen`), and that cover is driven by a double-rAF plus a
+	 * CSS transition — neither of which is counted in `AUTO_DISMISS_DELAY_MS`. Whenever rAF is throttled
+	 * the cover lands after the shot and a single `setTimeout` is simply lost, leaving the overlay up with
+	 * nothing left to close it. Autobet is exactly where that bites: it is designed to keep running in a
+	 * BACKGROUNDED tab (see Game.svelte's `visibilitychange` note), which is precisely when rAF parks.
+	 */
+	function scheduleAutoDismiss(delayMs: number) {
+		timers.push(
+			setTimeout(() => {
+				if (autoDismissDone || slidePhase === 'exit') return;
+				if (!announcementCoversScreen) {
+					scheduleAutoDismiss(AUTO_DISMISS_RETRY_MS);
+					return;
+				}
+				autoDismissDone = true;
+				onAnnouncementClick();
+			}, delayMs),
+		);
 	}
 
 	function onAnnouncementClick() {

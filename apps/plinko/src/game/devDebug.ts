@@ -35,6 +35,11 @@ export type PlinkoLockDebugSnapshot = {
 	bonusLevelProgress: number;
 	bonusMeterValue: number;
 	bonusMeterMax: number;
+	/** Free-spin meter, alongside the bonus one — both are book-authored maxima (see
+	 * `spinMeterMaxForTier` / `bonusMeterMaxForTier`); a max that disagrees with the math is what makes
+	 * a bar read full without firing. */
+	spinMeterValue: number;
+	spinMeterMax: number;
 	/** Bar pinned full for a level-up. Stuck true = the meter stops crediting coin-peg hits. */
 	bonusMeterHoldFull: boolean;
 	bonusLevelUpPending: boolean;
@@ -75,6 +80,8 @@ export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
 		bonusLevelProgress: stateGame.bonusLevelProgress,
 		bonusMeterValue: stateGame.bonusMeterValue,
 		bonusMeterMax: stateGame.bonusMeterMax,
+		spinMeterValue: stateGame.spinMeterValue,
+		spinMeterMax: stateGame.spinMeterMax,
 		bonusMeterHoldFull: stateGame.bonusMeterHoldFull,
 		bonusLevelUpPending: stateGame.bonusLevelUpPending,
 		bonusMeterRenderedFill: Number(bonusMeterRenderedProgress().toFixed(3)),

@@ -1,3 +1,4 @@
+import { activeMeterTierBalls, rememberRgsSpinMeterMax } from './plinkoSessionMeters';
 import { meterController, stateGame } from './stateGame.svelte';
 
 export type PlinkoDropMeterConfig = {
@@ -41,6 +42,9 @@ export function applyClientMeterDefaults(spinMeterMax: number, bonusMeterMax: nu
 /** Update spin meter max from a `spinMeter` book event (server `max` field). */
 export function applyAuthoritativeSpinMeterMax(max: number) {
 	if (max <= 0) return;
+	// Remember it for the tier this round is playing, so the per-drop re-seed between rounds
+	// (`seedSpinMeterForCurrentTier`) keeps the math's max instead of reverting to the local constant.
+	rememberRgsSpinMeterMax(activeMeterTierBalls(), max);
 	stateGame.spinMeterBaseMax = max;
 	stateGame.spinMeterMax = max;
 	stateGame.spinMeterValue = Math.min(stateGame.spinMeterValue, max);
