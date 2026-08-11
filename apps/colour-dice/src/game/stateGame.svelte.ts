@@ -196,15 +196,32 @@ const beginRoll = (): boolean => {
 const winForColour = (colour: Colour): ColourWin | undefined =>
 	stateGame.resultReady ? stateGame.wins.find((win) => win.colour === colour) : undefined;
 
-/** Badge class for an odds panel (ColourDice's rate_2x / rate_3x / rate_jp). */
-const winTypeForColour = (colour: Colour): '' | 'rate_2x' | 'rate_3x' | 'rate_jp' => {
-	const win = winForColour(colour);
-	if (!win) return '';
-	if (win.matches === 1) return 'rate_2x';
-	if (win.matches === 2) return 'rate_3x';
-	if (win.matches >= 3) return 'rate_jp';
+/**
+ * How many of the three dice landed on `colour`.
+ *
+ * Counted off the DICE rather than off `wins`, so it also covers colours nobody backed: the
+ * board reports what every colour did this round, not only what was paid for. `wins` is the
+ * settlement and stays the authority on money (see `winForColour`).
+ */
+const matchesForColour = (colour: Colour): number =>
+	stateGame.resultReady ? stateGame.dice.filter((die) => die === colour).length : 0;
+
+/**
+ * Badge class for an odds panel (ColourDice's rate_2x / rate_3x / rate_jp).
+ *
+ * Shown on every colour the dice hit, backed or not — the odds a colour would have paid are
+ * the same either way, and the player can see what the unbacked ones were worth.
+ */
+const rateTypeForColour = (colour: Colour): '' | 'rate_2x' | 'rate_3x' | 'rate_jp' => {
+	const matches = matchesForColour(colour);
+	if (matches === 1) return 'rate_2x';
+	if (matches === 2) return 'rate_3x';
+	if (matches >= 3) return 'rate_jp';
 	return '';
 };
+
+/** True for a colour the dice landed on, whether or not a bet was riding on it. */
+const isLandedColour = (colour: Colour): boolean => matchesForColour(colour) > 0;
 
 const isWinColour = (colour: Colour): boolean => Boolean(winForColour(colour));
 
@@ -242,7 +259,9 @@ export const stateGameDerived = {
 	currentBet,
 	currentBackedOrder,
 	winForColour,
-	winTypeForColour,
+	matchesForColour,
+	rateTypeForColour,
+	isLandedColour,
 	isWinColour,
 	applyResumedSelection,
 };

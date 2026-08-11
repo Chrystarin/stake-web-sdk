@@ -856,11 +856,13 @@
 						{#each DISPLAY_COLOURS as colour (colour)}
 							{@const backed = stateGameDerived.isBacked(colour)}
 							{@const win = stateGameDerived.winForColour(colour)}
+							{@const landed = stateGameDerived.isLandedColour(colour)}
 							{@const tiers = chipsOnColour(colour)}
 							<div
 								bind:this={oddsEls[colour]}
 								class="odds {colour}"
 								class:win={Boolean(win)}
+								class:landed={landed && !win}
 								class:backed
 								onclick={() => toggleColour(colour)}
 								aria-hidden="true"
@@ -868,8 +870,10 @@
 								<div class="outcome-stat">
 									<div class="total-amount-lbl">{colour.toUpperCase()}</div>
 								</div>
-								<!-- The big multiplier badge along the bottom is the only result readout. -->
-								<div class="rate {stateGameDerived.winTypeForColour(colour)}"></div>
+								<!-- The big multiplier badge along the bottom is the only result readout. It is
+								     driven by the DICE, not by the payout, so a colour that landed shows what it
+								     was worth even when nobody backed it — the near-miss is the point. -->
+								<div class="rate {stateGameDerived.rateTypeForColour(colour)}"></div>
 								{#if backed && !arrivingColours.has(colour) && !clearing}
 									<!-- The actual chip lands on the colour, rather than a text pill, so the
 									     board reads like real chips on a felt. Held back until the thrown
@@ -1267,12 +1271,23 @@
 		cursor: pointer;
 		position: relative;
 	}
-	/* A colour that landed — every backed colour pays on its own match count, so more than
-	   one of these can light up in the same round. */
+	/* A colour that landed AND was backed — it paid. Every backed colour pays on its own match
+	   count, so more than one of these can light up in the same round. */
 	.odds.win {
 		outline: 0.3vw solid #ffe14d;
 		outline-offset: -0.3vw;
 		filter: brightness(1.15);
+	}
+	/* A colour the dice landed on with no bet riding on it. It carries the same multiplier badge
+	   — the odds do not depend on who backed them — but a white outline rather than the gold one,
+	   and no brightness lift, so a payout still reads apart from a near miss at a glance. */
+	.odds.landed {
+		outline: 0.2vw solid rgba(255, 255, 255, 0.6);
+		outline-offset: -0.2vw;
+	}
+	/* Same badge art, held back a little so the colours that actually paid stay dominant. */
+	.odds.landed .rate {
+		opacity: 0.7;
 	}
 	/* Backed but not yet resolved. */
 	.odds.backed {
