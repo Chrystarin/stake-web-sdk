@@ -598,7 +598,7 @@
 		if (collected > 0) showWinFloat(collected);
 	};
 
-	/** The Play/Clear tab: rolling the bets, or collecting the round they won. */
+	/** The Play / Play Again tab: rolling the bets, or collecting the round they won. */
 	const onConfirmClick = () => {
 		if (confirmDisabled) return;
 		playSound('click');
@@ -811,8 +811,9 @@
 			<div class="betting-panel">
 				<div class="inner-panel">
 					<!-- Play sits directly above the chip tray as a tab, matching the Angular
-					     original's `.confirm-btn`. Once a round resolves it becomes Clear — the only
-					     move left on a settled board is to collect it. -->
+					     original's `.confirm-btn`. Once a round resolves it becomes Play Again —
+					     collecting is the only move left on a settled board, and it is also what
+					     opens the table for the next bet, so the label names where it leads. -->
 					<div
 						class="confirm-btn"
 						class:clear-mode={settled}
@@ -821,7 +822,7 @@
 						aria-hidden="true"
 					>
 						<div class="confirm-lbl">
-							{stateGame.rolling ? '…' : settled ? 'CLEAR' : 'PLAY'}
+							{stateGame.rolling ? '…' : settled ? 'PLAY AGAIN' : 'PLAY'}
 						</div>
 					</div>
 
