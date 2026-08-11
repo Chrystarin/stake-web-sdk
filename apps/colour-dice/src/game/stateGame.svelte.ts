@@ -103,15 +103,27 @@ const resetBoard = () => {
 	stateGame.wins = [];
 };
 
-const selectStake = (value: number) => {
-	if (stateGame.rolling) return;
+/**
+ * Switch the tray denomination, clearing the board as it goes.
+ *
+ * Every placed chip carries the tray's amount, so a new denomination would silently re-price
+ * bets that were already made. Wiping them instead keeps what is on the felt honest: whatever
+ * chips are showing were placed at the amount currently in the tray. It also sidesteps a
+ * step-up landing over the balance.
+ *
+ * Returns whether the denomination actually changed, so the caller can animate the clear.
+ */
+const selectStake = (value: number): boolean => {
+	if (stateGame.rolling) return false;
+	// Re-picking the amount already in the tray is not a change, and must not cost the player
+	// their board — the full bet-level grid offers the current chip alongside the rest.
+	if (value === stateGame.stake) return false;
 	// Only accept amounts the RGS actually publishes — the tray is built from the same list,
 	// so this just guards against a stale value surviving a bet-template change.
-	if (!stakeOptions().includes(value)) return;
+	if (!stakeOptions().includes(value)) return false;
 	stateGame.stake = value;
-	// Backing off is cheaper than blocking: if the new denomination no longer fits the
-	// balance, drop colours (most recent first) until it does.
-	while (backedCount() > 0 && totalStake() > stateBet.balanceAmount) undoBet();
+	resetBoard();
+	return true;
 };
 
 /** True when another colour can be backed — one is left, and the balance covers it. */

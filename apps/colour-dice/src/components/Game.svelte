@@ -124,7 +124,20 @@
 	const idle = $derived(context.stateXstateDerived.isIdle() && !stateGame.rolling);
 	const canRoll = $derived(idle && backedCount > 0 && !stateGame.openRoundError);
 
-	const selectStake = (value: number) => stateGameDerived.selectStake(value);
+	/**
+	 * Change the tray denomination. Any bets already on the board are cleared — swept off the
+	 * same way the clear button does it, so the board visibly empties rather than the chips
+	 * quietly changing value under the player.
+	 *
+	 * Measured before the switch (the placed chips are still on the board) but spawned after,
+	 * carrying the OLD chip face — these are the chips that were on the felt, not the new one.
+	 */
+	const selectStake = (value: number) => {
+		const placed = stateGameDerived.backedColours();
+		const face = currentChipFace();
+		if (!stateGameDerived.selectStake(value)) return;
+		sweepChips(placed, face);
+	};
 
 	// --- Chip flight ----------------------------------------------------------------------
 	// Chips arriving and leaving are animated as loose copies laid over the table, so the board
@@ -309,11 +322,16 @@
 		return order;
 	};
 
-	/** Tip every placed chip off the bottom of the table, each starting at its own moment. */
-	const sweepChips = (colours: Colour[]) => {
+	/**
+	 * Tip every placed chip off the bottom of the table, each starting at its own moment.
+	 *
+	 * `face` is a parameter because the tray can already have moved on by the time the sweep is
+	 * launched (changing the chip value clears the board): the chips falling away must wear the
+	 * denomination they were placed with, not the one replacing it.
+	 */
+	const sweepChips = (colours: Colour[], face = currentChipFace()) => {
 		if (!gameEl || !colours.length) return;
 		const host = gameEl.getBoundingClientRect();
-		const face = currentChipFace();
 		// Chips are 3.5vw square (table.scss), so this clears the bottom edge by a full chip.
 		const floor = host.height + window.innerWidth * 0.035;
 		// One slot each, in a shuffled order, with the start jittered inside its slot: the chips
