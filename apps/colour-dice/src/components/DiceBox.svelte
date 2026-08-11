@@ -1,11 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
+	import { waitForTimeout } from 'utils-shared/wait';
+
 	import { getContext } from '../game/context';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { COLOUR_TO_PIP, type Colour } from '../game/constants';
 
 	const context = getContext();
+
+	// Clearing the board tips the dice off the bottom of the table rather than blinking them out.
+	// The scene is only TAKEN AWAY once it is out of frame — `clearDice` on a visible canvas pops,
+	// so the slide has to finish first. Mirrors the `transition` on `.dice-scene`.
+	const EXIT_MS = 420;
+	let diceExiting = $state(false);
 
 	let sceneEl: HTMLDivElement;
 	let box: any = null;
@@ -202,11 +210,20 @@
 		diceReveal: async (emitterEvent) => {
 			await rollColours(emitterEvent.colours);
 		},
+
+		diceClear: async () => {
+			if (!box || diceExiting) return;
+			diceExiting = true;
+			await waitForTimeout(EXIT_MS);
+			box?.clearDice?.();
+			// Snapped back with the dice already gone, so the return trip is invisible.
+			diceExiting = false;
+		},
 	});
 </script>
 
 <div class="dice-box">
-	<div bind:this={sceneEl} class="dice-scene"></div>
+	<div bind:this={sceneEl} class="dice-scene" class:exiting={diceExiting}></div>
 </div>
 
 <style>
@@ -242,5 +259,16 @@
 		background: transparent;
 		position: relative;
 		z-index: 1;
+		/* Duration mirrors EXIT_MS. `ease-in` gives the exit some weight — the dice drop away
+		   rather than gliding off. */
+		transition:
+			transform 420ms cubic-bezier(0.5, 0, 0.75, 0.3),
+			opacity 420ms ease-in;
+	}
+	/* Off the bottom of the table on a clear. `.dice-box` clips at that edge, so the canvas is
+	   out of sight before it is emptied; the fade covers the last of the travel. */
+	.dice-scene.exiting {
+		transform: translateY(112%);
+		opacity: 0;
 	}
 </style>

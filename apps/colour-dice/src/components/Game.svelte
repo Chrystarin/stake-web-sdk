@@ -2,7 +2,7 @@
 	import '../styles/global.scss';
 	import '../styles/table.scss';
 
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 
 	import { stateBet } from 'state-shared';
 	import { stateUrlDerived } from 'state-shared';
@@ -110,11 +110,15 @@
 	let stakePanelOpen = $state(false);
 
 	const onChipClick = (value: number, isSelected: boolean) => {
+		// A resolved round has to be cleared before anything else moves — every chip on the felt
+		// is part of a payout that has not been taken yet.
+		if (settled || clearing) return;
 		if (isSelected) stakePanelOpen = !stakePanelOpen;
 		else selectStake(value);
 	};
 
 	const pickStake = (value: number) => {
+		if (settled || clearing) return;
 		selectStake(value);
 		stakePanelOpen = false;
 	};
@@ -122,7 +126,17 @@
 	const backedCount = $derived(stateGameDerived.backedCount());
 	const total = $derived(stateGameDerived.totalStake());
 	const idle = $derived(context.stateXstateDerived.isIdle() && !stateGame.rolling);
-	const canRoll = $derived(idle && backedCount > 0 && !stateGame.openRoundError);
+	// A round that has resolved and not yet been cleared. The board is frozen in this state: the
+	// chips showing are the payout, so the only thing left to do with it is collect (see
+	// `finishRound`), which is what Play turns into.
+	const settled = $derived(stateGame.resultReady);
+	/** True from the moment Clear is pressed until the board is open for betting again. */
+	let clearing = $state(false);
+	/** Drives the readout's shrink-away; it is unmounted by the reset that follows. */
+	let resultClosing = $state(false);
+	const canRoll = $derived(
+		idle && !settled && !clearing && backedCount > 0 && !stateGame.openRoundError,
+	);
 
 	/**
 	 * Change the tray denomination. Any bets already on the board are cleared — swept off the
@@ -150,6 +164,8 @@
 	//              flight backwards, so the chip goes home the way it came. Catch a placement
 	//              still in the air and that chip turns around instead (see turnBack).
 	//   'sweep'  — clearing drops each placed chip off the bottom of the table.
+	//   'collect'— a chip that PAID does not get swept: it flies up to the balance chip in the
+	//              HUD and merges into it, and the balance reads out its new figure as it lands.
 	//
 	// Phase lengths are mirrored by the `chip-flight` keyframe stops (grow 20%, travel 60%,
 	// settle 20%) — change one and change the other. Grow and settle are deliberately equal, so
@@ -165,9 +181,35 @@
 	const SWEEP_WINDOW_MS = 260;
 	const SWEEP_FALL_MS = 220;
 
+	// Collecting a win. Travel and merge are ONE animation (`chip-collect`) split at
+	// COLLECT_TRAVEL_MS, because the merge is the tail of the same arc — the chip reaches the
+	// balance and keeps going, shrinking into it. The keyframe's 74% stop is that split, so the
+	// two numbers below have to stay in proportion with it.
+	const COLLECT_TRAVEL_MS = 560;
+	const COLLECT_MERGE_MS = 200;
+	const COLLECT_MS = COLLECT_TRAVEL_MS + COLLECT_MERGE_MS;
+	// Chips go in one at a time rather than as a shower, so each one lands on its own beat.
+	const COLLECT_STAGGER_MS = 90;
+	/** The amount floating away under the balance once the chips are in. */
+	const WIN_FLOAT_MS = 1100;
+
+	// --- Paying out ------------------------------------------------------------------------
+	// A colour that landed grows its chip into the stack it won — 2x is two chips, 3x is three —
+	// and the two waves are sequenced rather than played together, so the board reads as being
+	// paid out colour by colour instead of everything changing at once.
+	const PAYOUT_LEAD_MS = 420;
+	const PAYOUT_WAVE_MS = 560;
+	const PAYOUT_POP_MS = 300;
+	const PAYOUT_POP_STAGGER_MS = 110;
+	/** How far up the pile each chip above the first sits, in vw. Mirrored by `--tier` in CSS. */
+	const TIER_RISE_VW = 0.5;
+
+	/** How long the round readout takes to shrink away — mirrored by RoundResult's `.closing`. */
+	const RESULT_CLOSE_MS = 340;
+
 	type ChipFlight = {
 		id: number;
-		kind: 'place' | 'return' | 'sweep';
+		kind: 'place' | 'return' | 'sweep' | 'collect';
 		colour: Colour;
 		label: string;
 		/** Chip skin, captured at launch: the tray selection can move on mid-flight. */
@@ -176,7 +218,7 @@
 		/** Start and end CENTRES, in px relative to `.game`. */
 		from: { x: number; y: number };
 		to: { x: number; y: number };
-		/** Sweep only: ms this chip waits its turn, and the tilt it falls away with. */
+		/** Sweep/collect only: ms this chip waits its turn, and the tilt it falls away with. */
 		delay: number;
 		spin: number;
 		/** A placement pulled back mid-air: still 'place', but now headed home. See turnBack. */
@@ -199,6 +241,9 @@
 	let gameEl: HTMLDivElement;
 	let chipEls: Record<number, HTMLElement | undefined> = {};
 	let oddsEls: Partial<Record<Colour, HTMLElement>> = {};
+	// Where collected chips are headed. Re-bound whenever the HUD replays its take (see
+	// `balancePulse`), so it is measured at the start of a collect rather than kept.
+	let balanceChipEl: HTMLElement | undefined = $state();
 	// Flights in the air, so one can be caught and turned around mid-animation.
 	let flightEls: Record<number, HTMLElement | undefined> = {};
 
@@ -372,6 +417,190 @@
 		stateGameDerived.clearBets();
 	};
 
+	// --- Paying out -------------------------------------------------------------------------
+	// 0 = nothing paid out yet, 1 = the 2x colours have stacked, 2 = the 3x ones have too.
+	let payoutStage = $state(0);
+
+	/**
+	 * How many chips are showing on `colour` right now.
+	 *
+	 * A colour that landed grows into the stack it won — one match pays 2x so it becomes two
+	 * chips, two matches pay 3x so three — but only once its wave has played, which is what
+	 * `payoutStage` gates. A triple is drawn as three as well; the rest of that prize is the
+	 * wheel's, and is presented there.
+	 */
+	const chipsOnColour = (colour: Colour): number => {
+		const win = stateGameDerived.winForColour(colour);
+		if (!win) return 1;
+		if (win.matches === 1) return payoutStage >= 1 ? 2 : 1;
+		if (win.matches >= 2) return payoutStage >= 2 ? 3 : 1;
+		return 1;
+	};
+
+	// Run the payout waves as the result lands: every 2x colour stacks, then every 3x one. Waves
+	// with nothing in them cost no time, so a round that only paid 3x does not sit through the
+	// 2x beat first.
+	$effect(() => {
+		if (!stateGame.resultReady) {
+			payoutStage = 0;
+			return;
+		}
+		const doubles = stateGame.wins.some((win) => win.matches === 1);
+		const triples = stateGame.wins.some((win) => win.matches >= 2);
+		if (!doubles && !triples) return;
+
+		let cancelled = false;
+		void (async () => {
+			await waitForTimeout(PAYOUT_LEAD_MS);
+			if (cancelled) return;
+			payoutStage = 1;
+			if (doubles) {
+				playSound('pop');
+				await waitForTimeout(PAYOUT_WAVE_MS);
+				if (cancelled) return;
+			}
+			payoutStage = 2;
+			if (triples) playSound('pop');
+		})();
+		return () => (cancelled = true);
+	});
+
+	// --- Collecting -------------------------------------------------------------------------
+	// The balance is NOT computed here. The RGS credits it as the round settles, which is while
+	// the payout is still on the felt — so the HUD holds the figure it was showing until the
+	// chips have actually gone in, then simply stops holding and reads out whatever the server
+	// settled. Nothing client-side ever writes `stateBet.balanceAmount`.
+	let balanceHold = $state<number | null>(null);
+	const shownBalance = $derived(balanceHold ?? stateBet.balanceAmount);
+
+	$effect(() => {
+		if (!stateGame.resultReady || !stateGame.wins.length) return;
+		untrack(() => {
+			if (balanceHold === null) balanceHold = stateBet.balanceAmount;
+		});
+	});
+
+	/** Bumped per chip that goes in; re-keys the HUD so it replays its take for each one. */
+	let balancePulse = $state(0);
+	/** The amount drifting away under the balance after a collect. */
+	let winFloat = $state<{ id: number; amount: number; x: number; y: number } | null>(null);
+
+	const showWinFloat = (amount: number) => {
+		if (!gameEl || !balanceChipEl) return;
+		const host = gameEl.getBoundingClientRect();
+		const at = centreIn(host, balanceChipEl.getBoundingClientRect());
+		const id = ++flightId;
+		winFloat = { id, amount, x: at.x, y: at.y };
+		// Guarded on the id so a later collect's float is not cut short by this one's timer.
+		setTimeout(() => {
+			if (winFloat?.id === id) winFloat = null;
+		}, WIN_FLOAT_MS);
+	};
+
+	/**
+	 * Take the chips off every colour that paid, up to the balance, and merge them in.
+	 *
+	 * Resolves when the LAST one has landed rather than when the animation is fully over, so the
+	 * caller can put the new balance up on the merge instead of after the chips have faded.
+	 */
+	const collectChips = async (winners: Colour[], face = currentChipFace()) => {
+		if (!gameEl || !balanceChipEl || !winners.length) return;
+		const host = gameEl.getBoundingClientRect();
+		const to = centreIn(host, balanceChipEl.getBoundingClientRect());
+		// The pile is drawn with each chip `TIER_RISE_VW` above the one below, so the copies have
+		// to leave from those same offsets — otherwise the stack snaps flat as it lifts off.
+		const tierRise = (window.innerWidth * TIER_RISE_VW) / 100;
+
+		let launched = 0;
+		for (const colour of winners) {
+			const box = oddsEls[colour];
+			if (!box) continue;
+			const centre = centreIn(host, box.getBoundingClientRect());
+			// Off the top of the pile down, the way a dealer would take it.
+			for (let tier = chipsOnColour(colour) - 1; tier >= 0; tier--) {
+				const delay = launched++ * COLLECT_STAGGER_MS;
+				const id = ++flightId;
+				flights = [
+					...flights,
+					{
+						id,
+						kind: 'collect',
+						colour,
+						...face,
+						from: { x: centre.x, y: centre.y - tier * tierRise },
+						to,
+						delay,
+						spin: 0,
+						turned: false,
+					},
+				];
+				schedule(id, () => playSound('whoosh'), delay);
+				// The merge: a pop as the chip goes in, and the balance takes the hit.
+				schedule(
+					id,
+					() => {
+						playSound('pop');
+						balancePulse += 1;
+					},
+					delay + COLLECT_TRAVEL_MS,
+				);
+				schedule(id, () => dropFlight(id), delay + COLLECT_MS);
+			}
+		}
+
+		if (!launched) return;
+		await waitForTimeout((launched - 1) * COLLECT_STAGGER_MS + COLLECT_TRAVEL_MS);
+	};
+
+	/**
+	 * Close out a resolved round.
+	 *
+	 * Losing chips are swept off the bottom as usual; winning ones are collected into the
+	 * balance instead. The dice leave the table and the readout shrinks away alongside, and the
+	 * board reopens on its own clock — well before the chips have finished going in, so the
+	 * player is not kept waiting on the payout to place the next bet.
+	 *
+	 * As with the sweep, everything is measured and spawned BEFORE the state clears: the flying
+	 * copies carry the chips off, and the board's own chips are hidden the moment this starts.
+	 */
+	const finishRound = async () => {
+		if (clearing || !stateGame.resultReady) return;
+		clearing = true;
+		stakePanelOpen = false;
+
+		const face = currentChipFace();
+		const placed = stateGameDerived.backedColours();
+		const winners = placed.filter((colour) => stateGameDerived.isWinColour(colour));
+		const losers = placed.filter((colour) => !stateGameDerived.isWinColour(colour));
+		// `winCash` is zeroed by the board reset below, which lands while the chips are still on
+		// their way up — so the figure the float reads out is taken now.
+		const collected = winCash;
+
+		context.eventEmitter.broadcast({ type: 'diceClear' });
+		resultClosing = true;
+		sweepChips(losers, face);
+		const collecting = collectChips(winners, face);
+
+		void waitForTimeout(RESULT_CLOSE_MS).then(() => {
+			stateGameDerived.clearBets();
+			resultClosing = false;
+			clearing = false;
+		});
+
+		await collecting;
+		// Only now is the win the player's: stop holding the old figure, so the HUD reads out
+		// what the RGS settled, and float the amount away under it.
+		balanceHold = null;
+		if (collected > 0) showWinFloat(collected);
+	};
+
+	/** Clear button: collecting a resolved round, or sweeping bets that have not been played. */
+	const onClearClick = () => {
+		if (clearing) return;
+		if (settled) void finishRound();
+		else clearBoard();
+	};
+
 	/** Everything the keyframes read, as custom properties; each kind uses the ones it needs. */
 	const flightStyle = (flight: ChipFlight) =>
 		[
@@ -382,6 +611,8 @@
 			`--flight-ms:${FLIGHT_MS}ms`,
 			`--sweep-ms:${SWEEP_FALL_MS}ms`,
 			`--sweep-delay:${flight.delay}ms`,
+			`--collect-ms:${COLLECT_MS}ms`,
+			`--collect-delay:${flight.delay}ms`,
 			`--spin:${flight.spin}deg`,
 			`--chip-hue:${flight.hue}deg`,
 			`--chip-text:${flight.text}`,
@@ -399,12 +630,18 @@
 
 	onMount(() => {
 		preloadSounds();
-		// Stop in-flight timers from firing a sound into a torn-down game.
-		return () => (flights = []);
+		// Stop in-flight timers from firing into a torn-down game — a collect's cues do more than
+		// play a sound, so they have to be called off rather than just left to miss.
+		return () => {
+			for (const id of [...flightTimers.keys()]) cancelCues(id);
+			flights = [];
+		};
 	});
 
 	const toggleColour = (colour: Colour) => {
-		if (!idle) return;
+		// A resolved round is frozen until it has been collected — the chips showing are a payout,
+		// not a bet that can be moved.
+		if (!idle || settled || clearing) return;
 		const wasBacked = stateGameDerived.isBacked(colour);
 		if (!stateGameDerived.toggleColour(colour)) return;
 		// Tapping a backed colour takes the bet off, so its chip goes back to the tray.
@@ -425,6 +662,8 @@
 	const roll = () => {
 		if (!canRoll) return;
 		stakePanelOpen = false;
+		// Nothing left to hold back — a new round starts from whatever the wallet says now.
+		balanceHold = null;
 
 		// An RGS round left open by a reload or dropped connection has to be finished first —
 		// otherwise /wallet/play comes back ERR_VAL "player has active round". Replaying it
@@ -511,13 +750,17 @@
 
 	<!-- Overlaid on the table rather than in a bar, so the felt runs the full height. -->
 	<div class="hud">
-		<div class="balance-hud">
-			<div class="balance-chip" aria-hidden="true"></div>
-			<div class="balance-text">
-				<span class="hud-lbl">Balance</span>
-				<span class="hud-val">{sign}{fmt(stateBet.balanceAmount)}</span>
+		<!-- Re-keyed on every chip that goes in, which is what restarts the take animation: a CSS
+		     animation cannot be replayed on the same element without tearing it down. -->
+		{#key balancePulse}
+			<div class="balance-hud" class:collected={balancePulse > 0}>
+				<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
+				<div class="balance-text">
+					<span class="hud-lbl">Balance</span>
+					<span class="hud-val">{sign}{fmt(shownBalance)}</span>
+				</div>
 			</div>
-		</div>
+		{/key}
 		<div class="menu-btn" aria-hidden="true"></div>
 	</div>
 
@@ -530,20 +773,29 @@
 			<div class="betting-panel">
 				<div class="inner-panel">
 					<!-- Play sits directly above the chip tray as a tab, matching the Angular
-					     original's `.confirm-btn`. -->
-					<div class="confirm-btn" class:disabled={!canRoll} onclick={roll} aria-hidden="true">
-						<div class="confirm-lbl">{stateGame.rolling ? '…' : 'PLAY'}</div>
+					     original's `.confirm-btn`. Once a round resolves it becomes Clear — the only
+					     move left on a settled board is to collect it. -->
+					<div
+						class="confirm-btn"
+						class:clear-mode={settled}
+						class:disabled={settled ? clearing : !canRoll}
+						onclick={settled ? () => void finishRound() : roll}
+						aria-hidden="true"
+					>
+						<div class="confirm-lbl">
+							{stateGame.rolling ? '…' : settled ? 'CLEAR' : 'PLAY'}
+						</div>
 					</div>
 
 					<div class="actions-wrap">
 						<div
 							class="clear-btn"
-							class:disabled={!idle || backedCount === 0}
-							onclick={clearBoard}
+							class:disabled={clearing || (!settled && (!idle || backedCount === 0))}
+							onclick={onClearClick}
 							title="Clear"
 							aria-hidden="true"
 						></div>
-						<div class="chipandstate-wrap">
+						<div class="chipandstate-wrap" class:locked={settled || clearing}>
 							{#if stakePanelOpen}
 								<!-- Full grid of bet levels. Tapping the selected chip again toggles it. -->
 								<div class="stake-panel">
@@ -593,7 +845,7 @@
 						</div>
 						<div
 							class="undo-btn"
-							class:disabled={!idle || backedCount === 0}
+							class:disabled={!idle || settled || clearing || backedCount === 0}
 							onclick={undoBet}
 							title="Undo"
 							aria-hidden="true"
@@ -604,6 +856,7 @@
 						{#each DISPLAY_COLOURS as colour (colour)}
 							{@const backed = stateGameDerived.isBacked(colour)}
 							{@const win = stateGameDerived.winForColour(colour)}
+							{@const tiers = chipsOnColour(colour)}
 							<div
 								bind:this={oddsEls[colour]}
 								class="odds {colour}"
@@ -617,16 +870,27 @@
 								</div>
 								<!-- The big multiplier badge along the bottom is the only result readout. -->
 								<div class="rate {stateGameDerived.winTypeForColour(colour)}"></div>
-								{#if backed && !arrivingColours.has(colour)}
+								{#if backed && !arrivingColours.has(colour) && !clearing}
 									<!-- The actual chip lands on the colour, rather than a text pill, so the
 									     board reads like real chips on a felt. Held back until the thrown
-									     copy has landed (see launchChip), so the bet shows as one chip. -->
-									<div
-										class="placed-chip chip"
-										style="--chip-hue:{chipHueShift(stakes.indexOf(stateGame.stake))}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
-									>
-										<span>{fmtChip(stateGame.stake)}</span>
-									</div>
+									     copy has landed (see launchChip), so the bet shows as one chip.
+									     Hidden outright while clearing — the flying copies are carrying
+									     these off, and two of each would show otherwise.
+
+									     A colour that paid grows into a pile: the bet is the bottom chip
+									     and the winnings drop on top of it (see chipsOnColour). -->
+									{#each Array.from({ length: tiers }, (_, tier) => tier) as tier (tier)}
+										<div
+											class="placed-chip chip"
+											class:won={tier > 0}
+											style="--tier:{tier}; --pop-ms:{PAYOUT_POP_MS}ms; --pop-delay:{(tier - 1) *
+												PAYOUT_POP_STAGGER_MS}ms; --chip-hue:{chipHueShift(
+												stakes.indexOf(stateGame.stake),
+											)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
+										>
+											<span>{fmtChip(stateGame.stake)}</span>
+										</div>
+									{/each}
 								{/if}
 							</div>
 						{/each}
@@ -661,10 +925,21 @@
 		</div>
 	{/each}
 
+	<!-- What the collected chips were worth, drifting away under the balance they went into. -->
+	{#if winFloat}
+		<div
+			class="win-float"
+			style="--float-x:{winFloat.x}px; --float-y:{winFloat.y}px; --float-ms:{WIN_FLOAT_MS}ms"
+			aria-hidden="true"
+		>
+			+{sign}{fmt(winFloat.amount)}
+		</div>
+	{/if}
+
 	<WheelBonus />
 
 	{#if stateGame.resultReady}
-		<RoundResult amount={winCash} {sign} />
+		<RoundResult amount={winCash} {sign} closing={resultClosing} />
 	{/if}
 </div>
 
@@ -740,6 +1015,15 @@
 	.flying-chip.sweep {
 		animation: chip-sweep var(--sweep-ms) var(--sweep-delay) ease-in both;
 	}
+	/* Collected into the balance. Travel and merge are one run rather than two animations: the
+	   chip arcs up to the HUD and simply keeps going, shrinking away into the balance chip. The
+	   split is the 74% stop below, which is COLLECT_TRAVEL_MS of COLLECT_MS. `backwards` holds
+	   each chip on its colour through its stagger, so the pile leaves one chip at a time. Above
+	   the HUD, so it is still visible as it goes in. */
+	.flying-chip.collect {
+		animation: chip-collect var(--collect-ms) var(--collect-delay) both;
+		z-index: 46;
+	}
 	/* Stops mirror the phase split in the script (grow 20%, travel 60%, settle 20%) — keep the
 	   two in step. The chip is picked up with a slight overshoot, tossed along an arc (the 50%
 	   stop lifts the midpoint, so it does not slide flat across the panel), then set down at its
@@ -784,10 +1068,83 @@
 		}
 	}
 
+	/* Picked up off the colour, arced up to the balance, then folded into it. The arc is lifted
+	   harder than a placement's (2.4vw against 1.6vw) because this one crosses most of the table
+	   — a flatter curve would read as a slide. */
+	@keyframes chip-collect {
+		0% {
+			translate: var(--from-x) var(--from-y);
+			scale: 1;
+			opacity: 1;
+			animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+		}
+		14% {
+			translate: var(--from-x) var(--from-y);
+			scale: 1.3;
+			animation-timing-function: ease-in-out;
+		}
+		48% {
+			translate: calc((var(--from-x) + var(--to-x)) / 2)
+				calc((var(--from-y) + var(--to-y)) / 2 - 2.4vw);
+			scale: 1.15;
+			animation-timing-function: ease-in;
+		}
+		74% {
+			translate: var(--to-x) var(--to-y);
+			scale: 0.95;
+			opacity: 1;
+			animation-timing-function: ease-in;
+		}
+		100% {
+			translate: var(--to-x) var(--to-y);
+			scale: 0.18;
+			opacity: 0;
+		}
+	}
+
+	/* The amount that just went in, sliding down out from under the balance. Positioned off the
+	   balance chip's measured centre, so it stays under the HUD at any viewport. */
+	.win-float {
+		position: absolute;
+		top: 0;
+		left: 0;
+		z-index: 46;
+		pointer-events: none;
+		font-family: 'Alexandria', sans-serif;
+		font-size: 1.15vw;
+		font-weight: 700;
+		color: #ffe14d;
+		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.85);
+		animation: win-float var(--float-ms) ease-out both;
+	}
+	@keyframes win-float {
+		0% {
+			translate: var(--float-x) calc(var(--float-y) + 0.6vw);
+			opacity: 0;
+			scale: 0.75;
+		}
+		20% {
+			translate: var(--float-x) calc(var(--float-y) + 1.5vw);
+			opacity: 1;
+			scale: 1;
+		}
+		100% {
+			translate: var(--float-x) calc(var(--float-y) + 4.4vw);
+			opacity: 0;
+			scale: 1;
+		}
+	}
+
 	/* Full bet-level grid, opened by tapping the selected chip. Anchored to the tray and
 	   opening upward — the tray sits low in the frame, so downward would run off-screen. */
 	.chipandstate-wrap {
 		position: relative;
+	}
+	/* The denomination cannot change while a payout is on the felt — the chips showing were
+	   placed at the old amount, and re-pricing them would re-price the win with them. */
+	.chipandstate-wrap.locked {
+		opacity: 0.55;
+		pointer-events: none;
 	}
 	.stake-panel {
 		position: absolute;
@@ -943,11 +1300,33 @@
 		top: 50% !important;
 		bottom: auto !important;
 		left: 50% !important;
-		transform: translate(-50%, -50%);
-		z-index: 12;
+		/* `--tier` is the chip's height in the pile; the 0.5vw step mirrors TIER_RISE_VW, which
+		   is what the collect flights leave from. */
+		transform: translate(-50%, calc(-50% - var(--tier, 0) * 0.5vw));
+		z-index: calc(12 + var(--tier, 0));
 		margin: 0 !important;
 		pointer-events: none;
 		filter: drop-shadow(0 0.15vw 0.25vw rgba(0, 0, 0, 0.5));
+	}
+	/* Chips won on top of the bet, dropped onto the pile as the colour is paid out. They fall in
+	   from above with a little squash on landing, so the stack is seen being built rather than
+	   just appearing taller. */
+	.odds .placed-chip.won {
+		animation: chip-stack var(--pop-ms) var(--pop-delay) cubic-bezier(0.22, 1.3, 0.5, 1) both;
+	}
+	@keyframes chip-stack {
+		0% {
+			opacity: 0;
+			transform: translate(-50%, calc(-50% - var(--tier) * 0.5vw - 2.4vw)) scale(1.35);
+		}
+		65% {
+			opacity: 1;
+			transform: translate(-50%, calc(-50% - var(--tier) * 0.5vw + 0.2vw)) scale(0.94);
+		}
+		100% {
+			opacity: 1;
+			transform: translate(-50%, calc(-50% - var(--tier) * 0.5vw)) scale(1);
+		}
 	}
 	/* Undo control — reuses the round pill look of clear/repeat with an arrow glyph. */
 	.undo-btn {
@@ -1007,6 +1386,24 @@
 		gap: 0.5vw;
 		font-family: 'Alexandria', sans-serif;
 		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.8);
+	}
+	/* One kick per chip that goes in. Scaled from the left so the readout swells in place rather
+	   than sliding out from under the frame edge. */
+	.balance-hud.collected {
+		transform-origin: left center;
+		animation: balance-take 300ms ease-out;
+	}
+	@keyframes balance-take {
+		0% {
+			scale: 1;
+		}
+		35% {
+			scale: 1.12;
+			filter: brightness(1.45);
+		}
+		100% {
+			scale: 1;
+		}
 	}
 	.balance-chip {
 		width: 2.2vw;
@@ -1083,6 +1480,19 @@
 		line-height: 1vw;
 		text-align: center;
 		cursor: pointer;
+	}
+	/* Same tab, paying out instead of taking a bet — blue rather than green, so a settled board
+	   never looks like one that is ready to play. The label is the tab's own blue taken much
+	   darker, mirroring how Play sets its green label against its green face.
+
+	   table.scss paints the green from a four-class selector
+	   (`.bottom-panel .betting-panel-wrap .betting-panel .confirm-btn`), which outweighs anything
+	   scoped here; `!important` is the readable way to win that rather than restating the whole
+	   ancestor chain, as with `.placed-chip` above. Held off `.disabled` so the greyed-out look
+	   during the clear still comes through. */
+	.confirm-btn.clear-mode:not(.disabled) {
+		background: linear-gradient(180deg, #58a0f0 0%, #2a6bd8 100%) !important;
+		color: #0a2a66 !important;
 	}
 	.confirm-btn.disabled {
 		background: linear-gradient(180deg, #e7e6ff73 0%, #e7e6ff73 100%);

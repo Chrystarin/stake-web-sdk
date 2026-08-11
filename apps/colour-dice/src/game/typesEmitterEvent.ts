@@ -16,6 +16,8 @@ export type EmitterEventGame =
 	| { type: 'resumeBet' }
 	| { type: 'diceReveal'; colours: Colour[] }
 	| { type: 'diceSettle'; colours: Colour[]; wins: ColourWin[] }
+	/** Round closed out from the board: the dice slide off the table and are taken away. */
+	| { type: 'diceClear' }
 	| { type: 'wheelShow' }
 	| { type: 'wheelSpin'; multiplier: number; colour: Colour }
 	| { type: 'wheelHide' }

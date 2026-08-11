@@ -17,9 +17,11 @@
 		amount: number;
 		/** Currency prefix, e.g. `$`. */
 		sign: string;
+		/** The board is clearing: shrink away into the middle rather than vanishing. */
+		closing?: boolean;
 	};
 
-	let { amount, sign }: Props = $props();
+	let { amount, sign, closing = false }: Props = $props();
 
 	/**
 	 * The three dice grouped by colour, in first-appearance order — the same grouping
@@ -49,7 +51,7 @@
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
 </script>
 
-<div class="result-wrapper">
+<div class="result-wrapper" class:closing>
 	<div class="win-wrap">
 		{#if amount > 0}
 			<div class="win-result">
@@ -86,6 +88,24 @@
 		right: 0;
 		z-index: 22;
 		pointer-events: none;
+	}
+	/* Dismissed when the board is cleared. It collapses into its own centre — the readout is
+	   already centred on the table, so shrinking from there reads as it being put away rather
+	   than sliding off somewhere. Duration mirrors RESULT_CLOSE_MS in Game.svelte, which is
+	   what actually unmounts this. */
+	.result-wrapper.closing {
+		transform-origin: center center;
+		animation: result-dismiss 340ms cubic-bezier(0.5, 0, 0.75, 0.3) both;
+	}
+	@keyframes result-dismiss {
+		0% {
+			opacity: 1;
+			scale: 1;
+		}
+		100% {
+			opacity: 0;
+			scale: 0.5;
+		}
 	}
 
 	/* Reserved height, so a losing round leaves the pills exactly where a winning one puts them. */
