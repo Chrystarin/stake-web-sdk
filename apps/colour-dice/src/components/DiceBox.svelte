@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
+	import { stateSoundDerived } from 'state-shared';
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
@@ -110,6 +111,35 @@
 	// 1=yellow, 2=blue, 3=white, 4=green, 5=pink, 6=red.
 	const FACE_HEX = ['#F6C928', '#2D6BFF', '#FFFFFF', '#43B047', '#FF4DB8', '#E53935'];
 
+	// --- The rattle -------------------------------------------------------------------------------
+	// dice-box-threejs plays its own hit sounds off the physics: every collision hard enough to be
+	// heard picks a clip at random and plays it at a volume taken from the impact. The clips it
+	// wants are the upstream ones in `static/dice-box-threejs/sounds` — `surface_felt*` for the
+	// tray (from `theme_surface: 'green-felt'`) and `dicehit_plastic*` for die on die (from
+	// `theme_material`). Both sets have to be there before `initialize()`, which is where the
+	// library loads them, and which is why `sounds` cannot be turned on later.
+	//
+	// The trial throws cost nothing here: the library skips the sound while `animstate` is
+	// `simulate`, which is what `simulateThrow` runs the headless passes under.
+
+	/**
+	 * How loud the dice are against the rest of the table, matching `MIX` in `game/sound.ts`.
+	 *
+	 * Held under the chip sounds because there are so many more of them: three dice coming in over
+	 * the rim is a run of hits, not the one-shot a chip landing is.
+	 */
+	const DICE_MIX = 0.55;
+
+	/** The library's volume is 0-100, and is the ceiling on any one hit rather than a gain. */
+	const diceVolume = () => stateSoundDerived.volumeSoundEffect() * DICE_MIX * 100;
+
+	// Keep the dice on the same slider as everything else on the table. `volume` is read per hit,
+	// so this takes effect on the next collision — including mid-roll.
+	$effect(() => {
+		const volume = diceVolume();
+		if (box) box.volume = volume;
+	});
+
 	/**
 	 * The tray in world units: half its width and height, and how far its middle sits above the
 	 * middle of the scene. Read off `.dice-tray` by `measureTray`, and the only description of the
@@ -218,7 +248,8 @@
 		const DiceBox = mod.default;
 		return new DiceBox(`#${sceneId}`, {
 			assetPath: '/dice-box-threejs/',
-			sounds: false,
+			sounds: true,
+			volume: diceVolume(),
 			theme_texture: '',
 			theme_material: 'plastic',
 			theme_surface: 'green-felt',
