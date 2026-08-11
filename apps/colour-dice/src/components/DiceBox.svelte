@@ -26,10 +26,11 @@
 
 	// --- The tray -----------------------------------------------------------------------------
 	// The dice are played inside a tray in the middle of the table rather than over the whole
-	// felt: they drop in from above it, bounce off its rim, and all three come to rest inside it.
-	// Nothing can leave, because the four walls dice-box-threejs builds the world with are
-	// infinite planes — pull them in off the frame edge onto the tray's rim and they hold the dice
-	// there at any height (see `installTrayWalls`).
+	// felt: they are thrown in from off the top of the table, bounce off its rim, and all three
+	// come to rest inside it. Nothing leaves once it is in, because the four walls
+	// dice-box-threejs builds the world with are infinite planes — pull them in off the frame edge
+	// onto the tray's rim and they hold the dice there at any height (see `installTrayWalls`).
+	// Getting IN over a wall like that takes the gate below.
 	//
 	// The SHAPE of it is settled in CSS, by `.dice-tray`: a rectangle as wide as the betting panel
 	// in landscape, a square in portrait. This side of it only measures what CSS drew and puts the
@@ -45,25 +46,43 @@
 	const D6_FACE = (2 * 0.9) / Math.sqrt(3);
 
 	// --- Throw geometry -----------------------------------------------------------------------
-	// The dice are dropped over the tray and thrown across it, each from its own point on a ring
-	// so they neither spawn stacked nor share a lane. The ring is the tray's own shape scaled
-	// down, so a wide tray gets them spread along it rather than bunched in the middle.
-	/** How much of the tray the ring covers. */
-	const DROP_RADIUS = 0.5;
-	// Heights and speeds are multiples of the tray's NARROW half, so a throw carries the same way
-	// whatever shape the tray is: widening it should spread the dice out, not fling them harder.
-	/** Height the first die is dropped from. */
-	const DROP_HEIGHT = 1.7;
-	/** Extra height per die, so they arrive one after another instead of together. */
-	const DROP_HEIGHT_STAGGER = 0.75;
-	/** Launch speed — enough to carry a die across the tray and come off the rim. */
-	const THROW_SPEED = 3.2;
+	// The dice are thrown in from off the top of the table: they start out of frame north of the
+	// tray, fanned across it, and are sent down into it at an angle. Once they are in, they stay
+	// in — see the gate below, which is what lets them cross a rim that nothing can cross after.
+	/** How far past the top of the frame the dice start, as a share of the visible half-height. */
+	const SPAWN_CLEAR = 0.12;
+	/** How wide they fan across the tray as they come in, as a share of the room they have. */
+	const SPAWN_SPREAD = 0.6;
 	/**
-	 * How far off dead opposite each die is aimed (radians). Straight across would send all three
-	 * through the middle at once; angling them means they pass each other and take the rim at a
-	 * slant, which is what keeps a throw scattering rather than piling up in the centre.
+	 * Height the first die comes in at, as a share of the tray's NARROW half — so a throw carries
+	 * the same way whatever shape the tray is, rather than being flung harder as it widens.
 	 */
-	const THROW_SWIRL = 0.55;
+	const DROP_HEIGHT = 1.2;
+	/**
+	 * How much higher each die comes in than the one before, as a multiple of a die's reach.
+	 *
+	 * Measured against the DIE rather than the tray because of what it is for: the three are
+	 * thrown across each other's paths, so what this has to buy is enough room for one to pass
+	 * over another untouched. A die knocked out of its line up here is the one thing that can
+	 * leave it stranded north of the tray, since the wall it came in over is not up yet.
+	 */
+	const DROP_STAGGER = 2.4;
+	/** How far across the tray each die is aimed, as a share of its half-width. */
+	const AIM_SPREAD = 0.5;
+	/** How deep into the tray they are aimed, as a share of its half-height. */
+	const AIM_DEPTH = 0.45;
+	/**
+	 * Slop in the lanes and in what each die is aimed at, so two throws never come in quite alike.
+	 * Heights are deliberately left out of it: the gaps between them are what keeps the dice off
+	 * each other on the way in, and that is not something to leave to chance.
+	 */
+	const THROW_JITTER = 0.16;
+	/**
+	 * Launch speed as a multiple of the distance to what a die is aimed at, rather than a flat
+	 * figure: every die then carries the same way whether it is crossing the tray or dropping
+	 * straight into the near side of it, and the throw scales with the table.
+	 */
+	const THROW_SPEED = 2.4;
 
 	// Face colours (index 0=pip1 .. 5=pip6), matching dice-box.component.ts mapping
 	// 1=yellow, 2=blue, 3=white, 4=green, 5=pink, 6=red.
@@ -75,6 +94,32 @@
 	 * tray the physics and the throw ever work from.
 	 */
 	let arena = { halfX: 0, halfY: 0, centreY: 0 };
+
+	// --- The gate -------------------------------------------------------------------------------
+	// The dice come in from off the top of the table, which means coming in over the tray's north
+	// wall — and a wall here is a half-space, so a die on the far side of one is shoved back rather
+	// than left to fall past it. That wall is therefore taken off for the throw and brought back
+	// down behind the dice, which is what "in over the rim, and never back out over it" takes. The
+	// other three stand the whole time.
+	//
+	// It comes down as a LID, riding just above the topmost die, rather than dropping onto the rim
+	// the moment they are all under it. Two things fall out of that, and both matter: it is never
+	// less than a die's reach clear of anything, so it cannot come back through a die and throw it
+	// out of the tray; and it only ever travels down, so a die rebounding off the far wall while
+	// the others are still coming in meets it where it has got to instead of sailing out over the
+	// top. Left alone it settles onto the rim, and that is the tray sealed.
+	//
+	// Which die is where drives it, rather than a clock: the library runs every throw twice — once
+	// headless, to settle the dice and read the faces off them, and then again on screen — and the
+	// two have to come out the same or the faces will not match what lands.
+
+	/** Where the north wall is. Starts under the rim so the tray is sealed before the first roll. */
+	let gateY = -Infinity;
+	/** How fast the lid keeps closing on a die propping it open, per step, in die reaches. */
+	const GATE_CREEP = 0.04;
+
+	/** A die's reach from its own middle — corner to middle, so it covers any attitude. */
+	const dieReach = () => box.DiceFactory.baseScale * 0.9;
 
 	const makeCircularFaceImage = (hex: string): Promise<HTMLImageElement> => {
 		const size = 256;
@@ -164,10 +209,12 @@
 			if (!arena.halfX) return;
 			const { halfX, halfY, centreY } = arena;
 			// The library's "left" wall is the one at +x, and "right" the one at -x.
-			box.box_body.topWall.position.set(0, centreY + halfY, 0);
 			box.box_body.bottomWall.position.set(0, centreY - halfY, 0);
 			box.box_body.leftWall.position.set(halfX, 0, 0);
 			box.box_body.rightWall.position.set(-halfX, 0, 0);
+			// The north wall is the one the dice come in over, so it goes wherever the lid has got
+			// to rather than straight onto the rim.
+			placeGate();
 		};
 
 		// A resize re-scales the world before it rebuilds the walls, which leaves the measurement
@@ -178,6 +225,65 @@
 		box.setDimensions = (dimensions: any) => {
 			setDimensions(dimensions);
 			measureTray();
+		};
+	};
+
+	/** The rim itself: where the lid comes to rest, and the tray's north wall proper. */
+	const gateRim = () => arena.centreY + arena.halfY;
+
+	/** Put the north wall wherever the lid has got to. */
+	const placeGate = () => {
+		const wall = box.box_body?.topWall;
+		if (!wall || !arena.halfX) return;
+		// Never below the rim — a resize can move the rim up from under it.
+		gateY = Math.max(gateRim(), gateY);
+		wall.position.set(0, gateY, 0);
+	};
+
+	/** Take the lid off, so a throw can be sent in over it. */
+	const raiseGate = () => {
+		// Above anything that can be thrown in, so it is out of the way without ever leaving the
+		// world unbounded to the north.
+		gateY = box.display.containerHeight * 3;
+		placeGate();
+	};
+
+	/** Bring it down onto the topmost die, or onto the rim once they are all under it. */
+	const lowerGate = () => {
+		const dice = box.diceList;
+		if (!dice.length || !arena.halfX) return;
+		const rim = gateRim();
+		const highest = Math.max(...dice.map((die: any) => die.body.position.y));
+		// Ride down on the topmost die, keeping a reach clear of it so it is never come through.
+		gateY = Math.min(gateY, Math.max(rim, highest + dieReach()));
+		// Then keep closing regardless. Riding the dice alone leaves the lid propped open by one
+		// that comes to rest against it short of the rim — inside the world, but poking out over
+		// the edge that is meant to hold it. Creeping down walks that one back in instead, gently
+		// enough to read as the die settling, and only ever bears on dice up at the rim: anything
+		// further in is nowhere near the line the lid is on by then.
+		gateY = Math.max(rim, gateY - GATE_CREEP * dieReach());
+		placeGate();
+	};
+
+	/**
+	 * Take the lid off for each throw, and ride it back down behind the dice.
+	 *
+	 * `spawnDice` is the one thing both passes of a throw start with, so it is what lifts it —
+	 * and it only lifts, never lowers, because the dice are spawned one at a time and each is
+	 * higher than the last. The world's own step is what brings it down, so the two passes are
+	 * stepping to the same rule and settle the same way.
+	 */
+	const installTrayGate = () => {
+		const spawnDice = box.spawnDice.bind(box);
+		box.spawnDice = (vector: any, die: any = false) => {
+			raiseGate();
+			return spawnDice(vector, die);
+		};
+
+		const step = box.world.step.bind(box.world);
+		box.world.step = (...args: unknown[]) => {
+			step(...args);
+			lowerGate();
 		};
 	};
 
@@ -217,35 +323,43 @@
 			const thrown = original(notation);
 			const vectors = thrown?.vectors;
 			if (!vectors?.length) return thrown;
+			// No tray to throw into yet — a scene that has not been laid out has nothing to measure
+			// one from, and re-aiming off it would only put the dice at NaN. The library's own
+			// throw is a perfectly good thing to fall back on.
+			if (!arena.halfX) return thrown;
 
 			const { halfX, halfY, centreY } = arena;
-			// Heights and speeds go by the narrow way, so a wide tray spreads the throw out rather
-			// than making it fiercer — the ring below is what takes care of covering the width.
 			const narrow = Math.min(halfX, halfY);
-			// Turned by a random amount per roll, so the same three dice never repeat the same
-			// three paths.
-			const turn = Math.random() * Math.PI * 2;
-			/** The drop ring: the tray's own shape, shrunk. */
-			const ring = (angle: number) => ({
-				x: Math.cos(angle) * halfX * DROP_RADIUS,
-				y: centreY + Math.sin(angle) * halfY * DROP_RADIUS,
-			});
+			// The side walls run the full height of the world, so they are as much in the way up
+			// off the top of the table as they are down in the tray: this is the room a die
+			// actually has to come in through without one of them catching it.
+			const usableX = Math.max(0, halfX - dieReach());
+			// Which way the fan runs, so the same three dice do not take the same three paths
+			// every roll.
+			const hand = Math.random() < 0.5 ? -1 : 1;
+			const slop = () => (Math.random() * 2 - 1) * THROW_JITTER;
 
 			vectors.forEach((vector: any, index: number) => {
-				const around = turn + (index / vectors.length) * Math.PI * 2;
-				const from = ring(around);
-				vector.pos = {
-					...from,
-					// Height, not depth into the table: the camera is straight overhead, so this is
-					// how far the die falls, and staggering it is what spaces the landings out.
-					z: narrow * (DROP_HEIGHT + index * DROP_HEIGHT_STAGGER),
-				};
+				// -1 .. +1 across however many are rolled, so they come in abreast rather than
+				// stacked, and down their own lanes.
+				const lane = vectors.length > 1 ? (index / (vectors.length - 1)) * 2 - 1 : 0;
+				const offset = hand * Math.max(-1, Math.min(1, lane + slop()));
+				// Staggered in height rather than in y: y is pinned to whatever is just out of
+				// frame, so height is what makes them arrive one after another — and the higher a
+				// die is, the less of the world is in shot, so the less far out it has to start.
+				const z = narrow * DROP_HEIGHT + index * DROP_STAGGER * dieReach();
+				const from = { x: offset * usableX * SPAWN_SPREAD, y: offScreenNorth(z) };
+				vector.pos = { ...from, z };
 
-				// Aimed at the far side of the ring rather than at a fixed heading, so on a wide
-				// tray the dice are thrown ALONG it and cover the extra width.
-				const at = ring(around + Math.PI + THROW_SWIRL);
+				// Aimed at the far half of the tray, and crossed over: a die coming in on the left
+				// is thrown at the right, so the three cut across each other on the way down
+				// instead of running straight down parallel lanes.
+				const at = {
+					x: -offset * halfX * AIM_SPREAD,
+					y: centreY - halfY * (AIM_DEPTH + slop()),
+				};
 				const away = Math.hypot(at.x - from.x, at.y - from.y) || 1;
-				const speed = narrow * THROW_SPEED;
+				const speed = away * THROW_SPEED;
 				vector.velocity = {
 					x: ((at.x - from.x) / away) * speed,
 					y: ((at.y - from.y) / away) * speed,
@@ -271,6 +385,19 @@
 		const cameraZ = box?.camera?.position.z;
 		if (!cameraZ) return 1;
 		return cameraZ / (cameraZ - box.DiceFactory.baseScale * D6_FACE);
+	};
+
+	/**
+	 * How far north a die has to start to be out of frame above the table, given how high it is.
+	 *
+	 * At felt level the frame is `containerHeight` world units either side of the middle, but the
+	 * camera is a perspective one: the higher a die is the nearer the camera it is, so the less of
+	 * the world is in shot and the less far out it has to go to leave it. Reckoned off the die's
+	 * leading edge rather than its middle, so the whole of it is out of sight.
+	 */
+	const offScreenNorth = (z: number) => {
+		const nearer = box.camera.position.z / (box.camera.position.z - z);
+		return (box.display.containerHeight * (1 + SPAWN_CLEAR)) / nearer + dieReach();
 	};
 
 	/**
@@ -341,6 +468,7 @@
 			try {
 				box = await createDiceBox();
 				installTrayWalls();
+				installTrayGate();
 				await box.initialize();
 				if (disposed) return;
 				installTrayThrow();
