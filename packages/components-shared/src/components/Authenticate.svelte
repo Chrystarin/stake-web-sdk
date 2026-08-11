@@ -91,6 +91,10 @@
 				stateConfig.stepBet =
 					toDisplay(rawConfig.stepBet) ?? smallestGap ?? levels[0] ?? 0;
 				stateConfig.defaultBetLevel = toDisplay(rawConfig.defaultBetLevel) ?? 0;
+				// The modes the RGS actually has books for. `mode` on /wallet/play must be one of
+				// these, so a game can check before betting rather than getting a generic server
+				// error that gives no hint the published math is stale.
+				stateConfig.publishedBetModes = Object.keys(authenticateData.config?.betModes ?? {});
 			}
 
 			// round

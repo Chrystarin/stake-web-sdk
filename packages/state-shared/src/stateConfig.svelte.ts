@@ -23,4 +23,9 @@ export const stateConfig = $state({
 	maxBet: 0,
 	stepBet: 0,
 	defaultBetLevel: 0,
+	// Bet modes the RGS actually has books published for, from the authenticate `config`. The
+	// `mode` sent on /wallet/play must be one of these; anything else fails server-side with a
+	// generic error that is otherwise hard to trace back to a stale math publish.
+	// Empty means the RGS reported none (local dev, or an older RGS build).
+	publishedBetModes: [] as string[],
 });
