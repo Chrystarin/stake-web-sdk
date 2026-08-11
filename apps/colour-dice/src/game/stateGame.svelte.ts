@@ -1,6 +1,7 @@
 import { stateBet, stateConfig } from 'state-shared';
 
 import { COLOURS, MAX_COLOURS, modeForCount, type Colour } from './constants';
+import { rememberCommittedColours } from './activeRound';
 import type { GameType } from './types';
 import type { ColourWin } from './typesEmitterEvent';
 
@@ -38,6 +39,9 @@ export const stateGame = $state({
 	wins: [] as ColourWin[],
 	rolling: false,
 	resultReady: false,
+	// Set when an RGS round is stuck open and the server refuses to close it — betting cannot
+	// proceed until it clears, so the board says so rather than failing silently.
+	openRoundError: '',
 });
 
 /**
@@ -166,6 +170,8 @@ const beginRoll = (): boolean => {
 	const bet = currentBet();
 	if (!bet) return false;
 	stateGame.backedOrder = backedColours();
+	// Which colours were backed never reaches the RGS, so stash it for a possible resume.
+	rememberCommittedColours(stateGame.backedOrder);
 	stateGame.prevRound = { stake: stateGame.stake, colours: [...stateGame.backedOrder] };
 	stateGame.resultReady = false;
 	stateGame.wins = [];
@@ -190,6 +196,19 @@ const winTypeForColour = (colour: Colour): '' | 'rate_2x' | 'rate_3x' | 'rate_jp
 
 const isWinColour = (colour: Colour): boolean => Boolean(winForColour(colour));
 
+/**
+ * Put the board into the state a resumed round was played with, so the replay lights up the
+ * right boxes. Called before playback — the wager is already settled at this point.
+ */
+const applyResumedSelection = (colours: Colour[]) => {
+	stateGame.backed = noneBacked();
+	for (const colour of colours) stateGame.backed[colour] = true;
+	stateGame.selectionOrder = [...colours];
+	stateGame.backedOrder = [...colours];
+	stateGame.resultReady = false;
+	stateGame.wins = [];
+};
+
 export const stateGameDerived = {
 	COLOURS,
 	MAX_COLOURS,
@@ -213,4 +232,5 @@ export const stateGameDerived = {
 	winForColour,
 	winTypeForColour,
 	isWinColour,
+	applyResumedSelection,
 };

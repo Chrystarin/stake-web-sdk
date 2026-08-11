@@ -12,6 +12,8 @@ export type ColourWin = {
 // presentation is HTML/CSS + a three.js dice canvas.
 export type EmitterEventGame =
 	| { type: 'bet' }
+	/** Finish an RGS round that authenticate reported still open (see EnableGameActor). */
+	| { type: 'resumeBet' }
 	| { type: 'diceReveal'; colours: Colour[] }
 	| { type: 'diceSettle'; colours: Colour[]; wins: ColourWin[] }
 	| { type: 'wheelShow' }
