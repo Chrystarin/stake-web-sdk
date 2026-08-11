@@ -137,6 +137,10 @@
 	const canRoll = $derived(
 		idle && !settled && !clearing && backedCount > 0 && !stateGame.openRoundError,
 	);
+	// Both button faces read these, and so do their handlers — a press that is greyed out has to
+	// stay silent, so the click sound only ever answers a press that did something.
+	const confirmDisabled = $derived(settled ? clearing : !canRoll);
+	const clearDisabled = $derived(clearing || (!settled && (!idle || backedCount === 0)));
 
 	/**
 	 * Change the tray denomination. Any bets already on the board are cleared — swept off the
@@ -535,11 +539,11 @@
 					},
 				];
 				schedule(id, () => playSound('whoosh'), delay);
-				// The merge: a pop as the chip goes in, and the balance takes the hit.
+				// The merge: the chip goes into the balance, and the balance takes the hit.
 				schedule(
 					id,
 					() => {
-						playSound('pop');
+						playSound('merge');
 						balancePulse += 1;
 					},
 					delay + COLLECT_TRAVEL_MS,
@@ -594,9 +598,18 @@
 		if (collected > 0) showWinFloat(collected);
 	};
 
+	/** The Play/Clear tab: rolling the bets, or collecting the round they won. */
+	const onConfirmClick = () => {
+		if (confirmDisabled) return;
+		playSound('click');
+		if (settled) void finishRound();
+		else roll();
+	};
+
 	/** Clear button: collecting a resolved round, or sweeping bets that have not been played. */
 	const onClearClick = () => {
-		if (clearing) return;
+		if (clearDisabled) return;
+		playSound('click');
 		if (settled) void finishRound();
 		else clearBoard();
 	};
@@ -778,8 +791,8 @@
 					<div
 						class="confirm-btn"
 						class:clear-mode={settled}
-						class:disabled={settled ? clearing : !canRoll}
-						onclick={settled ? () => void finishRound() : roll}
+						class:disabled={confirmDisabled}
+						onclick={onConfirmClick}
 						aria-hidden="true"
 					>
 						<div class="confirm-lbl">
@@ -790,7 +803,7 @@
 					<div class="actions-wrap">
 						<div
 							class="clear-btn"
-							class:disabled={clearing || (!settled && (!idle || backedCount === 0))}
+							class:disabled={clearDisabled}
 							onclick={onClearClick}
 							title="Clear"
 							aria-hidden="true"

@@ -8,19 +8,25 @@ import { stateSoundDerived } from 'state-shared';
  * standalone mp3s. Each play uses its own audio node, so overlapping plays (tapping one colour
  * straight after another) sound together instead of restarting the one already playing.
  */
-export type SoundName = 'whoosh' | 'pop';
+export type SoundName = 'whoosh' | 'pop' | 'click' | 'merge';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
 	whoosh: '/sound/whoosh.mp3',
 	// The chip settling onto the colour.
 	pop: '/sound/pop.mp3',
+	// A button answering the press — Play and Clear.
+	click: '/sound/clickUIButton.mp3',
+	// A won chip going into the balance.
+	merge: '/sound/chip_merge.mp3',
 };
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
 const MIX: Record<SoundName, number> = {
 	whoosh: 0.5,
 	pop: 0.9,
+	click: 0.9,
+	merge: 0.9,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
