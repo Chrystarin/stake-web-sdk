@@ -219,15 +219,33 @@
 		width: 100%;
 		height: 100%;
 		position: relative;
+		/* Contain the dim-overlay/scene z-indices below. `position: relative` alone leaves
+		   `z-index: auto`, which is NOT a stacking context — the scene's `z-index: 1` would
+		   then compete in the root context and paint the dice canvas over the betting panel,
+		   swallowing every click on the colour boxes. */
+		isolation: isolate;
 		overflow: hidden;
 		background-image: url('/img/background.png');
 		background-position: center;
 		background-repeat: no-repeat;
 		background-size: cover;
 	}
+	/* Dim the felt so the dice read against it. Sits above the background image but BELOW the
+	   dice canvas, so the dice themselves stay at full brightness. */
+	.dice-box::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: #000;
+		opacity: 0.3;
+		pointer-events: none;
+		z-index: 0;
+	}
 	.dice-scene {
 		width: 100%;
 		height: 100%;
 		background: transparent;
+		position: relative;
+		z-index: 1;
 	}
 </style>

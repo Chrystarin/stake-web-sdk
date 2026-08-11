@@ -33,6 +33,9 @@
 		stateConfig.betMenuOptions = [5, 10, 50, 100, 1000, 10000];
 		stateConfig.minBet = 5;
 		stateConfig.maxBet = 10000;
+		// Stands in for the RGS's suggested opening stake, so the offline board starts on the
+		// same code path as a real session rather than defaulting to the cheapest chip.
+		stateConfig.defaultBetLevel = 50;
 		context.stateXstate.value = 'idle';
 	});
 

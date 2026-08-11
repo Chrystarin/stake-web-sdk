@@ -2,7 +2,7 @@ import { type BookEventHandlerMap } from 'utils-book';
 import { stateBet } from 'state-shared';
 
 import { eventEmitter } from './eventEmitter';
-import { stateGame, stateGameDerived } from './stateGame.svelte';
+import { stateGame } from './stateGame.svelte';
 import { resolveDiceColours, resolveSlotColour } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import type { ColourWin } from './typesEmitterEvent';
@@ -26,7 +26,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		const colours = resolveDiceColours(bookEvent.dice, stateGame.backedOrder);
 		await eventEmitter.broadcastAsync({ type: 'diceReveal', colours });
 		stateGame.dice = colours;
-		stateGameDerived.pushHistory(colours);
 	},
 
 	wheelSpin: async (bookEvent: BookEventOfType<'wheelSpin'>) => {

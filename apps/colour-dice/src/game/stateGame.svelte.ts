@@ -1,14 +1,18 @@
-import { stateBet } from 'state-shared';
+import { stateBet, stateConfig } from 'state-shared';
 
 import { COLOURS, MAX_COLOURS, modeForCount, type Colour } from './constants';
 import type { GameType } from './types';
 import type { ColourWin } from './typesEmitterEvent';
 
-export type HistoryEntry = { colours: Colour[] };
-
-// Stake denominations, matching the original ColourDice chip tray (and the .ch0..ch5 art).
-// This is the stake placed on EACH backed colour, so the total wager is value x colours.
-export const STAKES = [5, 10, 50, 100, 1000, 10000] as const;
+/**
+ * Stake denominations for the chip tray, taken from the RGS bet template.
+ *
+ * `stateConfig.betAmountOptions` is populated by Authenticate.svelte from the RGS
+ * `betLevels` grid, so the tray offers exactly the amounts this operator/currency allows —
+ * never a hard-coded ladder that might not be a valid wager. `amount` is submitted unscaled
+ * (one mode per colour count, cost does the multiplying), so any option here is bettable.
+ */
+const stakeOptions = (): number[] => [...(stateConfig.betAmountOptions ?? [])].sort((a, b) => a - b);
 
 const noneBacked = (): Record<Colour, boolean> =>
 	Object.fromEntries(COLOURS.map((colour) => [colour, false])) as Record<Colour, boolean>;
@@ -20,8 +24,9 @@ export const stateGame = $state({
 	// Colours in the order they were backed — drives undo, and fixes the B1..Bk ordering that
 	// book slots resolve against. (Stakes are equal, so the order is arbitrary but must be stable.)
 	selectionOrder: [] as Colour[],
-	// Stake placed on each backed colour.
-	stake: STAKES[0] as number,
+	// Stake placed on each backed colour. 0 until the RGS bet template arrives; `ensureValidStake`
+	// snaps it onto the published grid.
+	stake: 0,
 	// Last committed round, for "repeat".
 	prevRound: null as { stake: number; colours: Colour[] } | null,
 	// Backed colours frozen at roll time. Book slots B1..Bk map onto this, so it must not
@@ -33,8 +38,33 @@ export const stateGame = $state({
 	wins: [] as ColourWin[],
 	rolling: false,
 	resultReady: false,
-	history: [] as HistoryEntry[],
 });
+
+/**
+ * Keep `stake` on the RGS grid, starting from the operator's suggested bet.
+ *
+ * The bet template only arrives once /wallet/authenticate resolves, so the initial 0 has to
+ * be replaced then; this also covers an operator whose grid does not contain whatever was
+ * previously selected.
+ *
+ * Preference order: the RGS `defaultBetLevel` (its suggested opening stake), then the
+ * nearest published level to it if it is not itself on the grid, then the cheapest option.
+ */
+const ensureValidStake = () => {
+	const options = stakeOptions();
+	if (!options.length) return;
+	if (options.includes(stateGame.stake)) return;
+
+	const suggested = stateConfig.defaultBetLevel;
+	if (suggested > 0) {
+		const nearest = options.reduce((best, option) =>
+			Math.abs(option - suggested) < Math.abs(best - suggested) ? option : best,
+		);
+		stateGame.stake = nearest;
+		return;
+	}
+	stateGame.stake = options[0];
+};
 
 const backedColours = (): Colour[] => stateGame.selectionOrder.filter((c) => stateGame.backed[c]);
 
@@ -71,6 +101,9 @@ const resetBoard = () => {
 
 const selectStake = (value: number) => {
 	if (stateGame.rolling) return;
+	// Only accept amounts the RGS actually publishes — the tray is built from the same list,
+	// so this just guards against a stale value surviving a bet-template change.
+	if (!stakeOptions().includes(value)) return;
 	stateGame.stake = value;
 	// Backing off is cheaper than blocking: if the new denomination no longer fits the
 	// balance, drop colours (most recent first) until it does.
@@ -157,14 +190,11 @@ const winTypeForColour = (colour: Colour): '' | 'rate_2x' | 'rate_3x' | 'rate_jp
 
 const isWinColour = (colour: Colour): boolean => Boolean(winForColour(colour));
 
-const pushHistory = (colours: Colour[]) => {
-	stateGame.history = [...stateGame.history, { colours }].slice(-10);
-};
-
 export const stateGameDerived = {
 	COLOURS,
-	STAKES,
 	MAX_COLOURS,
+	stakeOptions,
+	ensureValidStake,
 	backedColours,
 	backedCount,
 	totalStake,
@@ -183,5 +213,4 @@ export const stateGameDerived = {
 	winForColour,
 	winTypeForColour,
 	isWinColour,
-	pushHistory,
 };
