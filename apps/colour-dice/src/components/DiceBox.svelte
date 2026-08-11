@@ -77,6 +77,28 @@
 	 * each other on the way in, and that is not something to leave to chance.
 	 */
 	const THROW_JITTER = 0.16;
+
+	// --- Reading the dice -----------------------------------------------------------------------
+	// A die only counts if it comes to rest flat on the felt with one face up. Cocked against a
+	// wall, leaning on a neighbour, sitting on top of one — none of those is a roll, so the throw
+	// is taken again.
+	//
+	// Taken as a WHOLE throw rather than picking up the offending die, which is what the library's
+	// own `checkForRethrow` would do. It settles every throw twice — once headless, to read the
+	// faces off the dice, and then again on screen — and only the headless pass is ever offered
+	// that hook. Re-throwing a die there would leave the two passes running different physics, and
+	// the dice on screen would come to rest somewhere other than where the faces were read from.
+	//
+	// A throw is reproducible to the last decimal from its vectors alone, so one can be tried
+	// headlessly instead and kept only if it lands clean. What the player sees is then a single
+	// throw that happens to read, rather than a die picking itself up afterwards.
+
+	/** How far off flat a die may rest and still read: the cosine of the angle, so 6deg. */
+	const FLAT_ENOUGH = 0.9945;
+	/** How high a die may rest, in its own half-widths, before it counts as on top of something. */
+	const ON_THE_FELT = 1.3;
+	/** Throws to try before going with the least bad of them. */
+	const THROW_TRIES = 8;
 	/**
 	 * Launch speed as a multiple of the distance to what a die is aimed at, rather than a flat
 	 * figure: every die then carries the same way whether it is crossing the tray or dropping
@@ -120,6 +142,27 @@
 
 	/** A die's reach from its own middle — corner to middle, so it covers any attitude. */
 	const dieReach = () => box.DiceFactory.baseScale * 0.9;
+
+	/**
+	 * Whether a settled die is showing a face, flat on the felt.
+	 *
+	 * A d6's faces are its three axes, so how flat it lies is how nearly one of those axes points
+	 * straight up — which is what catches a die cocked against a wall or leaning on a neighbour.
+	 * Height catches the one that landed square but on TOP of another, which reads perfectly well
+	 * and is still not a roll: `z` is a die's own half-width when it is on the felt, and a
+	 * multiple of that when it is on something else.
+	 */
+	const readsFlat = (die: any) => {
+		const { x, y, z, w } = die.body.quaternion;
+		// The world-z of each of the die's three axes; the largest is whichever is nearest upright.
+		const upright = Math.max(
+			Math.abs(2 * (x * z - y * w)),
+			Math.abs(2 * (y * z + x * w)),
+			Math.abs(1 - 2 * (x * x + y * y)),
+		);
+		const halfWidth = (box.DiceFactory.baseScale * D6_FACE) / 2;
+		return upright >= FLAT_ENOUGH && die.body.position.z <= halfWidth * ON_THE_FELT;
+	};
 
 	const makeCircularFaceImage = (hex: string): Promise<HTMLImageElement> => {
 		const size = 256;
@@ -308,7 +351,7 @@
 	};
 
 	/**
-	 * Re-aim the library's throw: drop the dice in over the tray and send them across it.
+	 * Re-aim the library's throw, and take it again until it lands readable.
 	 *
 	 * Wraps `startClickThrow` (which `roll()` calls to build the per-die vectors) so the library
 	 * still computes spin and axis — only the launch position and heading are replaced.
@@ -319,15 +362,10 @@
 	 */
 	const installTrayThrow = () => {
 		const original = box.startClickThrow.bind(box);
-		box.startClickThrow = (notation: string) => {
-			const thrown = original(notation);
-			const vectors = thrown?.vectors;
-			if (!vectors?.length) return thrown;
-			// No tray to throw into yet — a scene that has not been laid out has nothing to measure
-			// one from, and re-aiming off it would only put the dice at NaN. The library's own
-			// throw is a perfectly good thing to fall back on.
-			if (!arena.halfX) return thrown;
 
+		/** Send one throw in off the top of the table and down into the tray. */
+		const aim = (thrown: any) => {
+			const vectors = thrown.vectors;
 			const { halfX, halfY, centreY } = arena;
 			const narrow = Math.min(halfX, halfY);
 			// The side walls run the full height of the world, so they are as much in the way up
@@ -367,6 +405,38 @@
 				};
 			});
 			return thrown;
+		};
+
+		/** Settle a throw headlessly, and say how many dice it left unreadable. */
+		const cockedIn = (thrown: any) => {
+			box.clearDice();
+			for (const vector of thrown.vectors) box.spawnDice(vector);
+			box.simulateThrow();
+			return box.diceList.filter((die: any) => !readsFlat(die)).length;
+		};
+
+		box.startClickThrow = (notation: string) => {
+			const first = original(notation);
+			if (!first?.vectors?.length) return first;
+			// No tray to throw into yet — a scene that has not been laid out has nothing to measure
+			// one from, and re-aiming off it would only put the dice at NaN. The library's own
+			// throw is a perfectly good thing to fall back on.
+			if (!arena.halfX) return first;
+
+			let best = aim(first);
+			let fewest = cockedIn(best);
+			// Take it again until every die reads. Each try is a fresh fan and a fresh set of
+			// headings, so they are independent — and since a throw is settled from its vectors
+			// alone, the one kept here is the one that plays out on screen.
+			for (let tries = 1; fewest && tries < THROW_TRIES; tries++) {
+				const next = aim(original(notation));
+				const cocked = cockedIn(next);
+				if (cocked < fewest) [best, fewest] = [next, cocked];
+			}
+			// Nothing of the trials left for the library to find: it settles this throw again from
+			// the vectors, and expects to be starting from an empty table.
+			box.clearDice();
+			return best;
 		};
 	};
 
