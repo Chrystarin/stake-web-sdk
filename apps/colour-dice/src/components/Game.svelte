@@ -1350,10 +1350,17 @@
 	/* table.scss lays the panel out from 25vw to the right edge — it used to share the row with
 	   the live dealer's chat column. Nothing sits beside it now, so mirror that inset on the
 	   left instead of dropping it: same 75vw width as before, just centred rather than shoved
-	   against the right edge. */
+	   against the right edge.
+
+	   The inset is published on `.game` rather than written in here because the dice tray lines
+	   its own width up with this panel (see DiceBox's `.dice-tray`), and it can only do that for
+	   good if there is one number to read. */
+	.game {
+		--panel-inset: 12.5vw;
+	}
 	.bottom-panel {
-		left: 12.5vw;
-		right: 12.5vw;
+		left: var(--panel-inset);
+		right: var(--panel-inset);
 		justify-content: center;
 		/* table.scss lifts this 4vw to clear the old bottom bar. That bar is gone, so drop the
 		   panel back down to a small margin off the bottom edge. */
