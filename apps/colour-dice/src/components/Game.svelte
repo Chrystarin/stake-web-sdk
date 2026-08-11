@@ -11,7 +11,7 @@
 	import { getContext } from '../game/context';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
-	import { playSound, preloadSounds } from '../game/sound';
+	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
 	import type { Colour } from '../game/constants';
 
 	import DiceBox from './DiceBox.svelte';
@@ -643,12 +643,22 @@
 
 	onMount(() => {
 		preloadSounds();
+		// The table track, running for as long as the game is up. Autoplay is usually refused this
+		// early, in which case it starts itself on the player's first touch of the page.
+		startMusic();
 		// Stop in-flight timers from firing into a torn-down game — a collect's cues do more than
 		// play a sound, so they have to be called off rather than just left to miss.
 		return () => {
 			for (const id of [...flightTimers.keys()]) cancelCues(id);
 			flights = [];
+			stopMusic();
 		};
+	});
+
+	// Reading the music volume in here is what subscribes this to the slider, so moving it takes
+	// effect on the track that is already playing.
+	$effect(() => {
+		syncMusicVolume();
 	});
 
 	const toggleColour = (colour: Colour) => {

@@ -55,3 +55,70 @@ export const playSound = (name: SoundName): void => {
 	// board, so there is nothing to recover from and nothing worth logging.
 	void node.play().catch(() => {});
 };
+
+// --- Background music ---------------------------------------------------------------------
+// One looping track under the table, on the MUSIC volume rather than the effects one, so a
+// player who only wants the chips can turn it off on its own.
+
+const MUSIC_SRC = '/sound/background_music_placeholder.mp3';
+
+/** Held well under the effects — the track plays behind the game, not over it. */
+const MUSIC_MIX = 0.05;
+
+let music: HTMLAudioElement | null = null;
+/** Calls off a pending "start on the first gesture" wait; null while nothing is waiting. */
+let cancelGestureWait: (() => void) | null = null;
+
+const musicVolume = () => Math.min(1, stateSoundDerived.volumeMusic() * MUSIC_MIX);
+
+/** Run `start` on the first interaction with the page, once, and only ever wait for one. */
+const onFirstGesture = (start: () => void): void => {
+	if (cancelGestureWait || typeof window === 'undefined') return;
+	const events = ['pointerdown', 'keydown', 'touchstart'] as const;
+	const onGesture = () => {
+		cancelGestureWait?.();
+		start();
+	};
+	cancelGestureWait = () => {
+		for (const type of events) window.removeEventListener(type, onGesture);
+		cancelGestureWait = null;
+	};
+	for (const type of events) window.addEventListener(type, onGesture, { passive: true });
+};
+
+/**
+ * Start the table music, looping until `stopMusic`.
+ *
+ * Autoplay is refused until the player has interacted with the page, so a blocked start is not
+ * a failure: the track waits for the first touch of the table and begins there instead. Safe to
+ * call again — it reuses the element it already has.
+ */
+export const startMusic = (): void => {
+	if (typeof Audio === 'undefined') return; // SSR
+	if (!music) {
+		music = new Audio(MUSIC_SRC);
+		music.loop = true;
+		music.preload = 'auto';
+	}
+	music.volume = musicVolume();
+	// Turned all the way down: nothing to start until the slider comes back up (syncMusicVolume).
+	if (music.volume <= 0) return;
+	void music.play().catch(() => onFirstGesture(startMusic));
+};
+
+/** Follow the music slider: silence pauses the track, and turning it back up resumes it. */
+export const syncMusicVolume = (): void => {
+	// Read before the guard, so a caller tracking this (Game's effect) still subscribes to the
+	// slider on a call that lands before the track exists.
+	const volume = musicVolume();
+	if (!music) return;
+	music.volume = volume;
+	if (volume <= 0) music.pause();
+	else if (music.paused) startMusic();
+};
+
+export const stopMusic = (): void => {
+	cancelGestureWait?.();
+	music?.pause();
+	music = null;
+};
