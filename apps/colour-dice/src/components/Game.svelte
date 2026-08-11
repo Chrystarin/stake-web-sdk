@@ -735,6 +735,21 @@
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
 	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
 
+	/**
+	 * The balance, in full: grouped and to the cent, in the player's own language.
+	 *
+	 * Everything else on the table abbreviates past a thousand (see `fmt`), which is fine for a
+	 * wager the player just set — but the balance is their money, and `$12.3k` hides up to fifty
+	 * of it. Held on a derived formatter rather than built per read, so a HUD that re-renders on
+	 * every chip going in is not constructing one each time.
+	 */
+	const balanceFormat = $derived(
+		new Intl.NumberFormat(stateUrlDerived.lang(), {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		}),
+	);
+
 	// Round readout (RoundResult). Follows ColourDice2's `app-result`: the grouped dice go up as
 	// soon as the round resolves — win or lose — and stay up until the next round starts, with
 	// the win marquee layered on when it paid.
@@ -780,7 +795,7 @@
 				<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
 				<div class="balance-text">
 					<span class="hud-lbl">Balance</span>
-					<span class="hud-val">{sign}{fmt(shownBalance)}</span>
+					<span class="hud-val">{sign}{balanceFormat.format(shownBalance)}</span>
 				</div>
 			</div>
 		{/key}
@@ -1412,8 +1427,13 @@
 		pointer-events: none;
 	}
 	/* HUD overlaid on the table: balance top-left, menu top-right. Replaces the old bottom bar,
-	   which is gone entirely. */
+	   which is gone entirely.
+
+	   The balance chip and the menu button are the two round marks in the strip, one at each end,
+	   so they are sized off a single number rather than each carrying their own — matched by
+	   accident is matched until somebody changes one. */
 	.hud {
+		--hud-mark: 3.2vw;
 		position: absolute;
 		top: 0;
 		left: 0;
@@ -1428,7 +1448,7 @@
 	.balance-hud {
 		display: flex;
 		align-items: center;
-		gap: 0.5vw;
+		gap: 0.7vw;
 		font-family: 'Alexandria', sans-serif;
 		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.8);
 	}
@@ -1451,8 +1471,8 @@
 		}
 	}
 	.balance-chip {
-		width: 2.2vw;
-		height: 2.2vw;
+		width: var(--hud-mark);
+		height: var(--hud-mark);
 		flex: none;
 		background: url('/img/chip_yellow.svg') no-repeat center / contain;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.6));
@@ -1462,22 +1482,27 @@
 		flex-direction: column;
 	}
 	.hud-lbl {
-		font-size: 0.7vw;
+		font-size: 0.95vw;
 		font-weight: 500;
 		letter-spacing: 0.05vw;
 		text-transform: uppercase;
 		color: #d6c6b4;
 	}
+	/* The figure is now written out in full, so it has to hold one line whatever the balance is,
+	   and the digits are fixed-width — otherwise the readout shuffles sideways as it counts up
+	   through a collect. */
 	.hud-val {
-		font-size: 1.3vw;
+		font-size: 1.9vw;
 		font-weight: 700;
 		color: #ffe14d;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
 	}
 	/* global.scss sizes .menu-btn at 10vw for the mobile layout, and the bottom bar that used
-	   to override it is gone — so pin the size here. */
+	   to override it is gone — so pin the size here, to the same mark as the balance chip. */
 	.hud .menu-btn {
-		width: 2.6vw;
-		height: 2.6vw;
+		width: var(--hud-mark);
+		height: var(--hud-mark);
 		margin: 0;
 		cursor: pointer;
 		pointer-events: auto;
