@@ -70,6 +70,10 @@
 	// Show at most five chips, with the selected one in the middle slot and the rest either
 	// side. Tapping a neighbour selects it, which slides the window along.
 	//
+	// Every stake is rendered, as one long rail; the tray only shows the five slots it is wide
+	// and clips the rest (see .chips-viewport). Moving the window is then a transition on the
+	// rail's offset, so the chips travel to their new slots instead of being swapped in place.
+	//
 	// The window CLAMPS at both ends rather than wrapping: wrapping would keep the selection
 	// perfectly centred, but it also parks the dearest chips right next to the cheapest, so a
 	// single mis-tap could swing the stake from the minimum to the maximum. The cost is that
@@ -78,24 +82,27 @@
 
 	const carousel = $derived.by(() => {
 		const total = stakes.length;
-		if (!total) return [];
-		// Never exceed the number of options, otherwise the window would show blank slots.
+		// Never exceed the number of options, otherwise the tray would show blank slots.
 		const windowSize = Math.min(VISIBLE_CHIPS, total);
 		const middle = Math.floor(windowSize / 2);
 		const selected = Math.max(0, stakes.indexOf(stateGame.stake));
 		const start = Math.min(Math.max(selected - middle, 0), total - windowSize);
-		return Array.from({ length: windowSize }, (_, slot) => {
-			const index = start + slot;
-			// Depth drives the visual falloff and is measured from the SELECTED chip, so that
-			// stays front even when clamping has pushed it off the middle slot. Capped at 2
-			// because a clamped window can sit up to four slots from the selection.
-			return {
-				value: stakes[index],
+		return {
+			windowSize,
+			// Slots the rail is scrolled by — the index of the first chip in the window.
+			start: Math.max(start, 0),
+			chips: stakes.map((value, index) => ({
+				value,
 				index,
+				// Depth drives the visual falloff and is measured from the SELECTED chip, so that
+				// stays front even when clamping has pushed it off the middle slot. Capped at 2
+				// because a clamped window can sit up to four slots from the selection.
 				depth: Math.min(Math.abs(index - selected), 2),
 				selected: index === selected,
-			};
-		});
+				// Clipped chips are still in the DOM, so they must not take taps.
+				shown: index >= start && index < start + windowSize,
+			})),
+		};
 	});
 
 	// Tapping the already-selected chip opens the full grid — the carousel only ever shows five
@@ -542,21 +549,28 @@
 							{/if}
 
 							<div class="chips-wrap">
-								{#each carousel as chip (chip.value)}
-									<div class="chip-wrap" style="--depth:{chip.depth}">
-										<div
-											bind:this={chipEls[chip.value]}
-											class="chip"
-											class:selected={chip.selected}
-											class:open={chip.selected && stakePanelOpen}
-											style="--chip-hue:{chipHueShift(chip.index)}deg; --chip-text:{chipTextColour(chip.index)}"
-											onclick={() => onChipClick(chip.value, chip.selected)}
-											aria-hidden="true"
-										>
-											<span>{fmtChip(chip.value)}</span>
-										</div>
+								<!-- Window onto the rail: five slots wide, everything either side clipped. -->
+								<div class="chips-viewport" style="--slots:{carousel.windowSize}">
+									<div class="chips-rail" style="--offset:{carousel.start}">
+										{#each carousel.chips as chip (chip.value)}
+											<div class="chip-wrap" class:shown={chip.shown} style="--depth:{chip.depth}">
+												<div
+													bind:this={chipEls[chip.value]}
+													class="chip"
+													class:selected={chip.selected}
+													class:open={chip.selected && stakePanelOpen}
+													style="--chip-hue:{chipHueShift(
+														chip.index,
+													)}deg; --chip-text:{chipTextColour(chip.index)}"
+													onclick={() => onChipClick(chip.value, chip.selected)}
+													aria-hidden="true"
+												>
+													<span>{fmtChip(chip.value)}</span>
+												</div>
+											</div>
+										{/each}
 									</div>
-								{/each}
+								</div>
 							</div>
 						</div>
 						<div
@@ -830,16 +844,49 @@
 		cursor: pointer;
 	}
 
+	/* The tray is a window onto a rail carrying EVERY stake, so moving the selection can be a
+	   slide rather than a swap. The window is exactly as wide as the slots it shows; the chips
+	   queued either side are clipped, not hidden, so they travel in and out of view.
+
+	   Clipped with overflow rather than a mask because the pill tray behind it is opaque —
+	   there is nothing to fade into. The vertical padding (cancelled by the matching negative
+	   margin, so the tray keeps its height) holds the clip off the selected chip, which lifts
+	   out of its slot and wears an outline that would otherwise be cropped. */
+	.chips-viewport {
+		/* One slot = table.scss's tray chip: a 3.5vw disc with 0.4vw either side. */
+		--chip-pitch: 4.3vw;
+		width: calc(var(--slots, 5) * var(--chip-pitch));
+		overflow: hidden;
+		padding: 1vw 0.5vw 0.5vw;
+		margin: -1vw -0.5vw -0.5vw;
+	}
+	.chips-rail {
+		display: flex;
+		width: max-content;
+		/* `--offset` is the first visible slot, so the rail is pulled that many slots left. */
+		transform: translateX(calc(var(--offset, 0) * var(--chip-pitch) * -1));
+		transition: transform 0.26s cubic-bezier(0.22, 0.61, 0.36, 1);
+	}
 	/* Carousel depth: `--depth` is the slot's distance from the selected chip (0, 1 or 2), so
 	   the selection sits front and full-size and the rest recede either side. Applied to the
-	   wrapper so table.scss's own `.chip.selected` scale still layers on top. */
+	   wrapper so table.scss's own `.chip.selected` scale still layers on top.
+
+	   Fixed to one slot each so the rail's offset stays a plain multiple of the pitch — the
+	   chip's own margins fill the slot exactly. */
 	.chip-wrap {
+		flex: 0 0 var(--chip-pitch);
+		display: flex;
+		justify-content: center;
 		scale: calc(1 - var(--depth, 0) * 0.11);
 		opacity: calc(1 - var(--depth, 0) * 0.22);
 		z-index: calc(3 - var(--depth, 0));
 		transition:
-			scale 0.18s ease,
-			opacity 0.18s ease;
+			scale 0.26s ease,
+			opacity 0.26s ease;
+	}
+	/* Out of the window: clipped from view, so keep it out of reach of taps too. */
+	.chip-wrap:not(.shown) {
+		pointer-events: none;
 	}
 	.odds {
 		cursor: pointer;
