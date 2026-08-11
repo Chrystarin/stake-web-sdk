@@ -10,7 +10,9 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onResumeGameInactive: () => {},
 	onNewGameStart: async () => {
 		stateBet.winBookEventAmount = 0;
-		stateGame.rolling = false;
+		// The roll is in flight from here until winInfo/finalWin settles it, which is what
+		// locks the board (no re-chipping mid-roll — the mode is already committed).
+		stateGame.rolling = true;
 		stateGame.resultReady = false;
 	},
 	onNewGameError: () => {

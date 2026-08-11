@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "colour-dice",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "dev", "--port", "3010", "--strictPort"],
+      "port": 3010,
+      "autoPort": false
+    },
+    {
+      "name": "plinko",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3013", "--strictPort"],
+      "port": 3013,
+      "autoPort": false
+    }
+  ]
+}

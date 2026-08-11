@@ -8,7 +8,7 @@
 
 	import { getContext } from '../game/context';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
-	import type { Colour } from '../game/constants';
+	import { maxWinForCount, type Colour } from '../game/constants';
 
 	import DiceBox from './DiceBox.svelte';
 	import WheelBonus from './WheelBonus.svelte';
@@ -22,49 +22,51 @@
 
 	// Odds panels are shown in the original ColourDice order.
 	const DISPLAY_COLOURS: Colour[] = ['yellow', 'white', 'pink', 'blue', 'red', 'green'];
-	const CHIPS = stateGameDerived.CHIPS;
+	const STAKES = stateGameDerived.STAKES;
+	const MAX_COLOURS = stateGameDerived.MAX_COLOURS;
 
-	const total = $derived(stateGameDerived.totalBet());
+	const backedCount = $derived(stateGameDerived.backedCount());
+	const total = $derived(stateGameDerived.totalStake());
 	const idle = $derived(context.stateXstateDerived.isIdle() && !stateGame.rolling);
-	const canRoll = $derived(idle && total > 0);
+	const canRoll = $derived(idle && backedCount > 0);
 
-	// Map an accumulated stake to a chip-tier index (highest chip value <= amount),
-	// matching ColourDice's stacked-chip visual.
-	const chipTier = (amount: number) => {
-		let index = 0;
-		CHIPS.forEach((value, i) => {
-			if (value <= amount) index = i;
-		});
-		return index;
-	};
+	// Advertised ceiling for the current selection, against the total wager.
+	const maxWin = $derived(backedCount > 0 ? maxWinForCount(backedCount) : 0);
 
-	const placeChip = (colour: Colour) => {
+	const toggleColour = (colour: Colour) => {
 		if (!idle) return;
-		stateGameDerived.placeChip(colour);
+		stateGameDerived.toggleColour(colour);
 	};
-	const selectChip = (value: number) => stateGameDerived.selectChip(value);
+	const selectStake = (value: number) => stateGameDerived.selectStake(value);
+
+	// Stake at the moment of commit — the board can reset while the roll plays out.
+	let committedStake = $state(0);
 	const roll = () => {
 		if (!canRoll) return;
-		stateGameDerived.beginRoll();
+		committedStake = total;
+		if (!stateGameDerived.beginRoll()) return;
+		stateGame.rolling = true;
 		context.eventEmitter.broadcast({ type: 'bet' });
 	};
 
 	const sign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
 	const fmt = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
+	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
 
 	// Win overlay
 	let winVisible = $state(false);
-	let winMultiplier = $state(0);
 	let winCash = $state(0);
+	let winMultiplier = $state(0);
 	const winTitle = $derived(
 		winMultiplier >= 100 ? 'JACKPOT!' : winMultiplier >= 20 ? 'BIG WIN!' : 'YOU WIN',
 	);
 
 	context.eventEmitter.subscribeOnMount({
 		winShow: async (emitterEvent) => {
-			winMultiplier = emitterEvent.amount / 100;
-			winCash = winMultiplier * stateBet.betAmount;
+			// Book amounts are x100 in units of the per-colour stake, so cash scales by betAmount.
+			winCash = (emitterEvent.amount / 100) * stateBet.betAmount;
+			winMultiplier = committedStake > 0 ? winCash / committedStake : 0;
 			winVisible = true;
 			await waitForTimeout(winMultiplier >= 20 ? 2600 : 1600);
 		},
@@ -98,29 +100,29 @@
 					<div class="actions-wrap">
 						<div
 							class="clear-btn"
-							class:disabled={!idle || total === 0}
+							class:disabled={!idle || backedCount === 0}
 							onclick={() => stateGameDerived.clearBets()}
 							title="Clear"
 							aria-hidden="true"
 						></div>
 						<div
 							class="undo-btn"
-							class:disabled={!idle || stateGame.placementHistory.length === 0}
+							class:disabled={!idle || backedCount === 0}
 							onclick={() => stateGameDerived.undoBet()}
 							title="Undo"
 							aria-hidden="true"
 						></div>
 						<div class="chipandstate-wrap">
 							<div class="chips-wrap">
-								{#each CHIPS as chip, i (chip)}
+								{#each STAKES as value, i (value)}
 									<div class="chip-wrap">
 										<div
 											class="chip ch{i}"
-											class:selected={stateGame.activeChip === chip}
-											onclick={() => selectChip(chip)}
+											class:selected={stateGame.stake === value}
+											onclick={() => selectStake(value)}
 											aria-hidden="true"
 										>
-											<span>{fmt(chip)}</span>
+											<span>{fmtChip(value)}</span>
 										</div>
 									</div>
 								{/each}
@@ -128,7 +130,7 @@
 						</div>
 						<div
 							class="repeat-btn"
-							class:disabled={!idle || total > 0 || !stateGameDerived.canRepeat()}
+							class:disabled={!idle || backedCount > 0 || !stateGameDerived.canRepeat()}
 							onclick={() => stateGameDerived.repeatBets()}
 							title="Repeat last bet"
 							aria-hidden="true"
@@ -140,28 +142,28 @@
 
 					<div class="outcomes">
 						{#each DISPLAY_COLOURS as colour (colour)}
-							{@const isMain =
-								stateGame.bets[colour] > 0 && colour === stateGameDerived.currentPrimaryColour()}
+							{@const backed = stateGameDerived.isBacked(colour)}
+							{@const win = stateGameDerived.winForColour(colour)}
 							<div
 								class="odds {colour}"
-								class:win={stateGameDerived.isWinColour(colour)}
-								class:backed-hit={stateGameDerived.isBackedHit(colour)}
-								class:main-call={isMain}
-								onclick={() => placeChip(colour)}
+								class:win={Boolean(win)}
+								class:backed
+								onclick={() => toggleColour(colour)}
 								aria-hidden="true"
 							>
 								<div class="outcome-stat">
 									<div class="total-amount-lbl">{colour.toUpperCase()}</div>
 								</div>
-								{#if isMain}
-									<div class="main-tag">MAIN</div>
-								{/if}
 								<div class="rate {stateGameDerived.winTypeForColour(colour)}"></div>
-								<span class="jackpot-value-lbl">2× · 3× · JACKPOT</span>
-								{#if stateGame.bets[colour] > 0}
-									<div class="chip ch{chipTier(stateGame.bets[colour])}">
-										<span>{fmt(stateGame.bets[colour])}</span>
+								{#if win}
+									<div class="hit-tag">
+										{win.matches === 3 ? 'TRIPLE' : win.matches === 2 ? '3×' : '2×'}
 									</div>
+								{:else}
+									<span class="jackpot-value-lbl">2× · 3× · WHEEL</span>
+								{/if}
+								{#if backed}
+									<div class="stake-marker">{sign}{fmt(stateGame.stake)}</div>
 								{/if}
 							</div>
 						{/each}
@@ -172,9 +174,9 @@
 
 		<div class="stat-wrap">
 			<div class="history">
-				{#each stateGame.history.slice().reverse() as entry (entry)}
+				{#each stateGame.history.slice().reverse() as entry, index (index)}
 					<div class="result-col">
-						{#each entry.colours as itemColour (itemColour)}
+						{#each entry.colours as itemColour, dieIndex (dieIndex)}
 							<div class="result-item {itemColour}"></div>
 						{/each}
 					</div>
@@ -185,7 +187,13 @@
 
 	<div class="bottom-bar">
 		<div class="menu-btn" aria-hidden="true"></div>
-		<div class="round-lbl">RTP 97%</div>
+		<div class="round-lbl">
+			{#if backedCount > 0}
+				{backedCount}/{MAX_COLOURS} colours · max {maxWin.toFixed(2)}×
+			{:else}
+				RTP 96.49% · back up to {MAX_COLOURS} colours
+			{/if}
+		</div>
 		<div class="info-wrap">
 			<div class="balance-wrap">
 				<div>Balance</div>
@@ -206,6 +214,15 @@
 				<div class="win-title">{winTitle}</div>
 				<div class="win-cash">{sign}{winCash.toFixed(2)}</div>
 				<div class="win-mult">{winMultiplier.toFixed(2)}×</div>
+				{#if stateGame.wins.length > 1}
+					<div class="win-breakdown">
+						{#each stateGame.wins as win (win.colour)}
+							<span class="win-chip {win.colour}"
+								>{win.colour} → {win.matches === 3 ? 'wheel' : `${win.matches === 2 ? 3 : 2}×`}</span
+							>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -219,25 +236,22 @@
 	}
 	.odds {
 		cursor: pointer;
+		position: relative;
 	}
+	/* A colour that landed — every backed colour pays on its own match count, so more than
+	   one of these can light up in the same round. */
 	.odds.win {
 		outline: 0.3vw solid #ffe14d;
 		outline-offset: -0.3vw;
 		filter: brightness(1.15);
 	}
-	/* Backed colour that landed but is not the paying (primary) colour: neutral glow, no badge. */
-	.odds.backed-hit {
-		outline: 0.2vw dashed rgba(255, 255, 255, 0.8);
-		outline-offset: -0.2vw;
-	}
-	/* The most-staked colour — the one whose result is actually paid. */
-	.odds.main-call {
+	/* Backed but not yet resolved. */
+	.odds.backed {
 		box-shadow:
 			inset 0 0.1vw 0.1vw 0.05vw #ffeddb,
-			inset 0 0.1vw 0.4vw 0.1vw #ffffff,
-			0 0 0 0.15vw #ffe14d;
+			inset 0 0.1vw 0.4vw 0.1vw #ffffff;
 	}
-	.main-tag {
+	.hit-tag {
 		position: absolute;
 		top: 0.25vw;
 		right: 0.3vw;
@@ -250,6 +264,25 @@
 		background: linear-gradient(180deg, #ffd94a, #f5a524);
 		border-radius: 0.3vw;
 		padding: 0.05vw 0.3vw;
+		pointer-events: none;
+	}
+	/* The stake riding on this colour. Every backed colour carries the same amount. */
+	.stake-marker {
+		position: absolute;
+		bottom: 0.5vw;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 12;
+		min-width: 3vw;
+		text-align: center;
+		padding: 0.15vw 0.5vw;
+		border-radius: 1vw;
+		background: radial-gradient(circle at 35% 30%, #fff8dc, #f5a524 75%, #b56b00);
+		border: 0.08vw solid #fff3c4;
+		font-family: 'Alexandria', sans-serif;
+		font-size: 0.7vw;
+		font-weight: 700;
+		color: #2a1500;
 		pointer-events: none;
 	}
 	/* Undo control — reuses the round pill look of clear/repeat with an arrow glyph. */
@@ -334,5 +367,21 @@
 		color: #bfe9cf;
 		font-weight: 700;
 		font-size: 2.6vh;
+	}
+	.win-breakdown {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6vw;
+		justify-content: center;
+		margin-top: 1.6vh;
+	}
+	.win-chip {
+		font-size: 1.5vh;
+		font-weight: 600;
+		color: #0d2a18;
+		background: #ffe14d;
+		border-radius: 0.6vw;
+		padding: 0.3vh 0.8vw;
+		text-transform: capitalize;
 	}
 </style>

@@ -1,13 +1,17 @@
 /**
  * Copy a sample of Colour Dice math books into the app for offline dev / preview play.
  *
+ * There is one book set per published mode (6: 1_colours .. 6_colours), so the
+ * output is keyed by mode — the dev harness has to play a book from the SAME mode the board
+ * committed to, otherwise the dice would not correspond to the bet.
+ *
  * The published books are zstd-compressed, so we shell out to the math-sdk Python venv
  * (which has `zstandard`) to decompress + sample, then write a plain TS module.
  *
  * Usage (from apps/colour-dice):
- *   node scripts/import-math-books.mjs [--limit 200]
+ *   node scripts/import-math-books.mjs [--limit 60]      # per mode
  */
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,11 +22,25 @@ const repoRoot = resolve(appDir, '..', '..');
 const mathRoot = resolve(repoRoot, '..', 'stake-math-sdk');
 
 const limitArg = process.argv.indexOf('--limit');
-const limit = limitArg > -1 ? Number(process.argv[limitArg + 1]) : 200;
+const limit = limitArg > -1 ? Number(process.argv[limitArg + 1]) : 60;
 
-const booksZst = join(mathRoot, 'games', 'colour_dice', 'library', 'publish_files', 'books_base.jsonl.zst');
-if (!existsSync(booksZst)) {
-	console.error(`[Colour Dice] Missing math books: ${booksZst}\nRun: stake-math-sdk env python games/colour_dice/run.py`);
+const publishDir = join(mathRoot, 'games', 'colour_dice', 'library', 'publish_files');
+if (!existsSync(publishDir)) {
+	console.error(
+		`[Colour Dice] Missing published math books: ${publishDir}\n` +
+			`Run from stake-math-sdk: PYTHONPATH=. env/Scripts/python.exe games/colour_dice/run.py`,
+	);
+	process.exit(1);
+}
+
+// Mode names are the backed-colour count, e.g. books_3_colours.jsonl.zst -> '3_colours'.
+const modeFiles = readdirSync(publishDir)
+	.filter((name) => /^books_\d+_colours\.jsonl\.zst$/.test(name))
+	.map((name) => ({ mode: name.slice('books_'.length, -'.jsonl.zst'.length), file: join(publishDir, name) }))
+	.sort((a, b) => a.mode.localeCompare(b.mode));
+
+if (!modeFiles.length) {
+	console.error(`[Colour Dice] No per-mode book files found in ${publishDir}`);
 	process.exit(1);
 }
 
@@ -32,48 +50,71 @@ const pythonCandidates = [
 	'python',
 	'python3',
 ];
-const python = pythonCandidates.find((candidate) => candidate === 'python' || candidate === 'python3' || existsSync(candidate));
+const python = pythonCandidates.find(
+	(candidate) => candidate === 'python' || candidate === 'python3' || existsSync(candidate),
+);
 
 const outDir = join(appDir, 'src', 'stories', 'data');
 mkdirSync(outDir, { recursive: true });
 const outFile = join(outDir, 'base_books.ts');
 
-// Sample a varied set: every wheel tier (incl. wincap) plus a spread of the rest.
+// Sample a varied set per mode: every wheel tier (including the wincap round) first, then a
+// spread of ordinary rounds, so offline play exercises the whole payout ladder.
+const spec = JSON.stringify(modeFiles.map(({ mode, file }) => [mode, file]));
 const pyScript = `
 import json, zstandard, sys
-limit = ${Number.isFinite(limit) ? limit : 200}
+limit = ${Number.isFinite(limit) ? limit : 60}
+spec = json.loads(r'''${spec}''')
 d = zstandard.ZstdDecompressor()
-with open(r"${booksZst.replace(/\\/g, '\\\\')}", "rb") as f:
-    data = d.stream_reader(f).read().decode("utf-8")
-books = [json.loads(l) for l in data.splitlines() if l.strip()]
-def has_wheel(b): return any(e.get("type") == "wheelSpin" for e in b["events"])
-triples = [b for b in books if has_wheel(b)]
-by_mult = {}
-for b in triples:
-    m = next(e["multiplier"] for e in b["events"] if e.get("type") == "wheelSpin")
-    by_mult.setdefault(m, b)
-picked, seen = [], set()
-def take(b):
-    if id(b) not in seen:
-        seen.add(id(b)); picked.append(b)
-for b in by_mult.values():
-    take(b)
-for b in books:
-    if len(picked) >= limit: break
-    take(b)
-picked = picked[:limit]
-sys.stdout.write(json.dumps(picked))
+out = {}
+for mode, path in spec:
+    with open(path, "rb") as f:
+        data = d.stream_reader(f).read().decode("utf-8")
+    books = [json.loads(l) for l in data.splitlines() if l.strip()]
+    def wheel_mult(b):
+        return next((e["multiplier"] for e in b["events"] if e.get("type") == "wheelSpin"), None)
+    picked, seen = [], set()
+    by_mult = {}
+    for b in books:
+        m = wheel_mult(b)
+        if m is not None:
+            by_mult.setdefault(m, b)
+    for b in by_mult.values():
+        if id(b) not in seen:
+            seen.add(id(b)); picked.append(b)
+    step = max(1, len(books) // max(1, limit))
+    for b in books[::step]:
+        if len(picked) >= limit: break
+        if id(b) not in seen:
+            seen.add(id(b)); picked.append(b)
+    out[mode] = picked[:limit]
+sys.stdout.write(json.dumps(out))
 `;
 
-const result = spawnSync(python, ['-c', pyScript], { maxBuffer: 256 * 1024 * 1024 });
+const result = spawnSync(python, ['-c', pyScript], { maxBuffer: 512 * 1024 * 1024 });
 if (result.status !== 0) {
 	console.error('[Colour Dice] Failed to read books via Python.', result.stderr?.toString());
 	process.exit(1);
 }
 
-const books = JSON.parse(result.stdout.toString());
-writeFileSync(outFile, `// AUTO-GENERATED by scripts/import-math-books.mjs — do not edit.\nexport default ${JSON.stringify(books)} as const;\n`);
+const booksByMode = JSON.parse(result.stdout.toString());
+writeFileSync(
+	outFile,
+	`// AUTO-GENERATED by scripts/import-math-books.mjs — do not edit.\n` +
+		`// Offline sample books, keyed by bet mode (backed-colour count).\n` +
+		`export default ${JSON.stringify(booksByMode)} as const;\n`,
+);
 
-const eventTypes = [...new Set(books.flatMap((book) => (book.events ?? []).map((event) => event.type)))];
-console.log(`[Colour Dice] Wrote ${books.length} books to src/stories/data/base_books.ts`);
+const total = Object.values(booksByMode).reduce((sum, list) => sum + list.length, 0);
+const eventTypes = [
+	...new Set(
+		Object.values(booksByMode)
+			.flat()
+			.flatMap((book) => (book.events ?? []).map((event) => event.type)),
+	),
+];
+console.log(
+	`[Colour Dice] Wrote ${total} books across ${Object.keys(booksByMode).length} modes ` +
+		`to src/stories/data/base_books.ts`,
+);
 console.log(`[Colour Dice] Event types: ${eventTypes.join(', ')}`);
