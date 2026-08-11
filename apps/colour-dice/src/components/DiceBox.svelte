@@ -115,12 +115,22 @@
 	// dice-box-threejs plays its own hit sounds off the physics: every collision hard enough to be
 	// heard picks a clip at random and plays it at a volume taken from the impact. The clips it
 	// wants are the upstream ones in `static/dice-box-threejs/sounds` — `surface_felt*` for the
-	// tray (from `theme_surface: 'green-felt'`) and `dicehit_plastic*` for die on die (from
-	// `theme_material`). Both sets have to be there before `initialize()`, which is where the
-	// library loads them, and which is why `sounds` cannot be turned on later.
+	// tray (from `theme_surface: 'green-felt'`) and `dicehit_<material>*` for die on die. Both sets
+	// have to be there before `initialize()`, which is where the library loads them, and which is
+	// why `sounds` cannot be turned on later.
 	//
 	// The trial throws cost nothing here: the library skips the sound while `animstate` is
 	// `simulate`, which is what `simulateThrow` runs the headless passes under.
+
+	/**
+	 * What the dice SOUND like they are made of, which is not what they look like.
+	 *
+	 * The library takes both from `theme_material`: it reads the material back off the loaded
+	 * theme when it picks the hit clips, so asking for wood there would darken and roughen the
+	 * dice as well as knock them together differently. The faces are the game — six flat colours
+	 * on white plastic — so the look is left alone and only the clips are swapped.
+	 */
+	const DIE_SOUND_MATERIAL = 'wood';
 
 	/**
 	 * How loud the dice are against the rest of the table, matching `MIX` in `game/sound.ts`.
@@ -139,6 +149,35 @@
 		const volume = diceVolume();
 		if (box) box.volume = volume;
 	});
+
+	/**
+	 * Give the dice a wooden knock while leaving them looking like plastic.
+	 *
+	 * `loadSounds` is the one place the material is turned into clips: it reads it off the loaded
+	 * theme, keeps it on `sound_dieMaterial` for the collision handler to pick from, and loads the
+	 * set that goes with it. Lending it a different material for that one call is what separates
+	 * the two — the theme is already loaded and applied by then, so the swap is only ever seen by
+	 * the sound, and it is put back before anything else can read it.
+	 *
+	 * Setting `sound_dieMaterial` afterwards instead would name a set that was never loaded, and
+	 * the first die to hit another would fault in the physics callback.
+	 *
+	 * Must be installed BEFORE `initialize()`, which is what calls `loadSounds`.
+	 */
+	const installDieSound = () => {
+		const loadSounds = box.loadSounds.bind(box);
+		box.loadSounds = async () => {
+			const texture = box.colorData?.texture;
+			if (!texture) return loadSounds();
+			const material = texture.material;
+			texture.material = DIE_SOUND_MATERIAL;
+			try {
+				await loadSounds();
+			} finally {
+				texture.material = material;
+			}
+		};
+	};
 
 	/**
 	 * The tray in world units: half its width and height, and how far its middle sits above the
@@ -570,6 +609,7 @@
 				box = await createDiceBox();
 				installTrayWalls();
 				installTrayGate();
+				installDieSound();
 				await box.initialize();
 				if (disposed) return;
 				installTrayThrow();

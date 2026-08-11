@@ -1,10 +1,13 @@
 Upstream `@3d-dice/dice-box-threejs` static assets, served from `assetPath: '/dice-box-threejs/'`.
 
 `sounds/` is in use: the dice component runs with `sounds: true`, so the library loads its hit
-clips from here at init and plays them off the physics. With the current dice config
-(`theme_surface: 'green-felt'`, `theme_material: 'plastic'`) it asks for `sounds/surfaces/
-surface_felt1..7.mp3`, `sounds/dicehit/dicehit_plastic1..15.mp3` and `sounds/dicehit/
-dicehit_coin1..6.mp3` — the coin set is loaded whatever the dice are made of. The rest of the
+clips from here at init and plays them off the physics. It asks for `sounds/surfaces/
+surface_felt1..7.mp3` (the tray, from `theme_surface: 'green-felt'`), `sounds/dicehit/
+dicehit_wood1..12.mp3` (die on die) and `sounds/dicehit/dicehit_coin1..6.mp3` — the coin set is
+loaded whatever the dice are made of.
+
+The wood clips are asked for by `installDieSound` rather than by the config: the dice are plastic
+to LOOK at, and the library would otherwise take the sound from the same setting. The rest of the
 folder is upstream's other surfaces and materials, kept so those settings can be changed without
 going back to the package.
 
