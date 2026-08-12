@@ -1253,7 +1253,7 @@
 		content: '';
 		position: absolute;
 		inset: 0;
-		background: url('/img/chip_base.svg') no-repeat center / contain;
+		background: url('img/chip_base.svg') no-repeat center / contain;
 		filter: hue-rotate(var(--chip-hue, 0deg));
 		z-index: 0;
 	}
@@ -1830,7 +1830,7 @@
 		width: var(--hud-mark);
 		height: var(--hud-mark);
 		flex: none;
-		background: url('/img/chip_yellow.svg') no-repeat center / contain;
+		background: url('img/chip_yellow.svg') no-repeat center / contain;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.6));
 	}
 	.balance-text {

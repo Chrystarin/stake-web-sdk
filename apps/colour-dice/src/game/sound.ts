@@ -1,5 +1,7 @@
 import { stateSoundDerived } from 'state-shared';
 
+import { staticUrl } from '../lib/staticUrl';
+
 /**
  * One-shot table sound effects.
  *
@@ -20,22 +22,22 @@ export type SoundName =
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
-	whoosh: '/sound/whoosh.mp3',
+	whoosh: staticUrl('sound/whoosh.mp3'),
 	// The chip settling onto the colour.
-	pop: '/sound/pop.mp3',
+	pop: staticUrl('sound/pop.mp3'),
 	// A button answering the press — Play and Clear.
-	click: '/sound/clickUIButton.mp3',
+	click: staticUrl('sound/clickUIButton.mp3'),
 	// A won chip going into the balance.
-	merge: '/sound/chip_merge.mp3',
+	merge: staticUrl('sound/chip_merge.mp3'),
 	// The jackpot ball striking a peg, and the win marquee going up. Both lifted from One-Eyed
 	// Willy's plinko (apps/plinko/static/sound) so the bonus round sounds like the game it came
 	// from — same samples, and the trims below are that game's too.
-	peg: '/sound/peg.wav',
-	win: '/sound/win.mp3',
+	peg: staticUrl('sound/peg.wav'),
+	win: staticUrl('sound/win.mp3'),
 	// The jackpot screen arriving and leaving — a door thudding shut and creaking back open, from
 	// the same game's bonus screen. Both are SPRITE windows; see `SPRITES`.
-	doorClose: '/sound/door_close.ogg',
-	doorOpen: '/sound/door_open.ogg',
+	doorClose: staticUrl('sound/door_close.ogg'),
+	doorOpen: staticUrl('sound/door_open.ogg'),
 };
 
 /**
@@ -188,7 +190,7 @@ export const playSound = (name: SoundName, rate?: number): void => {
 // One looping track under the table, on the MUSIC volume rather than the effects one, so a
 // player who only wants the chips can turn it off on its own.
 
-const MUSIC_SRC = '/sound/background_music_placeholder.mp3';
+const MUSIC_SRC = staticUrl('sound/background_music_placeholder.mp3');
 
 /** Held well under the effects — the track plays behind the game, not over it. */
 const MUSIC_MIX = 0.05;

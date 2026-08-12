@@ -17,7 +17,7 @@
  * why its width and height read swapped.
  */
 
-export const SLOT_ATLAS = { src: '/img/plinko/pocket_slots.webp', width: 186, height: 944 };
+export const SLOT_ATLAS = { src: 'img/plinko/pocket_slots.webp', width: 186, height: 944 };
 
 /** `x`/`y` locate the packed area; `width`/`height` are the region's ORIGINAL, upright size. */
 export type SlotRegion = { x: number; y: number; width: number; height: number };

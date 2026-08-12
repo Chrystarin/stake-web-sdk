@@ -69,7 +69,7 @@
 	   what sets its size — and the label offset below is measured against it. */
 	.win-result {
 		height: 8vw;
-		background: url('/img/win_bg.svg') no-repeat center / contain;
+		background: url('img/win_bg.svg') no-repeat center / contain;
 	}
 	/* Gold gradient clipped to the glyphs, dropped onto the marquee's pill. The offset sits it in
 	   that pill, so it goes with `.win-result`'s height rather than standing on its own. */

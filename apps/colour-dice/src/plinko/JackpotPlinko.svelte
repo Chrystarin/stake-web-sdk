@@ -166,7 +166,7 @@
 		class="jp-screen"
 		class:open
 		style="--accent:{accent}; --slide-in:{SLIDE_IN_MS}ms; --slide-out:{SLIDE_OUT_MS}ms; --bg:url('{props.background ??
-			'/img/background.png'}')"
+			'img/background.png'}')"
 	>
 		<div class="jp-bg"></div>
 
@@ -343,7 +343,7 @@
 		width: var(--hud-mark);
 		height: var(--hud-mark);
 		flex: none;
-		background: url('/img/chip_yellow.svg') no-repeat center / contain;
+		background: url('img/chip_yellow.svg') no-repeat center / contain;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.6));
 	}
 	.jp-balance-text {
@@ -369,7 +369,7 @@
 		height: var(--hud-mark);
 		cursor: pointer;
 		pointer-events: auto;
-		background: url('/img/menu_btn.svg') no-repeat center / contain;
+		background: url('img/menu_btn.svg') no-repeat center / contain;
 	}
 
 	/* The word, centred over the board. Tinted by `--accent` — the colour that took the triple —

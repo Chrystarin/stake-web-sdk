@@ -2,62 +2,62 @@
   font-family: 'PingFang';
   font-style: normal;
   font-weight: 400;
-  src: url('/fonts/Pingfang/pingfang-sc-regular.woff2'); 
+  src: url('fonts/Pingfang/pingfang-sc-regular.woff2'); 
 }
 @font-face {
   font-family: 'DDIN';
   font-style: normal;
   font-weight: 400;
-  src: url('/fonts/DDINPRO/D-DIN-PRO-400-Regular.otf'); 
+  src: url('fonts/DDINPRO/D-DIN-PRO-400-Regular.otf'); 
 }
 @font-face {
   font-family: 'DDIN';
   font-style: normal;
   font-weight: 600;
-  src: url('/fonts/DDINPRO/D-DIN-PRO-600-SemiBold.otf'); 
+  src: url('fonts/DDINPRO/D-DIN-PRO-600-SemiBold.otf'); 
 }
 @font-face {
   font-family: 'DDIN';
   font-style: normal;
   font-weight: 700;
-  src: url('/fonts/DDINPRO/D-DIN-PRO-700-Bold.otf'); 
+  src: url('fonts/DDINPRO/D-DIN-PRO-700-Bold.otf'); 
 }
 @font-face {
   font-family: 'Alexandria';
   font-style: normal;
   font-weight: 400;
-  src: url('/fonts/Alexandria/static/Alexandria-Medium.ttf'); 
+  src: url('fonts/Alexandria/static/Alexandria-Medium.ttf'); 
 }
 @font-face {
   font-family: 'Alexandria';
   font-style: normal;
   font-weight: 600;
-  src: url('/fonts/Alexandria/static/Alexandria-Bold.ttf'); 
+  src: url('fonts/Alexandria/static/Alexandria-Bold.ttf'); 
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 400;
-  src: url('/fonts/Inter/static/Inter-Medium.ttf'); 
+  src: url('fonts/Inter/static/Inter-Medium.ttf'); 
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 600;
-  src: url('/fonts/Inter/static/Inter-Black.ttf'); 
+  src: url('fonts/Inter/static/Inter-Black.ttf'); 
 }
 @font-face {
   font-family: 'Merge Pro Bold';
   font-style: normal;
   font-weight: 700;
-  src: url('/fonts/Merge Pro Bold/Merge Pro Bold.ttf') format('truetype');
+  src: url('fonts/Merge Pro Bold/Merge Pro Bold.ttf') format('truetype');
   font-display: swap;
 }
 @font-face {
   font-family: 'Merge Pro';
   font-style: normal;
   font-weight: 700;
-  src: url('/fonts/Merge Pro/MergePro.otf') format('truetype');
+  src: url('fonts/Merge Pro/MergePro.otf') format('truetype');
 }
 body{
   background-color: black;
@@ -91,13 +91,13 @@ body{
 }
 
 .chip.ch5 {
-  background-image: url("/img/chip_yellow.svg");
+  background-image: url("img/chip_yellow.svg");
   color:#BD832A;
 }
 
 .chip.ch4 {
   
-  background-image: url("/img/chip_violet.svg");
+  background-image: url("img/chip_violet.svg");
   color:#604C9A;
 }
 
@@ -121,10 +121,10 @@ body{
   color:#5C9A4C;
 }
 .cbx-checked-ico{
-  background-image: url("/img/switch-on.png");
+  background-image: url("img/switch-on.png");
 }
 .cbx-unchecked-ico{
-  background-image: url("/img/switch-off.png");
+  background-image: url("img/switch-off.png");
 
 }
 .cbx-checked-ico, .cbx-unchecked-ico{
@@ -195,22 +195,22 @@ body{
 }
 
 .r_yellow{
-  background-image: url("/img/result_yellow.png");
+  background-image: url("img/result_yellow.png");
 }
 .r_white{
-  background-image: url("/img/result_white.png");
+  background-image: url("img/result_white.png");
 }
 .r_green{
-  background-image: url("/img/result_green.png");
+  background-image: url("img/result_green.png");
 }
 .r_blue{
-  background-image: url("/img/result_blue.png");
+  background-image: url("img/result_blue.png");
 }
 .r_pink{
-  background-image: url("/img/result_purple.png");
+  background-image: url("img/result_purple.png");
 }
 .r_red{
-  background-image: url("/img/result_red.png"); 
+  background-image: url("img/result_red.png"); 
 }
 .r_yellow,.r_white,.r_green,.r_blue,.r_pink,.r_red{
   height: 12vw;
@@ -227,16 +227,16 @@ body{
 }
 
 .point-ico{
-  background: url("/img/point-ico.svg")
+  background: url("img/point-ico.svg")
 }
 .birth-ico{
-  background: url("/img/birth-ico.svg")
+  background: url("img/birth-ico.svg")
 }
 .social-ico{
-  background: url("/img/social-ico.svg")
+  background: url("img/social-ico.svg")
 }
 .hobby-ico{
-  background: url("/img/hobby-ico.svg")
+  background: url("img/hobby-ico.svg")
 }
 .schedule-ico{
   background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAApCAYAAABHomvIAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAQ1SURBVHgB7VbBbhQxDLVnC+JYvoD9BP6A9o6EeuLY/kkXfoT2yokbR+AP+IPyBbA3qt2ZGCe2Eye7M7OVQJXQWspmJ3E8z362MwBHOcpR/p4Q0SmPKx5n8ECJZ/TsEv6FRMM8flKR6wecveYR9NwvHi8PPYsjBq94esPj1C2/4PGcxwWPSx3f4DA543HD45bHB1270/eTzreIeDNrSb0l9ThQLXeqs6JpCc0cZaVn70Z097LSNeBixFYtZpjwZ+Q/uplm7HgWV4ohy0mj/HLksNFwql6+agAgjKSLW49Fkmy4M63E9SWP73staaWNhX/f89z6mG6bPv75bJ93HuQSHlfWXCxre6goVv6X8LhS0bsvB79AyZGxXDFp99tzft+KZEzf9s55fB0DKKcIOMoyp1O4a4j3CMur+THu8xLyFtVOxYVoJdqhppblNUkJSaZqvwLY99x3ULCEBq1aQYgAQoKD+kOUraLoRPyUdO28AUN1yPwqaHQtAMwANG1EgRRcZCCFQKMUjVNGlZljpfTiZMLem0EXrXSS1UIBGe0OdBBAM5ooUXpJYxsnwoYqg6JsadRCSFGMm4ECatBVB4wXMoeinQ7nKC4vLjSpxQIGPBg07zVAJCgocaD+RXCklKJlngQZCYwRXgvdMAeQcm1RCQo42LZX8klijU29krGcoKi+qJPbJMyQeS10MAHwngEWhbY9QI5QiSyVijfHMOvkRDN/5ZzBdylj9gm7qRwEjmCfzSKnUCoIrEFKwmuO4k6QLZoWLU1iDZxymuJHUnAlTeL+ZBXfM8ddyTlzVfEmg9l7qWoxjpl40Lwo/bnpztaSNKBkKZ4L58A2A/VLyECCppPu516XG6IFFXOSSZ0glZYEUjD6U7pDOh9wBuCiKnvth4SWzOjodEloFYF2KaiDWhzaUEqkCQ0klJJK9oZJgFwkdOI6it4e1F65Pjryq2CDUU/grjuOi0RN8tdW0bFUFqcAJpBb34SNMtScRLuctee5Ky4XA3kazUyiodxAIHazQUsdruJuplHz1Sa5hCWC2aD2Ea0+qgohRxFchPRfSoPO3UAlH2PUO97TFOLOAeMA72MfTHXk6WwMQt7H5I21RgCXotmXssXpX9I6p2+y06fUAI17D5MRXOg3UUWHMi205cpuKHNvBFfpUBWWfYRgYSd/+aS5uUhqgN2G1tvOgOx+CtW0ybNVcA0SpaKttGsF+3pg1uNWQHMp/m6mAG42T37QYhNpRKGLCkCsryS9opB8L6Z8x0pHK5wWL+wOcj3QXwYn8Kz65K8ien6B6+02vBv6VM0w9MizUB+re4j/NzJv+XkbdXjuZfBa0Y3n2A4NA2eV2Epz3B9kD7a96Ee99J5NeB8xeExN1xH5/PH3FW9d5pAF506ol2B3C6q2Sbv2ya9LNNe46D69fvv0Fo5ylKP8Z/IHz/st1GYHYNUAAAAASUVORK5CYII=);
@@ -245,7 +245,7 @@ body{
   background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAApCAYAAABHomvIAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAQzSURBVHgB7VfNbhtVFP7uzNhx2rQyaiKqqouphOgy6QIJFkV+A/ICiLBhnezYtdmxa5awQWHHCvIGRKoEiA1BCIRUCZkFKVBimVKRyczcezjnesYe23fG47RqNv6imxnfOT/fPX8eAwsscLFQdQXp+04bZ3oLSrVB1MeSf6DuHHZr6ybYBJnQbjS9/bq6AeoiNtvw1D17r/hciXlA397dUW8+3KtSo+86Gyz7Fd+2h+E4Mxv8fxM14KEuPLXu2BOS22Uq9E0nBDJy417XUddtXUFKklD3nkD/0wPFZwUL6h6nMJySl7T6NCRHOrW6YoP1Q/u8Bkpr0EYm8LvwcST1En12mcjo4XP/lVUEazehGk0xc8hp3x23YN4BYVt00r9+h/77j6FH4r8AwZ3GxhtdpNiA1htlpVJeg75/BMPpMVJHb3fTk2Po/mOhbr2Y0x6Sx88ouP6a8pqXOtw4nalDpjGS41+IklipZS9Xhb+yisart77k2gwz0Z0yGs4U2/Arm5p+thUG126gcfM21OUW0FJQLVb1U5X2HjGB02kbmsmdPGIZrVTLt/LqUhPB9VtMLhSJMBPtM4u+q0yAQopp634breiB/XD7z00sx21c4VpbyeqtmfIapNicnHJ0eD1lkkkTQsBfpzHD5scA5r8YaMRQVw2Uz3JXVqCWMoFnS6NrzIn8l6+/rh4gavTRau2ovfs2OKMUt6I2NG3ZPPy0hipMhf3GU2D953GZ316Hd3wVc0HJ6GH/UST1PEEwEqscJSNFR4Ml8aWh8sQNjS5pOu0sSXjFA4FicGWGWttq5CO3KXuyfDMULzQJM4zZkc5IzoPi2CnuRT7mguLcBA0m7jsIRtHgRHJqGSfkMpBds24cyrgISgTPIredSVv5Z88fcEiXHQQFOoug1pgLxiFv2E46ZwR9kvHGK4KbIGF0IiLUhks0r+O6sDU5bavYxX2kwZGdfyLkeW27ahl3NInPpoOa7yLG9GH4DcmWjXRxqz80XaZDH3y4z4/fKy+iAtZ6wN2vx/cevgU8uTZbVygo2leffPS+62n5EaWRVdbNs1Ll6nrZmzkNLLnKGJQTJJOt3ECFFWeTmEHDVfJTg9GC8xDUycjRrIJ3EZHhnSSoJCfwvEHnzk1QomKjoEtSlQ9DuImk+TdJBYScrIrsVERQZyudHUVXBGXPNcAtsq80IRdUz8pqgkaPiJJjSOURdA32NHUQLwwNO/e8LNXniaAg70STNUyV3CRoRhdLc6hMDuacBEGjyFU1iesZoVwnj5orKRPwZvEbu74ozGGv/s/OF4r6DKsJqonrBeBiUjwHygmSOXppESTzQ9mjcoLKO3hpkRNfJSglqD7/uMsES39QPxdUISVEu9ZXCSrnoPri0z3afFdeHvm9UIWlxZiKw4k6CKrmprXe5cjtso9DLLDAAufH/2/6588b1ld3AAAAAElFTkSuQmCC);
 }
 .arr-ico{
-  background:url("/img/arr-ico.svg");
+  background:url("img/arr-ico.svg");
 }
 
 .i-ico,.circle-close-ico,.point-ico,.birth-ico,.social-ico,.hobby-ico,.schedule-ico,.rank-ico,.arr-ico{
@@ -274,7 +274,7 @@ body{
   width: 10vw;
   height: 10vw;
   margin: 1vw 2vw;
-  background: url("/img/menu_btn.svg");
+  background: url("img/menu_btn.svg");
   background-size: contain;
   background-repeat: no-repeat;
 }
@@ -282,7 +282,7 @@ body{
   width: 6vw;
   height: 6vw;
   margin: 2vw 2vw;
-  background: url("/img/add_btn.svg");
+  background: url("img/add_btn.svg");
   background-size: contain;
   background-repeat: no-repeat;
 }
@@ -293,26 +293,26 @@ body{
   top: -15.3vw;
   left: 1vw;
   margin: auto;
-  background: url("/img/chat_on_btn.svg");
+  background: url("img/chat_on_btn.svg");
   background-size: contain;
   background-repeat: no-repeat;
 
   &.disabled {
-    background: url("/img/chat_off_btn.svg");
+    background: url("img/chat_off_btn.svg");
     background-size: contain;
     background-repeat: no-repeat;
   }
 }
 
 .records-menu-ico {
-  background: url("/img/game_record_ico.svg");
+  background: url("img/game_record_ico.svg");
   background-size: contain;
   background-repeat: no-repeat;
   background-position-x: center;
 }
 
 .help-menu-ico {
-  background: url("/img/help_center_ico.svg");
+  background: url("img/help_center_ico.svg");
   background-size: contain;
   background-repeat: no-repeat;
 }
@@ -335,7 +335,7 @@ body{
   background-size: contain;
 }
 .present_btn{
-  background-image: url("/img/present_btn.svg");
+  background-image: url("img/present_btn.svg");
   background-repeat: no-repeat;
   background-size: contain;
 }
@@ -349,7 +349,7 @@ body{
 .close-ico {
   width: 8vw;
   height: 8vw;
-  background-image: url("/img/close_ico.svg");
+  background-image: url("img/close_ico.svg");
   background-repeat: no-repeat;
   background-size: cover;
 }
@@ -357,7 +357,7 @@ body{
 .back-ico {
   width: 8vw;
   height: 8vw;
-  background-image: url("/img/back_ico.svg");
+  background-image: url("img/back_ico.svg");
   background-repeat: no-repeat;
   background-size: cover;
 }

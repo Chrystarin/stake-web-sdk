@@ -48,7 +48,7 @@ app-dice-box {
   }
 
   .pot-wrap.jp_1 {
-    background: url("/img/jackpot_minor.svg");
+    background: url("img/jackpot_minor.svg");
     background-size: contain;
     background-repeat: no-repeat;
     background-position: bottom;
@@ -59,7 +59,7 @@ app-dice-box {
   }
 
   .pot-wrap.jp_2 {
-    background: url("/img/jackpot_major.svg");
+    background: url("img/jackpot_major.svg");
     background-size: contain;
     background-repeat: no-repeat;
     background-position: bottom;
@@ -70,7 +70,7 @@ app-dice-box {
   }
 
   .pot-wrap.jp_3 {
-    background: url("/img/jackpot_grand.svg");
+    background: url("img/jackpot_grand.svg");
     background-size: contain;
     background-repeat: no-repeat;
     background-position: bottom;
@@ -81,7 +81,7 @@ app-dice-box {
   }
 
   .pot-wrap.jpd_1 {
-    background: url("/img/minor_jp.svg");
+    background: url("img/minor_jp.svg");
     background-size: contain;
     background-repeat: no-repeat;
     background-position: bottom;
@@ -94,7 +94,7 @@ app-dice-box {
   }
 
   .pot-wrap.jpd_2 {
-    background: url("/img/major_jp.svg");
+    background: url("img/major_jp.svg");
     background-size: contain;
     background-repeat: no-repeat;
     background-position: bottom;
@@ -106,7 +106,7 @@ app-dice-box {
   }
 
   .pot-wrap.jpd_3 {
-    background: url("/img/grand_jp.svg");
+    background: url("img/grand_jp.svg");
     background-size: contain;
     background-repeat: no-repeat;
     background-position: bottom;
@@ -121,7 +121,7 @@ app-dice-box {
     width: 21vw;
     height: 8vw;
     margin: 1vw auto;
-    background: url("/img/jackpot.svg");
+    background: url("img/jackpot.svg");
     background-size: contain;
     background-repeat: no-repeat;
     background-position: top;
@@ -147,7 +147,7 @@ app-dice-box {
     position: absolute;
     right: 0;
     top: 2vw;
-    background: url("/img/users_count_bg.svg");
+    background: url("img/users_count_bg.svg");
     background-size: contain;
     background-repeat: no-repeat;
 
@@ -171,7 +171,7 @@ app-dice-box {
   top: 1vw;
   left: 1vw;
   width: 13vw;
-  background: url("/img/dealer_top_bar_bg.svg");
+  background: url("img/dealer_top_bar_bg.svg");
   background-repeat: no-repeat;
   background-size: contain;
   display: flex;
@@ -714,7 +714,7 @@ app-dice-box {
   top: 13vw;
   left: 35vw;
   z-index: 11;
-  background: url("/img/game_start.svg");
+  background: url("img/game_start.svg");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -851,7 +851,7 @@ app-dice-box {
   overflow-y: hidden;
   color: #ffffff;
   display: block;
-  background: url("/img/chat_bg.png");
+  background: url("img/chat_bg.png");
   background-size: contain;
   background-repeat: no-repeat;
   display: flex;
@@ -925,7 +925,7 @@ app-dice-box {
       width: 100%;
       height: 100%;
       border-radius: 50%;
-      background: url("/img/ava.png");
+      background: url("img/ava.png");
       background-size: cover;
       background-repeat: no-repeat;
     }
@@ -1211,7 +1211,7 @@ app-dice-box {
   cursor: pointer;
   border-radius: 50%;
   background-color: #e94447;
-  background-image: url("/img/close_ico.svg");
+  background-image: url("img/close_ico.svg");
   background-position: center;
   background-size: 65%;
   background-repeat: no-repeat;

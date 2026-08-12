@@ -7,6 +7,7 @@
 	import { getContext } from '../game/context';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { COLOUR_TO_PIP, type Colour } from '../game/constants';
+	import { staticUrl } from '../lib/staticUrl';
 
 	const context = getContext();
 
@@ -285,7 +286,9 @@
 		const mod = await import('@3d-dice/dice-box-threejs');
 		const DiceBox = mod.default;
 		return new DiceBox(`#${sceneId}`, {
-			assetPath: '/dice-box-threejs/',
+			// Absolute rather than document-relative: this one is handed to a third-party loader that
+			// builds its own URLs from it, so it cannot be left to resolve against the page.
+			assetPath: staticUrl('dice-box-threejs/'),
 			sounds: true,
 			volume: diceVolume(),
 			theme_texture: '',
@@ -665,7 +668,7 @@
 		   swallowing every click on the colour boxes. */
 		isolation: isolate;
 		overflow: hidden;
-		background-image: url('/img/background.png');
+		background-image: url('img/background.png');
 		background-position: center;
 		background-repeat: no-repeat;
 		background-size: cover;
