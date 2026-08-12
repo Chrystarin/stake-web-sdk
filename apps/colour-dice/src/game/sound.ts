@@ -8,7 +8,7 @@ import { stateSoundDerived } from 'state-shared';
  * standalone mp3s. Each play uses its own audio node, so overlapping plays (tapping one colour
  * straight after another) sound together instead of restarting the one already playing.
  */
-export type SoundName = 'whoosh' | 'pop' | 'click' | 'merge';
+export type SoundName = 'whoosh' | 'pop' | 'click' | 'merge' | 'peg' | 'win';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
@@ -19,6 +19,11 @@ const SOURCES: Record<SoundName, string> = {
 	click: '/sound/clickUIButton.mp3',
 	// A won chip going into the balance.
 	merge: '/sound/chip_merge.mp3',
+	// The jackpot ball striking a peg, and the win marquee going up. Both lifted from One-Eyed
+	// Willy's plinko (apps/plinko/static/sound) so the bonus round sounds like the game it came
+	// from — same samples, and the trims below are that game's too.
+	peg: '/sound/peg.wav',
+	win: '/sound/win.mp3',
 };
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
@@ -27,6 +32,9 @@ const MIX: Record<SoundName, number> = {
 	pop: 0.9,
 	click: 0.9,
 	merge: 0.9,
+	// A drop strikes twenty-one of these in under two seconds, so it sits well back.
+	peg: 0.5,
+	win: 1,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
@@ -42,7 +50,12 @@ export const preloadSounds = (): void => {
 	}
 };
 
-export const playSound = (name: SoundName): void => {
+/**
+ * `rate` shifts playback speed AND pitch — for a sound fired many times in a row, a touch of
+ * random pitch is what stops the repeats sounding machine-gun identical. Browsers default to
+ * correcting pitch when the rate changes, which is exactly backwards here, so that is turned off.
+ */
+export const playSound = (name: SoundName, rate?: number): void => {
 	if (typeof Audio === 'undefined') return;
 	const volume = stateSoundDerived.volumeSoundEffect() * MIX[name];
 	if (volume <= 0) return;
@@ -51,6 +64,11 @@ export const playSound = (name: SoundName): void => {
 	const warmed = preloaded.get(name);
 	const node = warmed ? (warmed.cloneNode() as HTMLAudioElement) : new Audio(SOURCES[name]);
 	node.volume = Math.min(1, volume);
+	if (rate && rate > 0) {
+		const pitched = node as HTMLAudioElement & { preservesPitch?: boolean };
+		pitched.preservesPitch = false;
+		node.playbackRate = rate;
+	}
 	// Rejects while the autoplay policy is unsatisfied. Every play here follows a tap on the
 	// board, so there is nothing to recover from and nothing worth logging.
 	void node.play().catch(() => {});

@@ -932,6 +932,10 @@
 		winShow: async (emitterEvent) => {
 			// Book amounts are x100 in units of the per-colour stake, so cash scales by betAmount.
 			winCash = (emitterEvent.amount / 100) * stateBet.betAmount;
+			// Sounded here rather than by RoundResult: this is the line that puts the marquee up,
+			// so the two cannot drift apart. Only ever reached on a round that paid — `winShow` is
+			// broadcast off `finalWin` and only when there is an amount.
+			playSound('win');
 			// Hold the book sequence so the amount registers before the round closes out; a big
 			// win gets longer. The readout itself is not on a timer — it stays until the next round.
 			const multiplier = committedStake > 0 ? winCash / committedStake : 0;
@@ -1172,7 +1176,9 @@
 		balance="{sign}{balanceFormat.format(shownBalance)}"
 		sounds={{
 			drop: () => playSound('whoosh'),
-			peg: () => playSound('pop'),
+			// A drop strikes twenty-one pegs in under two seconds, so each one is pitched a little
+			// off the last — identical repeats at that rate read as a rattle rather than as hits.
+			peg: () => playSound('peg', 0.92 + Math.random() * 0.16),
 			land: () => playSound('merge'),
 		}}
 	/>
