@@ -182,6 +182,32 @@
 	const confirmTucked = $derived(!bettingOpen && !(settled && !confirmDisabled));
 
 	/**
+	 * The dice have come to rest and their colours are known.
+	 *
+	 * Set by `reveal` at the end of its run and cleared by `beginRoll`, so it is true for exactly
+	 * the stretch where there is a throw on the table to read — which starts well before the round
+	 * SETTLES. A jackpot plays out in between, and for the length of it the dice are sitting there
+	 * showing a result the board has to agree with.
+	 */
+	const diceShown = $derived(stateGame.dice.some((die) => die !== null));
+
+	/**
+	 * Colours to hold in shadow: all of them while the dice are in the air, then the ones the dice
+	 * missed, until the board opens for betting again.
+	 *
+	 * Keyed on the DICE rather than on `rolling` or on the round being settled, because neither of
+	 * those marks the stretch this is about. `rolling` is cleared when the bet resolves, which need
+	 * not be when the book has finished playing; `resultReady` is not set until the round settles,
+	 * which on a jackpot round is after the whole plinko screen has been and gone. Between the two
+	 * sits the moment the dice are up and the jackpot is being announced over them — and the board
+	 * has to be showing that result, not waiting to be told about it.
+	 */
+	const shadowed = (colour: Colour): boolean => {
+		if (bettingOpen) return false;
+		return diceShown ? !stateGame.dice.includes(colour) : true;
+	};
+
+	/**
 	 * Change the tray denomination. Any bets already on the board are cleared — swept off the
 	 * same way the clear button does it, so the board visibly empties rather than the chips
 	 * quietly changing value under the player.
@@ -1090,7 +1116,7 @@
 								class="odds {colour}"
 								class:win={Boolean(win)}
 								class:landed={landed && !win}
-								class:dimmed={stateGame.rolling || (settled && !landed)}
+								class:dimmed={shadowed(colour)}
 								class:backed
 								onclick={() => toggleColour(colour)}
 								aria-hidden="true"
@@ -1553,11 +1579,11 @@
 	.odds.landed .rate {
 		opacity: 0.7;
 	}
-	/* Boxes with nothing to say. Every one of them while the dice are in the air — the board is
-	   settled, nothing on it can be acted on, and the throw is the only thing worth watching — and
-	   then, once it resolves, the colours the dice missed: a dark pane over the whole box, chips
-	   and all, so the result reads at a glance as the two or three that came up rather than as six
-	   of equal weight.
+	/* Boxes with nothing to say (see `shadowed`). Every one of them while the dice are in the air —
+	   the bets are committed, nothing on the board can be acted on, and the throw is the only thing
+	   worth watching — and then, from the moment the dice come to rest, the colours they missed: a
+	   dark pane over the whole box, chips and all, so the result reads at a glance as the two or
+	   three that came up rather than as six of equal weight.
 
 	   It has to be a layer rather than the inset shadow the disabled state dims with: an inset
 	   shadow paints under the box's own children, which would leave a losing bet's chip sitting

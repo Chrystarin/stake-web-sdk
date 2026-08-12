@@ -191,6 +191,10 @@ const beginRoll = (): boolean => {
 	stateGame.prevRound = { stake: stateGame.stake, colours: [...stateGame.backedOrder] };
 	stateGame.resultReady = false;
 	stateGame.wins = [];
+	// The last round's dice are no longer what is on the table — they are being thrown again. Left
+	// standing they read as a result all the way through the new throw, which is a result the board
+	// then shows against (see `shadowed` in Game.svelte).
+	stateGame.dice = [null, null, null];
 	stateBet.activeBetModeKey = bet.mode;
 	stateBet.betAmount = bet.amount;
 	return true;
