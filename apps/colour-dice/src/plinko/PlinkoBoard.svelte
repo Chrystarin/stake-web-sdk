@@ -603,13 +603,15 @@
 		pointer-events: none;
 	}
 
+	/* Above the ball, so a landing drops BEHIND the pocket and the card closes over it — the ball
+	   goes into the slot rather than resting on the front of it. */
 	.pb-pocket {
 		position: absolute;
 		transform: translateX(-50%);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 2;
+		z-index: 3;
 		font-family: 'Alexandria', sans-serif;
 		font-weight: 700;
 		white-space: nowrap;
@@ -625,7 +627,10 @@
 	/* The pocket that took the ball. Kicks down the way a real one would, then holds lit — the
 	   round is over but what it paid has to stay readable. */
 	.pb-pocket.won {
-		animation: pocket-take 420ms cubic-bezier(0.22, 1.4, 0.36, 1);
+		/* Squashed onto its own base rather than about its middle, so the card is driven into the
+		   floor of the board instead of shrinking in place. */
+		transform-origin: 50% 100%;
+		animation: pocket-take 460ms ease-out;
 	}
 	.pb-pocket.won i {
 		filter: brightness(1.5) saturate(1.15);
@@ -647,12 +652,21 @@
 		opacity: 0.12;
 		filter: grayscale(0.6) brightness(0.7);
 	}
+	/* Struck from above: the pocket is driven DOWN into the floor, springs back past its resting
+	   height, and settles. It starts and ends at rest, so the movement is the ball landing on it
+	   rather than the pocket arriving from somewhere. */
 	@keyframes pocket-take {
 		0% {
-			transform: translateX(-50%) translateY(22%) scaleY(0.72);
+			transform: translateX(-50%) translateY(0) scaleY(1);
 		}
-		60% {
-			transform: translateX(-50%) translateY(-6%) scaleY(1.06);
+		30% {
+			transform: translateX(-50%) translateY(20%) scaleY(0.76);
+		}
+		62% {
+			transform: translateX(-50%) translateY(-7%) scaleY(1.07);
+		}
+		84% {
+			transform: translateX(-50%) translateY(2%) scaleY(0.98);
 		}
 		100% {
 			transform: translateX(-50%) translateY(0) scaleY(1);
@@ -693,10 +707,12 @@
 	/* Painted in the colour that opened the round (see colour.ts), so the ball on the board is the
 	   colour that took the triple. `--squash` is 1 at a contact and decays to 0, which is what
 	   deforms it on the hit and lets it recover on the way down instead of falling as a rigid disc. */
+	/* Above the pegs it strikes — both sit on 2, and this comes later in the DOM — but below the
+	   pockets, so the fall reads over the field and the landing reads inside the slot. */
 	.pb-ball {
 		position: absolute;
 		border-radius: 50%;
-		z-index: 3;
+		z-index: 2;
 		pointer-events: none;
 		background: radial-gradient(
 			circle at 33% 28%,

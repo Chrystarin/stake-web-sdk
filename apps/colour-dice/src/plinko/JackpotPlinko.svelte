@@ -44,6 +44,14 @@
 	const SLIDE_OUT_MS = 440;
 	/** How long the landed pocket is left up before the panel goes. */
 	const HOLD_MS = 1500;
+	/**
+	 * How long the word is held over the table before the screen comes down for it.
+	 *
+	 * The jackpot is announced on the board the player is already looking at, and only then is the
+	 * board taken away — so the thing that just happened lands before the thing that follows from
+	 * it starts.
+	 */
+	const ANNOUNCE_MS = 2000;
 
 	const DEFAULT_ACCENT = '#ffe14d';
 
@@ -54,6 +62,8 @@
 	let mounted = $state(false);
 	let open = $state(false);
 	let armed = $state(false);
+	/** The word over the table, before the screen comes down over it. */
+	let announcing = $state(false);
 	let accent = $state(DEFAULT_ACCENT);
 
 	const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -80,10 +90,15 @@
 	const round = async (award: number, options?: { accent?: string }): Promise<void> => {
 		accent = options?.accent ?? props.accent ?? DEFAULT_ACCENT;
 		mounted = true;
+		announcing = true;
 		await tick();
 		await nextFrame();
+		// Announced on the table first, then the screen comes down over the word still standing
+		// there — which is why it is not faded out: the panel is what takes it away.
+		await wait(ANNOUNCE_MS);
 		open = true;
 		await wait(SLIDE_IN_MS);
+		announcing = false;
 
 		const active = board;
 		if (active) {
@@ -98,6 +113,7 @@
 		await wait(SLIDE_OUT_MS);
 		board?.reset();
 		armed = false;
+		announcing = false;
 		mounted = false;
 	};
 
@@ -119,6 +135,14 @@
 </script>
 
 {#if mounted}
+	{#if announcing}
+		<!-- The word, over the table the player is still looking at. It sits UNDER the screen, so
+		     the panel coming down is what carries it away. -->
+		<div class="jp-announce" style="--accent:{accent}">
+			<span>{props.title ?? 'JACKPOT'}</span>
+		</div>
+	{/if}
+
 	<!-- Covers the game entirely: it is a screen, not an overlay, so nothing underneath is
 	     readable through it and nothing underneath can be touched. -->
 	<div
@@ -164,6 +188,47 @@
 {/if}
 
 <style>
+	/* The announcement, dead centre of the table and wearing the same gold as the win readout —
+	   the two are the game telling you it paid, so they are said in the same voice. Under the
+	   screen's z-index on purpose: the panel sliding down is what takes the word off, rather than
+	   it fading out and leaving a gap between the two. */
+	.jp-announce {
+		position: absolute;
+		inset: 0;
+		z-index: 59;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+	.jp-announce span {
+		font-family: 'DDIN', sans-serif;
+		font-weight: 600;
+		font-size: 6vw;
+		line-height: 1;
+		letter-spacing: 0.12em;
+		text-indent: 0.12em;
+		color: #f7de70;
+		background: linear-gradient(#faab0a, #f3f353);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		filter: drop-shadow(0 0.2vw 0.5vw rgba(0, 0, 0, 0.85))
+			drop-shadow(0 0 1.4vw var(--accent, #ffe14d));
+		animation: jp-announce-in 620ms cubic-bezier(0.2, 1.25, 0.35, 1) both;
+	}
+	/* Fades up and grows into place — it arrives rather than appearing. */
+	@keyframes jp-announce-in {
+		0% {
+			opacity: 0;
+			transform: scale(0.55);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
 	/* Comes down over the game and goes back up the same way. Held off the DOM entirely between
 	   rounds, so nothing here can take a tap meant for the table. */
 	.jp-screen {
