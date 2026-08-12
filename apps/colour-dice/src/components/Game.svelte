@@ -713,6 +713,12 @@
 		const beats = (index: number) => index % beatEvery === 0 || index === picks.length - 1;
 
 		// Added in one go: two hundred separate pushes would be two hundred renders of the list.
+		//
+		// And added BACK TO FRONT. Every flying chip carries the same z-index, so what decides which
+		// of them is in front is their order in this list — and the whole pile is on the board from
+		// the moment the collect starts, each chip waiting out its own delay where it stood. Listed
+		// in the order they leave, the first one off would be drawn under every chip still sitting
+		// behind it, and would appear to crawl out from under the stack instead of off the top of it.
 		const launched = picks.map((pick, index) => ({
 			id: ++flightId,
 			kind: 'collect' as const,
@@ -724,7 +730,7 @@
 			spin: 0,
 			turned: false,
 		}));
-		flights = [...flights, ...launched];
+		flights = [...flights, ...launched.slice().reverse()];
 
 		launched.forEach(({ id, delay }, index) => {
 			if (beats(index)) schedule(id, () => playSound('whoosh'), delay);
