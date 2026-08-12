@@ -1581,32 +1581,18 @@
 	}
 	/* Boxes with nothing to say (see `shadowed`). Every one of them while the dice are in the air —
 	   the bets are committed, nothing on the board can be acted on, and the throw is the only thing
-	   worth watching — and then, from the moment the dice come to rest, the colours they missed: a
-	   dark pane over the whole box, chips and all, so the result reads at a glance as the two or
-	   three that came up rather than as six of equal weight.
+	   worth watching — and then, from the moment the dice come to rest, the colours they missed, so
+	   the result reads at a glance as the two or three that came up rather than as six of equal
+	   weight.
 
-	   It has to be a layer rather than the inset shadow the disabled state dims with: an inset
-	   shadow paints under the box's own children, which would leave a losing bet's chip sitting
-	   bright on top of the dimming meant to cover it. Sat above the chips but below the odds badges
-	   — a missed colour carries neither, and a figure the player is meant to read should not be
-	   greyed out on the off chance it ever does. */
-	.odds.dimmed::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		z-index: 400;
-		border-radius: 0.3vw;
-		background: rgba(0, 0, 0, 0.62);
-		pointer-events: none;
-		animation: odds-dim 300ms ease-out both;
+	   Half opacity on the box itself, which takes everything standing on it down with it — chips
+	   included, so a losing bet fades with the colour it was riding on rather than sitting bright
+	   on top of it. */
+	.odds.dimmed {
+		opacity: 0.5;
 	}
-	@keyframes odds-dim {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
+	.odds {
+		transition: opacity 300ms ease;
 	}
 	/* Backed but not yet resolved. */
 	.odds.backed {
