@@ -10,11 +10,10 @@
 
 	const context = getContext();
 
-	// Clearing the board drops the dice through the tray floor rather than blinking them out: the
-	// camera looks straight down, so falling away from it is a shrink towards the tray's middle.
-	// The scene is only TAKEN AWAY once that has played — `clearDice` on a visible canvas pops, so
-	// the drop has to finish first. Mirrors the `transition` on `.dice-scene`.
-	const EXIT_MS = 420;
+	// Clearing the board slides the dice off the bottom of the screen rather than blinking them
+	// out. The scene is only TAKEN AWAY once that has played — `clearDice` on a visible canvas
+	// pops, so the dice have to be gone from view first. Mirrors the `transition` on `.dice-scene`.
+	const EXIT_MS = 520;
 	let diceExiting = $state(false);
 
 	let sceneEl: HTMLDivElement;
@@ -736,21 +735,17 @@
 		background: transparent;
 		position: relative;
 		z-index: 2;
-		/* Duration mirrors EXIT_MS. `ease-in` gives the exit some weight — the dice drop away
-		   rather than fading on the spot. */
-		transition:
-			transform 420ms cubic-bezier(0.5, 0, 0.75, 0.3),
-			opacity 420ms ease-in;
+		/* Duration mirrors EXIT_MS. The curve accelerates all the way out, so the dice leave under
+		   their own weight rather than gliding off at a constant speed. */
+		transition: transform 520ms cubic-bezier(0.4, 0, 0.9, 0.4);
 	}
-	/* Through the floor of the tray on a clear. The camera is straight overhead, so falling away
-	   from it is a shrink — which is why this is a scale rather than a slide: the dice drop out of
-	   the tray instead of sliding over the rim that is meant to hold them.
+	/* Off the bottom on a clear. A full scene height carries every die past the lower edge, and
+	   `.dice-box` clips there, so they are gone from view rather than faded out on the spot —
+	   which is what lets the canvas be torn down without the teardown being seen.
 
-	   Scaled about the tray's middle, not the scene's, so they collapse into the tray. Kept on the
-	   same `32.5%` as `.dice-tray`'s `top` — the two are the same line. */
+	   No opacity here on purpose: fading would have them disappear before they had left, and the
+	   point is that they leave. */
 	.dice-scene.exiting {
-		transform-origin: 50% 32.5%;
-		transform: scale(0.55);
-		opacity: 0;
+		transform: translateY(110%);
 	}
 </style>
