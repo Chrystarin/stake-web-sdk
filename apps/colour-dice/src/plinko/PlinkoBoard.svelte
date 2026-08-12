@@ -49,7 +49,7 @@
 	/** How long the ball stays squashed after a contact, and a struck peg stays lit. */
 	const CONTACT_MS = 130;
 	const PEG_LIT_MS = 320;
-	/** Ball slide onto the peg it was released over. */
+	/** Ball glide when the board is resized under it, or when it is first put on the rail. */
 	const SNAP_MS = 140;
 
 	let hostEl = $state<HTMLDivElement>();
@@ -58,8 +58,20 @@
 	const layout = $derived(layoutBoard(props.shape, box.width, box.height));
 	const pegs = $derived(pegsFor(props.shape, layout));
 
-	/** Which peg of the top row the ball is over, as an offset from centre in pitches. */
-	let startStep = $state(0.5);
+	/**
+	 * Where the ball sits on the rail, in pitches from centre. CONTINUOUS: the player is left
+	 * wherever they let go, rather than being tidied onto the nearest peg.
+	 */
+	let railOffset = $state(0.5);
+	/**
+	 * The peg it will strike in the top row — the nearest one to wherever it was let go.
+	 *
+	 * The walk needs a peg to start from, so this is what the plan is built on; the ball's own
+	 * position is not moved to match it. Between the two is the first fall, which carries the ball
+	 * from where it was released onto the peg below — at most half a pitch, which is exactly what
+	 * a ball dropped between two pegs does anyway.
+	 */
+	const startStep = $derived(snapStartOffset(props.shape, railOffset));
 	let phase = $state<'idle' | 'armed' | 'released' | 'dropping' | 'landed'>('idle');
 	let dragging = $state(false);
 	/** Ball centre in host pixels. Follows the drag while armed, the plan once dropped. */
@@ -77,16 +89,17 @@
 	/** The track runs to the outermost start position, not to the wall past it. */
 	const railLimit = () => (props.shape.startSteps - 0.5) * layout.pitch;
 
-	/** Park the ball over its start peg. Also what keeps it there through a resize. */
+	/** Put the ball where the rail says it is. Also what keeps it there through a resize. */
 	const restBall = () => {
-		ballX = layout.centreX + startStep * layout.pitch;
+		ballX = layout.centreX + railOffset * layout.pitch;
 		ballY = layout.railY;
 	};
 
-	// Reading `layout` and `startStep` is what subscribes this to a resize and to the drag.
+	// Reading `layout` and `railOffset` is what subscribes this to a resize. Only while the ball is
+	// waiting and NOT in hand — a drag drives the ball straight from the pointer.
 	$effect(() => {
 		void layout;
-		if ((phase === 'armed' && !dragging) || phase === 'released') restBall();
+		if (phase === 'armed' && !dragging) restBall();
 	});
 
 	onMount(() => {
@@ -106,10 +119,6 @@
 
 	let releaseRound: ((step: number) => void) | null = null;
 	let autoDropTimer: ReturnType<typeof setTimeout> | undefined;
-
-	/** Nearest legal start peg to a host-pixel x. */
-	const stepAtX = (x: number) =>
-		snapStartOffset(props.shape, (x - layout.centreX) / layout.pitch);
 
 	const pointerX = (event: PointerEvent) => {
 		const rect = hostEl?.getBoundingClientRect();
@@ -158,7 +167,7 @@
 		// pointer that runs past the end parks it there rather than dragging it off the board.
 		ballX = Math.max(layout.centreX - limit, Math.min(layout.centreX + limit, pointerX(event)));
 		ballY = layout.railY;
-		startStep = stepAtX(ballX);
+		railOffset = (ballX - layout.centreX) / layout.pitch;
 		armAutoDrop();
 	};
 
@@ -170,22 +179,22 @@
 	};
 
 	/**
-	 * Let the ball go from wherever it is sitting.
+	 * Let the ball go from exactly where it is sitting.
 	 *
-	 * It settles onto the nearest peg first — at most half a pitch, so it reads as the ball
-	 * dropping into the gap it was held over rather than being repositioned — and only then is the
-	 * starting point handed back to the round.
+	 * Nothing is tidied on the way: the ball is not walked onto the nearest peg first, because that
+	 * takes the player's aim off them at the last moment and makes the whole drop zone feel like a
+	 * row of notches. It falls from where they let go, and the peg it strikes on the way down is
+	 * whichever one is under it (see `startStep`).
 	 */
 	const release = () => {
 		if (phase !== 'armed') return;
 		clearTimeout(autoDropTimer);
 		dragging = false;
 		phase = 'released';
-		restBall();
 		props.sounds?.drop?.();
 		const resolve = releaseRound;
 		releaseRound = null;
-		setTimeout(() => resolve?.(startStep), SNAP_MS);
+		resolve?.(startStep);
 	};
 
 	/**
@@ -202,7 +211,7 @@
 		squash = 0;
 		// The middle of the track sits between the two innermost start pegs, so the ball opens on
 		// the one just right of centre rather than on a position that does not exist.
-		startStep = 0.5;
+		railOffset = 0.5;
 		phase = 'armed';
 		restBall();
 		return new Promise<number>((resolve) => {
@@ -287,7 +296,9 @@
 			depth: row < props.shape.rows ? row : pocketDepth,
 			peg: row < props.shape.rows ? { row, col: pegColumnAt(props.shape, row, offset) } : null,
 		}));
-		const from = { offset: startStep, depth: railDepth };
+		// The fall starts where the ball ACTUALLY is, not on the peg it is about to strike — the
+		// first segment is what carries it from one to the other.
+		const from = { offset: railOffset, depth: railDepth };
 		const durations = points.map((_, index) =>
 			index === 0
 				? ROW_MS * ENTRY_ROW_SCALE
@@ -351,11 +362,11 @@
 		landedPocket = null;
 		litPegs = new Set();
 		squash = 0;
-		startStep = 0.5;
+		railOffset = 0.5;
 	};
 
-	/** The ball glides while it is settling, and tracks the pointer exactly while it is held. */
-	const snapping = $derived((phase === 'armed' && !dragging) || phase === 'released');
+	/** Glides only when the board moves under it; a drag and a release both leave it exactly. */
+	const snapping = $derived(phase === 'armed' && !dragging);
 	/** Waiting to be picked up: the ball pulses until a hand is actually on it. */
 	const beckoning = $derived(phase === 'armed' && !dragging);
 	const ticks = $derived(startOffsets(props.shape));
