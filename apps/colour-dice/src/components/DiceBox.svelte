@@ -13,7 +13,7 @@
 	// Clearing the board slides the dice off the bottom of the screen rather than blinking them
 	// out. The scene is only TAKEN AWAY once that has played — `clearDice` on a visible canvas
 	// pops, so the dice have to be gone from view first. Mirrors the `transition` on `.dice-scene`.
-	const EXIT_MS = 520;
+	const EXIT_MS = 300;
 	let diceExiting = $state(false);
 
 	let sceneEl: HTMLDivElement;
@@ -737,7 +737,7 @@
 		z-index: 2;
 		/* Duration mirrors EXIT_MS. The curve accelerates all the way out, so the dice leave under
 		   their own weight rather than gliding off at a constant speed. */
-		transition: transform 520ms cubic-bezier(0.4, 0, 0.9, 0.4);
+		transition: transform 300ms cubic-bezier(0.4, 0, 0.9, 0.4);
 	}
 	/* Off the bottom on a clear. A full scene height carries every die past the lower edge, and
 	   `.dice-box` clips there, so they are gone from view rather than faded out on the spot —
