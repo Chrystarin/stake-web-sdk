@@ -231,8 +231,12 @@
 	const COLLECT_TRAVEL_MS = 560;
 	const COLLECT_MERGE_MS = 200;
 	const COLLECT_MS = COLLECT_TRAVEL_MS + COLLECT_MERGE_MS;
-	// Chips go in one at a time rather than as a shower, so each one lands on its own beat.
+	// Chips go in one at a time rather than as a shower, so each one lands on its own beat — until
+	// there are too many for that, when the whole collect is fitted into `COLLECT_WINDOW_MS` and
+	// the beats it sounds and kicks the balance on are thinned to `COLLECT_BEATS`.
 	const COLLECT_STAGGER_MS = 90;
+	const COLLECT_WINDOW_MS = 1800;
+	const COLLECT_BEATS = 12;
 	/** The amount floating away under the balance once the chips are in. */
 	const WIN_FLOAT_MS = 1100;
 
@@ -495,8 +499,6 @@
 	const CHIP_SIZE_VW = 3.5;
 	/** The whole pile drops in within this window, however deep it is. */
 	const PILE_POP_WINDOW_MS = 900;
-	/** Chips a colour sends up to the balance on collect, however many are showing. */
-	const MAX_COLLECT_FLIGHTS = 6;
 
 	/** The chips standing on a colour: how many, in how many stacks, and at what size. */
 	type Pile = {
@@ -647,62 +649,73 @@
 		const to = centreIn(host, balanceChipEl.getBoundingClientRect());
 		const vw = window.innerWidth / 100;
 
-		let launched = 0;
+		// EVERY chip on every colour that paid, taken in TIER order: the top of each stack goes
+		// first, then the next layer down, so a spread of stacks comes off in sheets rather than one
+		// pile being emptied while the others stand there full.
+		//
+		// Each leaves from exactly where it was standing — `pile.rise` up the stack and
+		// `stackOffsetVw` across — or the pile would snap flat and to the middle as it lifted.
+		const picks: { colour: Colour; x: number; y: number }[] = [];
 		for (const colour of winners) {
 			const box = oddsEls[colour];
 			if (!box) continue;
 			const centre = centreIn(host, box.getBoundingClientRect());
 			const pile = pileForColour(colour);
-			// The pile is drawn with each chip `pile.rise` above the one below and each stack a chip
-			// across, so the copies have to leave from those same places — otherwise the pile snaps
-			// flat and to the middle as it lifts off.
-			//
-			// Only the top few actually fly. A jackpot pile can be two hundred deep, and sending
-			// every one of them would take the best part of a minute at this stagger; taking the top
-			// of each stack reads as the pile being lifted just as well.
-			const picks: { x: number; y: number }[] = [];
-			for (let stack = pile.stacks.length - 1; stack >= 0; stack--) {
-				const x = centre.x + stackOffsetVw(pile, stack) * vw;
-				// Off the top of the stack down, the way a dealer would take it.
-				for (let tier = pile.stacks[stack] - 1; tier >= 0; tier--) {
-					if (picks.length >= MAX_COLLECT_FLIGHTS) break;
-					picks.push({ x, y: centre.y - (tier * pile.rise - pile.shift) * vw });
+			const deepest = Math.max(0, ...pile.stacks);
+			for (let tier = deepest - 1; tier >= 0; tier--) {
+				for (let stack = 0; stack < pile.stacks.length; stack++) {
+					if (tier >= pile.stacks[stack]) continue;
+					picks.push({
+						colour,
+						x: centre.x + stackOffsetVw(pile, stack) * vw,
+						y: centre.y - (tier * pile.rise - pile.shift) * vw,
+					});
 				}
 			}
-
-			for (const from of picks) {
-				const delay = launched++ * COLLECT_STAGGER_MS;
-				const id = ++flightId;
-				flights = [
-					...flights,
-					{
-						id,
-						kind: 'collect',
-						colour,
-						...face,
-						from,
-						to,
-						delay,
-						spin: 0,
-						turned: false,
-					},
-				];
-				schedule(id, () => playSound('whoosh'), delay);
-				// The merge: the chip goes into the balance, and the balance takes the hit.
-				schedule(
-					id,
-					() => {
-						playSound('merge');
-						balancePulse += 1;
-					},
-					delay + COLLECT_TRAVEL_MS,
-				);
-				schedule(id, () => dropFlight(id), delay + COLLECT_MS);
-			}
 		}
+		if (!picks.length) return;
 
-		if (!launched) return;
-		await waitForTimeout((launched - 1) * COLLECT_STAGGER_MS + COLLECT_TRAVEL_MS);
+		// A jackpot pile is two hundred chips, which at the full stagger is the best part of a
+		// minute — so the whole collect is fitted into one window instead. What it SOUNDS on is
+		// thinned to match: two hundred merges is a noise, and two hundred kicks of the balance is
+		// a flicker. The last chip always beats, so the readout ends on one.
+		const stagger = Math.min(
+			COLLECT_STAGGER_MS,
+			COLLECT_WINDOW_MS / Math.max(1, picks.length - 1),
+		);
+		const beatEvery = Math.max(1, Math.ceil(picks.length / COLLECT_BEATS));
+		const beats = (index: number) => index % beatEvery === 0 || index === picks.length - 1;
+
+		// Added in one go: two hundred separate pushes would be two hundred renders of the list.
+		const launched = picks.map((pick, index) => ({
+			id: ++flightId,
+			kind: 'collect' as const,
+			colour: pick.colour,
+			...face,
+			from: { x: pick.x, y: pick.y },
+			to,
+			delay: index * stagger,
+			spin: 0,
+			turned: false,
+		}));
+		flights = [...flights, ...launched];
+
+		launched.forEach(({ id, delay }, index) => {
+			if (beats(index)) schedule(id, () => playSound('whoosh'), delay);
+			// The merge: the chip goes into the balance, and the balance takes the hit.
+			schedule(
+				id,
+				() => {
+					if (!beats(index)) return;
+					playSound('merge');
+					balancePulse += 1;
+				},
+				delay + COLLECT_TRAVEL_MS,
+			);
+			schedule(id, () => dropFlight(id), delay + COLLECT_MS);
+		});
+
+		await waitForTimeout((picks.length - 1) * stagger + COLLECT_TRAVEL_MS);
 	};
 
 	/**
