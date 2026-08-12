@@ -53,7 +53,9 @@ const SOURCES: Record<SoundName, string> = {
  */
 const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, fadeMs?: number]>> = {
 	doorClose: [2790, 2260, 400],
-	doorOpen: [3200, 900],
+	// A shorter window gets a shorter tail — the same quarter of it, so the creak lands the way the
+	// thud does rather than fading for half its length.
+	doorOpen: [3200, 900, 220],
 };
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
