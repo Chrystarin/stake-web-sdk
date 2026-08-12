@@ -89,7 +89,9 @@ ratio *is* the angle the ball falls at: half a pitch sideways per row, so 0.5 is
 
 The pockets are the `glow_numbers` Spine skeleton from One-Eyed Willy's plinko board
 (`apps/plinko/static/spine/glow_numbers`), copied in as `static/img/plinko/pocket_slots.webp` —
-the same atlas image byte for byte, `.atlas` alongside it. Each pocket is two of its regions: a
+the same atlas image byte for byte. Its `.atlas` is kept next to `slots.ts` rather than in
+`static/` — it is what the region tables were read off, but nothing loads it, so it does not ship.
+Each pocket is two of its regions: a
 solid card, and a taller glow rising out of it, picked from the source's own seven-tier value
 ladder so the cool-centre / hot-edges ramp transfers without recolouring.
 

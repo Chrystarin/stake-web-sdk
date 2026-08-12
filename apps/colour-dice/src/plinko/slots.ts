@@ -2,9 +2,11 @@
  * Pocket art, lifted whole from One-Eyed Willy's plinko board.
  *
  * The source is that game's `glow_numbers` Spine skeleton (apps/plinko/static/spine/glow_numbers),
- * copied here as `static/img/plinko/pocket_slots.webp` — the same atlas image, byte for byte, with
- * its `.atlas` alongside it for provenance. Each pocket is two of its regions: a solid CARD, and a
- * taller GLOW that rises out of it.
+ * copied here as `static/img/plinko/pocket_slots.webp` — the same atlas image, byte for byte. Its
+ * `.atlas` sits next to this file rather than in `static/`: it is what the region tables below were
+ * read off, and it is worth keeping for the next person who has to change them, but nothing loads
+ * it at runtime and there is no reason to ship it. Each pocket is two of its regions: a solid CARD,
+ * and a taller GLOW that rises out of it.
  *
  * The animation comes over too. Its whole skeleton animation is fifteen slot-colour timelines that
  * are identical and in phase — alpha 1.0 at 0s, 0x4a/255 at 1s, back to 1.0 at 2s — with no bone
