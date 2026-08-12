@@ -42,7 +42,7 @@ screen should cover; it positions itself absolutely against the nearest position
 | `accent`           | `#ffe14d`                            | Paints the ball and the title glow. `play()` overrides per round. |
 | `prefix`           | `x`                                  | Written before a pocket's value — `x200`.                  |
 | `hint`             | "Hold ball then slide…"              | Caption under the title, while the ball is held.           |
-| `sounds`           | —                                    | `{ drop, peg, land }` — the host owns its own audio.       |
+| `sounds`           | —                                    | `{ drop, peg, land, screenIn, screenOut }` — the host owns its own audio. |
 | `autoDropAfterMs`  | `20000`                              | Lets go for an absent player. `0` disables.                |
 | `onMenu`           | —                                    | Menu button.                                               |
 

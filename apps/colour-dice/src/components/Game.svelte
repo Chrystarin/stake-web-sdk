@@ -1180,6 +1180,9 @@
 			// off the last — identical repeats at that rate read as a rattle rather than as hits.
 			peg: () => playSound('peg', 0.92 + Math.random() * 0.16),
 			land: () => playSound('merge'),
+			// The screen is a door: it thuds shut over the table and creaks back open off it.
+			screenIn: () => playSound('doorClose'),
+			screenOut: () => playSound('doorOpen'),
 		}}
 	/>
 

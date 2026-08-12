@@ -32,7 +32,14 @@
 		/** Written before the value on a pocket label, e.g. `x` for `x200`. */
 		prefix?: string;
 		hint?: string;
-		sounds?: { peg?: () => void; drop?: () => void; land?: () => void };
+		/** `screenIn`/`screenOut` fire as the panel starts moving, not when it arrives. */
+		sounds?: {
+			peg?: () => void;
+			drop?: () => void;
+			land?: () => void;
+			screenIn?: () => void;
+			screenOut?: () => void;
+		};
 		autoDropAfterMs?: number;
 		onMenu?: () => void;
 	};
@@ -97,6 +104,7 @@
 		// there — which is why it is not faded out: the panel is what takes it away.
 		await wait(ANNOUNCE_MS);
 		open = true;
+		props.sounds?.screenIn?.();
 		await wait(SLIDE_IN_MS);
 		announcing = false;
 
@@ -110,6 +118,7 @@
 		}
 
 		open = false;
+		props.sounds?.screenOut?.();
 		await wait(SLIDE_OUT_MS);
 		board?.reset();
 		armed = false;
