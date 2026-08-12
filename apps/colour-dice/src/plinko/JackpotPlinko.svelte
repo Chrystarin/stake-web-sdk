@@ -136,10 +136,18 @@
 
 {#if mounted}
 	{#if announcing}
+		{@const word = props.title ?? 'JACKPOT'}
 		<!-- The word, over the table the player is still looking at. It sits UNDER the screen, so
-		     the panel coming down is what carries it away. -->
+		     the panel coming down is what carries it away.
+
+		     Written TWICE, stacked in one grid cell: the outline first and the gold over it. A
+		     stroke or a text-shadow on the gold itself would both paint over a background-clipped
+		     gradient and eat straight through it, and so would a pseudo-element — the gradient is
+		     the span's BACKGROUND, and a negative-z child of a stacking context paints after that.
+		     Two siblings in DOM order is the one arrangement where the gold is genuinely last. -->
 		<div class="jp-announce" style="--accent:{accent}">
-			<span>{props.title ?? 'JACKPOT'}</span>
+			<span class="jp-word jp-word-outline" aria-hidden="true">{word}</span>
+			<span class="jp-word jp-word-face">{word}</span>
 		</div>
 	{/if}
 
@@ -196,26 +204,68 @@
 		position: absolute;
 		inset: 0;
 		z-index: 59;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		/* One cell, both copies of the word in it — see the markup. */
+		display: grid;
+		place-items: center;
 		pointer-events: none;
+		/* A pool of gold behind the word rather than a hole punched in the table — the announcement
+		   is the good news, so the light it throws should be warm. It fades out well before the
+		   edges, so it reads as the felt catching the glow rather than a panel laid over it. */
+		background: radial-gradient(
+			ellipse 58% 40% at 50% 50%,
+			rgba(255, 209, 92, 0.62) 0%,
+			rgba(247, 155, 26, 0.34) 40%,
+			rgba(190, 96, 0, 0) 74%
+		);
+		animation: jp-announce-glow 420ms ease-out both;
 	}
-	.jp-announce span {
+	@keyframes jp-announce-glow {
+		from {
+			opacity: 0;
+			transform: scale(0.8);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+	/* Both copies share the cell and every metric, so they register exactly on top of each other. */
+	.jp-word {
+		grid-area: 1 / 1;
 		font-family: 'DDIN', sans-serif;
 		font-weight: 600;
-		font-size: 6vw;
+		font-size: 9.5vw;
 		line-height: 1;
 		letter-spacing: 0.12em;
 		text-indent: 0.12em;
+		animation: jp-announce-in 620ms cubic-bezier(0.2, 1.25, 0.35, 1) both;
+	}
+	/* Painted first, so only the half of the stroke that falls OUTSIDE the glyphs survives — which
+	   is what an outline is. It carries the drop shadow too, the shadow belonging to the outer
+	   edge rather than to the gold sitting inside it. */
+	.jp-word-outline {
+		-webkit-text-fill-color: transparent;
+		-webkit-text-stroke: 0.13em #3b1e04;
+		filter: drop-shadow(0 0.15vw 0.35vw rgba(59, 30, 4, 0.8));
+	}
+	/* Struck gold rather than a flat yellow: pale at the top where the light lands, down through
+	   deep amber, with a bright band across the middle that reads as the sheen on a bevel and is
+	   what makes it metal instead of a two-stop fade. `color` is the fallback for anywhere
+	   `background-clip: text` does not take. */
+	.jp-word-face {
 		color: #f7de70;
-		background: linear-gradient(#faab0a, #f3f353);
+		background: linear-gradient(
+			180deg,
+			#fff6d0 0%,
+			#ffe07a 26%,
+			#f2ab1c 47%,
+			#fff0a8 55%,
+			#efa617 78%,
+			#c6740d 100%
+		);
 		-webkit-background-clip: text;
 		background-clip: text;
 		-webkit-text-fill-color: transparent;
-		filter: drop-shadow(0 0.2vw 0.5vw rgba(0, 0, 0, 0.85))
-			drop-shadow(0 0 1.4vw var(--accent, #ffe14d));
-		animation: jp-announce-in 620ms cubic-bezier(0.2, 1.25, 0.35, 1) both;
 	}
 	/* Fades up and grows into place — it arrives rather than appearing. */
 	@keyframes jp-announce-in {
