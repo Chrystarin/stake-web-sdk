@@ -61,8 +61,10 @@ const MIX: Record<SoundName, number> = {
 	// A drop strikes twenty-one of these in under two seconds, so it sits well back.
 	peg: 0.5,
 	win: 1,
-	doorClose: 1,
-	doorOpen: 1,
+	// Half the plinko game's own level: there it is the bonus screen's headline moment, here it is
+	// a transition into one, and at full it walks over the announcement it lands on.
+	doorClose: 0.5,
+	doorOpen: 0.5,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
