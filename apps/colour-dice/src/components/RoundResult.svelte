@@ -33,17 +33,18 @@
 {/if}
 
 <style>
-	/* Sat just above the Play/Clear tab rather than up on the table, so the win reads next to the
-	   button that collects it. Anchored to the BOTTOM for that reason: the tab is fixed to the
-	   bottom of the frame, so measuring down from the top would only hold at one viewport.
+	/* Dead centre of the table. The win is the thing that happened this round, so it is announced
+	   in the middle of the screen rather than tucked above the button that collects it.
 
-	   `pointer-events: none` so the board stays live underneath. */
+	   Centred on the frame's own half-height, so it holds at any viewport. `pointer-events: none`
+	   keeps the board live underneath. */
 	.result-wrapper {
 		position: absolute;
-		bottom: 22vw;
+		top: 50%;
 		left: 0;
 		right: 0;
 		z-index: 22;
+		transform: translateY(-50%);
 		pointer-events: none;
 	}
 	/* Dismissed when the board is cleared. It collapses into its own centre, which reads as the
