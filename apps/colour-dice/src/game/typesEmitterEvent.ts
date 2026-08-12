@@ -18,8 +18,10 @@ export type EmitterEventGame =
 	| { type: 'diceSettle'; colours: Colour[]; wins: ColourWin[] }
 	/** Round closed out from the board: the dice slide off the table and are taken away. */
 	| { type: 'diceClear' }
-	| { type: 'wheelShow' }
-	| { type: 'wheelSpin'; multiplier: number; colour: Colour }
-	| { type: 'wheelHide' }
+	/**
+	 * A backed colour took all three dice. The jackpot screen comes down over the table and plays
+	 * out for `multiplier`; handlers await it, so the book waits for the player.
+	 */
+	| { type: 'jackpotRound'; multiplier: number; colour: Colour }
 	| { type: 'winShow'; amount: number }
 	| { type: 'winHide' };

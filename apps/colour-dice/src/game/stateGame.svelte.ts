@@ -37,6 +37,9 @@ export const stateGame = $state({
 	dice: [null, null, null] as (Colour | null)[],
 	// Per-colour results for the resolved round — every backed colour that landed pays.
 	wins: [] as ColourWin[],
+	// What the jackpot paid and which colour took it, once the plinko round has settled it. Held
+	// alongside the rest of the result so the board can show the award on the colour that won it.
+	jackpot: null as { colour: Colour; multiplier: number } | null,
 	rolling: false,
 	resultReady: false,
 	// Set when an RGS round is stuck open and the server refuses to close it — betting cannot
@@ -101,6 +104,7 @@ const resetBoard = () => {
 	stateGame.selectionOrder = [];
 	stateGame.resultReady = false;
 	stateGame.wins = [];
+	stateGame.jackpot = null;
 };
 
 /**
@@ -236,6 +240,7 @@ const applyResumedSelection = (colours: Colour[]) => {
 	stateGame.backedOrder = [...colours];
 	stateGame.resultReady = false;
 	stateGame.wins = [];
+	stateGame.jackpot = null;
 };
 
 export const stateGameDerived = {

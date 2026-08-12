@@ -12,6 +12,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.gameType = bookEvent.gameType;
 		stateGame.resultReady = false;
 		stateGame.wins = [];
+		stateGame.jackpot = null;
 
 		// The book's slots resolve against the ordering frozen at roll time. A mismatch means
 		// the served book is for a different colour count than the board committed to — surface
@@ -28,15 +29,26 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.dice = colours;
 	},
 
+	/**
+	 * The jackpot. Named for the math contract — the book still calls a triple a `wheelSpin` — but
+	 * the wheel is gone: the award is played out on the plinko screen instead (see src/plinko).
+	 *
+	 * This lands AFTER `reveal`, which does not resolve until the dice have finished rolling, so
+	 * the jackpot only ever opens on a result the player has already seen. One awaited broadcast,
+	 * because the round now takes as long as the player takes to drop the ball.
+	 */
 	wheelSpin: async (bookEvent: BookEventOfType<'wheelSpin'>) => {
 		const colour = resolveSlotColour(bookEvent.slot, stateGame.backedOrder);
-		await eventEmitter.broadcastAsync({ type: 'wheelShow' });
 		await eventEmitter.broadcastAsync({
-			type: 'wheelSpin',
+			type: 'jackpotRound',
 			multiplier: bookEvent.multiplier,
 			colour,
 		});
-		await eventEmitter.broadcastAsync({ type: 'wheelHide' });
+		// Recorded only once the round is over. The award is settled long before the ball is
+		// released, so publishing it any earlier puts the answer on the table while the player is
+		// still being asked where to drop from — and the screen covering the board is the wrong
+		// thing to be relying on to keep it quiet.
+		stateGame.jackpot = { colour, multiplier: bookEvent.multiplier };
 	},
 
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {

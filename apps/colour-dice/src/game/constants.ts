@@ -31,8 +31,13 @@ export const COLOUR_TO_PIP: Record<Colour, number> = {
 // 3 matches is absent: a triple resolves on the wheel instead.
 export const MATCH_PAYOUT: Record<number, number> = { 0: 0, 1: 2, 2: 3 };
 
-// Lucky Wheel awards. RETUNED 2026-08 alongside the math: the old ladder put the game at
-// 97.01% RTP, above Stake's 96.70% ceiling. Weights now give E = 13.42 -> 96.49% RTP.
+// Jackpot awards. Still named for the wheel, because the math and the book event
+// (`wheelSpin`) are — but the wheel is gone from the client: a triple is now played out on the
+// plinko screen, where these become the pockets (see src/plinko). Only the presentation changed;
+// the awards and their weights are the math's, untouched.
+//
+// RETUNED 2026-08 alongside the math: the old ladder put the game at 97.01% RTP, above Stake's
+// 96.70% ceiling. Weights now give E = 13.42 -> 96.49% RTP.
 export const WHEEL: readonly (readonly [value: number, weight: number])[] = [
 	[4, 58],
 	[10, 22],

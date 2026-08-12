@@ -12,10 +12,10 @@
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
 	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
-	import type { Colour } from '../game/constants';
+	import { COLOUR_HEX, WHEEL_VALUES, type Colour } from '../game/constants';
+	import { JackpotPlinko, type JackpotPlinkoApi } from '../plinko';
 
 	import DiceBox from './DiceBox.svelte';
-	import WheelBonus from './WheelBonus.svelte';
 	import RoundResult from './RoundResult.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
@@ -132,15 +132,54 @@
 	const settled = $derived(stateGame.resultReady);
 	/** True from the moment Clear is pressed until the board is open for betting again. */
 	let clearing = $state(false);
+	/**
+	 * True from the moment a round resolves until the last won chip has landed on its colour.
+	 * Driven by the payout waves further down, and read here to hold the buttons.
+	 */
+	let payingOut = $state(false);
+	/**
+	 * True for the whole plinko round, screen slide included.
+	 *
+	 * The jackpot lands in the middle of a book, and the board underneath it is briefly in view as
+	 * the screen comes down and again as it lifts — long enough for the betting controls to flash
+	 * back if the only thing holding them off were the roll. Set by the handler that awaits the
+	 * round (further down), so it spans exactly as long as the screen is up.
+	 */
+	let jackpotUp = $state(false);
 	/** Drives the readout's shrink-away; it is unmounted by the reset that follows. */
 	let resultClosing = $state(false);
-	const canRoll = $derived(
-		idle && !settled && !clearing && backedCount > 0 && !stateGame.openRoundError,
-	);
+	/**
+	 * The board is open for betting: nothing in flight, nothing resolved and waiting to be taken.
+	 *
+	 * This is the one condition the betting controls answer to — the chip tray, clear and undo can
+	 * only ever do something while it holds, so they are only ever on the table while it holds. It
+	 * is deliberately made of every signal that a round is under way rather than just `rolling`:
+	 * the machine being busy covers a book still playing after the dice have settled, and
+	 * `jackpotUp` covers the plinko round, whose screen slides in and out over the board and would
+	 * otherwise let the controls flash back either side of it.
+	 */
+	const bettingOpen = $derived(idle && !settled && !clearing && !jackpotUp);
+	const controlsHidden = $derived(!bettingOpen);
+	const canRoll = $derived(bettingOpen && backedCount > 0 && !stateGame.openRoundError);
 	// Both button faces read these, and so do their handlers — a press that is greyed out has to
 	// stay silent, so the click sound only ever answers a press that did something.
-	const confirmDisabled = $derived(settled ? clearing : !canRoll);
-	const clearDisabled = $derived(clearing || (!settled && (!idle || backedCount === 0)));
+	//
+	// A settled board is held until `payingOut` clears: both buttons collect, so leaving either one
+	// live would let the winnings be swept off while they were still being dealt onto the colours.
+	const confirmDisabled = $derived(settled ? clearing || payingOut : !canRoll);
+	const clearDisabled = $derived(
+		clearing || payingOut || (!settled && (!idle || backedCount === 0)),
+	);
+	/**
+	 * The Play tab folds away only while a round is actually running.
+	 *
+	 * It stays on the table whenever the board is open for betting — greyed out on an empty one,
+	 * because that is still a board you are about to bet on and the tab is where that ends up. What
+	 * it will not do is sit there through the dice, the jackpot and the payout offering nothing: it
+	 * goes down with the controls and comes back up as Play Again the moment the last chip lands,
+	 * which is the first moment it can be pressed again.
+	 */
+	const confirmTucked = $derived(!bettingOpen && !(settled && !confirmDisabled));
 
 	/**
 	 * Change the tray denomination. Any bets already on the board are cleared — swept off the
@@ -441,19 +480,110 @@
 		return 1;
 	};
 
+	// --- The jackpot pile ---------------------------------------------------------------------
+	// A jackpot is paid out on the felt in CHIPS, one per multiple won: x200 is two hundred of
+	// them. They are dealt into stacks of fifty, up to four stacks side by side — which is exactly
+	// the top award — and once a third stack is needed the whole pile is drawn at half size,
+	// because four full-size stacks are wider than the box they stand on.
+	const JACKPOT_STACK_MAX = 50;
+	const JACKPOT_STACKS_MAX = 4;
+	/** Stacks from which the pile is drawn small. */
+	const JACKPOT_SHRINK_FROM = 3;
+	/** Step between chips in a jackpot stack, in vw — fifty have to fit inside the box. */
+	const JACKPOT_RISE_VW = 0.085;
+	/** A chip's footprint at full size, matching table.scss's `.chip`. */
+	const CHIP_SIZE_VW = 3.5;
+	/** The whole pile drops in within this window, however deep it is. */
+	const PILE_POP_WINDOW_MS = 900;
+	/** Chips a colour sends up to the balance on collect, however many are showing. */
+	const MAX_COLLECT_FLIGHTS = 6;
+
+	/** The chips standing on a colour: how many, in how many stacks, and at what size. */
+	type Pile = {
+		/** Chips per stack, left to right. */
+		stacks: number[];
+		/** Chip footprint multiplier — halved once the pile needs a third stack. */
+		scale: number;
+		/** Vertical step between chips in a stack, in vw. */
+		rise: number;
+		/**
+		 * How far the whole pile is dropped, in vw.
+		 *
+		 * Chips are anchored to the middle of the box and stack UPWARDS, which is right for the two
+		 * or three a normal payout leaves but climbs straight out of the top once fifty are dealt.
+		 * Half the pile's own height puts a deep one back inside the box, sitting on its centre
+		 * rather than growing off it.
+		 */
+		shift: number;
+		total: number;
+	};
+
+	const pileForColour = (colour: Colour): Pile => {
+		const jackpot = stateGame.jackpot?.colour === colour ? stateGame.jackpot.multiplier : 0;
+		// Gated on the same payout wave as a 3x stack, so the jackpot pile builds on its own beat
+		// rather than being there the moment the board resolves.
+		if (jackpot > 0 && payoutStage >= 2) {
+			const total = Math.min(jackpot, JACKPOT_STACK_MAX * JACKPOT_STACKS_MAX);
+			const count = Math.ceil(total / JACKPOT_STACK_MAX);
+			const stacks = Array.from({ length: count }, (_, index) =>
+				Math.min(JACKPOT_STACK_MAX, total - index * JACKPOT_STACK_MAX),
+			);
+			const scale = count >= JACKPOT_SHRINK_FROM ? 0.5 : 1;
+			const rise = JACKPOT_RISE_VW * scale;
+			return { stacks, scale, rise, shift: ((Math.max(...stacks) - 1) * rise) / 2, total };
+		}
+		const tiers = chipsOnColour(colour);
+		return { stacks: [tiers], scale: 1, rise: TIER_RISE_VW, shift: 0, total: tiers };
+	};
+
+	/** Where a stack sits across the box, in vw from its centre line. */
+	const stackOffsetVw = (pile: Pile, stack: number) =>
+		(stack - (pile.stacks.length - 1) / 2) * CHIP_SIZE_VW * pile.scale;
+
+	/** Landing beat for one chip. Two hundred at the full stagger would take half a minute. */
+	const chipPopDelay = (pile: Pile, index: number) =>
+		Math.min(PAYOUT_POP_STAGGER_MS, PILE_POP_WINDOW_MS / Math.max(1, pile.total - 1)) * index;
+
+	/**
+	 * How long the last chip has left to land, measured from the final payout wave starting.
+	 *
+	 * The piles are dealt on a stagger and a jackpot's runs to two hundred chips, so "the result is
+	 * in" and "the chips have stopped moving" are not the same moment. Read against the deepest
+	 * pile on the board, because that is the one still landing when the others have finished.
+	 */
+	const lastChipLandsInMs = (): number => {
+		let longest = 0;
+		for (const win of stateGame.wins) {
+			const pile = pileForColour(win.colour);
+			if (pile.total < 2) continue;
+			longest = Math.max(longest, chipPopDelay(pile, pile.total - 2));
+		}
+		return longest + PAYOUT_POP_MS;
+	};
+
 	// Run the payout waves as the result lands: every 2x colour stacks, then every 3x one. Waves
 	// with nothing in them cost no time, so a round that only paid 3x does not sit through the
 	// 2x beat first.
+	// `payingOut` (declared with the other button states) is held true across both waves and the
+	// stagger that follows them. The chips ARE the payout, so letting the board be swept while they
+	// are still being dealt would take the winnings away before they had finished arriving — and on
+	// a jackpot, that is most of what the player is there to watch.
 	$effect(() => {
 		if (!stateGame.resultReady) {
 			payoutStage = 0;
+			payingOut = false;
 			return;
 		}
 		const doubles = stateGame.wins.some((win) => win.matches === 1);
 		const triples = stateGame.wins.some((win) => win.matches >= 2);
-		if (!doubles && !triples) return;
+		// Nothing paid, so nothing to wait for — the board is free the moment it resolves.
+		if (!doubles && !triples) {
+			payingOut = false;
+			return;
+		}
 
 		let cancelled = false;
+		payingOut = true;
 		void (async () => {
 			await waitForTimeout(PAYOUT_LEAD_MS);
 			if (cancelled) return;
@@ -465,6 +595,10 @@
 			}
 			payoutStage = 2;
 			if (triples) playSound('pop');
+			// Measured only now: the piles are not dealt out to full depth until this wave.
+			await waitForTimeout(lastChipLandsInMs());
+			if (cancelled) return;
+			payingOut = false;
 		})();
 		return () => (cancelled = true);
 	});
@@ -511,17 +645,32 @@
 		if (!gameEl || !balanceChipEl || !winners.length) return;
 		const host = gameEl.getBoundingClientRect();
 		const to = centreIn(host, balanceChipEl.getBoundingClientRect());
-		// The pile is drawn with each chip `TIER_RISE_VW` above the one below, so the copies have
-		// to leave from those same offsets — otherwise the stack snaps flat as it lifts off.
-		const tierRise = (window.innerWidth * TIER_RISE_VW) / 100;
+		const vw = window.innerWidth / 100;
 
 		let launched = 0;
 		for (const colour of winners) {
 			const box = oddsEls[colour];
 			if (!box) continue;
 			const centre = centreIn(host, box.getBoundingClientRect());
-			// Off the top of the pile down, the way a dealer would take it.
-			for (let tier = chipsOnColour(colour) - 1; tier >= 0; tier--) {
+			const pile = pileForColour(colour);
+			// The pile is drawn with each chip `pile.rise` above the one below and each stack a chip
+			// across, so the copies have to leave from those same places — otherwise the pile snaps
+			// flat and to the middle as it lifts off.
+			//
+			// Only the top few actually fly. A jackpot pile can be two hundred deep, and sending
+			// every one of them would take the best part of a minute at this stagger; taking the top
+			// of each stack reads as the pile being lifted just as well.
+			const picks: { x: number; y: number }[] = [];
+			for (let stack = pile.stacks.length - 1; stack >= 0; stack--) {
+				const x = centre.x + stackOffsetVw(pile, stack) * vw;
+				// Off the top of the stack down, the way a dealer would take it.
+				for (let tier = pile.stacks[stack] - 1; tier >= 0; tier--) {
+					if (picks.length >= MAX_COLLECT_FLIGHTS) break;
+					picks.push({ x, y: centre.y - (tier * pile.rise - pile.shift) * vw });
+				}
+			}
+
+			for (const from of picks) {
 				const delay = launched++ * COLLECT_STAGGER_MS;
 				const id = ++flightId;
 				flights = [
@@ -531,7 +680,7 @@
 						kind: 'collect',
 						colour,
 						...face,
-						from: { x: centre.x, y: centre.y - tier * tierRise },
+						from,
 						to,
 						delay,
 						spin: 0,
@@ -717,9 +866,9 @@
 	// Surfaced in-game so bet problems are visible without opening the console.
 	let betNotice = $state('');
 
-	// The tray is disabled mid-roll, so never leave the panel hanging open over it.
+	// The tray goes away for the whole round, so never leave the panel hanging open over it.
 	$effect(() => {
-		if (stateGame.rolling) stakePanelOpen = false;
+		if (controlsHidden) stakePanelOpen = false;
 	});
 
 	// Safety net against a permanently dead Play button. `rolling` is cleared by the settle
@@ -761,7 +910,25 @@
 		if (!stateGame.resultReady) winCash = 0;
 	});
 
+	// --- Jackpot ------------------------------------------------------------------------------
+	// A backed colour taking all three dice pays on the plinko screen (see src/plinko), which comes
+	// down over the table and does not resolve until the player has dropped the ball. Everything it
+	// needs is passed in — the module knows nothing about this game — so pulling the feature is a
+	// matter of deleting the folder and this handler.
+	let jackpot = $state<JackpotPlinkoApi>();
+
 	context.eventEmitter.subscribeOnMount({
+		jackpotRound: async (emitterEvent) => {
+			jackpotUp = true;
+			try {
+				await jackpot?.play(emitterEvent.multiplier, { accent: COLOUR_HEX[emitterEvent.colour] });
+			} finally {
+				// `finally`, so a round that throws mid-way cannot leave the board locked out of
+				// betting for good.
+				jackpotUp = false;
+			}
+		},
+
 		winShow: async (emitterEvent) => {
 			// Book amounts are x100 in units of the per-colour stake, so cash scales by betAmount.
 			winCash = (emitterEvent.amount / 100) * stateBet.betAmount;
@@ -818,6 +985,7 @@
 						class="confirm-btn"
 						class:clear-mode={settled}
 						class:disabled={confirmDisabled}
+						class:tucked={confirmTucked}
 						onclick={onConfirmClick}
 						aria-hidden="true"
 					>
@@ -826,7 +994,10 @@
 						</div>
 					</div>
 
-					<div class="actions-wrap">
+					<!-- Clear, the chip tray and undo. Nothing else lives in this row, so hiding it is
+					     exactly the three controls going away — and it keeps its space, so the Play tab
+					     and the wager below it do not jump as the round starts. -->
+					<div class="actions-wrap" class:hidden={controlsHidden}>
 						<div
 							class="clear-btn"
 							class:disabled={clearDisabled}
@@ -896,7 +1067,7 @@
 							{@const backed = stateGameDerived.isBacked(colour)}
 							{@const win = stateGameDerived.winForColour(colour)}
 							{@const landed = stateGameDerived.isLandedColour(colour)}
-							{@const tiers = chipsOnColour(colour)}
+							{@const pile = pileForColour(colour)}
 							<div
 								bind:this={oddsEls[colour]}
 								class="odds {colour}"
@@ -913,6 +1084,11 @@
 								     driven by the DICE, not by the payout, so a colour that landed shows what it
 								     was worth even when nobody backed it — the near-miss is the point. -->
 								<div class="rate {stateGameDerived.rateTypeForColour(colour)}"></div>
+								<!-- What the jackpot actually paid, on the colour that took it. The JP badge below
+								     says a jackpot landed; this says how much it was worth. -->
+								{#if stateGame.jackpot?.colour === colour}
+									<div class="jp-award">x{stateGame.jackpot.multiplier}</div>
+								{/if}
 								{#if backed && !arrivingColours.has(colour) && !clearing}
 									<!-- The actual chip lands on the colour, rather than a text pill, so the
 									     board reads like real chips on a felt. Held back until the thrown
@@ -921,18 +1097,28 @@
 									     these off, and two of each would show otherwise.
 
 									     A colour that paid grows into a pile: the bet is the bottom chip
-									     and the winnings drop on top of it (see chipsOnColour). -->
-									{#each Array.from({ length: tiers }, (_, tier) => tier) as tier (tier)}
-										<div
-											class="placed-chip chip"
-											class:won={tier > 0}
-											style="--tier:{tier}; --pop-ms:{PAYOUT_POP_MS}ms; --pop-delay:{(tier - 1) *
-												PAYOUT_POP_STAGGER_MS}ms; --chip-hue:{chipHueShift(
-												stakes.indexOf(stateGame.stake),
-											)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
-										>
-											<span>{fmtChip(stateGame.stake)}</span>
-										</div>
+									     and the winnings drop on top of it (see pileForColour). A jackpot
+									     is paid in full — one chip per multiple won — so the pile deals
+									     itself out sideways into stacks rather than climbing off the box. -->
+									{#each pile.stacks as count, stack (stack)}
+										{#each Array.from({ length: count }, (_, tier) => tier) as tier (tier)}
+											<div
+												class="placed-chip chip"
+												class:won={stack > 0 || tier > 0}
+												style="--tier:{tier}; --rise:{pile.rise}vw; --pile-shift:{pile.shift}vw; --stack-x:{stackOffsetVw(
+													pile,
+													stack,
+												)}vw; width:{CHIP_SIZE_VW * pile.scale}vw; height:{CHIP_SIZE_VW *
+													pile.scale}vw; font-size:{3.5 * pile.scale}vw; --pop-ms:{PAYOUT_POP_MS}ms; --pop-delay:{chipPopDelay(
+													pile,
+													stack * JACKPOT_STACK_MAX + tier - 1,
+												)}ms; --chip-hue:{chipHueShift(
+													stakes.indexOf(stateGame.stake),
+												)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
+											>
+												<span>{fmtChip(stateGame.stake)}</span>
+											</div>
+										{/each}
 									{/each}
 								{/if}
 							</div>
@@ -979,7 +1165,17 @@
 		</div>
 	{/if}
 
-	<WheelBonus />
+	<!-- Nothing at all between rounds: the screen is only on the DOM while a jackpot is playing. -->
+	<JackpotPlinko
+		bind:this={jackpot}
+		awards={WHEEL_VALUES}
+		balance="{sign}{balanceFormat.format(shownBalance)}"
+		sounds={{
+			drop: () => playSound('whoosh'),
+			peg: () => playSound('pop'),
+			land: () => playSound('merge'),
+		}}
+	/>
 
 	{#if stateGame.resultReady}
 		<RoundResult amount={winCash} {sign} closing={resultClosing} />
@@ -1306,9 +1502,15 @@
 	.chip-wrap:not(.shown) {
 		pointer-events: none;
 	}
+	/* `isolation` is what keeps the box's layering INSIDE the box. `position: relative` alone
+	   leaves `z-index: auto`, which is not a stacking context — so the badges below, sat high
+	   enough to clear a two-hundred-chip pile, were being hoisted into the root context and painted
+	   straight over the jackpot screen while it was down. Nothing in here can now outrank anything
+	   outside it, whatever number it carries. */
 	.odds {
 		cursor: pointer;
 		position: relative;
+		isolation: isolate;
 	}
 	/* A colour that landed AND was backed — it paid. Every backed colour pays on its own match
 	   count, so more than one of these can light up in the same round. */
@@ -1334,6 +1536,48 @@
 			inset 0 0.1vw 0.1vw 0.05vw #ffeddb,
 			inset 0 0.1vw 0.4vw 0.1vw #ffffff;
 	}
+	/* The jackpot award, pinned to the box's top corner. Everything else on the box is already
+	   spoken for — the colour name runs across the top, the chip pile sits dead centre, and the JP
+	   badge fills the bottom strip — so the corner is the one place a figure can go without
+	   landing on top of something. */
+	/* The odds a colour paid — the 2x / 3x / JP badge along the bottom, and the jackpot award in the
+	   corner — read OVER the chips standing on the box. table.scss puts the badge on `z-index: 9`,
+	   under the chips at `12 + tier`, which was fine when a pile was three chips and is not once a
+	   jackpot deals two hundred onto it. Both sit above anything the pile can climb to. */
+	/* `!important` because table.scss reaches the badge through a five-class chain that outweighs
+	   anything scoped here — the same reason `.placed-chip` needs it below. */
+	.odds .rate {
+		z-index: 500 !important;
+	}
+	.odds .jp-award {
+		position: absolute;
+		top: 0.25vw;
+		right: 0.3vw;
+		z-index: 501;
+		padding: 0.1vw 0.45vw;
+		border-radius: 0.9vw;
+		background: linear-gradient(180deg, #fff3b0 0%, #ffc93c 55%, #e59a09 100%);
+		border: 0.08vw solid #fff6cf;
+		box-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.55);
+		color: #4a2c00;
+		font-family: 'Alexandria', sans-serif;
+		font-weight: 700;
+		font-size: 1.05vw;
+		line-height: 1.35;
+		white-space: nowrap;
+		pointer-events: none;
+		animation: jp-award-in 420ms cubic-bezier(0.22, 1.4, 0.36, 1) both;
+	}
+	@keyframes jp-award-in {
+		0% {
+			opacity: 0;
+			transform: scale(0.4);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
 	/* Colour name across the top of the box. table.scss lays `.outcome-stat` out flush left
 	   with a side margin, so centre it and drop the horizontal inset. */
 	.odds .outcome-stat {
@@ -1354,9 +1598,13 @@
 		top: 50% !important;
 		bottom: auto !important;
 		left: 50% !important;
-		/* `--tier` is the chip's height in the pile; the 0.5vw step mirrors TIER_RISE_VW, which
-		   is what the collect flights leave from. */
-		transform: translate(-50%, calc(-50% - var(--tier, 0) * 0.5vw));
+		/* `--tier` is the chip's height in its stack and `--stack-x` the stack's place across the
+		   box; both are published by pileForColour, which is also what the collect flights read, so
+		   the copies leave from exactly where the chips were standing. */
+		transform: translate(
+			calc(-50% + var(--stack-x, 0vw)),
+			calc(-50% - var(--tier, 0) * var(--rise, 0.5vw) + var(--pile-shift, 0vw))
+		);
 		z-index: calc(12 + var(--tier, 0));
 		margin: 0 !important;
 		pointer-events: none;
@@ -1371,15 +1619,26 @@
 	@keyframes chip-stack {
 		0% {
 			opacity: 0;
-			transform: translate(-50%, calc(-50% - var(--tier) * 0.5vw - 2.4vw)) scale(1.35);
+			transform: translate(
+					calc(-50% + var(--stack-x, 0vw)),
+					calc(-50% - var(--tier) * var(--rise, 0.5vw) + var(--pile-shift, 0vw) - 2.4vw)
+				)
+				scale(1.35);
 		}
 		65% {
 			opacity: 1;
-			transform: translate(-50%, calc(-50% - var(--tier) * 0.5vw + 0.2vw)) scale(0.94);
+			transform: translate(
+					calc(-50% + var(--stack-x, 0vw)),
+					calc(-50% - var(--tier) * var(--rise, 0.5vw) + var(--pile-shift, 0vw) + 0.2vw)
+				)
+				scale(0.94);
 		}
 		100% {
 			opacity: 1;
-			transform: translate(-50%, calc(-50% - var(--tier) * 0.5vw)) scale(1);
+			transform: translate(
+				calc(-50% + var(--stack-x, 0vw)),
+				calc(-50% - var(--tier) * var(--rise, 0.5vw) + var(--pile-shift, 0vw))
+			);
 		}
 	}
 	/* Undo control — reuses the round pill look of clear/repeat with an arrow glyph. */
@@ -1419,6 +1678,32 @@
 		/* table.scss lifts this 4vw to clear the old bottom bar. That bar is gone, so drop the
 		   panel back down to a small margin off the bottom edge. */
 		bottom: 1vw;
+	}
+	/* Off the table for the round, and the row COLLAPSES as it goes.
+	   The panel is anchored to the bottom of the frame and the colour boxes sit below this row, so
+	   losing its height pulls the Play tab down onto them rather than pushing anything else about —
+	   which is the whole point: with nothing to bet with, Play belongs next to what it plays.
+
+	   The height is stated rather than left to the content because there is no animating from
+	   `auto`. Everything inside is sized in vw, so it holds at any viewport. Overflow is left
+	   visible on purpose — the stake panel opens upward out of this row, and clipping it would cut
+	   the grid off at the tray. */
+	.actions-wrap {
+		height: 4.4vw;
+		transition:
+			height 260ms cubic-bezier(0.4, 0, 0.2, 1),
+			margin-top 260ms cubic-bezier(0.4, 0, 0.2, 1),
+			margin-bottom 260ms cubic-bezier(0.4, 0, 0.2, 1),
+			opacity 180ms ease,
+			visibility 260ms;
+	}
+	.actions-wrap.hidden {
+		height: 0;
+		margin-top: 0;
+		margin-bottom: 0;
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
 	}
 	.undo-btn.disabled,
 	.clear-btn.disabled {
@@ -1570,6 +1855,30 @@
 		box-shadow: inset 0 1vw 0.4vw #ffffff2b;
 		color: #9d9cb8;
 		cursor: not-allowed;
+		pointer-events: none;
+	}
+	/* The tab goes down with the controls and comes back up the moment it can be pressed again —
+	   so it is only ever on the table when it is offering something. Collapsing its own height is
+	   what moves it: the panel is anchored to the bottom of the frame, so the tab folds away onto
+	   the colour boxes and unfolds back up off them.
+
+	   `!important` because table.scss states this button's box through a four-class chain that
+	   outweighs anything scoped here — the same reason its `clear-mode` face above needs it. */
+	.confirm-btn {
+		overflow: hidden;
+		transition:
+			height 260ms cubic-bezier(0.4, 0, 0.2, 1),
+			padding-top 260ms cubic-bezier(0.4, 0, 0.2, 1),
+			margin-bottom 260ms cubic-bezier(0.4, 0, 0.2, 1),
+			opacity 180ms ease,
+			visibility 260ms;
+	}
+	.confirm-btn.tucked {
+		height: 0 !important;
+		padding-top: 0 !important;
+		margin-bottom: 0 !important;
+		opacity: 0;
+		visibility: hidden;
 		pointer-events: none;
 	}
 </style>
