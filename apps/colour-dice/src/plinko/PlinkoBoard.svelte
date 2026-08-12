@@ -365,6 +365,17 @@
 		railOffset = 0.5;
 	};
 
+	/**
+	 * Pockets with nothing to say, the way the colour boxes go dark on the table below.
+	 *
+	 * All of them once the ball is falling — it is the only thing worth watching, and the ladder
+	 * has already been read by then — and then all but the one that took it, so the result is the
+	 * only thing lit. They stay up while the ball is still in hand: that is when the player is
+	 * choosing, and the ladder is what they are choosing between.
+	 */
+	const pocketDimmed = (index: number) =>
+		phase === 'dropping' || (landedPocket !== null && landedPocket !== index);
+
 	/** Glides only when the board moves under it; a drag and a release both leave it exactly. */
 	const snapping = $derived(phase === 'armed' && !dragging);
 	/** Waiting to be picked up: the ball pulses until a hand is actually on it. */
@@ -422,7 +433,7 @@
 			<div
 				class="pb-pocket-glow"
 				class:won={landedPocket === index}
-				class:dimmed={landedPocket !== null && landedPocket !== index}
+				class:dimmed={pocketDimmed(index)}
 				style="left:{pocketX(index)}px; top:{layout.pocketTop +
 					layout.pocketHeight -
 					height}px; width:{width}px; height:{height}px;"
@@ -446,7 +457,7 @@
 			<div
 				class="pb-pocket"
 				class:won={landedPocket === index}
-				class:dimmed={landedPocket !== null && landedPocket !== index}
+				class:dimmed={pocketDimmed(index)}
 				style="left:{pocketX(index)}px; top:{layout.pocketTop}px; width:{width}px; height:{layout.pocketHeight}px; font-size:{layout.pitch *
 					0.3}px;"
 			>
