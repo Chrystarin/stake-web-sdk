@@ -1589,7 +1589,7 @@
 	   included, so a losing bet fades with the colour it was riding on rather than sitting bright
 	   on top of it. */
 	.odds.dimmed {
-		opacity: 0.5;
+		opacity: 0.3;
 	}
 	.odds {
 		transition: opacity 300ms ease;
