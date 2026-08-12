@@ -39,16 +39,20 @@ const SOURCES: Record<SoundName, string> = {
 };
 
 /**
- * A `[startMs, durationMs]` slice to play instead of the whole file.
+ * A `[startMs, durationMs, fadeMs?]` slice to play instead of the whole file.
  *
  * The door clips open with a stretch of latch ticking and rattle before the slam, so playing them
  * whole would put the noise where the sound should be. The windows start a hair before the
  * measured onset — `door_close` at ~2.80s, `door_open` at ~3.22s — so the attack is not clipped,
  * and both run to the end of their decay so the tail is not chopped. Lifted from the plinko app's
  * own sprite table.
+ *
+ * `fadeMs` rides the last of the window down to silence instead of stopping dead on it. Ending a
+ * decaying tail with a `pause()` is a step to zero however quiet it has got, and a step is a click
+ * — which is the "cut" you hear rather than the window being mistimed.
  */
-const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number]>> = {
-	doorClose: [2790, 2260],
+const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, fadeMs?: number]>> = {
+	doorClose: [2790, 2260, 400],
 	doorOpen: [3200, 900],
 };
 
@@ -61,15 +65,24 @@ const MIX: Record<SoundName, number> = {
 	// A drop strikes twenty-one of these in under two seconds, so it sits well back.
 	peg: 0.5,
 	win: 1,
-	// Half the plinko game's own level: there it is the bonus screen's headline moment, here it is
-	// a transition into one, and at full it walks over the announcement it lands on.
-	doorClose: 0.5,
+	// Well under the plinko game's own level: there they are the bonus screen's headline moment,
+	// here they are the way into one, and loud they walk over the announcement the screen lands on.
+	// The thud is quieter again than the creak — it arrives on top of the word.
+	doorClose: 0.25,
 	doorOpen: 0.5,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
-/** Pending end-of-window stops, so a re-triggered sprite does not get cut short by the last one. */
-const spriteStops = new Map<SoundName, ReturnType<typeof setTimeout>>();
+/**
+ * Everything a playing sprite has outstanding — its end-of-window stop and its fade ticker — so a
+ * re-trigger can call the last one off rather than being cut short by it.
+ */
+const spriteRuns = new Map<SoundName, () => void>();
+
+const cancelSprite = (name: SoundName) => {
+	spriteRuns.get(name)?.();
+	spriteRuns.delete(name);
+};
 
 /** Warm the files, so the first placement is not silent while the mp3 is still downloading. */
 export const preloadSounds = (): void => {
@@ -117,8 +130,14 @@ export const playSound = (name: SoundName, rate?: number): void => {
 		return;
 	}
 
-	const [startMs, durationMs] = sprite;
-	clearTimeout(spriteStops.get(name));
+	const [startMs, durationMs, fadeMs = 0] = sprite;
+	cancelSprite(name);
+	const speed = rate && rate > 0 ? rate : 1;
+	const windowMs = durationMs / speed;
+	// A fade longer than the window would start before the sound did.
+	const fade = Math.min(fadeMs / speed, windowMs);
+	const full = node.volume;
+
 	const start = () => {
 		try {
 			node.currentTime = startMs / 1000;
@@ -126,10 +145,37 @@ export const playSound = (name: SoundName, rate?: number): void => {
 			/* not seekable yet — it will play from the top rather than not at all */
 		}
 		void node.play().catch(() => {});
-		spriteStops.set(
-			name,
-			setTimeout(() => node.pause(), durationMs / (rate && rate > 0 ? rate : 1)),
+
+		let ramp: ReturnType<typeof setInterval> | undefined;
+		// Ride the last of the window down rather than stopping on it. Stepping the element's own
+		// volume is coarse next to a Web Audio ramp, but at ~30ms a step it is well under what reads
+		// as a step, and it keeps this module the plain-HTMLAudio thing it is meant to be.
+		const stop = setTimeout(
+			() => {
+				if (fade <= 0) {
+					node.pause();
+					return;
+				}
+				const steps = Math.max(1, Math.round(fade / 30));
+				let step = 0;
+				ramp = setInterval(() => {
+					step += 1;
+					node.volume = Math.max(0, full * (1 - step / steps));
+					if (step < steps) return;
+					clearInterval(ramp);
+					node.pause();
+					// Handed back at its proper level, or the next play starts silent.
+					node.volume = full;
+				}, fade / steps);
+			},
+			Math.max(0, windowMs - fade),
 		);
+
+		spriteRuns.set(name, () => {
+			clearTimeout(stop);
+			if (ramp) clearInterval(ramp);
+			node.volume = full;
+		});
 	};
 	// `readyState >= HAVE_METADATA` is the point at which a seek will take.
 	if (node.readyState >= 1) start();
