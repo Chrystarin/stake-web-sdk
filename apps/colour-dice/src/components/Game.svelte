@@ -956,6 +956,18 @@
 	});
 
 	// --- Jackpot ------------------------------------------------------------------------------
+	// DEBUG — NOT FOR SHIPPING. A jackpot plays as a straight result: no announcement, no screen,
+	// no ball. The award lands on the colour box the moment the book calls it and the round carries
+	// on to the payout, so what the jackpot leaves BEHIND (the badge, the chip pile, the collect)
+	// can be worked on without sitting through the round to reach it each time.
+	//
+	// Set this back to false to restore the round, or load with `?jackpot` to play it once.
+	const DEBUG_SKIP_JACKPOT = false;
+	const skipJackpotRound =
+		DEBUG_SKIP_JACKPOT &&
+		!(typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('jackpot'));
+	if (skipJackpotRound) console.info('[colour-dice] DEBUG: jackpot rounds are being skipped');
+
 	// A backed colour taking all three dice pays on the plinko screen (see src/plinko), which comes
 	// down over the table and does not resolve until the player has dropped the ball. Everything it
 	// needs is passed in — the module knows nothing about this game — so pulling the feature is a
@@ -964,6 +976,9 @@
 
 	context.eventEmitter.subscribeOnMount({
 		jackpotRound: async (emitterEvent) => {
+			// Returning here resolves the book's awaited broadcast at once, so the handler that sent
+			// it goes straight on to recording the award (see bookEventHandlerMap).
+			if (skipJackpotRound) return;
 			jackpotUp = true;
 			try {
 				await jackpot?.play(emitterEvent.multiplier, { accent: COLOUR_HEX[emitterEvent.colour] });
