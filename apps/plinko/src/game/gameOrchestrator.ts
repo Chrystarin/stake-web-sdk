@@ -21,6 +21,7 @@ import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { traceBonusMeterWrite } from './plinkoMeterTrace';
 import { stateXstateDerived } from './stateXstate';
 import {
+	activeMeterTierBalls,
 	bonusMeterTierStart,
 	hasActiveRgsSession,
 	updateRgsSessionBonusMeter,
@@ -409,7 +410,9 @@ function normalizeBonusOutcomes(outcomes: PlinkoBallOutcome[]): PlinkoBallOutcom
 	const bookStake = stateGame.lastBookStakePerBall > 0 ? stateGame.lastBookStakePerBall : 1;
 	const stakeScale = bookStake > 0 ? plinkoStakePerBall() / bookStake : 1;
 	// A tier without a free-spin meter (1-ball) has no spin pocket to flag — its center just pays.
-	const spinPocketActive = spinPocketActiveForBallsPerDrop(plinkoBallsPerDrop());
+	// Keyed to the tier the ROUND plays, not the selector: a bonus BOUGHT from the 1-ball tier is played
+	// (and paid) on the math's reference tier, whose center IS the spin pocket feeding the in-bonus meter.
+	const spinPocketActive = spinPocketActiveForBallsPerDrop(activeMeterTierBalls());
 	return (outcomes ?? []).map((outcome) => ({
 		...outcome,
 		amount: outcome.amount * stakeScale,
@@ -1584,7 +1587,9 @@ export function onBallLanded(
 	const pending = takeExpectedOutcome(ballId);
 	const slotCount = stateGame.coefficients.length;
 	// No free-spin meter on this tier (1-ball) ⇒ no spin pocket: the center is an ordinary paying slot.
-	const spinPocketActive = spinPocketActiveForBallsPerDrop(plinkoBallsPerDrop());
+	// A bought bonus plays on the reference tier even from 1-ball, so ask the round's tier (see
+	// `activeMeterTierBalls`) rather than the selector.
+	const spinPocketActive = spinPocketActiveForBallsPerDrop(activeMeterTierBalls());
 	const isSpinSlot =
 		spinPocketActive &&
 		(pending

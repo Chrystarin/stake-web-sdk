@@ -12,7 +12,8 @@
 	} from '../game/gameOrchestrator';
 	import { assertAuthoritativeOutcome } from '../game/plinkoFairnessGuard';
 	import { coefficientsForTier, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
-	import { isSpinSlotRateIndex } from '../game-logic/spinSlot';
+	import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-logic/spinSlot';
+	import { activeMeterTierBalls } from '../game/plinkoSessionMeters';
 	import { frameImagePoint, SKULL_MOUTH_CAVITY, SKULL_MOUTH_CAVITY_HALF_W } from '../lib/frameArt';
 	import config from '../game/config';
 	import { pocketPitchForMultiplier } from '../game/sound';
@@ -235,9 +236,11 @@
 	});
 
 	// 1-ball rapid tier: the center pocket is a plain 0× slot (no bonus), so the board shows "0"
-	// instead of the "SPIN" glyph. Keep the engine in sync as the ball-per-drop tier changes.
+	// instead of the "SPIN" glyph. Keep the engine in sync as the ball-per-drop tier changes. Keyed to
+	// the tier the ROUND plays (`activeMeterTierBalls`), so a bonus BOUGHT from the 1-ball tier — which
+	// plays on the math's reference board — gets the "SPIN" glyph back for its duration.
 	$effect(() => {
-		const rapid = stateGame.ballPerDrop === 1;
+		const rapid = !spinPocketActiveForBallsPerDrop(activeMeterTierBalls());
 		engine?.setRapidSingleBall(rapid);
 	});
 

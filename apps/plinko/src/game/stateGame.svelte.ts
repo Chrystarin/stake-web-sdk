@@ -364,4 +364,18 @@ export const stateGameDerived = {
 	get bonusLevelLabels(): readonly number[] {
 		return BONUS_LEVEL_LABELS;
 	},
+	/**
+	 * Whether the Free Spin / Free Bonus meters belong on screen. The plain 1-ball tier is feature-free,
+	 * so its (cosmetic) meters stay hidden — EXCEPT while a BOUGHT bonus is running there. A buy is
+	 * balls-per-drop-independent and plays on the math's reference tier, so the bonus and its in-bonus
+	 * free spin are genuinely live at 1-ball and their bars must show like on any other tier.
+	 * `pendingBuyBonusMode` covers the window between activating the buy and `bonusRoundActive` flipping.
+	 */
+	get areTierMetersVisible(): boolean {
+		return (
+			stateGame.ballPerDrop !== 1 ||
+			stateGame.bonusRoundActive ||
+			!!stateGame.pendingBuyBonusMode
+		);
+	},
 };

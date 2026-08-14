@@ -556,9 +556,10 @@
 		stateGame.menuOpen = false;
 	}
 
-	// Buy bonus — can't open mid-round / mid-bonus / in replay, and NOT on the single-ball (rapid) tier,
-	// which has no meters / bonus feature (the trigger button stays visible there but greyed to half
-	// opacity and disabled).
+	// Buy bonus — can't open mid-round / mid-bonus / in replay. It IS offered on every balls-per-drop
+	// tier, the single-ball (rapid) one included: a buy is bonus-only and bpd-independent (its price is
+	// ×bet-per-ball and its book is generated on the math's reference tier), so the fact that 1-ball has
+	// no meters of its own doesn't stop it from buying the bonus outright.
 	//
 	// The full-screen win celebration counts as "mid-round" here, exactly as it does for the Play button
 	// (see `playDisabled` below). The round's balls have landed by then, so none of the other flags are
@@ -574,7 +575,6 @@
 		stateXstate.value;
 		return (
 			isReplay ||
-			stateGame.ballPerDrop === 1 ||
 			isBetControlsLocked() ||
 			isGameOngoing() ||
 			stateGame.showWinPopup ||
@@ -590,14 +590,6 @@
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
 
-	// Close the buy-bonus modal if the player switches to the single-ball tier while it's open (the
-	// feature isn't offered there).
-	$effect(() => {
-		if (stateGame.ballPerDrop === 1 && stateGame.buyBonusModalOpen) {
-			stateGame.buyBonusModalOpen = false;
-		}
-	});
-
 	// Buy bonus is LIVE: the 4 bonus-only buy modes (buystandard/enhanced/premium/superfury) are published
 	// in the math. Cost is ×bet-per-ball and independent of balls-per-drop. Set false to disable the
 	// Activate buttons (the modal UI still opens) if the math is ever unpublished.
@@ -609,8 +601,7 @@
 	 * "No" simply returns the player to the tier list with nothing spent.
 	 */
 	function handleBuyBonusActivate(tier: BuyBonusTier) {
-		// No buy bonus on the single-ball tier (rapid mode).
-		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1) return;
+		if (!BUY_BONUS_ENABLED) return;
 		requestConfirmPrompt('buyBonus', () => startBuyBonus(tier));
 	}
 
@@ -618,9 +609,9 @@
 	 * once, the roulette lands on the bought entry balls, and chain hits add more on top. The pending
 	 * mode is cleared by the revert effect once the round fully settles. */
 	function startBuyBonus(tier: BuyBonusTier) {
-		// Re-check: the tier can go unavailable (ball-per-drop switch, round start, a win celebration
-		// starting) while the prompt is up. Say so rather than no-op — the player just pressed Yes.
-		if (!BUY_BONUS_ENABLED || stateGame.ballPerDrop === 1) return;
+		// Re-check: the tier can go unavailable (round start, a win celebration starting) while the
+		// prompt is up. Say so rather than no-op — the player just pressed Yes.
+		if (!BUY_BONUS_ENABLED) return;
 		if (buyBonusDisabled) {
 			showToast('Finishing the current round…', 'info');
 			return;
@@ -767,7 +758,6 @@
 			type="button"
 			class="buy-bonus-trigger"
 			class:buy-bonus-trigger--mobile={mobile}
-			class:buy-bonus-trigger--one-ball={stateGame.ballPerDrop === 1}
 			disabled={buyBonusDisabled}
 			onclick={openBuyBonus}
 			aria-label="Buy bonus"
@@ -891,15 +881,13 @@
 				     the DOM has no layout effect. -->
 				<div
 					class="bonus-meter-wrap"
-					class:bonus-meter-wrap--hidden={!(
-						stateGame.ballPerDrop !== 1 || stateGame.bonusRoundActive
-					)}
+					class:bonus-meter-wrap--hidden={!stateGameDerived.areTierMetersVisible}
 				>
 					<!-- `visible` mirrors the `--hidden` class on the wrap: hiding it only stops it being
 					     COMPOSITED, so the meter must also be told to stop its marker-tracking loop. -->
 					<BonusMeter
 						progress={bonusMeterProgress}
-						visible={stateGame.ballPerDrop !== 1 || stateGame.bonusRoundActive}
+						visible={stateGameDerived.areTierMetersVisible}
 					/>
 				</div>
 
@@ -1223,17 +1211,9 @@
 		transform: scale(1.06);
 	}
 
-	.buy-bonus-trigger:disabled:not(.buy-bonus-trigger--one-ball) {
+	.buy-bonus-trigger:disabled {
 		cursor: not-allowed;
 		filter: grayscale(0.7) brightness(0.55);
-	}
-
-	/* On the single-ball (rapid) tier the buy-bonus feature isn't offered, but the trigger stays
-	   visible (disabled) at half opacity instead of being hidden, so players know it exists. It keeps
-	   full colour — only faded — rather than the greyed-out look of the normal disabled state. */
-	.buy-bonus-trigger--one-ball {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 
 	/* 54px = the 67.5px the badge actually rendered at on mobile, scaled down 20%. Note that size came

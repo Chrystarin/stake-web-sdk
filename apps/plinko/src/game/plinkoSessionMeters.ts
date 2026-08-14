@@ -412,7 +412,8 @@ export function seedSpinMeterForCurrentTier(): void {
 }
 
 /**
- * The balls-per-drop tier the meters should mirror RIGHT NOW.
+ * The balls-per-drop tier the ROUND is being played on RIGHT NOW — what the meters mirror, and also
+ * which board the round pays from (and therefore whether its center pocket is the spin pocket).
  *
  * Normally the player's selected tier. While a BUY BONUS purchase is in flight it is the math's fixed
  * `BUY_BONUS_BALLS_PER_DROP_REF` instead: a buy is bonus-only, so the math generates its book at that

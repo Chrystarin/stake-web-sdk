@@ -572,7 +572,6 @@
 								in-bonus Free Spin multiplier can still land. The balls you bought and any balls won
 								during the bonus are added together into your total.
 							</p>
-							<p>The Buy Bonus is not available on the single-ball drop.</p>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
 						<div class="howto-pill-bar">

@@ -2,9 +2,9 @@ import { stateUrlDerived } from 'state-shared';
 
 import { alignCoefficientSet, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-logic/spinSlot';
-import { plinkoBallsPerDrop, plinkoStakePerBall } from './plinkoBet';
+import { plinkoStakePerBall } from './plinkoBet';
 import { resizePlinkoDropOutcomes } from './plinkoDropOutcomes';
-import { hasActiveRgsSession } from './plinkoSessionMeters';
+import { activeMeterTierBalls, hasActiveRgsSession } from './plinkoSessionMeters';
 import { bookHasFeatureSettlement } from './plinkoRoundSettlement';
 import type { Bet, BookEvent, PlinkoBallOutcome } from './typesBookEvent';
 
@@ -60,7 +60,10 @@ export function alignBookForPlayback(bet: Bet): Bet {
 	if (dropIndex < 0) return bet;
 
 	const drop = events[dropIndex];
-	const uiBalls = plinkoBallsPerDrop();
+	// The tier the ROUND plays, not the selector — a BUY BONUS is generated on the math's reference tier
+	// whatever the selector says, so re-tiering a bought book onto the selected tier would move it to the
+	// wrong board (the 1-ball table pays its center, the reference table uses it as the 0× spin pocket).
+	const uiBalls = activeMeterTierBalls();
 	const bookBalls = Math.max(1, drop.ballsPerDrop ?? drop.outcomes?.length ?? 1);
 	const stakePerBall = plinkoStakePerBall();
 	const bookStake = drop.stakePerBall > 0 ? drop.stakePerBall : 1;

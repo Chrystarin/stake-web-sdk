@@ -35,7 +35,7 @@
 	} from '../game/plinkoBet';
 	import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
 	import { isConfirmPromptOpen, requestConfirmPrompt } from '../game/confirmPrompt.svelte';
-	import { stateGame } from '../game/stateGame.svelte';
+	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { stateXstate } from '../game/stateXstate';
 	import { getContext } from '../game/context';
 	import { FreeSpinMeter } from '../features/freeSpin';
@@ -743,14 +743,14 @@
 		<div class="mobile-meter-row">
 			<div
 				class="mobile-free-spin-meter"
-				class:mobile-free-spin-meter--hidden={stateGame.ballPerDrop === 1}
+				class:mobile-free-spin-meter--hidden={!stateGameDerived.areTierMetersVisible}
 			>
 				<!-- `visible` mirrors the `--hidden` class above: hiding it only stops it being COMPOSITED,
 				     so the meter must also be told to stop drawing, or it keeps spinning its wheel at 60fps
 				     behind `visibility: hidden` for the whole 1-ball tier. -->
 				<FreeSpinMeter
 					progress={props.spinMeterProgress ?? 0}
-					visible={stateGame.ballPerDrop !== 1}
+					visible={stateGameDerived.areTierMetersVisible}
 				/>
 			</div>
 		</div>
@@ -1027,13 +1027,13 @@
 		     flash. The wrap is `position: absolute`, so keeping it mounted has no layout effect. -->
 		<div
 			class="bp-free-spin-meter-wrap"
-			class:bp-free-spin-meter-wrap--hidden={stateGame.ballPerDrop === 1}
+			class:bp-free-spin-meter-wrap--hidden={!stateGameDerived.areTierMetersVisible}
 		>
 			<div class="bp-free-spin-meter">
 				<!-- `visible` mirrors the `--hidden` class on the wrap — see the mobile copy above. -->
 				<FreeSpinMeter
 					progress={props.spinMeterProgress ?? 0}
-					visible={stateGame.ballPerDrop !== 1}
+					visible={stateGameDerived.areTierMetersVisible}
 				/>
 			</div>
 		</div>
