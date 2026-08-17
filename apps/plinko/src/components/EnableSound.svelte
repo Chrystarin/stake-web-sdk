@@ -48,7 +48,15 @@
 	// out to ~5.0s (window 2.79→5.05s), door_open to ~4.06s (window 3.20→4.10s).
 	const soundOptions: Partial<Record<SoundEffectName, LoadSoundOptions>> = {
 		// Peg hit fires on nearly every bounce; mixed at half volume so a busy board isn't harsh.
-		peg: { volume: 0.5 },
+		// It is also the most crowded sound on the board — every ball thunks once per row, so a 50-ball
+		// drop has many landing inside the 130ms the sample takes to ring out. The widest bank of
+		// instances so those overlap cleanly instead of sharing one Howl's state (see `voices`).
+		peg: { volume: 0.5, voices: 16 },
+		// Several balls can reach the three coin pegs within the same frame, and a coin chime is long
+		// enough that the next hits land while it is still ringing. Its own bank of instances so those
+		// simultaneous hits never share Howler state and clip each other short. Eight covers the widest
+		// drop (50 balls funnelling through three coins) with room to spare.
+		coinPeg: { voices: 8 },
 		coinShuffleSingle: { sprite: [540, 1100] },
 		coinShuffleMulti: { sprite: [2000, 2000] },
 		doorClose: { sprite: [2790, 2260] },

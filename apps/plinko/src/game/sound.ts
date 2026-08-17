@@ -38,9 +38,29 @@ export type SoundEffectName =
 /** A [startMs, durationMs] slice of the source file to play instead of the whole thing. */
 export type SoundSprite = [startMs: number, durationMs: number];
 
-export type LoadSoundOptions = { volume?: number; sprite?: SoundSprite };
+export type LoadSoundOptions = {
+	volume?: number;
+	sprite?: SoundSprite;
+	/**
+	 * Number of INDEPENDENT Howl instances to build for this sound (default 1).
+	 *
+	 * One Howl can hold several playing voices, but they share per-Howl state — most importantly
+	 * `_playLock`, which Howler raises while any one voice is starting. Every deferrable call made
+	 * during that window (`rate`, `stop`, …) is pushed onto a single per-Howl queue and applied
+	 * later, out of order, against whichever voice is playing then: overlapping hits end up
+	 * retuning and ending each other, which is heard as a sound being clipped off part-way.
+	 *
+	 * Giving a sound several Howls hands each simultaneous hit its own instance with its own lock
+	 * and queue, so concurrent plays cannot interfere. Cheap: Howler caches the decoded buffer per
+	 * URL, so extra instances of one file share the single decode.
+	 */
+	voices?: number;
+};
 
-const howls = new Map<SoundEffectName, Howl>();
+// One entry per sound, holding that sound's voices (a single Howl unless `voices` asked for more).
+const howls = new Map<SoundEffectName, Howl[]>();
+// Round-robin cursor per sound, so repeat hits spread across the voices instead of stacking on one.
+const voiceCursors = new Map<SoundEffectName, number>();
 // Names whose Howl was built with a sprite window — those must be played by sprite id, not bare.
 const SPRITE_ID = 'seg';
 const spriteSounds = new Set<SoundEffectName>();
@@ -51,25 +71,60 @@ export function loadPlinkoSound(
 	options: LoadSoundOptions = {},
 ): void {
 	if (howls.has(name)) return;
-	const { volume = 1, sprite } = options;
+	const { volume = 1, sprite, voices = 1 } = options;
 	try {
-		howls.set(
-			name,
-			new Howl({
-				src: [url],
-				volume,
-				// Play only a slice of the file when a sprite window is given (e.g. seconds 0–1.5 vs 2–4
-				// of the same coin-shuffle sample). Howler indexes sprites in milliseconds.
-				...(sprite ? { sprite: { [SPRITE_ID]: sprite } } : {}),
-				onloaderror: (_id, err) => {
-					console.warn(`[plinko] sound "${name}" failed to load (${url})`, err);
-				},
-			}),
+		const instances = Array.from(
+			{ length: Math.max(1, voices) },
+			() =>
+				new Howl({
+					src: [url],
+					volume,
+					// Play only a slice of the file when a sprite window is given (e.g. seconds 0–1.5 vs 2–4
+					// of the same coin-shuffle sample). Howler indexes sprites in milliseconds.
+					...(sprite ? { sprite: { [SPRITE_ID]: sprite } } : {}),
+					onloaderror: (_id, err) => {
+						console.warn(`[plinko] sound "${name}" failed to load (${url})`, err);
+					},
+				}),
 		);
+		howls.set(name, instances);
 		if (sprite) spriteSounds.add(name);
 	} catch (err) {
 		console.warn(`[plinko] sound "${name}" could not be created`, err);
 	}
+}
+
+/**
+ * The instance the next play of this sound should use: the first idle voice from the round-robin
+ * cursor onwards, so a hit that lands while earlier ones are still ringing gets a fresh instance
+ * rather than piling onto a busy one. Falls back to the cursor's voice when every one is busy —
+ * that is still a separate Howler voice, just sharing an instance with a sound already playing.
+ */
+function takeVoice(name: SoundEffectName, instances: Howl[]): Howl {
+	const start = voiceCursors.get(name) ?? 0;
+	let picked = start;
+	for (let i = 0; i < instances.length; i++) {
+		const index = (start + i) % instances.length;
+		if (!instances[index].playing()) {
+			picked = index;
+			break;
+		}
+	}
+	voiceCursors.set(name, (picked + 1) % instances.length);
+	return instances[picked];
+}
+
+/**
+ * Pitch this instance BEFORE it is played, by setting the group rate every voice Howler allocates
+ * copies as it starts. Howler's public `rate(rate, id)` can only run after `play()` has handed back
+ * an id, and by then it may be blocked by the `_playLock` of a sibling hit that is still starting —
+ * in which case it is queued and lands on the wrong sound later, resetting that sound's end timer
+ * and cutting it off. Setting the rate up front is applied by both the Web Audio and HTML5 paths as
+ * the voice starts, and never touches a voice already playing (each keeps its own copy).
+ */
+function setVoiceRate(howl: Howl, rate: number): void {
+	// `_rate` is a Howler internal — real and stable, simply absent from @types.
+	(howl as unknown as { _rate: number })._rate = rate;
 }
 
 /**
@@ -159,15 +214,15 @@ export function playPlinkoSound(name: SoundEffectName, rate = 1): void {
 	// A gate here rather than `Howler.mute()`: Howler pools its `<audio>` nodes and never resets a
 	// node's `muted` flag when it hands one out again, so a global mute can outlive the mute itself.
 	if (typeof document !== 'undefined' && document.hidden) return;
-	const howl = howls.get(name);
-	if (!howl) return;
-	// A sprite sound must be triggered by its window id so only that slice plays.
-	const id = spriteSounds.has(name) ? howl.play(SPRITE_ID) : howl.play();
+	const instances = howls.get(name);
+	if (!instances?.length) return;
+	const howl = takeVoice(name, instances);
 	// Per-instance rate so overlapping plays (a 50-ball drop) each keep their own pitch. Rate
-	// doubles = one octave up; leave the default untouched so a plain play() is unchanged.
-	if (id != null && rate !== 1) {
-		howl.rate(rate, id);
-	}
+	// doubles = one octave up. Set before play — see setVoiceRate for why it cannot follow it.
+	setVoiceRate(howl, rate);
+	// A sprite sound must be triggered by its window id so only that slice plays.
+	if (spriteSounds.has(name)) howl.play(SPRITE_ID);
+	else howl.play();
 }
 
 /**
