@@ -1864,8 +1864,16 @@ export class PlinkoEngine {
           hasFeatured = true;
           // Span the coin's drawn extent, not its centre — lanes planned to avoid the cluster have
           // to clear the art the player can see, or the ball visibly clips the coin's edge.
-          if (peg.cx - peg.hitRadius < minX) minX = peg.cx - peg.hitRadius;
-          if (peg.cx + peg.hitRadius > maxX) maxX = peg.cx + peg.hitRadius;
+          //
+          // `hitRadius` is NOT that extent: it is the contact disc, deliberately held to 82% of the
+          // art (COIN_HIT_RADIUS_FACTOR) so a ball has to reach the coin properly to count as
+          // touching it. Spanning by it left the outer 18% of every coin outside the cluster as far
+          // as lane planning was concerned — a ball routed to just clear the cluster still crossed
+          // the visible rim, which is the near-miss that looks like a coin hit and makes no coin
+          // sound. Span the art.
+          const drawnRadius = Math.max(peg.hitRadius, coinRadius);
+          if (peg.cx - drawnRadius < minX) minX = peg.cx - drawnRadius;
+          if (peg.cx + drawnRadius > maxX) maxX = peg.cx + drawnRadius;
         } else {
           regular.push(peg);
         }
@@ -2196,7 +2204,11 @@ export class PlinkoEngine {
   private galtonLaneThreatensFeaturedCluster(row: number, laneX: number): boolean {
     const span = this.getFeaturedClusterSpan(row);
     if (!span) return false;
-    const buffer = this.pegSpacingXForRow(row) * 0.36;
+    // `laneX` is the ball's CENTRE, and the span is now the coin art's edge, so clearing the cluster
+    // takes a whole ball radius — a lane that merely clears it by the old flat 0.36 of a lane could
+    // still have the ball's near half sitting on the coin. Keep that 0.36 as the floor: it is the
+    // wider of the two on the narrow layouts the value was picked for.
+    const buffer = Math.max(this.pegSpacingXForRow(row) * 0.36, this.ballRadius);
     return laneX >= span.minX - buffer && laneX <= span.maxX + buffer;
   }
 
@@ -2451,7 +2463,27 @@ export class PlinkoEngine {
     const rowPegs = this.pegsByRow.get(pathPoint.row) ?? [];
     const regularPegs = this.regularPegsByRow.get(pathPoint.row) ?? rowPegs;
     if (ball.creditBonusPegHit) {
-      return this.pickNearestPeg(rowPegs, ball.x, false) ?? pathPoint.closestPeg;
+      // Legacy / bonus-ball drops name no coin — ANY coin credits there, so any coin may be taken.
+      if (ball.bonusPegEmitRow < 0 || ball.bonusPegEmitCol < 0) {
+        return this.pickNearestPeg(rowPegs, ball.x, false) ?? pathPoint.closestPeg;
+      }
+      // Carrying a credit is not a licence to hit every coin. Picking the nearest of ALL the row's
+      // pegs let a ball bound for the row-5 coin bounce off whichever of the row-3 pair it passed
+      // closest to — a coin that cannot pay, so it lit up and stayed silent. Its own coin, or none.
+      const designated =
+        pathPoint.row === ball.bonusPegEmitRow ? this.designatedCoinPeg(ball) : null;
+      if (designated) {
+        const nearestRegular = this.pickNearestPeg(regularPegs, ball.x, false);
+        if (
+          !nearestRegular ||
+          Math.abs(ball.x - designated.cx) <= Math.abs(ball.x - nearestRegular.cx)
+        ) {
+          return designated;
+        }
+        return nearestRegular;
+      }
+      // No coin of its own in this row, so it has to clear the ones that are here: fall through to
+      // the same regular/flank routing a ball with no credit at all gets.
     }
     if (!regularPegs.length) return pathPoint.closestPeg;
 
@@ -2923,9 +2955,7 @@ export class PlinkoEngine {
           segmentIndex >= ball.bonusPegEmitPathIndex
         ) {
           if (ball.bonusPegEmitRow >= 0 && ball.bonusPegEmitCol >= 0) {
-            const coinPeg = this.featuredPegs.find(
-              (peg) => peg.row === ball.bonusPegEmitRow && peg.col === ball.bonusPegEmitCol,
-            );
+            const coinPeg = this.designatedCoinPeg(ball);
             if (coinPeg) {
               // Route the credit through the shared emitter so the coin lights up and the chime
               // plays here too. This branch used to credit the meter in silence whenever the
@@ -3416,18 +3446,41 @@ export class PlinkoEngine {
     return peg.row === ball.bonusPegEmitRow && peg.col === ball.bonusPegEmitCol;
   }
 
+  /**
+   * The single test for whether this ball may have anything to do with this coin. A contact that
+   * pays is bounced off, lit and chimed; one that doesn't is none of the three, so a coin can never
+   * flash for a hit that earns nothing.
+   */
+  private coinPegCredits(ball: Ball, peg: Peg): boolean {
+    return ball.creditBonusPegHit && this.isDesignatedCoinPeg(ball, peg);
+  }
+
+  /** This ball's designated coin, if the board still carries one at that position. */
+  private designatedCoinPeg(ball: Ball): Peg | null {
+    for (let i = 0; i < this.featuredPegs.length; i++) {
+      const peg = this.featuredPegs[i];
+      if (peg.row === ball.bonusPegEmitRow && peg.col === ball.bonusPegEmitCol) return peg;
+    }
+    return null;
+  }
+
   private emitCoinPegContact(
     ball: Ball,
     peg: Peg,
     currentTime: number,
     intensity = 0.92,
   ): void {
-    const credits = ball.creditBonusPegHit && this.isDesignatedCoinPeg(ball, peg);
+    const credits = this.coinPegCredits(ball, peg);
 
-    // Light the coin even when the credit route got here first — the glow is part of the feedback.
-    peg.bounceEffect = Math.max(peg.bounceEffect, intensity);
-    peg.bounceTime = currentTime;
-    peg.isTouched = true;
+    // Light the coin only for a contact that pays. The glow and the chime are one cue, and the chime
+    // is reserved for hits that feed the meter — so lighting on every contact meant a coin could
+    // flash with nothing behind it, which reads as a hit the game noticed and then ignored. A real
+    // hit still lights whichever route reaches here first, which is what `credits` covers.
+    if (credits) {
+      peg.bounceEffect = Math.max(peg.bounceEffect, intensity);
+      peg.bounceTime = currentTime;
+      peg.isTouched = true;
+    }
 
     // What the dedupe is for: ONE coin reported twice, by the physical bounce and by the
     // path-index credit. Anything else is a real second contact and has to be heard.
@@ -3522,11 +3575,14 @@ export class PlinkoEngine {
         continue;
       }
 
-      // A coin peg the ball is physically overlapping wins over the planned peg: non-crediting balls
-      // are routed around the cluster, but when one does clip a coin it has to bounce off it rather
-      // than slide through the art.
+      // A coin peg the ball is physically overlapping wins over the planned peg — but ONLY a coin
+      // this ball can actually cash. Any overlap used to win, so a ball that drifted into a coin it
+      // could not pay bounced off it and lit it, while the chime stayed reserved for hits that feed
+      // the meter: the coin flashed in silence, which reads as a hit the game then threw away.
+      // A coin it cannot cash is not a peg to this ball; it is routed past it like any other ball.
+      const overlappedCoin = this.featuredPegAtPoint(pathPoint.row, ball.x, ball.y);
       const bouncePeg =
-        this.featuredPegAtPoint(pathPoint.row, ball.x, ball.y) ??
+        (overlappedCoin && this.coinPegCredits(ball, overlappedCoin) ? overlappedCoin : null) ??
         this.resolveLiveBouncePeg(pathPoint, ball);
       if (!bouncePeg) {
         continue;
@@ -3578,18 +3634,30 @@ export class PlinkoEngine {
       // window; in practice a step covers about a third of a row and the half-row floor governs.
       const belowPegLine = ball.y - bouncePeg.cy;
       const deadlineDepth = Math.max(this.pegSpacing * 0.5, ball.y - ball.prevY);
+      // The deadline tested height alone, so it fired on a peg the ball was nowhere near across the
+      // board. Out over the coin cluster that peg is the flank one a lane away: the ball hopped
+      // where nothing is drawn — a bounce off an invisible peg. A peg only owns the half-lane around
+      // its own column (plus whatever it draws wider than a peg body, so a coin still owns its
+      // face). Outside that the row is simply left unbounced: a missing thunk beats a phantom one.
+      const deadlineColumnReach =
+        this.pegSpacingXForRow(pathPoint.row) * 0.5 +
+        Math.max(0, bouncePeg.hitRadius - this.pegRadius);
       const reachedPegLine =
-        belowPegLine >= -bouncePeg.hitRadius * 0.15 && belowPegLine <= deadlineDepth;
+        belowPegLine >= -bouncePeg.hitRadius * 0.15 &&
+        belowPegLine <= deadlineDepth &&
+        Math.abs(ball.x - bouncePeg.cx) <= deadlineColumnReach;
 
       if (naturalContact || reachedPegLine) {
-        bouncePeg.bounceEffect = pathPoint.bounceIntensity;
-        bouncePeg.bounceTime = currentTime;
-        bouncePeg.isTouched = true;
         if (this.isFeaturedPeg(bouncePeg)) {
           // Coin contacts go through one emitter so the chime can't double-fire with the
-          // path-index credit below, and can't go silent when that credit lands first.
+          // path-index credit below, and can't go silent when that credit lands first. The coin's
+          // GLOW belongs to it too — lighting the peg here first, as this did, lit every coin the
+          // ball touched no matter what the emitter then decided, which is the silent flash.
           this.emitCoinPegContact(ball, bouncePeg, currentTime, pathPoint.bounceIntensity);
         } else {
+          bouncePeg.bounceEffect = pathPoint.bounceIntensity;
+          bouncePeg.bounceTime = currentTime;
+          bouncePeg.isTouched = true;
           // Fires once per peg contact (row is added to bouncedRows below, so no re-fire) — drives
           // the per-bounce "thunk" sound.
           this.onPegBounce?.({
