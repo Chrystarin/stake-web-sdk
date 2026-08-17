@@ -85,6 +85,15 @@ interface Ball {
   /** Time of this ball's last coin-peg sound — dedupes the two routes that can register a hit. */
   coinSfxTime: number;
   /**
+   * Which coin that last sound was for, and whether it was the chime rather than the plain thunk.
+   * The dedupe is only allowed to swallow a REPEAT of the same coin: a ball that brushes an
+   * incidental coin on its way in (a thunk) and then lands on its designated one must still get the
+   * chime, and two different coins in quick succession are two contacts, not one.
+   */
+  coinSfxRow: number;
+  coinSfxCol: number;
+  coinSfxFeatured: boolean;
+  /**
    * Height the previous bounce arc still had when a new bounce cut it short, decayed away across the
    * new arc. A hop is nearly a row tall at its peak, so restarting one from zero would drop the ball
    * that far in a single frame; carrying the leftover height keeps the handover continuous.
@@ -2790,6 +2799,9 @@ export class PlinkoEngine {
       bonusPegEmitCol: bonusPeg?.col ?? -1,
       bonusPegEmitted: false,
       coinSfxTime: Number.NEGATIVE_INFINITY,
+      coinSfxRow: -1,
+      coinSfxCol: -1,
+      coinSfxFeatured: false,
       bounceCarryY: 0,
       collisionOffsetX: 0,
       collisionOffsetY: 0,
@@ -2920,7 +2932,19 @@ export class PlinkoEngine {
               // contact test hadn't already fired, which is the hit-but-no-SFX case.
               this.emitCoinPegContact(ball, coinPeg, currentTime);
             } else {
+              // No peg to light (the designated coin isn't in the current featured set), but the
+              // meter still fills — so the chime still has to play, or the credit lands in silence.
               ball.bonusPegEmitted = true;
+              ball.coinSfxTime = currentTime;
+              ball.coinSfxRow = ball.bonusPegEmitRow;
+              ball.coinSfxCol = ball.bonusPegEmitCol;
+              ball.coinSfxFeatured = true;
+              this.onPegBounce?.({
+                row: ball.bonusPegEmitRow,
+                col: ball.bonusPegEmitCol,
+                ballId: ball.id,
+                featured: true,
+              });
               this.onCoinPegHit?.({
                 row: ball.bonusPegEmitRow,
                 col: ball.bonusPegEmitCol,
@@ -3405,8 +3429,21 @@ export class PlinkoEngine {
     peg.bounceTime = currentTime;
     peg.isTouched = true;
 
-    if (currentTime - ball.coinSfxTime > PlinkoEngine.COIN_SFX_DEDUPE_MS) {
+    // What the dedupe is for: ONE coin reported twice, by the physical bounce and by the
+    // path-index credit. Anything else is a real second contact and has to be heard.
+    //
+    // Judging it on time alone is what silenced the chime. A ball steered onto its coin can clip
+    // another on the way (the row-3 pair straddles the approach to row 5), and that clip — a plain
+    // thunk, since it earns nothing — used to start the window: reach the designated coin inside it
+    // and the meter filled, the coin lit, and nothing played. So the window only closes over the
+    // SAME coin, and only once that coin has already had the sound it is due.
+    const repeatOfSameCoin = peg.row === ball.coinSfxRow && peg.col === ball.coinSfxCol;
+    const withinDedupe = currentTime - ball.coinSfxTime <= PlinkoEngine.COIN_SFX_DEDUPE_MS;
+    if (!(withinDedupe && repeatOfSameCoin && (ball.coinSfxFeatured || !credits))) {
       ball.coinSfxTime = currentTime;
+      ball.coinSfxRow = peg.row;
+      ball.coinSfxCol = peg.col;
+      ball.coinSfxFeatured = credits;
       // A ball that merely clips a coin — because it is not a bonus ball, or because this is not the
       // coin it was sent to — still needs a bounce sound, but it gets the ordinary peg thunk. The
       // coin chime stays reserved for the hit that actually feeds the meter, so players never hear
