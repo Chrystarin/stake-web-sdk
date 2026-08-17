@@ -84,6 +84,12 @@ interface Ball {
   bonusPegEmitted: boolean;
   /** Time of this ball's last coin-peg sound — dedupes the two routes that can register a hit. */
   coinSfxTime: number;
+  /**
+   * Height the previous bounce arc still had when a new bounce cut it short, decayed away across the
+   * new arc. A hop is nearly a row tall at its peak, so restarting one from zero would drop the ball
+   * that far in a single frame; carrying the leftover height keeps the handover continuous.
+   */
+  bounceCarryY: number;
   /** Per-ball motion variation (small random spread at spawn). */
   speedMultiplier: number;
   bounceHeightMultiplier: number;
@@ -2757,6 +2763,7 @@ export class PlinkoEngine {
       bonusPegEmitCol: bonusPeg?.col ?? -1,
       bonusPegEmitted: false,
       coinSfxTime: Number.NEGATIVE_INFINITY,
+      bounceCarryY: 0,
       collisionOffsetX: 0,
       collisionOffsetY: 0,
       ...traits,
@@ -2919,6 +2926,7 @@ export class PlinkoEngine {
           if (bounceProgress >= 1) {
             ball.isInBounce = false;
             ball.bounceTravelDir = 0;
+            ball.bounceCarryY = 0;
             ball.velocityX *= 0.78;
             ball.x =
               baseX +
@@ -2927,11 +2935,14 @@ export class PlinkoEngine {
               ball.collisionOffsetX;
             ball.y = baseY + ball.velocityY + ball.collisionOffsetY;
           } else {
+            // Whatever height the previous hop still had when this one cut it short is added on and
+            // faded out across this arc, so the handover is seamless (see `bounceCarryY`).
             const arcHeight =
               this.pyramidConfig.bounceAmplitude *
-              ball.bounceHeightMultiplier *
-              Math.sin(bounceProgress * Math.PI) *
-              this.bounceScale;
+                ball.bounceHeightMultiplier *
+                Math.sin(bounceProgress * Math.PI) *
+                this.bounceScale +
+              ball.bounceCarryY * (1 - bounceProgress);
             const directedDrift =
               ball.bounceTravelDir *
               this.pyramidConfig.bounceAmplitude *
@@ -3387,9 +3398,39 @@ export class PlinkoEngine {
     }
   }
 
-  private checkForBounce(ball: Ball, currentTime: number): void {
-    if (ball.isInBounce) return;
+  /**
+   * Every row bounces, exactly once.
+   *
+   * The contact test below is a NATURAL hit — the ball is on the peg's crown, travelling down, off
+   * cooldown, not already mid-arc. It gives the prettiest timing, but it is a test the ball can
+   * simply fail: mid-bounce it was not even consulted (the old early return), a bounce arc spanning
+   * more than one row swallowed whatever rows it covered, the cooldown could span a row at speed,
+   * and a lane nudged off-grid by ball-to-ball repulsion missed the column tolerance. Each of those
+   * dropped a row silently — no bounce, no glow, and no peg SFX, which is what QA heard as audio
+   * cutting in and out.
+   *
+   * So the natural test now only decides WHEN a row bounces early. Reaching the row's peg line is a
+   * deadline: at that point the ball is out of road and bounces regardless. `bouncedRows` is still
+   * what guarantees it happens only once.
+   */
+  /**
+   * Height of the hop this ball is currently mid-way through, including whatever it inherited from
+   * the hop before it. Mirrors the arc term in `stepPhysics` — keep the two in step.
+   */
+  private liveBounceArcHeight(ball: Ball, currentTime: number): number {
+    if (!ball.isInBounce) return 0;
+    const elapsed = currentTime - ball.bounceStartTime;
+    const progress = Math.max(0, Math.min(1, elapsed / ball.bounceDuration));
+    return (
+      this.pyramidConfig.bounceAmplitude *
+        ball.bounceHeightMultiplier *
+        Math.sin(progress * Math.PI) *
+        this.bounceScale +
+      ball.bounceCarryY * (1 - progress)
+    );
+  }
 
+  private checkForBounce(ball: Ball, currentTime: number): void {
     const pathLength = ball.path.length;
     const segmentProgress = ball.currentPoint * (pathLength - 1);
     const segmentIndex = Math.floor(segmentProgress);
@@ -3397,17 +3438,23 @@ export class PlinkoEngine {
     // of coasting past several pegs between hits (see simSpeedFactor).
     const bounceCooldown = this.pyramidConfig.bounceCooldown / this.simSpeedFactor;
 
+    // Reaches two indices back rather than one: at speed `currentPoint` can advance far enough in a
+    // single substep to step the segment index by more than one, and a row whose index fell between
+    // two scans was never looked at again. The altitude gates below are what keep the wider window
+    // from bouncing anything retroactively.
     for (
-      let i = Math.max(0, segmentIndex - 1);
+      let i = Math.max(0, segmentIndex - 2);
       i <= Math.min(pathLength - 1, segmentIndex + 1);
       i++
     ) {
       const pathPoint = ball.path[i];
-      if (
-        pathPoint.bounceIntensity <= 0 ||
-        ball.bouncedRows.has(pathPoint.row) ||
-        currentTime - ball.lastBounceTime <= bounceCooldown
-      ) {
+      // row < 0 (spawn/entry) and row === rows (the slot) carry no peg, so they carry no intensity.
+      if (pathPoint.bounceIntensity <= 0 || ball.bouncedRows.has(pathPoint.row)) {
+        continue;
+      }
+      // Cheap altitude gate before resolving a peg — this runs for every ball on every substep now
+      // that a mid-arc ball is no longer turned away at the door.
+      if (ball.y < pathPoint.y - this.pegSpacing * 0.75) {
         continue;
       }
 
@@ -3453,7 +3500,24 @@ export class PlinkoEngine {
       const shouldUseFallback =
         rowWasCrossed && nearPegColumn && inCrownZone && approachingFromTop;
 
-      if ((distanceSq < interactionRadiusSq && approachingFromTop && inCrownZone) || shouldUseFallback) {
+      // The pretty path: a real crown contact, off cooldown, not already mid-arc. Only decides
+      // whether this row bounces EARLY — failing it no longer means the row is skipped.
+      const naturalContact =
+        !ball.isInBounce &&
+        currentTime - ball.lastBounceTime > bounceCooldown &&
+        ((distanceSq < interactionRadiusSq && approachingFromTop && inCrownZone) || shouldUseFallback);
+
+      // The deadline: the ball has arrived at this row's peg line and has run out of road. The lower
+      // bound stops a row that somehow slipped far past from yanking the ball back up to it — better
+      // to leave one row behind than to bounce it retroactively half a board later. It opens to at
+      // least this substep's own fall, so however far a single step travelled it cannot straddle the
+      // window; in practice a step covers about a third of a row and the half-row floor governs.
+      const belowPegLine = ball.y - bouncePeg.cy;
+      const deadlineDepth = Math.max(this.pegSpacing * 0.5, ball.y - ball.prevY);
+      const reachedPegLine =
+        belowPegLine >= -bouncePeg.hitRadius * 0.15 && belowPegLine <= deadlineDepth;
+
+      if (naturalContact || reachedPegLine) {
         bouncePeg.bounceEffect = pathPoint.bounceIntensity;
         bouncePeg.bounceTime = currentTime;
         bouncePeg.isTouched = true;
@@ -3471,6 +3535,9 @@ export class PlinkoEngine {
             featured: false,
           });
         }
+        // Capture what is left of the hop in progress BEFORE the clock is restarted — a deadline
+        // contact can land mid-arc, and without this the ball would drop that whole height at once.
+        ball.bounceCarryY = this.liveBounceArcHeight(ball, currentTime);
         ball.isInBounce = true;
         ball.bounceStartTime = currentTime;
         // Compress the hop in fast mode so it spans ~one row (bounce on nearly every peg, like normal
@@ -3495,7 +3562,10 @@ export class PlinkoEngine {
           Math.abs(settleDelta) <= maxSettle
             ? settledX
             : ball.x + Math.sign(settleDelta) * maxSettle;
-        ball.y = Math.min(ball.y, contactY);
+        // Same cap vertically. A deadline contact can register a little below the crown, and lifting
+        // the ball all the way back up to it would read as a hop backwards up the board.
+        const liftY = ball.y - contactY;
+        if (liftY > 0 && liftY <= bouncePeg.hitRadius) ball.y = contactY;
 
         const impulseScale =
           this.pyramidConfig.bounceImpulseMin +
