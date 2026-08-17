@@ -27,7 +27,12 @@ import {
 	updateRgsSessionBonusMeter,
 } from './plinkoSessionMeters';
 import { isPlinkoTriggerMode } from './plinkoBetMode';
-import { plinkoBallsPerDrop, plinkoStakePerBall, plinkoWagerAmount } from './plinkoBet';
+import {
+	canAffordPlinkoWager,
+	plinkoBallsPerDrop,
+	plinkoStakePerBall,
+	plinkoWagerAmount,
+} from './plinkoBet';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
@@ -1819,6 +1824,22 @@ async function waitForAutoBetRoundIdle(): Promise<boolean> {
 	return false;
 }
 
+/**
+ * Whether the NEXT autobet round can actually be paid for.
+ *
+ * A run is funded DROP BY DROP, not up front: the player may select any round count regardless of what
+ * the balance covers, and the run simply plays until the wallet can't pay for the next drop (that is
+ * where it stops, with the "Insufficient Balance" toast). Checked immediately before each wager, so it
+ * always sees the balance the round before it just settled.
+ *
+ * A pending free bonus ball costs nothing — the play press drops one instead of wagering — so it can
+ * never be the drop that ends a run.
+ */
+function canFundNextAutoBetRound(): boolean {
+	if (stateGameDerived.hasPendingBonusBalls) return true;
+	return canAffordPlinkoWager();
+}
+
 async function placeAutoBetRound(onBet: () => void): Promise<boolean> {
 	if (isAutoBetRoundBusy()) return false;
 	onBet();
@@ -1883,6 +1904,15 @@ async function playAutoRounds(roundsLeft: number, onBet: () => void): Promise<vo
 		return;
 	}
 
+	// The wallet can no longer cover this drop — the run has played as far as the balance goes. End it
+	// here, on the "Insufficient Balance" toast, BEFORE dispatching a wager the bet path would only
+	// refuse anyway (that refusal would stall until the round-start timeout and then report the run as
+	// normally "Finished", telling the player nothing about why it stopped).
+	if (!canFundNextAutoBetRound()) {
+		finishAutoBet('insufficientBalance');
+		return;
+	}
+
 	const placed = await placeAutoBetRound(onBet);
 	if (!stateGame.autoPlayStarted || stateGame.autoPlayStopping) {
 		finishAutoBet();
@@ -1911,7 +1941,7 @@ async function playAutoRounds(roundsLeft: number, onBet: () => void): Promise<vo
 	void playAutoRounds(roundsLeft - 1, onBet);
 }
 
-function finishAutoBet() {
+function finishAutoBet(reason: 'completed' | 'insufficientBalance' = 'completed') {
 	if (autoBetTimer) {
 		clearTimeout(autoBetTimer);
 		autoBetTimer = null;
@@ -1932,7 +1962,9 @@ function finishAutoBet() {
 		stateGame.isSubmitting = false;
 		stateGame.dropRoundActive = false;
 	}
-	showToast('Autobet Finished');
+	// One toast slot: a run cut short by the balance says so, instead of the generic completion notice —
+	// "Autobet Finished" on a run that still had rounds left would read as if it had run its course.
+	showToast(reason === 'insufficientBalance' ? 'Insufficient Balance' : 'Autobet Finished');
 }
 
 export function onMainPlayClick(onRegularBet: () => void) {

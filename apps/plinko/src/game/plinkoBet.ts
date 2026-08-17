@@ -272,18 +272,6 @@ export function canAffordPlinkoWager(): boolean {
 	return wager >= 0 && wager <= plinkoSpendableBalance();
 }
 
-/**
- * Whether the player can fund an ENTIRE Autobet run up front: the selected round count times the
- * per-drop wager must fit within the spendable balance. Autobet is all-or-nothing at start — if the
- * full run can't be covered we don't start it at all (see GameHud's Autobet start paths).
- */
-export function canAffordAutoBetRun(rounds: number): boolean {
-	const wager = plinkoWagerAmount();
-	if (wager <= 0) return true; // free feature-trigger bets cost nothing
-	if (rounds <= 0) return false;
-	return wager * rounds <= plinkoSpendableBalance();
-}
-
 /** Published cost (×bet-per-ball) of a buy tier, from `config.betModes`. Bonus-only buy → bpd-independent. */
 export function buyBonusCost(tierKey: string): number {
 	const mode = buyBonusModeName(tierKey);

@@ -24,7 +24,6 @@
 		stopBonusBallHoldDrop,
 	} from '../game/gameOrchestrator';
 	import {
-		canAffordAutoBetRun,
 		canAffordPlinkoWager,
 		plinkoDisplayBalance,
 		plinkoMaxStakePerBall,
@@ -403,10 +402,11 @@
 			autoPanelOpen = false;
 			return;
 		}
-		// Picking a count starts a fresh Autobet run immediately, and Autobet is all-or-nothing:
-		// the player must be able to fund every selected drop up front (count × per-drop wager). If
-		// the whole run isn't affordable, don't arm or start it at all — just show the toast.
-		if (!canAffordAutoBetRun(count)) {
+		// Picking a count starts a fresh Autobet run immediately. A run is funded drop by drop, NOT up
+		// front: the player only needs to afford the NEXT drop, and the run plays on until the wallet
+		// can't cover one (see `playAutoRounds`, which ends the run with the same toast). So the only
+		// thing that blocks a start here is not being able to afford a single drop.
+		if (wagerUnaffordable) {
 			autoPanelOpen = false;
 			showToast('Insufficient Balance');
 			return;
@@ -423,7 +423,7 @@
 	 */
 	function beginAutoBetRun(count: number) {
 		if (props.autoPlayStarted || autoBetConfigLocked) return;
-		if (!canAffordAutoBetRun(count)) {
+		if (wagerUnaffordable) {
 			showToast('Insufficient Balance');
 			return;
 		}
@@ -449,9 +449,9 @@
 
 	function onAutoGameStartClick() {
 		if (isPlayButtonHardDisabled) return;
-		// Autobet is all-or-nothing: require enough balance for the whole selected run (rounds ×
-		// per-drop wager), not just one drop. Otherwise surface the toast instead of arming Autobet.
-		if (!canAffordAutoBetRun(stateGame.autoRoundsLeft)) {
+		// One affordable drop is all a run needs to start — the rest are funded as they come (see
+		// `selectAutoBetCount`). Otherwise surface the toast instead of arming Autobet.
+		if (wagerUnaffordable) {
 			showToast('Insufficient Balance');
 			return;
 		}
@@ -463,7 +463,7 @@
 	 * the game clock — balance and in-flight balls can both move while it is up). */
 	function startArmedAutoBetRun() {
 		if (props.autoPlayStarted) return;
-		if (!canAffordAutoBetRun(stateGame.autoRoundsLeft)) {
+		if (wagerUnaffordable) {
 			showToast('Insufficient Balance');
 			return;
 		}
