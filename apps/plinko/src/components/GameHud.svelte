@@ -40,6 +40,7 @@
 	import { FreeSpinMeter } from '../features/freeSpin';
 	import {
 		currencySign as currencySignFor,
+		formatBalanceAmount,
 		formatCompactAmount,
 		formatWinAmount,
 	} from '../lib/format';
@@ -289,6 +290,14 @@
 			maximumFractionDigits: 2,
 		});
 		return `${currencySign}${formatted}`;
+	}
+
+	/**
+	 * The BALANCE only — 2 decimals normally, expanding to 4 when it carries sub-cent dust. Kept apart
+	 * from `formatMoney` above, which also prints the total bet and stays at a flat 2 decimals.
+	 */
+	function formatBalance(value: number) {
+		return formatBalanceAmount(value, currencySign);
 	}
 
 	/** Win amounts show up to 4 decimals so small wins on low bets aren't rounded to 0.00. */
@@ -974,7 +983,7 @@
 				<span class="mobile-corner-value">{formatWin(displayWinAmount)}</span>
 			</div>
 			<div class="mobile-corner-info mobile-corner-info--right">
-				<span class="mobile-corner-value">{formatMoney(displayBalance)}</span>
+				<span class="mobile-corner-value">{formatBalance(displayBalance)}</span>
 				<!-- Wallet icon TRAILS the balance (right side). It still doubles as the on-win coin-burst
 				     target — winning coins merge into it (located via data-coin-fly-target). -->
 				<img

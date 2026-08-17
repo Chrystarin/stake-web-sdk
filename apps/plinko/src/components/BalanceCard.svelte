@@ -4,7 +4,11 @@
 
 	import { stateGame } from '../game/stateGame.svelte';
 	import { plinkoDisplayBalance } from '../game/plinkoBet';
-	import { currencySign as currencySignFor, formatWinAmount } from '../lib/format';
+	import {
+		currencySign as currencySignFor,
+		formatBalanceAmount,
+		formatWinAmount,
+	} from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 	import { BalanceCoinGlowRenderer } from '../lib/spine/BalanceCoinGlowRenderer';
 	import { i18nDerived } from '../i18n/i18nDerived';
@@ -40,12 +44,9 @@
 	const displayBalance = $derived(plinkoDisplayBalance());
 	const label = $derived(i18nDerived.t('Balance'));
 
+	/** 2 decimals normally, expanding to 4 when the balance carries sub-cent dust. */
 	function formatMoney(value: number) {
-		const formatted = value.toLocaleString('en-US', {
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2,
-		});
-		return `${currencySign}${formatted}`;
+		return formatBalanceAmount(value, currencySign);
 	}
 </script>
 

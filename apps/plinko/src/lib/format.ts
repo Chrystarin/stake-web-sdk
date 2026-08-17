@@ -113,6 +113,31 @@ export const displayCurrency = (currency: string): string =>
 export const currencySign = (currency: string): string =>
 	currency === 'USD' ? '$' : `${displayCurrency(currency)} `;
 
+/**
+ * Fraction-digit config for the player's BALANCE. It keeps the usual 2 decimals, then expands to
+ * as many as 4 — but only for the places that actually carry a digit: 1.5 → `1.50`, 1.234 →
+ * `1.234`, 1.2345 → `1.2345`. `Intl` already drops trailing zeros above the minimum, so the
+ * min/max pair is the whole rule.
+ *
+ * Balances can hold sub-cent dust (a fractional-coefficient win on a low stake), and rounding it
+ * away at 2 decimals makes the balance look like it lost money on a win. Bets and other currency
+ * values stay at 2 decimals — see `formatAmount`.
+ */
+export const BALANCE_FRACTION_DIGITS = {
+	minimumFractionDigits: 2,
+	maximumFractionDigits: 4,
+} as const;
+
+/**
+ * Balance amount (2–4 decimals — see {@link BALANCE_FRACTION_DIGITS}). Use this instead of
+ * `formatAmount` wherever the *balance* is shown.
+ */
+export const formatBalanceAmount = (value: number, currency = ''): string => {
+	const n = value == null || Number.isNaN(value) ? 0 : value;
+	const formatted = n.toLocaleString('en-US', BALANCE_FRACTION_DIGITS);
+	return currency ? `${currency}${formatted}` : formatted;
+};
+
 /** Balance / bet amount (up to 2 decimals). */
 export const formatAmount = (value: number, currency = ''): string => {
 	const formatted = value.toLocaleString(undefined, {

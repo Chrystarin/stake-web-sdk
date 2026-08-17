@@ -248,7 +248,12 @@
 			const step = (now: number) => {
 				const p = Math.min(1, (now - t0) / dur);
 				const eased = 1 - Math.pow(1 - p, 2.2);
-				stateGame.balanceCountUpValue = from + (to - from) * eased;
+				// Quantised to whole cents, NOT the raw interpolated float. The balance label renders 2–4
+				// decimals (formatBalanceAmount), so an unrounded frame value prints four arbitrary digits
+				// that churn every frame — noise, and it re-widths the label as it rolls. Only the
+				// intermediate frames are rounded: the last one clears the override below, so the display
+				// falls back to the authoritative balance and lands on its true sub-cent figure.
+				stateGame.balanceCountUpValue = Math.round((from + (to - from) * eased) * 100) / 100;
 				if (p < 1) {
 					balanceCountUpRaf = requestAnimationFrame(step);
 				} else {

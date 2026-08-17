@@ -5,7 +5,7 @@
 	import { buyBonusPrice, canAffordBuyBonus } from '../game/plinkoBet';
 	import { BUY_BONUS_TIERS, type BuyBonusTier } from '../game/plinkoBetMode';
 	import { stateGame } from '../game/stateGame.svelte';
-	import { currencySign as currencySignFor } from '../lib/format';
+	import { currencySign as currencySignFor, formatBalanceAmount } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 	import BetPerBallField from './BetPerBallField.svelte';
 
@@ -32,6 +32,11 @@
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2,
 		})}`;
+	}
+
+	/** The BALANCE line only — 2 decimals, expanding to 4 for sub-cent dust. Tier prices keep `formatMoney`. */
+	function formatBalance(value: number) {
+		return formatBalanceAmount(value, currencySign);
 	}
 
 	function close() {
@@ -148,7 +153,7 @@
 			     `canAffordBuyBonus` tests each price against — so this line can never read as affording a
 			     tier the card below has already greyed out as "Low balance". (The HUD's own balance is the
 			     held-back/counting-up display value, which lags the authoritative one mid-reveal.) -->
-			<p class="bb-balance">Balance: {formatMoney(stateBet.balanceAmount)}</p>
+			<p class="bb-balance">Balance: {formatBalance(stateBet.balanceAmount)}</p>
 		</div>
 	</div>
 {/if}
