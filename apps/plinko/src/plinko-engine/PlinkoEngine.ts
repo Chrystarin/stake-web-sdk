@@ -82,6 +82,8 @@ interface Ball {
   bonusPegEmitRow: number;
   bonusPegEmitCol: number;
   bonusPegEmitted: boolean;
+  /** Time of this ball's last coin-peg sound — dedupes the two routes that can register a hit. */
+  coinSfxTime: number;
   /** Per-ball motion variation (small random spread at spawn). */
   speedMultiplier: number;
   bounceHeightMultiplier: number;
@@ -104,8 +106,18 @@ interface PathPoint {
 }
 
 interface Peg {
+  /** Grid position. Drives lane/row math only — NEVER drawing or contact (see `cx`/`cy`). */
   x: number;
   y: number;
+  /**
+   * Where the peg is actually DRAWN and COLLIDED. Identical to `x`/`y` for regular pegs; coin pegs
+   * are pulled toward the cluster centroid, and baking that pull in here (rather than applying it
+   * at draw time) is what keeps the art, the glow and the bounce contact on the same spot.
+   */
+  cx: number;
+  cy: number;
+  /** Contact radius at `cx`/`cy` — the peg radius normally, the coin's drawn radius for coin pegs. */
+  hitRadius: number;
   row: number;
   col: number;
   bounceEffect: number;
@@ -327,6 +339,16 @@ export class PlinkoEngine {
   private static readonly COIN_CLUSTER_PULL = 0.25;
   /** Coin diameter as a fraction of the lane spacing — scales the coins with the board at any viewport. */
   private static readonly COIN_SIZE_FACTOR = 0.9;
+  /**
+   * Contact disc as a fraction of the coin's drawn radius. Slightly inside the art so the ball hits
+   * the coin face rather than the transparent corners of its texture bounds.
+   */
+  private static readonly COIN_HIT_RADIUS_FACTOR = 0.82;
+  /**
+   * Two coin contacts closer together than this belong to the same hit, so only the first one plays
+   * the chime. Guards the SFX against the path-index credit and the physical bounce double-firing.
+   */
+  private static readonly COIN_SFX_DEDUPE_MS = 120;
   private readonly pegsByRow = new Map<number, Peg[]>();
   /** The featured (coin) pegs themselves — three of them, laid out every draw pass. */
   private readonly featuredPegs: Peg[] = [];
@@ -1122,8 +1144,8 @@ export class PlinkoEngine {
       const rowPegs = this.pegsByRow.get(row);
       if (!rowPegs?.length) continue;
       for (const peg of rowPegs) {
-        left = Math.min(left, peg.x - this.pegRadius);
-        right = Math.max(right, peg.x + this.pegRadius);
+        left = Math.min(left, peg.cx - peg.hitRadius);
+        right = Math.max(right, peg.cx + peg.hitRadius);
       }
     }
     const span = right - left;
@@ -1711,6 +1733,10 @@ export class PlinkoEngine {
         this.pegs.push({
           x: pegX,
           y: rowY,
+          // Provisional — `indexFeaturedPegs` finalises these once the coin cluster is known.
+          cx: pegX,
+          cy: rowY,
+          hitRadius: this.pegRadius,
           row,
           col,
           bounceEffect: 0,
@@ -1744,11 +1770,16 @@ export class PlinkoEngine {
     // Peg coordinates and radius have just been recomputed, so the cached idle bodies are stale.
     this.pegStaticDirty = true;
 
+    const pegRadius = this.pegRadius;
     let centroidX = 0;
     let centroidY = 0;
     let featuredCount = 0;
     for (const peg of this.pegs) {
       peg.isFeatured = this.featuredPegKeys.has(peg.key);
+      // Regular pegs are drawn and contacted exactly on their grid position.
+      peg.cx = peg.x;
+      peg.cy = peg.y;
+      peg.hitRadius = pegRadius;
       if (peg.isFeatured) {
         this.featuredPegs.push(peg);
         this.featuredRowsSet.add(peg.row);
@@ -1760,6 +1791,25 @@ export class PlinkoEngine {
     this.featuredCentroidX = featuredCount ? centroidX / featuredCount : 0;
     this.featuredCentroidY = featuredCount ? centroidY / featuredCount : 0;
 
+    // Bake the cluster pull into the coin pegs themselves. This used to be applied only when the
+    // sprite was positioned, which left the collision peg, the glow ring and the coin art in three
+    // different places — the ball bounced off a spot with no art on it, the gold glow sat off the
+    // coin, and a ball crossing the drawn coin passed straight through it. One position now.
+    // Only when the coin art actually loaded — without it a featured peg falls back to a plain peg
+    // body, and it must keep plain-peg geometry so the fallback doesn't collide bigger than it draws.
+    // Matches the test `featuredPegCoinSprite` uses to decide whether a coin peg wears the coin art.
+    const hasCoinArt = !!this.coinPegTexture && (this.coinPegTexture.width ?? 0) > 0;
+    const coinRadius = hasCoinArt ? this.coinBaseSize() / 2 : 0;
+    for (const peg of this.featuredPegs) {
+      if (!coinRadius) continue;
+      const pull = PlinkoEngine.COIN_CLUSTER_PULL;
+      peg.cx = peg.x + (this.featuredCentroidX - peg.x) * pull;
+      peg.cy = peg.y + (this.featuredCentroidY - peg.y) * pull;
+      // The coin art is far wider than a peg body, so it needs the matching contact disc — otherwise
+      // the ball only ever "touches" a peg-sized dot at the middle of a much larger coin.
+      peg.hitRadius = Math.max(pegRadius, coinRadius * PlinkoEngine.COIN_HIT_RADIUS_FACTOR);
+    }
+
     for (const [row, rowPegs] of this.pegsByRow) {
       const regular: Peg[] = [];
       let minX = Infinity;
@@ -1768,8 +1818,10 @@ export class PlinkoEngine {
       for (const peg of rowPegs) {
         if (peg.isFeatured) {
           hasFeatured = true;
-          if (peg.x < minX) minX = peg.x;
-          if (peg.x > maxX) maxX = peg.x;
+          // Span the coin's drawn extent, not its centre — lanes planned to avoid the cluster have
+          // to clear the art the player can see, or the ball visibly clips the coin's edge.
+          if (peg.cx - peg.hitRadius < minX) minX = peg.cx - peg.hitRadius;
+          if (peg.cx + peg.hitRadius > maxX) maxX = peg.cx + peg.hitRadius;
         } else {
           regular.push(peg);
         }
@@ -1777,6 +1829,42 @@ export class PlinkoEngine {
       this.regularPegsByRow.set(row, regular);
       if (hasFeatured) this.clusterSpanByRow.set(row, { minX, maxX });
     }
+  }
+
+  /**
+   * Push a planned lane out of any coin it would otherwise pass through, leaving it on the side it
+   * already favours so the detour is the shorter one. `allow` is the one coin this ball is meant to
+   * hit (null when it must clear every one of them).
+   *
+   * The ramp that steers a ball onto its coin interpolates between the Galton lane and the coin, and
+   * nothing in that interpolation knew about the OTHER coins. Rows 3 and 5 both carry coins, so the
+   * approach to the row-5 coin passes right between the row-3 pair — and for a wide band of starting
+   * lanes it passed straight through one of them.
+   */
+  private clampLaneClearOfCoins(row: number, laneX: number, allow: Peg | null): number {
+    let x = laneX;
+    for (let i = 0; i < this.featuredPegs.length; i++) {
+      const peg = this.featuredPegs[i];
+      if (peg.row !== row || peg === allow) continue;
+      const clearance = peg.hitRadius + this.ballRadius;
+      const dx = x - peg.cx;
+      if (Math.abs(dx) >= clearance) continue;
+      x = dx >= 0 ? peg.cx + clearance : peg.cx - clearance;
+    }
+    return x;
+  }
+
+  /** The coin peg whose drawn disc contains this point, if any — used to catch grazing contacts. */
+  private featuredPegAtPoint(row: number, x: number, y: number): Peg | null {
+    for (let i = 0; i < this.featuredPegs.length; i++) {
+      const peg = this.featuredPegs[i];
+      if (peg.row !== row) continue;
+      const dx = x - peg.cx;
+      const dy = y - peg.cy;
+      const reach = peg.hitRadius + this.ballRadius;
+      if (dx * dx + dy * dy <= reach * reach) return peg;
+    }
+    return null;
   }
 
   private generateSlots(): void {
@@ -2070,13 +2158,13 @@ export class PlinkoEngine {
     if (!span) return null;
     const regular = this.regularPegsByRow.get(row) ?? [];
     if (side < 0) {
-      const candidates = regular.filter((peg) => peg.x < span.minX);
+      const candidates = regular.filter((peg) => peg.cx < span.minX);
       if (!candidates.length) return null;
-      return candidates.reduce((best, peg) => (peg.x > best.x ? peg : best));
+      return candidates.reduce((best, peg) => (peg.cx > best.cx ? peg : best));
     }
-    const candidates = regular.filter((peg) => peg.x > span.maxX);
+    const candidates = regular.filter((peg) => peg.cx > span.maxX);
     if (!candidates.length) return null;
-    return candidates.reduce((best, peg) => (peg.x < best.x ? peg : best));
+    return candidates.reduce((best, peg) => (peg.cx < best.cx ? peg : best));
   }
 
   private isInsideFeaturedClusterGap(row: number, x: number): boolean {
@@ -2212,8 +2300,8 @@ export class PlinkoEngine {
         weight = 1 - this.smoothstep((row - targetRow) / Math.max(1, easeOutEnd - targetRow));
       }
       if (weight <= 0) continue;
-      const galtonX = galtonLane[row] ?? featuredTarget.x;
-      offsets[row] = (featuredTarget.x - galtonX) * weight;
+      const galtonX = galtonLane[row] ?? featuredTarget.cx;
+      offsets[row] = (featuredTarget.cx - galtonX) * weight;
     }
 
     return offsets;
@@ -2227,7 +2315,7 @@ export class PlinkoEngine {
     let closest: Peg | null = null;
     let minScore = Infinity;
     for (const peg of pegs) {
-      let score = Math.abs(x - peg.x);
+      let score = Math.abs(x - peg.cx);
       if (penalizeFeatured && this.isFeaturedPeg(peg)) {
         score += this.pegSpacingXForRow(peg.row) * 0.35;
       }
@@ -2264,9 +2352,10 @@ export class PlinkoEngine {
       nextRandom,
     } = options;
 
+    // `cx`, not `x`: the ball has to arrive where the coin is DRAWN, or it visibly bounces beside it.
     if (featuredTarget && row === featuredTarget.row) {
       return {
-        pathX: featuredTarget.x,
+        pathX: featuredTarget.cx,
         closestPeg: featuredTarget,
         bounceIntensity: 0.92,
       };
@@ -2276,7 +2365,7 @@ export class PlinkoEngine {
     if (steerTowardFeatured && featuredTarget && row < featuredTarget.row) {
       const rowsUntil = Math.max(1, featuredTarget.row - row);
       const biasStrength = Math.min(0.42, 0.16 + 0.05 / rowsUntil);
-      pathX = laneX + (featuredTarget.x - laneX) * biasStrength;
+      pathX = laneX + (featuredTarget.cx - laneX) * biasStrength;
     }
 
     const bounceCandidates = excludeFeaturedFromBounce
@@ -2300,7 +2389,7 @@ export class PlinkoEngine {
     }
 
     const maxDistance = this.pegSpacingXForRow(options.row) / 2;
-    const finalDistance = Math.abs(pathX - closestPeg.x);
+    const finalDistance = Math.abs(pathX - closestPeg.cx);
     let bounceIntensity = Math.max(0.45, Math.min(0.95, 1 - finalDistance / maxDistance));
     bounceIntensity *= 0.82 + nextRandom() * 0.18;
 
@@ -2332,9 +2421,9 @@ export class PlinkoEngine {
 
     if (pathPoint.closestPeg && !this.isFeaturedPeg(pathPoint.closestPeg)) {
       const alignedWithPlan =
-        Math.abs(ball.x - pathPoint.closestPeg.x) <= this.pegSpacingXForRow(pathPoint.row) * 0.58 &&
-        ball.y >= pathPoint.closestPeg.y - this.pegRadius * 0.65 &&
-        ball.y <= pathPoint.closestPeg.y + this.pegRadius * 0.8;
+        Math.abs(ball.x - pathPoint.closestPeg.cx) <= this.pegSpacingXForRow(pathPoint.row) * 0.58 &&
+        ball.y >= pathPoint.closestPeg.cy - this.pegRadius * 0.65 &&
+        ball.y <= pathPoint.closestPeg.cy + this.pegRadius * 0.8;
       if (alignedWithPlan) return pathPoint.closestPeg;
     }
 
@@ -2468,8 +2557,14 @@ export class PlinkoEngine {
       // rows are all well above the ramp) so it can never pull the lane back into the cluster.
       const converge = this.planTargetConvergence(coinLane, targetX);
       return {
+        // Last word on the lane: whatever the plans and the convergence ramp worked out, the ball
+        // may not be routed through a coin it is not meant to hit.
         lane: coinLane.map((laneX, row) =>
-          this.clampLaneToRow(row, laneX + (converge[row] ?? 0), targetX),
+          this.clampLaneClearOfCoins(
+            row,
+            this.clampLaneToRow(row, laneX + (converge[row] ?? 0), targetX),
+            featuredTarget,
+          ),
         ),
         flanks,
       };
@@ -2556,11 +2651,11 @@ export class PlinkoEngine {
 
       const nextLookaheadX =
         featuredTarget && row + 1 === featuredTarget.row
-          ? featuredTarget.x
+          ? featuredTarget.cx
           : row + 1 < this.rows
             ? (shapedLane[row + 1] ?? targetX)
             : targetX;
-      const pegX = closestPeg?.x ?? pathX;
+      const pegX = closestPeg?.cx ?? pathX;
       const travelDir =
         bounceIntensity > 0 ? this.resolveTravelDir(pegX, nextLookaheadX, targetX) : 0;
 
@@ -2655,6 +2750,7 @@ export class PlinkoEngine {
       bonusPegEmitRow: bonusPeg?.row ?? -1,
       bonusPegEmitCol: bonusPeg?.col ?? -1,
       bonusPegEmitted: false,
+      coinSfxTime: Number.NEGATIVE_INFINITY,
       collisionOffsetX: 0,
       collisionOffsetY: 0,
       ...traits,
@@ -2774,13 +2870,25 @@ export class PlinkoEngine {
           ball.bonusPegEmitPathIndex != null &&
           segmentIndex >= ball.bonusPegEmitPathIndex
         ) {
-          ball.bonusPegEmitted = true;
           if (ball.bonusPegEmitRow >= 0 && ball.bonusPegEmitCol >= 0) {
-            this.onCoinPegHit?.({
-              row: ball.bonusPegEmitRow,
-              col: ball.bonusPegEmitCol,
-              ballId: ball.id,
-            });
+            const coinPeg = this.featuredPegs.find(
+              (peg) => peg.row === ball.bonusPegEmitRow && peg.col === ball.bonusPegEmitCol,
+            );
+            if (coinPeg) {
+              // Route the credit through the shared emitter so the coin lights up and the chime
+              // plays here too. This branch used to credit the meter in silence whenever the
+              // contact test hadn't already fired, which is the hit-but-no-SFX case.
+              this.emitCoinPegContact(ball, coinPeg, currentTime);
+            } else {
+              ball.bonusPegEmitted = true;
+              this.onCoinPegHit?.({
+                row: ball.bonusPegEmitRow,
+                col: ball.bonusPegEmitCol,
+                ballId: ball.id,
+              });
+            }
+          } else {
+            ball.bonusPegEmitted = true;
           }
         }
 
@@ -3185,18 +3293,22 @@ export class PlinkoEngine {
     return delta < 0 ? -1 : 1;
   }
 
-  /** Contact on the peg crown only: top, top-left, or top-right (never side/bottom). */
+  /**
+   * Contact on the peg crown only: top, top-left, or top-right (never side/bottom). Measured from
+   * the peg's drawn centre and its own radius, so a coin peg's crown is on the coin's rim rather
+   * than a peg-sized dot buried in the middle of the art.
+   */
   private getDirectionalPegContact(
     bouncePeg: Peg,
     travelDir: -1 | 0 | 1,
   ): { x: number; y: number } {
-    const crownY = bouncePeg.y - this.pegRadius * 0.92;
+    const crownY = bouncePeg.cy - bouncePeg.hitRadius * 0.92;
     if (travelDir === 0) {
-      return { x: bouncePeg.x, y: crownY };
+      return { x: bouncePeg.cx, y: crownY };
     }
-    const crownXOffset = this.pegRadius * 0.4;
+    const crownXOffset = bouncePeg.hitRadius * 0.4;
     return {
-      x: bouncePeg.x + travelDir * crownXOffset,
+      x: bouncePeg.cx + travelDir * crownXOffset,
       y: crownY,
     };
   }
@@ -3211,9 +3323,62 @@ export class PlinkoEngine {
       return pathPoint.travelDir;
     }
     const nextPoint = ball.path[pathIndex + 1];
-    const targetX = ball.path[ball.path.length - 1]?.x ?? bouncePeg.x;
-    const lookAheadX = nextPoint?.closestPeg?.x ?? nextPoint?.x ?? targetX;
-    return this.resolveTravelDir(bouncePeg.x, lookAheadX, targetX);
+    const targetX = ball.path[ball.path.length - 1]?.x ?? bouncePeg.cx;
+    const lookAheadX = nextPoint?.closestPeg?.cx ?? nextPoint?.x ?? targetX;
+    return this.resolveTravelDir(bouncePeg.cx, lookAheadX, targetX);
+  }
+
+  /**
+   * The single place a coin-peg contact is announced. Both routes that can register a coin hit — the
+   * physical bounce and the server-authoritative path-index credit — land here, so a hit always
+   * lights the coin AND plays its chime exactly once, whichever route notices it first. Previously
+   * only the bounce made a sound, so a credit that fired off the path index (the ball never quite
+   * satisfying the contact test) lit nothing and played nothing.
+   */
+  /**
+   * True when this coin is the one the ball's path was built to hit. A ball steered onto a coin can
+   * brush PAST another one on the way (the row-3 pair straddles the approach to the row-5 coin), and
+   * an incidental brush must not consume the round's single credit — the designated hit would then
+   * land on a meter that has already been paid, which reads as a coin hit that did nothing.
+   *
+   * Legacy / bonus-ball drops carry no designated peg (row = -1); there ANY coin still credits.
+   */
+  private isDesignatedCoinPeg(ball: Ball, peg: Peg): boolean {
+    if (ball.bonusPegEmitRow < 0 || ball.bonusPegEmitCol < 0) return true;
+    return peg.row === ball.bonusPegEmitRow && peg.col === ball.bonusPegEmitCol;
+  }
+
+  private emitCoinPegContact(
+    ball: Ball,
+    peg: Peg,
+    currentTime: number,
+    intensity = 0.92,
+  ): void {
+    const credits = ball.creditBonusPegHit && this.isDesignatedCoinPeg(ball, peg);
+
+    // Light the coin even when the credit route got here first — the glow is part of the feedback.
+    peg.bounceEffect = Math.max(peg.bounceEffect, intensity);
+    peg.bounceTime = currentTime;
+    peg.isTouched = true;
+
+    if (currentTime - ball.coinSfxTime > PlinkoEngine.COIN_SFX_DEDUPE_MS) {
+      ball.coinSfxTime = currentTime;
+      // A ball that merely clips a coin — because it is not a bonus ball, or because this is not the
+      // coin it was sent to — still needs a bounce sound, but it gets the ordinary peg thunk. The
+      // coin chime stays reserved for the hit that actually feeds the meter, so players never hear
+      // the bonus cue without the bonus.
+      this.onPegBounce?.({
+        row: peg.row,
+        col: peg.col,
+        ballId: ball.id,
+        featured: credits,
+      });
+    }
+
+    if (credits && !ball.bonusPegEmitted) {
+      ball.bonusPegEmitted = true;
+      this.onCoinPegHit?.({ row: peg.row, col: peg.col, ballId: ball.id });
+    }
   }
 
   private checkForBounce(ball: Ball, currentTime: number): void {
@@ -3240,8 +3405,13 @@ export class PlinkoEngine {
         continue;
       }
 
-      const bouncePeg = this.resolveLiveBouncePeg(pathPoint, ball);
-      if (!bouncePeg || (!ball.creditBonusPegHit && this.isFeaturedPeg(bouncePeg))) {
+      // A coin peg the ball is physically overlapping wins over the planned peg: non-crediting balls
+      // are routed around the cluster, but when one does clip a coin it has to bounce off it rather
+      // than slide through the art.
+      const bouncePeg =
+        this.featuredPegAtPoint(pathPoint.row, ball.x, ball.y) ??
+        this.resolveLiveBouncePeg(pathPoint, ball);
+      if (!bouncePeg) {
         continue;
       }
 
@@ -3253,20 +3423,27 @@ export class PlinkoEngine {
       const dx = ball.x - contactX;
       const dy = ball.y - contactY;
       const distanceSq = dx * dx + dy * dy;
-      const interactionRadius = this.ballRadius * 0.95;
+      // Widened by however much this peg draws bigger than a peg body (zero for regular pegs), so a
+      // coin is caught across its whole face instead of only at a peg-sized dot in its centre.
+      const interactionRadius =
+        this.ballRadius * 0.95 + Math.max(0, bouncePeg.hitRadius - this.pegRadius);
       const interactionRadiusSq = interactionRadius * interactionRadius;
       const rowWasCrossed = segmentProgress >= i - 0.02;
       const descendingOntoPeg = ball.y >= ball.prevY - 0.5;
       const approachingFromTop =
-        ball.y <= bouncePeg.y - this.pegRadius * 0.08 && descendingOntoPeg;
+        ball.y <= bouncePeg.cy - bouncePeg.hitRadius * 0.08 && descendingOntoPeg;
+      // Featured rows keep a slightly wider catch so a ball routed around the cluster still bounces
+      // off the flank peg instead of drifting through the row untouched — but no wider than that.
+      // The old 0.52 let a ball more than half a lane away claim a bounce, and since a fallback hit
+      // yanks the ball onto the contact point, that read as a bounce off empty board beside the coins.
       const columnTolerance =
         !ball.creditBonusPegHit && this.rowHasFeaturedPeg(pathPoint.row)
-          ? this.pegSpacingXForRow(pathPoint.row) * 0.52
+          ? this.pegSpacingXForRow(pathPoint.row) * 0.4
           : this.pegSpacingXForRow(pathPoint.row) * 0.32;
-      const nearPegColumn = Math.abs(ball.x - bouncePeg.x) <= columnTolerance;
+      const nearPegColumn = Math.abs(ball.x - bouncePeg.cx) <= columnTolerance;
       const inCrownZone =
-        ball.y <= bouncePeg.y &&
-        ball.y >= bouncePeg.y - this.pegRadius * 1.25;
+        ball.y <= bouncePeg.cy &&
+        ball.y >= bouncePeg.cy - bouncePeg.hitRadius * 1.25;
       const shouldUseFallback =
         rowWasCrossed && nearPegColumn && inCrownZone && approachingFromTop;
 
@@ -3274,24 +3451,18 @@ export class PlinkoEngine {
         bouncePeg.bounceEffect = pathPoint.bounceIntensity;
         bouncePeg.bounceTime = currentTime;
         bouncePeg.isTouched = true;
-        // Fires once per peg contact (row is added to bouncedRows below, so no re-fire) — drives the
-        // per-bounce "thunk" sound. `featured` flags a coin-peg hit so the UI can pitch it up.
-        this.onPegBounce?.({
-          row: bouncePeg.row,
-          col: bouncePeg.col,
-          ballId: ball.id,
-          featured: this.isFeaturedPeg(bouncePeg),
-        });
-        if (
-          ball.creditBonusPegHit &&
-          !ball.bonusPegEmitted &&
-          this.isFeaturedPeg(bouncePeg)
-        ) {
-          ball.bonusPegEmitted = true;
-          this.onCoinPegHit?.({
+        if (this.isFeaturedPeg(bouncePeg)) {
+          // Coin contacts go through one emitter so the chime can't double-fire with the
+          // path-index credit below, and can't go silent when that credit lands first.
+          this.emitCoinPegContact(ball, bouncePeg, currentTime, pathPoint.bounceIntensity);
+        } else {
+          // Fires once per peg contact (row is added to bouncedRows below, so no re-fire) — drives
+          // the per-bounce "thunk" sound.
+          this.onPegBounce?.({
             row: bouncePeg.row,
             col: bouncePeg.col,
             ballId: ball.id,
+            featured: false,
           });
         }
         ball.isInBounce = true;
@@ -3307,7 +3478,17 @@ export class PlinkoEngine {
             this.simSpeedFactor
         );
         ball.bounceTravelDir = travelDir;
-        ball.x = contactX + (ball.x - contactX) * 0.15;
+        // Settle onto the contact point, but never teleport: a wide fallback catch could otherwise
+        // slide the ball most of a lane sideways in one frame, which reads as the ball snapping to a
+        // peg it was never near. Correcting by at most the peg's own size keeps close bounces exact
+        // (their correction is far smaller than the cap) and turns far ones into a visible nudge.
+        const settledX = contactX + (ball.x - contactX) * 0.15;
+        const maxSettle = bouncePeg.hitRadius * 1.1;
+        const settleDelta = settledX - ball.x;
+        ball.x =
+          Math.abs(settleDelta) <= maxSettle
+            ? settledX
+            : ball.x + Math.sign(settleDelta) * maxSettle;
         ball.y = Math.min(ball.y, contactY);
 
         const impulseScale =
@@ -3364,16 +3545,14 @@ export class PlinkoEngine {
       const peg = this.featuredPegs[i];
       const sprite = this.featuredPegCoinSprite(peg);
       if (!sprite) continue;
-      const size = base * (1 + this.pegGlowIntensity(peg, currentTime) * 0.5);
+      // A gentle pulse only: the old 1.5× swell grew the coin faster than its halo, so the glow
+      // spent the hit hidden behind the art instead of ringing it.
+      const size = base * (1 + this.pegGlowIntensity(peg, currentTime) * 0.16);
       const tw = sprite.texture.width || 1;
       sprite.scale.set(size / tw);
-      // Pull the coin SPRITE toward the cluster centroid (the middle space) so the three coins
-      // sit closer together. Peg grid positions (regular + featured) are untouched — visual only.
-      const pull = PlinkoEngine.COIN_CLUSTER_PULL;
-      sprite.position.set(
-        peg.x + (this.featuredCentroidX - peg.x) * pull,
-        peg.y + (this.featuredCentroidY - peg.y) * pull
-      );
+      // The cluster pull already lives in cx/cy (see indexFeaturedPegs), so the art lands exactly
+      // where the ball bounces and where the glow is drawn.
+      sprite.position.set(peg.cx, peg.cy);
       sprite.visible = true;
     }
   }
@@ -3438,18 +3617,22 @@ export class PlinkoEngine {
       lit++;
 
       if (peg.isFeatured) {
+        // Sized off the COIN, not the peg body, and centred on cx/cy where the coin is drawn. The
+        // glow layer sits under the coin sprite, so the halo has to clear the coin's edge to read
+        // as a ring around it — a peg-radius bloom just hid behind the art, off to one side.
+        const coinRadius = peg.hitRadius / PlinkoEngine.COIN_HIT_RADIUS_FACTOR;
         const expansion = Math.min(1, (elapsed / duration) * 1.35);
-        const radialRadius = pr * (1 + expansion * 3.2);
-        g.circle(peg.x, peg.y, radialRadius).fill({
+        const radialRadius = coinRadius * (1.16 + expansion * 0.78);
+        g.circle(peg.cx, peg.cy, radialRadius).fill({
           color: 0xffea00,
           alpha: Math.min(0.5, glowIntensity * 0.42)
         });
-        g.circle(peg.x, peg.y, radialRadius * 0.72).fill({
+        g.circle(peg.cx, peg.cy, radialRadius * 0.88).fill({
           color: 0xfff24a,
           alpha: Math.min(0.44, glowIntensity * 0.36)
         });
-        g.circle(peg.x, peg.y, radialRadius + pr * 0.38).stroke({
-          width: Math.max(1.6, pr * 0.34),
+        g.circle(peg.cx, peg.cy, radialRadius + coinRadius * 0.1).stroke({
+          width: Math.max(1.6, coinRadius * 0.13),
           color: 0xffd100,
           alpha: Math.min(0.56, glowIntensity * 0.46)
         });
@@ -3464,31 +3647,33 @@ export class PlinkoEngine {
     this.pegGraphicsHasContent = lit > 0;
   }
 
+  // Both classic draws work off cx/cy — the same point the ball is tested against. For regular pegs
+  // that is their grid position; for a coin peg with no art it is wherever the fallback body sits.
   private drawClassicPegIdleBody(g: Graphics, peg: Peg, pr: number): void {
-    g.circle(peg.x, peg.y, pr).fill({ color: 0xafafaf, alpha: 0.98 });
-    g.circle(peg.x - pr * 0.2, peg.y - pr * 0.22, pr * 0.68).fill({ color: 0xc8c8c8, alpha: 0.55 });
-    g.circle(peg.x - pr * 0.28, peg.y - pr * 0.3, pr * 0.36).fill({ color: 0xe2e2e2, alpha: 0.42 });
-    g.circle(peg.x, peg.y, pr).stroke({ width: Math.max(0.5, pr * 0.07), color: 0x22181b, alpha: 0.95 });
+    g.circle(peg.cx, peg.cy, pr).fill({ color: 0xafafaf, alpha: 0.98 });
+    g.circle(peg.cx - pr * 0.2, peg.cy - pr * 0.22, pr * 0.68).fill({ color: 0xc8c8c8, alpha: 0.55 });
+    g.circle(peg.cx - pr * 0.28, peg.cy - pr * 0.3, pr * 0.36).fill({ color: 0xe2e2e2, alpha: 0.42 });
+    g.circle(peg.cx, peg.cy, pr).stroke({ width: Math.max(0.5, pr * 0.07), color: 0x22181b, alpha: 0.95 });
   }
 
   private drawClassicPegHitGlow(g: Graphics, peg: Peg, pr: number, glowIntensity: number): void {
     const glowStrokeWidth = Math.max(1.2, pr * 0.62);
-    g.circle(peg.x, peg.y, pr * 1.34 + glowStrokeWidth / 2).stroke({
+    g.circle(peg.cx, peg.cy, pr * 1.34 + glowStrokeWidth / 2).stroke({
       width: glowStrokeWidth,
       color: 0xffffff,
       alpha: Math.min(0.28, 0.08 + glowIntensity * 0.2)
     });
-    g.circle(peg.x, peg.y, pr * 1.82).fill({ color: 0xffffff, alpha: Math.min(0.15, glowIntensity * 0.1) });
-    g.circle(peg.x, peg.y, pr).fill({ color: 0xffffff, alpha: Math.min(1, 0.95 + glowIntensity * 0.3) });
-    g.circle(peg.x - pr * 0.2, peg.y - pr * 0.22, pr * 0.68).fill({
+    g.circle(peg.cx, peg.cy, pr * 1.82).fill({ color: 0xffffff, alpha: Math.min(0.15, glowIntensity * 0.1) });
+    g.circle(peg.cx, peg.cy, pr).fill({ color: 0xffffff, alpha: Math.min(1, 0.95 + glowIntensity * 0.3) });
+    g.circle(peg.cx - pr * 0.2, peg.cy - pr * 0.22, pr * 0.68).fill({
       color: 0xffffff,
       alpha: Math.min(1, 0.75 + glowIntensity * 0.35)
     });
-    g.circle(peg.x - pr * 0.28, peg.y - pr * 0.3, pr * 0.36).fill({
+    g.circle(peg.cx - pr * 0.28, peg.cy - pr * 0.3, pr * 0.36).fill({
       color: 0xffffff,
       alpha: Math.min(1, 0.62 + glowIntensity * 0.35)
     });
-    g.circle(peg.x, peg.y, pr).stroke({
+    g.circle(peg.cx, peg.cy, pr).stroke({
       width: Math.max(0.5, pr * 0.07),
       color: 0xffffff,
       alpha: Math.min(1, 0.68 + glowIntensity * 0.28)
