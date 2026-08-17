@@ -4,6 +4,7 @@ import { isPlinkoReplay } from './plinkoReplay';
 import { isPlinkoOffline } from './plinkoConnection';
 import { clearBonusProgress, saveBonusProgress } from './plinkoBonusProgress';
 import {
+	BONUS_HOLD_ACTIVATION_DELAY_MS,
 	BONUS_HOLD_DROP_INTERVAL_MS,
 	BONUS_LEVEL_LABELS,
 	FREE_SPIN_SEGMENTS,
@@ -804,6 +805,8 @@ export function playOneBonusBall() {
 }
 
 let bonusHoldDropTimer: ReturnType<typeof setInterval> | null = null;
+/** Pending "is this press actually a hold?" window — see `startBonusBallHoldDrop`. */
+let bonusHoldActivationTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Cadence of a held free-ball stream, compressed in Fast Game like the board's own spawn spread. */
 function bonusHoldDropIntervalMs(): number {
@@ -826,16 +829,38 @@ function canDropBonusBallNow(): boolean {
  * streams them out continuously (first ball on press, then one every `bonusHoldDropIntervalMs`)
  * until `stopBonusBallHoldDrop`. Wired to both HUD play buttons (pointer) and the Space hotkey.
  *
+ * A press only becomes a hold after `BONUS_HOLD_ACTIVATION_DELAY_MS`. Without that window a merely
+ * unhurried click — a long tap on mobile, a press held while the player watches the ball leave —
+ * lands inside the drop interval and silently spends a second free ball. So the first ball still
+ * drops on press, and the stream is armed separately; release before the window closes and exactly
+ * one ball was dropped. `holdAlreadyQualified` is for callers that measured the hold themselves
+ * (`OnHotkey`'s Space hold), which must not wait out a second identical window.
+ *
  * The stream only ever drops BONUS balls — it calls `playOneBonusBall` directly rather than the
  * shared play action, so running out of free balls mid-hold can never fall through to a real wager.
  *
- * Safe to call while already streaming: `OnHotkey` fires `onhold` twice, and a pointer press can
- * overlap it.
+ * Safe to call while already pressed or streaming: `OnHotkey` fires `onhold` twice, and a pointer
+ * press can overlap it.
  */
-export function startBonusBallHoldDrop(): void {
-	if (bonusHoldDropTimer !== null) return;
+export function startBonusBallHoldDrop(options?: { holdAlreadyQualified?: boolean }): void {
+	if (bonusHoldDropTimer !== null || bonusHoldActivationTimer !== null) return;
 	if (isReplayMode() || !stateGameDerived.hasPendingBonusBalls) return;
 	if (canDropBonusBallNow()) playOneBonusBall();
+	if (options?.holdAlreadyQualified) {
+		beginBonusBallHoldStream();
+		return;
+	}
+	bonusHoldActivationTimer = setTimeout(() => {
+		bonusHoldActivationTimer = null;
+		beginBonusBallHoldStream();
+	}, BONUS_HOLD_ACTIVATION_DELAY_MS);
+}
+
+/** The press outlived the activation window (or was pre-qualified) — stream from here on. */
+function beginBonusBallHoldStream(): void {
+	if (bonusHoldDropTimer !== null) return;
+	// The round can end inside the activation window (that first ball may have been the last one).
+	if (!stateGame.bonusRoundActive) return;
 	bonusHoldDropTimer = setInterval(() => {
 		// Bonus fully played out — nothing left to stream, so don't leave a timer idling behind a
 		// hold the player may never "release" (e.g. the button went `disabled` under their finger).
@@ -849,6 +874,10 @@ export function startBonusBallHoldDrop(): void {
 
 /** Idempotent — every path that can end a hold calls this, and several can fire for one release. */
 export function stopBonusBallHoldDrop(): void {
+	if (bonusHoldActivationTimer !== null) {
+		clearTimeout(bonusHoldActivationTimer);
+		bonusHoldActivationTimer = null;
+	}
 	if (bonusHoldDropTimer === null) return;
 	clearInterval(bonusHoldDropTimer);
 	bonusHoldDropTimer = null;

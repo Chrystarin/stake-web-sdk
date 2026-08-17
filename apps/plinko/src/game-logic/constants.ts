@@ -158,6 +158,17 @@ export const MIN_MS_BETWEEN_BALL_SPAWNS = 400;
  */
 export const BONUS_HOLD_DROP_INTERVAL_MS = 200;
 
+/**
+ * Bonus hold-to-drop: how long Play must stay pressed before the press counts as a HOLD and starts
+ * streaming free balls. A press shorter than this drops exactly one ball — an unhurried single click
+ * (easily 200-300ms on touch) must not quietly spend a second free ball.
+ *
+ * Matches the Space hold threshold in `OnHotkey`, so pointer and keyboard qualify a hold on the same
+ * clock. Deliberately NOT compressed by Fast Game like the interval above: this measures the player's
+ * intent, not the board's cadence.
+ */
+export const BONUS_HOLD_ACTIVATION_DELAY_MS = 400;
+
 /** Normal vs fast simulation speed multipliers. (`fast` reduced 25% from 2.4 → 1.8 so peg
  * bounces stay readable — see PlinkoEngine speed-factor handling.) */
 export const SIM_SPEED = { normal: 0.7, fast: 1.4 } as const;

@@ -574,7 +574,9 @@
 		if (!props.hasPendingBonusBalls) return;
 		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
 		if (isConfirmPromptOpen()) return;
-		startBonusBallHoldDrop();
+		// `OnHotkey` only calls this once the key has been down for its own hold threshold, so the press
+		// has already qualified — waiting out a second identical window would just stall the stream.
+		startBonusBallHoldDrop({ holdAlreadyQualified: true });
 	}
 
 	function onMobileAutoButtonClick(event: MouseEvent) {
