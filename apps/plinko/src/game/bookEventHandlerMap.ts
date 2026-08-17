@@ -128,7 +128,21 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		// against the constant instead of against the number the math fires on.
 		if (bookEvent.spinMeterMax && bookEvent.spinMeterMax > 0) {
 			// Per-tier, so the per-drop re-seed at the end of every round keeps the math's max.
-			rememberRgsSpinMeterMax(bookBallsPerDrop || ballsPerDrop, bookEvent.spinMeterMax);
+			//
+			// ⚠️ NEVER LEARN A TIER'S BAR FROM A BUY BOOK. A buy is bonus-only, so the only free-spin
+			// meter it has is the IN-BONUS one (`BUY_BONUS_IN_BONUS_SPIN_METER_MAX`, 6), which is frozen
+			// against the buy tiers' solved RTP rather than tracking the reference tier's drop-side bar.
+			// A buy book still reports `ballsPerDrop` 10 (`BUY_BONUS_BALLS_PER_DROP_REF`), so caching its
+			// max here would file the buy's bar under tier 10 and mis-size the player's own tendrop bar
+			// for the rest of the session. `stateGame.spinMeterMax` below is per-round and correctly
+			// takes the buy's value.
+			//
+			// The two numbers agree today (both 6), so this guard is LATENT — keep it anyway: it is
+			// load-bearing the moment they diverge, and an abandoned flat-1% draft had the 10-ball bar at
+			// 8, which is exactly that case.
+			if (!isPlinkoBuyBonusMode(stateBet.activeBetModeKey)) {
+				rememberRgsSpinMeterMax(bookBallsPerDrop || ballsPerDrop, bookEvent.spinMeterMax);
+			}
 			stateGame.spinMeterBaseMax = bookEvent.spinMeterMax;
 			stateGame.spinMeterMax = bookEvent.spinMeterMax;
 		}

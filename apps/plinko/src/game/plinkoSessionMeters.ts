@@ -4,6 +4,7 @@ import { stateBet, stateUrlDerived } from 'state-shared';
 import {
 	bonusMeterTierFor,
 	BUY_BONUS_BALLS_PER_DROP_REF,
+	BUY_BONUS_IN_BONUS_SPIN_METER_MAX,
 	DEFAULT_ROW_COUNT,
 	PLINKO_DEFAULT_VARIANT_ID,
 	spinMeterTierFor,
@@ -47,6 +48,11 @@ const rgsSessionBonusLevelByTier: Record<number, number> = {};
  * 6 → 7 while books still shipped 6, so whichever wrote last decided where the bar completed. One hit
  * either way is the difference between a bar that fills exactly when the math fires and a bar the player
  * watches hit max with no bonus behind it (see `warnIfBonusMeterFilledWithoutFiring`).
+ *
+ * ⚠️ THAT WINDOW IS OPEN AGAIN. The flat-2% re-cut moved every bonus bar (7/9/17 → 6/8/16), so until
+ * `make run GAME=crimson_plinko` republishes the books, the constants here and the books on disk
+ * disagree by one hit on each tier. This cache is what keeps play correct across that gap — the served
+ * book wins, as it should.
  *
  * Keyed by the BOOK's own balls-per-drop, not the UI selector: the max belongs to the tier the book was
  * generated for.
@@ -402,9 +408,17 @@ export function seedSpinMeterForCurrentTier(): void {
 	// MAX from `spinMeterMaxForTier` (math's if published, local constant only as bootstrap), and the
 	// head start rescaled onto it — see `spinMeterStartForTier`. Taking the constant's max here is what
 	// used to discard the book's own value at the end of every round.
+	//
+	// A BUY is the exception: it plays no paid drop, so its only free-spin bar is the frozen IN-BONUS one
+	// (`BUY_BONUS_IN_BONUS_SPIN_METER_MAX`, 6), and its meter starts EMPTY rather than at the tier's head
+	// start. That bar currently equals the reference tier's (both 6), so this branch changes only the
+	// start today — but the buy tiers are frozen against 6 while the tier bar is free to move, so
+	// bootstrapping off the tier would seat the bar wrong the moment they diverge again (an abandoned
+	// flat-1% draft had the 10-ball bar at 8, which would have seated it two hits too tall).
 	const tierBalls = activeMeterTierBalls();
-	const max = spinMeterMaxForTier(tierBalls);
-	const start = spinMeterStartForTier(tierBalls, max);
+	const buying = Boolean(stateGame.pendingBuyBonusMode);
+	const max = buying ? BUY_BONUS_IN_BONUS_SPIN_METER_MAX : spinMeterMaxForTier(tierBalls);
+	const start = buying ? 0 : spinMeterStartForTier(tierBalls, max);
 	stateGame.spinMeterBaseMax = max;
 	stateGame.spinMeterMax = max;
 	stateGame.spinMeterValue = Math.min(Math.max(0, start), max);
