@@ -1574,15 +1574,6 @@ export function clearRapidWinSparkles() {
 	if (stateGame.rapidWinSparkles.length > 0) stateGame.rapidWinSparkles = [];
 }
 
-/** 1-ball rapid tier: how many coins the small on-land burst throws, scaled by the landed multiplier
- * (1 for low pays, 2 for mid, 3 for the big multipliers). */
-export function rapidCoinBurstCountForMultiplier(multiplier: number): number {
-	const m = Number(multiplier) || 0;
-	if (m >= 10) return 3;
-	if (m >= 2) return 2;
-	return 1;
-}
-
 export function onBallLanded(
 	ballId: number,
 	multiplier: number,
@@ -1639,11 +1630,9 @@ export function onBallLanded(
 		// ball lands rather than on the settling click — see RapidWinSparkles.svelte.
 		if (landCredit.win > 0) {
 			pushRapidWinSparkle(landCredit.win, landCredit.multiplier);
-				// Also throw a SMALL coin burst (1-3 coins, scaled by the landed multiplier) into the
-				// balance coin — the 1-ball equivalent of the multi-ball win fountain. CoinFountain
-				// watches `rapidCoinBurstTick`.
-				stateGame.rapidCoinBurstCount = rapidCoinBurstCountForMultiplier(landCredit.multiplier);
-				stateGame.rapidCoinBurstTick++;
+			// The sparkle is the whole of this tier's land feedback. No coin is thrown at the balance:
+			// rapid play lands a ball every few hundred ms, so a coin per land read as a constant
+			// trickle into the balance coin rather than as a reward for any particular land.
 		}
 	} else {
 		if (pending && !isSpinSlot && !stateGame.plinkoDropStratumMismatch) {

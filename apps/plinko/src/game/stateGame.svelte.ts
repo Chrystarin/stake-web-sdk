@@ -191,10 +191,6 @@ export const stateGame = $state({
 	 * longer, so the twinkle is already going before the light comes up and outlasts it. */
 	balanceGlowActive: false,
 	balanceSparkleActive: false,
-	/** 1-ball rapid tier: bumped on each paying land so CoinFountain fires a small (1-3 coin) burst.
-	 * `rapidCoinBurstCount` carries how many coins to throw for that land (scaled by its multiplier). */
-	rapidCoinBurstTick: 0,
-	rapidCoinBurstCount: 1,
 	/** Multi-ball drop that PAID but below the total bet (so no win modal): bumped so CoinFountain still
 	 * throws a small skull→balance coin burst. `minorWinCoinBurstAmount` carries the round win to float. */
 	minorWinCoinBurstTick: 0,

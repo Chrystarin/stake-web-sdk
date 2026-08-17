@@ -203,21 +203,12 @@
 	// The multi-ball (10/20/50) win now plays the full-screen WinCelebration overlay, which owns its
 	// OWN coins — they erupt from the middle of the screen and stream into the balance coin (and drive
 	// the balance glow/sparkle/float there directly). So this renderer no longer fires the skull→balance
-	// stream on the win-modal edge; doing both would double the coins. It stays mounted purely for the
-	// 1-ball rapid bursts below.
+	// stream on the win-modal edge; doing both would double the coins. It stays mounted for the two
+	// bursts below — the minor-win one and the post-bonus collect.
 
-	// 1-ball rapid tier: each paying land bumps `rapidCoinBurstTick` (see onBallLanded → gameOrchestrator).
-	// Throw a small 1-3 coin burst per land, the count scaled by the landed multiplier. No layout defer
-	// needed — the balance coin + skull frame are already on screen during rapid play.
-	// Seed from the current tick so a (re)mount with a nonzero tick doesn't fire a spurious burst.
-	let lastRapidTick = stateGame.rapidCoinBurstTick;
-	$effect(() => {
-		const tick = stateGame.rapidCoinBurstTick;
-		if (tick !== lastRapidTick) {
-			lastRapidTick = tick;
-			if (stateGame.ballPerDrop === 1) launchBurst(stateGame.rapidCoinBurstCount, stateGame.winAmount);
-		}
-	});
+	// The 1-ball rapid tier used to throw a small per-land burst here too. It doesn't any more: its
+	// lands come too fast for a coin each to read as anything but a trickle (see onBallLanded). That
+	// tier's win feedback is the skull sparkle alone — RapidWinSparkles.svelte.
 
 	// Multi-ball drop that paid but stayed below the total bet: no win modal (so no WinCelebration coins),
 	// but the round still won something — throw a small skull→balance burst so the credit still lands with

@@ -1728,7 +1728,9 @@ export class PlinkoEngine {
       const pegsInRow = row + PlinkoEngine.TOP_ROW_PEGS;
       const rowSpacingX = this.pegSpacingXForRow(row);
       for (let col = 0; col < pegsInRow; col++) {
-        if (PlinkoEngine.REMOVED_PEG_KEYS.has(`${row}:${col}`)) continue;
+        // Those pegs are omitted only to clear room for the coin cluster. The 1-ball tier has no
+        // coins, so it keeps them and the pyramid stays whole — no gap where the cluster would be.
+        if (!this.rapidSingleBall && PlinkoEngine.REMOVED_PEG_KEYS.has(`${row}:${col}`)) continue;
         const pegX = centerX - ((pegsInRow - 1) * rowSpacingX) / 2 + col * rowSpacingX;
         this.pegs.push({
           x: pegX,
@@ -1928,6 +1930,10 @@ export class PlinkoEngine {
    * (center, two rows below) — occupying more pegs to the left and below than a tight cluster.
    */
   private getFeaturedPegKeys(): Set<string> {
+    // The 1-ball rapid tier is feature-free: no bonus meter, no spin pocket, and so nothing for a
+    // coin peg to feed. It plays on a plain pyramid instead (see also `generatePegs`, which keeps
+    // the cluster's interior pegs on this tier rather than clearing room for coins that aren't there).
+    if (this.rapidSingleBall) return new Set<string>();
     const fixed: Array<[number, number]> = [
       [3, 3],
       [3, 5],
