@@ -727,7 +727,14 @@
 
 <InfoModal />
 
-<BuyBonusModal disabled={buyBonusDisabled} onActivate={handleBuyBonusActivate} />
+<!-- Same bet-per-ball control (and the same change handler) as the betting bar: the modal's own copy
+     re-prices every tier as the stake moves, since a buy costs mode-cost × bet-per-ball. -->
+<BuyBonusModal
+	disabled={buyBonusDisabled}
+	betAmount={stateBet.betAmount}
+	onBetAmountChange={handleBetAmountChange}
+	onActivate={handleBuyBonusActivate}
+/>
 
 <!-- Yes/No gate for autobet starts, bonus buys and high bets. Mounted after BuyBonusModal so it also
      layers above it (the buy prompt is raised from that modal, which stays open behind the prompt). -->

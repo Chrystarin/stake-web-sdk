@@ -7,16 +7,23 @@
 	import { stateGame } from '../game/stateGame.svelte';
 	import { currencySign as currencySignFor } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
+	import BetPerBallField from './BetPerBallField.svelte';
 
 	const context = getContext();
 
 	type Props = {
 		/** Disabled while a round/bonus is in progress (can't buy mid-round). */
 		disabled?: boolean;
+		betAmount: number;
+		onBetAmountChange: (value: number) => void;
 		onActivate: (tier: BuyBonusTier) => void;
 	};
 
 	const props: Props = $props();
+
+	// The bet stepper's presets popup. Local to the modal — the HUD's own click-outside handler only
+	// governs the panel down in the betting bar.
+	let betPresetsOpen = $state(false);
 
 	const currencySign = $derived(currencySignFor(stateBet.currency));
 
@@ -29,6 +36,7 @@
 
 	function close() {
 		stateGame.buyBonusModalOpen = false;
+		betPresetsOpen = false;
 		// Same click SFX as the bet-panel steppers.
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: 'clickUIButton' });
 	}
@@ -37,21 +45,54 @@
 		if (props.disabled || !canAffordBuyBonus(tier.key)) return;
 		props.onActivate(tier);
 	}
+
+	/**
+	 * A click anywhere in the modal that isn't the bet field dismisses its presets popup — the modal's
+	 * own stand-in for the HUD's document-level click-outside handler (which only knows about the
+	 * betting bar). The stopPropagation keeps the same click off the backdrop, which would close the
+	 * whole modal.
+	 */
+	function onModalClick(event: MouseEvent) {
+		event.stopPropagation();
+		if (!betPresetsOpen) return;
+		const target = event.target as HTMLElement | null;
+		if (target?.closest('.bp-bet-presets-wrap')) return;
+		betPresetsOpen = false;
+	}
 </script>
 
 {#if stateGame.buyBonusModalOpen}
 	<div class="bb-backdrop" role="presentation" onclick={close}>
-		<div
-			class="bb-modal"
-			role="dialog"
-			aria-label="Buy Plinko Bonus"
-			onclick={(e) => e.stopPropagation()}
-		>
+		<div class="bb-modal" role="dialog" aria-label="Buy Plinko Bonus" onclick={onModalClick}>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
 				<img src={staticUrl('img/close_btn.webp')} alt="" aria-hidden="true" />
 			</button>
 
 			<h2 class="bb-title">Buy Plinko Bonus</h2>
+
+			<!-- Bet, centred between the title and the tiers. Every tier price is cost × bet-per-ball (see
+			     `buyBonusPrice`), so stepping the stake here re-prices all four cards live. It is the
+			     betting bar's control (BetPerBallField.svelte) in its `panel` skin — the tier-card frame
+			     re-cut as a bar, with − / + glyphs. `.bp-field-host` hands it the same plaque metrics the
+			     bottom panel uses. -->
+			<div class="bb-bet-row bp-field-host">
+				<!-- The control is sized in vw against the LANDSCAPE bottom panel, so a straight copy reads
+				     tiny in portrait (where the HUD swaps to its own mobile cards instead) and smaller than
+				     this screen wants everywhere. Scaling the whole thing keeps every part of it — frame,
+				     steppers, type, popup — in proportion, which per-property overrides could not.
+				     `.bb-bet-row` reserves the SCALED height, since a transform doesn't affect layout. -->
+				<div class="bb-bet-scale">
+					<BetPerBallField
+						betAmount={props.betAmount}
+						onBetAmountChange={props.onBetAmountChange}
+						locked={props.disabled}
+						bind:presetsOpen={betPresetsOpen}
+						presetsBelow
+						variant="panel"
+						shortLabel
+					/>
+				</div>
+			</div>
 
 			<div class="bb-cards">
 				{#each BUY_BONUS_TIERS as tier}
@@ -77,6 +118,10 @@
 							<div class="bb-card-total">
 								<span class="bb-free">{tier.freeBalls}</span> Free Balls
 							</div>
+							<!-- Price on its own line ABOVE the button, not inside its label. Shown on every tier,
+							     affordable or not — with the button now permanently labelled "Activate", this line
+							     and the balance under the grid are what tell the player why a tier is greyed out. -->
+							<div class="bb-price">{formatMoney(price)}</div>
 							<button
 								type="button"
 								class="bb-activate"
@@ -89,15 +134,21 @@
 									alt=""
 									aria-hidden="true"
 								/>
-								<span class="bb-activate-text">
-									{#if affordable}Activate <span class="bb-price">{formatMoney(price)}</span
-										>{:else}Low balance{/if}
-								</span>
+								<!-- Always reads "Activate": an unaffordable tier is communicated by the button being
+								     disabled (greyed via .bb-activate:disabled), not by relabelling it. The reason is
+								     right there anyway — the price above it and the balance under the grid. -->
+								<span class="bb-activate-text">Activate</span>
 							</button>
 						</div>
 					</div>
 				{/each}
 			</div>
+
+			<!-- Wallet balance under the tiers. Deliberately `stateBet.balanceAmount` — the very figure
+			     `canAffordBuyBonus` tests each price against — so this line can never read as affording a
+			     tier the card below has already greyed out as "Low balance". (The HUD's own balance is the
+			     held-back/counting-up display value, which lags the authoritative one mid-reveal.) -->
+			<p class="bb-balance">Balance: {formatMoney(stateBet.balanceAmount)}</p>
 		</div>
 	</div>
 {/if}
@@ -110,7 +161,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(0, 0, 0, 0.82);
+		background: rgba(0, 0, 0, 0.93);
 		padding: 3vh 2vw;
 		overflow: auto;
 	}
@@ -156,6 +207,75 @@
 		text-shadow:
 			0 0 calc(12 * var(--ui-px)) rgba(246, 168, 32, 0.65),
 			0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.8);
+	}
+
+	/* Bet row between the title and the tier grid. `--bb-bet-scale` is the single knob for how big the
+	   shared control renders here (1 = the size it is in the landscape betting bar). */
+	.bb-bet-row {
+		--bb-bet-scale: 1.2;
+		/* Taller than the betting bar's 4.5vw. The bar's plaque is nearly all interior, but this skin
+		   spends 24% of its height on the frame band at the top and 24% at the bottom (that factor is
+		   also what sizes the corner brackets — see BetPerBallField.svelte), leaving 52% for the
+		   label/value pair, which centres itself in whatever height it is given. 6.0vw is the FLOOR for
+		   the current text: the pair is ~37px tall at the reference width (after the label went back to
+		   its shared size — see the contents scale in BetPerBallField.svelte) and 52% of this height is
+		   ~43px, leaving only ~3px of air. Shorter than this needs the VALUE or the band to give. Feeds
+		   --bp-field-height / --bp-field-plaque-height through the `bp-field-metrics` chain, so the row
+		   height follows it. */
+		--bp-item-height: 6vw;
+		/* The bar lifts its label/value pair off the field's centre line to suit its own frame art (see
+		   --bp-field-label-rise in GameHud.scss). This frame is symmetric top-to-bottom, so the lift just
+		   pushes the pair towards the upper band — zero it and the pair centres between the two bands. */
+		--bp-field-label-rise: 0px;
+		position: relative;
+		/* Over the cards below: the presets popup opens downward, across the top of the grid. */
+		z-index: 3;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		/* The plaque is painted by a transform, which leaves the layout box unscaled — so state the
+		   scaled height here or the modal's gap would be measured against the unscaled plaque. */
+		height: calc(var(--bp-field-plaque-height) * var(--bb-bet-scale));
+		/* Trims the modal's own `gap` (2.2rem) down to the ~23px that four blocks can afford. The binding
+		   case is the REFERENCE 1024×576 frame, not this one: --ui-px is 1px at both 1024×576 and
+		   1280×720, so these gaps are the same pixel size in each, while the tier cards scale with vw —
+		   1024×576 is where the column is tightest and the backdrop would start scrolling. It currently
+		   clears that frame by ~5px, so treat this and the balance's margin below as one budget: buy a
+		   bigger gap by shortening a block, not by loosening both. */
+		margin: calc(-12 * var(--ui-px)) 0;
+	}
+
+	.bb-bet-scale {
+		display: flex;
+		transform: scale(var(--bb-bet-scale));
+		transform-origin: center;
+	}
+
+	/* Portrait: 1vw is a fraction of what it is in landscape, so the landscape-tuned control would render
+	   at ~16px tall with 4px type. 2.6 is the landscape 1.2 carried over times the ~2.1 that portrait's
+	   smaller vw costs — it keeps the VALUE at the ~11px the portrait HUD's own bet card uses
+	   (`.mobile-top-card-value`), which is the readable floor here and what stops this shrinking further. */
+	@media (max-aspect-ratio: 1/1) {
+		.bb-bet-row {
+			--bb-bet-scale: 2.6;
+		}
+	}
+
+	/* Plain white readout under the tier grid — no plaque, no gold, so it reads as information rather
+	   than as a fifth control. Sized between the card tagline and the free-ball count, and in --ui-px
+	   like the rest of this modal so it scales with the frame (see the note on .bb-modal). */
+	.bb-balance {
+		/* Trims the modal's block gap the same way the bet row above does (same shared budget — see the
+		   note there): the full 2.2rem under a 4-row column would push it past the reference frame. */
+		margin: calc(-16 * var(--ui-px)) 0 0;
+		font-family: 'Poppins', 'Instrument Sans', sans-serif;
+		font-weight: 600;
+		font-synthesis: none;
+		font-size: clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px)));
+		letter-spacing: -0.01em;
+		color: #ffffff;
+		text-shadow: 0 calc(2 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.85);
+		white-space: nowrap;
 	}
 
 	.bb-cards {
@@ -282,8 +402,9 @@
 	.bb-activate {
 		position: relative;
 		width: 100%;
-		/* Pin to the bottom of the card; the card-inner bottom padding leaves a small margin below. */
-		margin-top: auto;
+		/* The bottom of the card is now pinned by the PRICE line above (it carries the `margin-top: auto`
+		   that used to live here); this button just follows it, with the card-inner bottom padding
+		   leaving a small margin below. */
 		/* Match the button image's native ratio (191×44) so the artwork isn't distorted. */
 		aspect-ratio: 191 / 44;
 		display: flex;
@@ -330,12 +451,29 @@
 		white-space: nowrap;
 	}
 
+	/* Price line, sitting directly on top of the Activate button. It no longer inherits the button
+	 * label's colour and outline (it used to live inside .bb-activate-text), so it restates the white
+	 * fill + black edge that keeps small text legible over the textured panel.
+	 * `margin-top: auto` moved down here with it: the price is now the first of the two bottom-pinned
+	 * rows, so it — not the button — is what takes up the card's free space. */
 	.bb-price {
+		margin-top: auto;
 		/* Poppins Bold (700) — lighter than the free-ball number's Black (900) so the price doesn't
-		 * overpower the small "Activate" label. 700 is a real registered face (no faux-weight).
-		 * Keeps the white fill + black outline/shadow inherited from .bb-activate-text for legibility. */
+		 * overpower the tier's headline count. 700 is a real registered face (no faux-weight). */
 		font-family: 'Poppins', sans-serif;
 		font-weight: 700;
+		/* A step above the button label: this is the number the player is comparing across tiers. */
+		font-size: clamp(calc(13 * var(--ui-px)), 1.75vw, calc(19 * var(--ui-px)));
+		line-height: 1;
+		/* Small gap to the button below; the pair reads as one price-and-buy block. */
+		margin-bottom: calc(5 * var(--ui-px));
+		color: #ffffff;
+		-webkit-text-stroke: var(--ui-px) #000000;
+		paint-order: stroke fill;
+		text-shadow:
+			0 var(--ui-px) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.95),
+			0 0 calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.85);
+		white-space: nowrap;
 	}
 
 	.bb-activate:hover:not(:disabled) {

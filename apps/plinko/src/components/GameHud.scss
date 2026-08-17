@@ -99,7 +99,12 @@
 	padding: 1vw 1vw 0.5vw;
 }
 
-.bottom-panel-row {
+/* Bet-field METRICS — every size a `.bp-field` plaque is solved from.
+   Held in a mixin rather than inline on `.bottom-panel-row` because the field markup is now SHARED:
+   `BetPerBallField.svelte` renders the same plaque inside the Buy Bonus modal, which is nowhere near
+   the bottom panel and picks these up via `.bp-field-host`. A value changed here moves both hosts —
+   that is the point. */
+@mixin bp-field-metrics {
 	--bp-item-height: 4.5vw;
 	/* Desktop-only height multiplier applied to EVERY betting-panel component. One knob so the fields,
 	   the round Auto/PLAY/Fast buttons, and the total-bet pill all scale together — the buttons/pill
@@ -168,6 +173,16 @@
 	   --bp-field-height) and must NOT grow with width — so every width change lands in the label/value
 	   area, and the steppers keep hugging the frame edges. */
 	--bp-field-base-width: calc(var(--bp-field-plaque-width) - 2 * (var(--bp-field-height) + 0.2vw));
+}
+
+/* Any host of a `.bp-field` OUTSIDE the bottom panel (currently the Buy Bonus modal's bet stepper).
+   Only the metrics — the row's own flex layout stays with `.bottom-panel-row`. */
+.bp-field-host {
+	@include bp-field-metrics;
+}
+
+.bottom-panel-row {
+	@include bp-field-metrics;
 
 	display: flex;
 	flex-direction: row;
@@ -623,6 +638,25 @@
 		position: relative;
 		z-index: 1;
 	}
+}
+
+/* Hosts that sit near the TOP of the screen (the Buy Bonus modal's bet stepper) open the popup
+   downward instead — upward it would run off the top edge. Centred on the field rather than
+   right-aligned, since that host centres the plaque itself.
+   The `grid-row`/`grid-column` reset is what MAKES the centring work, so it has to out-specify the
+   placement set by `.bp-bet-presets-wrap.bp-field > .bp-bet-presets-panel` above (hence the same three
+   classes). With a definite grid position the panel's containing block is the GRID AREA, whose start
+   edge is the field's padding edge but whose end edge is the content edge — an asymmetric box, so
+   `left: 50%` lands ~half a stepper gutter right of centre. Placed `auto`, the containing block is the
+   field's padding box and 50% is its true middle. */
+.bp-bet-presets-wrap.bp-field > .bp-bet-presets-panel--below {
+	grid-row: auto;
+	grid-column: auto;
+	top: calc(100% + 0.75vw);
+	bottom: auto;
+	left: 50%;
+	right: auto;
+	transform: translateX(-50%);
 }
 
 .bp-bet-presets-option {
