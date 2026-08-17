@@ -351,6 +351,23 @@ export class PlinkoEngine {
    */
   private static readonly COIN_HIT_RADIUS_FACTOR = 0.82;
   /**
+   * Additive pass laid over the coin art, tinted and scaled by the alphas below. Tint alone can only
+   * darken (it multiplies), so lifting the coin to a brighter yellow takes light ADDED back on top,
+   * masked by the coin's own alpha so it never spills past the rim.
+   */
+  private static readonly COIN_BRIGHTEN_COLOR = 0xffe83c;
+  private static readonly COIN_BRIGHTEN_ALPHA = 0.3;
+  /** Extra brightening at the peak of a hit — the coin flares rather than only growing its halo. */
+  private static readonly COIN_BRIGHTEN_HIT_ALPHA = 0.26;
+  /**
+   * Resting halo: `RINGS` concentric discs from `RADIUS` down to the coin's edge, each adding
+   * `ALPHA` on top of the last. Stacking thin steps is what fakes the falloff — two fat discs read
+   * as a hard-edged plate behind the coin rather than as light coming off it.
+   */
+  private static readonly COIN_IDLE_GLOW_RADIUS = 1.52;
+  private static readonly COIN_IDLE_GLOW_RINGS = 9;
+  private static readonly COIN_IDLE_GLOW_ALPHA = 0.03;
+  /**
    * Two coin contacts closer together than this belong to the same hit, so only the first one plays
    * the chime. Guards the SFX against the path-index credit and the physical bounce double-firing.
    */
@@ -887,7 +904,7 @@ export class PlinkoEngine {
       window.removeEventListener('resize', this.boundWindowResize);
     }
     this.resizeObserver?.disconnect();
-    this.featuredPegSprites.forEach((sprite) => sprite.destroy());
+    this.featuredPegSprites.forEach((sprite) => sprite.destroy({ children: true }));
     this.featuredPegSprites.clear();
     this.glowSpine?.destroy({ children: true });
     this.glowSpine = undefined;
@@ -1286,7 +1303,7 @@ export class PlinkoEngine {
   private syncFeaturedPegSprites(): void {
     for (const [key, sprite] of this.featuredPegSprites.entries()) {
       if (!this.featuredPegKeys.has(key) || !this.coinPegTexture) {
-        sprite.destroy();
+        sprite.destroy({ children: true });
         this.featuredPegSprites.delete(key);
       }
     }
@@ -1295,6 +1312,16 @@ export class PlinkoEngine {
       if (this.featuredPegSprites.has(key)) continue;
       const sprite = new Sprite(this.coinPegTexture);
       sprite.anchor.set(0.5);
+      // A second copy of the coin, blended additively, rides the first as a child: it inherits the
+      // parent's position and hit-pulse scale for free, and its own texture alpha keeps the added
+      // light inside the coin's silhouette. `layoutFeaturedPegSprites` only touches its alpha.
+      const brighten = new Sprite(this.coinPegTexture);
+      brighten.anchor.set(0.5);
+      brighten.blendMode = 'add';
+      brighten.tint = PlinkoEngine.COIN_BRIGHTEN_COLOR;
+      brighten.alpha = PlinkoEngine.COIN_BRIGHTEN_ALPHA;
+      brighten.label = 'coin-brighten';
+      sprite.addChild(brighten);
       this.featuredPegLayer.addChild(sprite);
       this.featuredPegSprites.set(key, sprite);
     }
@@ -3623,9 +3650,15 @@ export class PlinkoEngine {
       if (!sprite) continue;
       // A gentle pulse only: the old 1.5× swell grew the coin faster than its halo, so the glow
       // spent the hit hidden behind the art instead of ringing it.
-      const size = base * (1 + this.pegGlowIntensity(peg, currentTime) * 0.16);
+      const intensity = this.pegGlowIntensity(peg, currentTime);
+      const size = base * (1 + intensity * 0.16);
       const tw = sprite.texture.width || 1;
       sprite.scale.set(size / tw);
+      const brighten = sprite.children[0] as Sprite | undefined;
+      if (brighten) {
+        brighten.alpha =
+          PlinkoEngine.COIN_BRIGHTEN_ALPHA + intensity * PlinkoEngine.COIN_BRIGHTEN_HIT_ALPHA;
+      }
       // The cluster pull already lives in cx/cy (see indexFeaturedPegs), so the art lands exactly
       // where the ball bounces and where the glow is drawn.
       sprite.position.set(peg.cx, peg.cy);
@@ -3653,8 +3686,13 @@ export class PlinkoEngine {
     const pr = this.pegRadius;
     for (let i = 0; i < this.pegs.length; i++) {
       const peg = this.pegs[i];
-      // A coin peg wears its sprite instead of a body, and only ever adds glow on top.
-      if (peg.isFeatured && this.featuredPegCoinSprite(peg)) continue;
+      // A coin peg wears its sprite instead of a body, and only ever adds glow on top. Its resting
+      // halo belongs here rather than in the per-frame layer: it never changes, so it costs one
+      // tessellation per layout instead of two discs every frame.
+      if (peg.isFeatured && this.featuredPegCoinSprite(peg)) {
+        this.drawCoinIdleGlow(g, peg);
+        continue;
+      }
       this.drawClassicPegIdleBody(g, peg, pr);
     }
     this.pegStaticDirty = false;
@@ -3721,6 +3759,26 @@ export class PlinkoEngine {
 
     if (lit === 0 && this.pegGraphicsHasContent) g.clear();
     this.pegGraphicsHasContent = lit > 0;
+  }
+
+  /**
+   * The always-on glow under a coin. Sized off the coin (not the peg body) and centred on cx/cy, so
+   * it clears the art's edge and reads as a soft ring rather than a smudge hidden behind it. Kept
+   * well below the hit glow's alpha — this is ambient warmth, not a second bounce cue.
+   */
+  private drawCoinIdleGlow(g: Graphics, peg: Peg): void {
+    const coinRadius = peg.hitRadius / PlinkoEngine.COIN_HIT_RADIUS_FACTOR;
+    if (!(coinRadius > 0)) return;
+    const rings = PlinkoEngine.COIN_IDLE_GLOW_RINGS;
+    const outer = PlinkoEngine.COIN_IDLE_GLOW_RADIUS;
+    // Outermost first, so each smaller disc lands on top and the alpha accumulates toward the coin.
+    for (let i = rings - 1; i >= 0; i--) {
+      const t = i / (rings - 1);
+      g.circle(peg.cx, peg.cy, coinRadius * (0.99 + (outer - 0.99) * t)).fill({
+        color: i > rings / 2 ? 0xffe23a : 0xfff06a,
+        alpha: PlinkoEngine.COIN_IDLE_GLOW_ALPHA
+      });
+    }
   }
 
   // Both classic draws work off cx/cy — the same point the ball is tested against. For regular pegs
