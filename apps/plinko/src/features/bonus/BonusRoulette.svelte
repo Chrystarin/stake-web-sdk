@@ -1195,6 +1195,9 @@
 	.bonus-announcement-coins {
 		position: absolute;
 		inset: 0;
+		/* One layer above the screen's own background art (painted by `.bonus-announcement` itself) and one
+		   BELOW every text layer on the screen — the headline/reward block and the "press anywhere" hint
+		   both sit at 2. The shower falls between the two, never across a glyph. */
 		z-index: 1;
 		overflow: hidden;
 		pointer-events: none;
@@ -1247,9 +1250,18 @@
 			opacity: 1;
 		}
 	}
+	/* Text layers. The z-index alone already orders these above `.bonus-announcement-coins`, but the coin
+	   box is a PROMOTED compositor layer (`translateZ(0)` + `contain: paint`, and every coin carries
+	   `will-change: transform`) while these were plain main-thread paint. Ordering between a promoted
+	   layer and later non-promoted content relies on the engine's overlap testing, and WebKit (iOS/macOS
+	   Safari) does not reliably promote the overlapped content — that's how a coin ends up drawn ACROSS
+	   the headline mid-fall. Promoting the text too makes the order explicit to the compositor, so the
+	   shower stays behind the type on every engine. Cheap here: both boxes are static once popped in, and
+	   this screen's type is gradient-filled (`background-clip: text`), which already forgoes subpixel AA. */
 	.bonus-announcement-main {
 		position: relative;
 		z-index: 2;
+		transform: translateZ(0);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -1258,6 +1270,7 @@
 	.bonus-announcement-hint {
 		position: absolute;
 		z-index: 2;
+		transform: translateZ(0);
 		left: 0;
 		right: 0;
 		bottom: clamp(calc(16 * var(--ui-px)), 5vh, calc(56 * var(--ui-px)));
