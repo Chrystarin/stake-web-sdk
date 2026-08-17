@@ -153,6 +153,12 @@ export function installPlinkoAudioResume(): () => void {
 }
 
 export function playPlinkoSound(name: SoundEffectName, rate = 1): void {
+	// Nothing may be heard while the player is away from the game. Gameplay deliberately keeps running
+	// when the page is hidden so an Autobet run settles (see PlinkoBoard's hidden driver), and without
+	// this gate the pegs and pockets of those rounds fire at a player who is on their home screen.
+	// A gate here rather than `Howler.mute()`: Howler pools its `<audio>` nodes and never resets a
+	// node's `muted` flag when it hands one out again, so a global mute can outlive the mute itself.
+	if (typeof document !== 'undefined' && document.hidden) return;
 	const howl = howls.get(name);
 	if (!howl) return;
 	// A sprite sound must be triggered by its window id so only that slice plays.

@@ -20,6 +20,13 @@
 	// the game silent until something else re-triggered playback. Gate all playback on this flag and
 	// flip it on the first real user gesture (see the listeners in onMount).
 	let audioUnlocked = $state(false);
+	// True while the game is in the background — home button, app switch, another tab. The two music
+	// tracks are the game's only `<audio>` elements, and an `<audio>` element that is playing (or is
+	// merely still holding a long source) is what makes Android/iOS put the game in the notification
+	// shade as a media player, complete with Play/Pause transport controls. The game has no media to
+	// transport, so the tracks are torn down entirely for as long as the player is away and rebuilt
+	// when they come back — see `releaseTracks` / `rebuildTracks`.
+	let pageHidden = $state(false);
 
 	const NORMAL_VOLUME = 0.35;
 	const BONUS_VOLUME = 0.35;
@@ -29,38 +36,121 @@
 	// Long enough to read as a smooth swap, short enough that bonus music is up as balls start.
 	const CROSSFADE_MS = 900;
 
-	onMount(() => {
-		const normalHowl = new Howl({
-			src: [staticUrl('sound/background_music.m4a')],
-			loop: true,
-			volume: NORMAL_VOLUME,
-			// HTML5 streaming is better suited to a long music file than buffering it fully.
-			html5: true,
-			// ⚠️ Must not preload — see the note on `unlock()` below. Loading an `html5: true` source
-			// before Howler's own first-gesture handler has run logs "HTML5 Audio pool exhausted".
-			preload: false,
-			onloaderror: (_id, err) => {
-				console.warn('[plinko] background music failed to load', err);
-			},
-		});
-		trackedVolume.set(normalHowl, NORMAL_VOLUME);
-		music = normalHowl;
+	type TrackKind = 'normal' | 'bonus';
 
-		const bonusHowl = new Howl({
-			// The file carries a `.mpeg` extension but is MPEG layer III (MP3) audio — pin the format
-			// so Howler picks the right codec instead of guessing from the unusual extension.
-			src: [staticUrl('sound/background_music_bonus_mode.mpeg')],
-			format: ['mp3'],
-			loop: true,
-			volume: BONUS_VOLUME,
-			html5: true,
-			preload: false,
-			onloaderror: (_id, err) => {
-				console.warn('[plinko] bonus background music failed to load', err);
-			},
-		});
-		trackedVolume.set(bonusHowl, BONUS_VOLUME);
+	// How far into each track we were when the page was backgrounded. The Howls themselves do not
+	// survive a hide, so the position has to be parked here and handed to the rebuilt track.
+	const resumeSeek: Record<TrackKind, number> = { normal: 0, bonus: 0 };
+	// Position to apply to a freshly built track the moment it next starts playing. Applied straight
+	// after `play()` so it also works while the source is still loading: Howler queues both calls and
+	// replays them in order once the track is ready.
+	const pendingSeek = new Map<Howl, number>();
+
+	function createTrack(kind: TrackKind): Howl {
+		const howl =
+			kind === 'normal'
+				? new Howl({
+						src: [staticUrl('sound/background_music.m4a')],
+						loop: true,
+						volume: NORMAL_VOLUME,
+						// HTML5 streaming is better suited to a long music file than buffering it fully.
+						// (The two loops are 5 and 11 minutes long — decoding them into Web Audio buffers
+						// would cost hundreds of MB of PCM, so `<audio>` is the only workable path here.)
+						html5: true,
+						// ⚠️ Must not preload — see the note on `unlock()` below. Loading an `html5: true`
+						// source before Howler's own first-gesture handler has run logs "HTML5 Audio pool
+						// exhausted".
+						preload: false,
+						onloaderror: (_id, err) => {
+							console.warn('[plinko] background music failed to load', err);
+						},
+					})
+				: new Howl({
+						// The file carries a `.mpeg` extension but is MPEG layer III (MP3) audio — pin the
+						// format so Howler picks the right codec instead of guessing from the unusual extension.
+						src: [staticUrl('sound/background_music_bonus_mode.mpeg')],
+						format: ['mp3'],
+						loop: true,
+						volume: BONUS_VOLUME,
+						html5: true,
+						preload: false,
+						onloaderror: (_id, err) => {
+							console.warn('[plinko] bonus background music failed to load', err);
+						},
+					});
+		trackedVolume.set(howl, kind === 'normal' ? NORMAL_VOLUME : BONUS_VOLUME);
+		pendingSeek.set(howl, resumeSeek[kind]);
+		return howl;
+	}
+
+	/** Current playhead in seconds, or 0 if the track was never loaded (`seek()` returns the Howl). */
+	function currentSeek(howl: Howl): number {
+		const position = howl.seek();
+		return typeof position === 'number' && Number.isFinite(position) ? position : 0;
+	}
+
+	function destroyTrack(howl: Howl) {
+		const timer = fadeTimers.get(howl);
+		if (timer) {
+			clearInterval(timer);
+			fadeTimers.delete(howl);
+		}
+		howl.stop();
+		// `unload()` hands the underlying `<audio>` node back to Howler's pool with its source replaced
+		// by a scrap of silence. That — not `pause()` — is what makes the OS drop the media session: a
+		// merely paused element keeps its notification around so the player can resume it from outside
+		// the game.
+		howl.unload();
+		trackedVolume.delete(howl);
+		pendingSeek.delete(howl);
+	}
+
+	/** Tear both tracks down, remembering where they were. Safe to call when they are already gone. */
+	function releaseTracks() {
+		const normalHowl = music;
+		const bonusHowl = bonusMusic;
+		music = undefined;
+		bonusMusic = undefined;
+		if (normalHowl) {
+			resumeSeek.normal = currentSeek(normalHowl);
+			destroyTrack(normalHowl);
+		}
+		if (bonusHowl) {
+			resumeSeek.bonus = currentSeek(bonusHowl);
+			destroyTrack(bonusHowl);
+		}
+		clearMediaSession();
+	}
+
+	/** Build both tracks fresh. Loads immediately if the player has already unlocked audio — the
+	 * gesture that did so was this session, so the html5 pool is long since filled. */
+	function rebuildTracks() {
+		if (music || bonusMusic) return;
+		const normalHowl = createTrack('normal');
+		const bonusHowl = createTrack('bonus');
+		music = normalHowl;
 		bonusMusic = bonusHowl;
+		if (audioUnlocked) {
+			normalHowl.load();
+			bonusHowl.load();
+		}
+	}
+
+	/** Drop any media metadata/transport state the browser may still be holding for this page, so a
+	 * stale "now playing" entry can't outlive the tracks we just unloaded. */
+	function clearMediaSession() {
+		const session = typeof navigator === 'undefined' ? undefined : navigator.mediaSession;
+		if (!session) return;
+		try {
+			session.playbackState = 'none';
+			session.metadata = null;
+		} catch {
+			/* older engines expose a read-only subset — nothing to clean up there anyway */
+		}
+	}
+
+	onMount(() => {
+		rebuildTracks();
 
 		// Unlock playback on the first user gesture. Re-apply the music state SYNCHRONOUSLY inside the
 		// handler (not just via the reactive effect) so the first play() happens within the gesture's
@@ -82,8 +172,8 @@
 			// splash past its timeout on slow links and got art revealed part-loaded (see AUDIO_PATHS).
 			// So on a slow first run this may still be streaming when the gesture lands, which is
 			// exactly what `html5: true` is for — it plays as it arrives instead of waiting.
-			normalHowl.load();
-			bonusHowl.load();
+			music?.load();
+			bonusMusic?.load();
 			applyMusicState();
 		};
 		// Howler registers ITS unlock listener on `document`, in the CAPTURE phase, for exactly these
@@ -96,16 +186,38 @@
 		const opts = { capture: true, passive: true } as const;
 		for (const evt of gestureEvents) document.addEventListener(evt, unlock, opts);
 
+		// Leaving the game must leave nothing playing behind it. Gameplay itself deliberately carries on
+		// while hidden (an Autobet run has to keep settling — see PlinkoBoard's hidden driver), but the
+		// music does not: it is torn down on the way out and rebuilt on the way back, which is what keeps
+		// the game out of the device's media notification / lock-screen controls.
+		const setHidden = (hidden: boolean) => {
+			if (hidden === pageHidden) return;
+			pageHidden = hidden;
+			if (hidden) {
+				releaseTracks();
+			} else {
+				rebuildTracks();
+				applyMusicState();
+			}
+		};
+		const onVisibilityChange = () => setHidden(document.visibilityState === 'hidden');
+		// `pagehide` covers the cases `visibilitychange` misses — notably iOS, where a swipe away or a
+		// bfcache navigation can freeze the page without a visibility transition ever being delivered.
+		const onPageHide = () => setHidden(true);
+		const onPageShow = () => setHidden(document.visibilityState === 'hidden');
+
+		document.addEventListener('visibilitychange', onVisibilityChange);
+		window.addEventListener('pagehide', onPageHide);
+		window.addEventListener('pageshow', onPageShow);
+
 		return () => {
 			for (const evt of gestureEvents) document.removeEventListener(evt, unlock, opts);
+			document.removeEventListener('visibilitychange', onVisibilityChange);
+			window.removeEventListener('pagehide', onPageHide);
+			window.removeEventListener('pageshow', onPageShow);
 			fadeTimers.forEach((timer) => clearInterval(timer));
 			fadeTimers.clear();
-			normalHowl.stop();
-			normalHowl.unload();
-			bonusHowl.stop();
-			bonusHowl.unload();
-			music = undefined;
-			bonusMusic = undefined;
+			releaseTracks();
 		};
 	});
 
@@ -132,6 +244,16 @@
 		howl.volume(vol);
 	}
 
+	/** Start a track, dropping it back at the position it held before the page was backgrounded. */
+	function startPlayback(howl: Howl) {
+		howl.play();
+		const position = pendingSeek.get(howl);
+		pendingSeek.delete(howl);
+		// Straight after `play()` on purpose: on a track that is still loading both calls land on
+		// Howler's queue and replay in that order, so the seek can never be overtaken by playback start.
+		if (position) howl.seek(position);
+	}
+
 	/** Ramp a track towards `target`, starting playback first if it needs to be audible. When ramping
 	 * down to silence, pause once it reaches 0 so the paused loop stops consuming a stream. */
 	function fadeTo(howl: Howl, target: number, ms: number) {
@@ -150,7 +272,7 @@
 		if (typeof document !== 'undefined' && document.hidden) {
 			setVolume(howl, target);
 			if (target > 0) {
-				if (!howl.playing()) howl.play();
+				if (!howl.playing()) startPlayback(howl);
 			} else {
 				howl.pause();
 			}
@@ -158,7 +280,7 @@
 		}
 		if (target > 0 && !howl.playing()) {
 			setVolume(howl, 0);
-			howl.play();
+			startPlayback(howl);
 		}
 		const start = trackedVolume.get(howl) ?? 0;
 		if (start === target) {
@@ -216,9 +338,12 @@
 		const enabled = stateGame.musicEnabled;
 		const unlocked = audioUnlocked;
 		const bonus = bonusMusicOn;
+		const hidden = pageHidden;
 		const normalHowl = music;
 		const bonusHowl = bonusMusic;
-		if (!normalHowl || !bonusHowl) return;
+		// Nothing to drive while the player is away: the tracks have been torn down deliberately, and
+		// starting one here would put the game straight back into the device's media controls.
+		if (hidden || !normalHowl || !bonusHowl) return;
 
 		// Every bonus round must open on the first bar of the bonus track. `fadeTo` pauses a track when it
 		// ramps to silence, and Howler resumes a paused sound from where it left off — so rewind on the
@@ -226,7 +351,12 @@
 		// the track not-playing so `fadeTo` starts it cleanly from zero volume.
 		if (bonus !== bonusTrackArmed) {
 			bonusTrackArmed = bonus;
-			if (bonus) bonusHowl.stop();
+			if (bonus) {
+				bonusHowl.stop();
+				// And drop any position parked for it by a background/foreground cycle — a bonus round that
+				// ended while the player was away would otherwise hand its playhead to the NEXT one.
+				pendingSeek.delete(bonusHowl);
+			}
 		}
 
 		if (!enabled || !unlocked) {
