@@ -101,6 +101,8 @@
 
 	import InfoModal from './InfoModal.svelte';
 
+	import QuickGuideModal from './QuickGuideModal.svelte';
+
 	import BuyBonusModal from './BuyBonusModal.svelte';
 
 	import ConfirmPromptModal from './ConfirmPromptModal.svelte';
@@ -561,6 +563,19 @@
 		stateGame.menuOpen = false;
 	}
 
+	/**
+	 * Menu → How to Play now opens the 4-page quick guide (the same walkthrough shown once after the
+	 * intro splash) instead of the InfoModal's `howToPlay` tab.
+	 *
+	 * That tab's copy is left in place in InfoModal.svelte but is now unreachable — nothing sets
+	 * `infoModalTab` to `'howToPlay'` any more. Restoring the old behaviour is the commented line below.
+	 */
+	function openQuickGuide() {
+		// openInfo('howToPlay');
+		stateGame.menuOpen = false;
+		stateGame.quickGuideOpen = true;
+	}
+
 	// Buy bonus — can't open mid-round / mid-bonus / in replay. It IS offered on every balls-per-drop
 	// tier, the single-ball (rapid) one included: a buy is bonus-only and bpd-independent (its price is
 	// ×bet-per-ball and its book is generated on the math's reference tier), so the fact that 1-ball has
@@ -732,6 +747,9 @@
 
 <InfoModal />
 
+<!-- 4-page walkthrough. Opens itself once the intro splash clears, and again from Menu → How to Play. -->
+<QuickGuideModal />
+
 <!-- Same bet-per-ball control (and the same change handler) as the betting bar: the modal's own copy
      re-prices every tier as the stake moves, since a buy costs mode-cost × bet-per-ball. -->
 <BuyBonusModal
@@ -814,7 +832,7 @@
 						onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
 						onOpenRules={() => openInfo('rules')}
 						onOpenHistory={() => openInfo('history')}
-						onOpenHowToPlay={() => openInfo('howToPlay')}
+						onOpenHowToPlay={openQuickGuide}
 						onClose={() => (stateGame.menuOpen = false)}
 					/>
 				{/if}
@@ -831,7 +849,7 @@
 			onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
 			onOpenRules={() => openInfo('rules')}
 			onOpenHistory={() => openInfo('history')}
-			onOpenHowToPlay={() => openInfo('howToPlay')}
+			onOpenHowToPlay={openQuickGuide}
 			onClose={() => (stateGame.menuOpen = false)}
 		/>
 	{/if}

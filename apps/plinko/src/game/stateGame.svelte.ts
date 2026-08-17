@@ -279,6 +279,9 @@ export const stateGame = $state({
 	infoModalOpen: false,
 	infoModalTab: 'rules' as InfoModalTab,
 	menuOpen: false,
+	/** Quick-guide (4-page "how to play" walkthrough) visibility. Shown once automatically as soon as
+	 * the intro splash clears, and thereafter from the menu's How to Play entry. */
+	quickGuideOpen: false,
 	/** Buy-bonus tier-select modal visibility. */
 	buyBonusModalOpen: false,
 	/** Full RGS mode of a pending buy-bonus purchase (e.g. `buystandard10`); drives `plinkoActiveBetMode`

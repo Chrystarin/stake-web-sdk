@@ -155,6 +155,10 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy_bonus_panel.webp',
 	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.webp`),
 
+	// ── Quick guide — the frame art only. It opens the instant the splash clears, so it has to be in
+	//    memory by then; its four video loops deliberately are NOT (see QUICK_GUIDE_VIDEO_PATHS).
+	'img/quick_guide/quick_guide_container.webp',
+
 	// ── Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen ────────────────────────────
 	'img/congratulations_screen/treasure_table.webp',
 	'img/congratulations_screen/treasure_table_mobile.webp',
@@ -182,6 +186,27 @@ const WIN_POPUP_IMAGE_PATHS: readonly string[] = [
 	// Counter glyphs (0–9 + the decimal dot) — also used by the 1-ball rapid sparkles
 	'img/win_popup/dot.webp',
 	...Array.from({ length: 10 }, (_, digit) => `img/win_popup/${digit}.webp`),
+];
+
+/**
+ * The quick guide's four looping clips (`QuickGuideModal.svelte`), in page order.
+ *
+ * ⚠️ Deliberately NOT preloaded, and the one place in the game where that is the right answer. These
+ * are 1080p H.264 masters running 13–21 s each — ~78 MB together, twice the whole rest of the blocking
+ * manifest — so warming them would push the splash past its own timeout and reveal the game
+ * part-loaded, the exact failure this module exists to prevent. Video also degrades the way audio does
+ * rather than the way art does: an unwarmed clip streams and starts playing, where an unwarmed image is
+ * a visible hole.
+ *
+ * The modal therefore mounts ONE `<video>` at a time, keyed on the page, so a player who reads page 1
+ * and closes never pays for the other three. Exported so {@link watchForUnpreloadedAssets} can tell
+ * that traffic apart from a genuine manifest gap — these live under `img/`, which it watches.
+ */
+export const QUICK_GUIDE_VIDEO_PATHS: readonly string[] = [
+	'img/quick_guide/quick_guide_video_1.mp4',
+	'img/quick_guide/quick_guide_video_2.mp4',
+	'img/quick_guide/quick_guide_video_3.mp4',
+	'img/quick_guide/quick_guide_video_4.mp4',
 ];
 
 /**
@@ -272,6 +297,10 @@ const FONT_SPECS: readonly string[] = [
 	"1rem 'PiecesOfEight'",
 	"1rem 'PotatoSans'",
 	"1rem 'Perpetua'",
+	// The quick guide's body face, and it opens the moment the splash clears — without it here the
+	// walkthrough's first frame renders in the Instrument Sans fallback and then reflows.
+	"400 1rem 'Noto Sans'",
+	"600 1rem 'Noto Sans'",
 	"400 1rem 'Righteous'",
 	"400 1rem 'AustereBlackCapsSSK'",
 ];
@@ -683,6 +712,9 @@ export function watchForUnpreloadedAssets(): void {
 	// right after the splash — and an alarm that always fires tells you nothing.
 	const byDesign = new Set([
 		...AUDIO_PATHS.map((path) => staticUrl(path)),
+		// Streamed on demand, one page at a time — see QUICK_GUIDE_VIDEO_PATHS for why they are not in
+		// the manifest. They sit under `img/`, so without this every guide open reads as a manifest gap.
+		...QUICK_GUIDE_VIDEO_PATHS.map((path) => staticUrl(path)),
 		...otherOrientationBackgroundFiles().map((path) => new URL(path, window.location.href).href),
 	]);
 
@@ -706,7 +738,11 @@ export function watchForUnpreloadedAssets(): void {
 				});
 			}
 
-			if (import.meta.env.DEV && !covered.has(url)) {
+			// `byDesign` is checked here too, not just in the report above: the audio it covers is also in
+			// the manifest (so `covered` already silences it), but the quick-guide videos deliberately are
+			// not — and telling the developer to add 78 MB of video to the blocking preload is the exact
+			// opposite of what should happen.
+			if (import.meta.env.DEV && !covered.has(url) && !byDesign.has(url)) {
 				console.warn(
 					`[plinko] asset loaded on demand (add it to the manifest in lib/preloadAssets.ts): ${url}`,
 				);

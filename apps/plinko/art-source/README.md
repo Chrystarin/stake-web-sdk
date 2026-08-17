@@ -257,3 +257,34 @@ preload list fell behind and switching to 1 ball/drop fetched that tier's labels
 `multiplier_slot_text_0.1.webp` and `_0.3.webp` are now unreferenced — they were the previous 1-ball
 board's centre and its neighbours. Kept in `static/img/` rather than deleted, since re-cutting that
 board again is cheap and they are ~700 B each, but nothing loads them.
+
+## Quick-guide frame (2026-08-18)
+
+| master | installed as | encode |
+|---|---|---|
+| `quick_guide_container.png` | `static/img/quick_guide/quick_guide_container.webp` | lossy q90 |
+
+943×740 RGBA, the panel behind the 4-page walkthrough (`QuickGuideModal.svelte`). Lossy like the other
+`img/` frame art and by a wide margin: 638 KB PNG → **20 KB** at q90, against 410 KB lossless, for an
+RGB RMS error of 1.26 and a byte-exact alpha channel. q95 costs 36 KB and only moves the RMS to 1.16 —
+not worth 16 KB on a dark, heavily textured panel that is never scaled up (it renders at ~530 CSS px
+against a 943 px asset at the 1024×576 reference).
+
+The art's own 943:740 is the modal's `aspect-ratio`, so the riveted band and the corner ornaments are
+never stretched; the interior is laid out in `cqw` against that box — one container-query coordinate
+space for the whole frame, so the type, the video well and the nav row stay a fixed design at every
+viewport. Re-derive those percentages only if a redelivery changes the frame's proportions.
+
+### ⚠️ The four `quick_guide_video_*.mp4` under `static/` are NOT masters — and they are large
+
+~78 MB together (1080p H.264, 13–21 s each), served as-is, so unlike everything else in this file there
+is no master-here / encode-there split to maintain. They are deliberately outside the blocking preload
+manifest and are streamed one page at a time — see `QUICK_GUIDE_VIDEO_PATHS` in `lib/preloadAssets.ts`
+for why. If CDN cost or a slow-link open ever becomes the complaint, this is the obvious thing to
+re-encode: the well they play in is only ~461 CSS px wide at the 1024×576 reference, so a 1920-wide
+master is a 4× oversample. 720p at a sane bitrate would cut them by an order of magnitude with nothing
+visible lost.
+
+⚠️ Re-deliver them at **16:9**. The well is sized to that ratio precisely so nothing is cropped —
+measured across four frames of each clip, none is letterboxed and the outer bands are often the busiest
+part of the frame, so a well that did not match would cost real content.
