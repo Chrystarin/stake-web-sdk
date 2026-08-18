@@ -111,9 +111,9 @@
 
 	/**
 	 * "Click anywhere outside the modal to close" — decided by hit-testing the panel rather than by
-	 * hanging a `stopPropagation` handler on it. The panel is not an interactive element, and the two
-	 * things that legitimately sit on the backdrop (the logo above, the Click to Continue prompt below)
-	 * are outside it, so they close the guide like the empty space around them does.
+	 * hanging a `stopPropagation` handler on it. The panel is not an interactive element, and the one
+	 * thing that legitimately sits on the backdrop (the logo above) is outside it, so it closes the
+	 * guide like the empty space around it does.
 	 *
 	 * Hit-testing is also why the logo has to be `pointer-events: none`: it hangs down over the top of
 	 * the panel, and without that the part lying on the frame would be a piece of backdrop sitting
@@ -157,8 +157,9 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if stateGame.quickGuideOpen}
-	<!-- The backdrop IS the dismiss target ("click anywhere outside the modal to close"), so the
-	     "Click to Continue" line below is a label on that gesture rather than a control of its own. -->
+	<!-- The backdrop IS the dismiss target: a click anywhere off the panel closes the guide. It is
+	     unlabelled — the "Click to Continue" line that used to name the gesture was removed — so the
+	     X in the frame's corner is the only visible way out, and this is the discoverable one. -->
 	<div class="qg-backdrop" role="presentation" onclick={onBackdropClick}>
 		<!-- The game's logo art, in flow above the panel and then pulled back down over it (see
 		     `.qg-title-art`). Ahead of the panel in the DOM, painted above it, and transparent to the
@@ -234,8 +235,6 @@
 				</div>
 			</div>
 		</div>
-
-		<p class="qg-continue">Click to Continue</p>
 	</div>
 {/if}
 
@@ -263,9 +262,14 @@
 		 *
 		 * The vh term reads 68 and not the 72 it was before the logo: that budget has to cover the
 		 * panel AND the ~14.5% of a panel-width the logo stands proud of it, or a viewport the vh term
-		 * binds on centres a block taller than itself and crops the top off the logo. 68 leaves ~9% of
-		 * the height spare at every vh-bound frame, from 1280x720 down to the popout. It costs the
-		 * panel ~6% of its width there, which the interior absorbs by being sized in cqw.
+		 * binds on centres a block taller than itself and crops the top off the logo. It costs the
+		 * panel ~6% of its width at those frames, which the interior absorbs by being sized in cqw.
+		 *
+		 * 68 was set while a "Click to Continue" line still sat under the panel and had to be paid for
+		 * out of the same budget. That line is gone, so the block now leaves 19.5% of the height spare
+		 * at every vh-bound frame alike — 70px top and bottom at 1280x720, 22px at the popout. The cap
+		 * is deliberately NOT wound back up to spend it: the slack is doing no harm, and raising it
+		 * would grow the panel and every piece of type inside it.
 		 */
 		--qg-panel-w: min(90vw, calc(760 * var(--ui-px)), calc(68vh * 943 / 740));
 	}
@@ -287,8 +291,7 @@
 	 *     panel's, so the last ~2.9% reaches past it — about 7% of the video's height, which is the
 	 *     "just a little" the design asks for. The backdrop's flex `gap` was removed for this: gap is
 	 *     added between margin boxes, so it would have to be subtracted back out here and the overlap
-	 *     would read as a viewport unit minus a panel fraction. `.qg-continue` carries the spacing that
-	 *     gap used to give it instead.
+	 *     would read as a viewport unit minus a panel fraction.
 	 *
 	 * `z-index` because paint order alone would lose: the panel comes after the logo in the DOM and
 	 * builds a stacking context of its own (it has a `filter`), so an unpositioned logo would be
@@ -523,21 +526,5 @@
 			--qg-type: 1.3;
 			--qg-video-width: 54%;
 		}
-	}
-
-	/* Same treatment as the bonus congratulations screen's "PRESS ANYWHERE…" line (BonusRoulette
-	   `.bonus-announcement-hint`) — this is the same gesture prompt, so it reads the same. */
-	.qg-continue {
-		/* The backdrop has no flex `gap` (the logo's overlap is written as a negative margin, which gap
-		   would fight), so the space under the panel is this line's own. */
-		margin: 2vh 0 0;
-		font-family: 'Perpetua', serif;
-		font-size: clamp(calc(16 * var(--ui-px)), 3.2vw, calc(34 * var(--ui-px)));
-		line-height: 1.1;
-		letter-spacing: 0.03em;
-		text-align: center;
-		text-transform: uppercase;
-		color: #f0ddaa;
-		text-shadow: 0 calc(2 * var(--ui-px)) calc(7 * var(--ui-px)) rgba(0, 0, 0, 0.7);
 	}
 </style>
