@@ -263,12 +263,22 @@ board again is cheap and they are ~700 B each, but nothing loads them.
 | master | installed as | encode |
 |---|---|---|
 | `quick_guide_container.png` | `static/img/quick_guide/quick_guide_container.webp` | lossy q90 |
+| `quick_guide_title.png` | `static/img/quick_guide/quick_guide_title.webp` | lossy q90 |
 
 943×740 RGBA, the panel behind the 4-page walkthrough (`QuickGuideModal.svelte`). Lossy like the other
 `img/` frame art and by a wide margin: 638 KB PNG → **20 KB** at q90, against 410 KB lossless, for an
 RGB RMS error of 1.26 and a byte-exact alpha channel. q95 costs 36 KB and only moves the RMS to 1.16 —
 not worth 16 KB on a dark, heavily textured panel that is never scaled up (it renders at ~530 CSS px
 against a 943 px asset at the 1024×576 reference).
+
+615×273 RGBA, the ONE-EYED WILLY PLINKO logo that sits over the top of that panel — it replaced the
+`PiecesOfEight` type the guide opened with. Lossy q90 again, though the margin is narrower than the
+frame's: 253 KB PNG → **69 KB**, against 163 KB lossless, for an RGB RMS error of 4.0 over the opaque
+pixels and a byte-exact alpha channel. The error is higher than the frame's 1.26 because the art is
+crackled stone and fine drips rather than a flat dark panel, and it is still invisible at the size
+this renders — ~340 CSS px at 1280×720, 410 px at the widest the panel is ever allowed to be, both
+under the asset's own 615 px. q95 buys RMS 3.2 for another 12 KB, which is not worth it on an asset
+that blocks the splash.
 
 The art's own 943:740 is the modal's `aspect-ratio`, so the riveted band and the corner ornaments are
 never stretched; the interior is laid out in `cqw` against that box — one container-query coordinate

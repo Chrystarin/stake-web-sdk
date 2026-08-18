@@ -155,9 +155,11 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy_bonus_panel.webp',
 	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.webp`),
 
-	// ── Quick guide — the frame art only. It opens the instant the splash clears, so it has to be in
-	//    memory by then; its four video loops deliberately are NOT (see QUICK_GUIDE_VIDEO_PATHS).
+	// ── Quick guide — the frame and the logo that hangs over it. Both are on screen the instant the
+	//    splash clears, so both have to be in memory by then; its four video loops deliberately are
+	//    NOT (see QUICK_GUIDE_VIDEO_PATHS).
 	'img/quick_guide/quick_guide_container.webp',
+	'img/quick_guide/quick_guide_title.webp',
 
 	// ── Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen ────────────────────────────
 	'img/congratulations_screen/treasure_table.webp',

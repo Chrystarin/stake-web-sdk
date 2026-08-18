@@ -11,6 +11,8 @@
 	type QuickGuidePage = {
 		title: string;
 		content: string;
+		/** Parenthetical caveat under the copy. Omitted on the pages that carry no restriction. */
+		note?: string;
 		/** Index into QUICK_GUIDE_VIDEO_PATHS — the loop that plays in the frame above the copy. */
 		video: number;
 	};
@@ -18,22 +20,29 @@
 	const PAGES: readonly QuickGuidePage[] = [
 		{
 			title: 'DROP & WIN',
-			content: 'Ball drops → multiplier pocket → win reacts',
+			content:
+				'Choose how many balls to drop and set your bet, then press Play. Each ball pays the multiplier of the pocket it lands in.',
+			note: '(Note: Spin pockets and Golden pegs are only available with 10, 20 or 50 balls per drop.)',
 			video: 0,
 		},
 		{
-			title: 'FREE SPIN',
-			content: 'SPIN pocket → meter → wheel',
+			title: 'FREE SPIN MULTIPLIER',
+			content:
+				'Balls that land in the center SPIN (0×) slot fill the Free Spin meter. When it fills, a wheel gives you an extra multiplier on your bet per ball amount.',
+			note: '(Note: Only available with 10, 20 or 50 balls per drop.)',
 			video: 1,
 		},
 		{
-			title: 'UNLOCK BONUS',
-			content: 'Gold Coin Pegs → Bonus meter → Free Balls',
+			title: 'BONUS PLAY FEATURE',
+			content:
+				'Balls that hit the 3 gold pegs fill the Bonus meter. When it fills, a wheel awards free balls and a chance to trigger multiple bonus levels.',
+			note: '(Note: Only available with 10, 20 or 50 balls per drop.)',
 			video: 2,
 		},
 		{
-			title: 'LEVEL UP BONUS',
-			content: 'During Free Balls → meter refills → level up',
+			title: 'LEVEL BONUSES',
+			content:
+				'During Free Play, hitting the golden coin pegs fills the bonus meter. Each time it fills, a new bonus level unlocks and gives more free balls.',
 			video: 3,
 		},
 	];
@@ -103,8 +112,13 @@
 	/**
 	 * "Click anywhere outside the modal to close" — decided by hit-testing the panel rather than by
 	 * hanging a `stopPropagation` handler on it. The panel is not an interactive element, and the two
-	 * things that legitimately sit on the backdrop (the game title above, the Click to Continue prompt
-	 * below) are outside it, so they close the guide like the empty space around them does.
+	 * things that legitimately sit on the backdrop (the logo above, the Click to Continue prompt below)
+	 * are outside it, so they close the guide like the empty space around them does.
+	 *
+	 * Hit-testing is also why the logo has to be `pointer-events: none`: it hangs down over the top of
+	 * the panel, and without that the part lying on the frame would be a piece of backdrop sitting
+	 * inside the panel's outline — a click there would close the guide while looking like a click on
+	 * the panel. Transparent to the mouse, the event lands on whatever is actually underneath.
 	 */
 	function onBackdropClick(event: MouseEvent) {
 		const target = event.target as Node | null;
@@ -146,7 +160,14 @@
 	<!-- The backdrop IS the dismiss target ("click anywhere outside the modal to close"), so the
 	     "Click to Continue" line below is a label on that gesture rather than a control of its own. -->
 	<div class="qg-backdrop" role="presentation" onclick={onBackdropClick}>
-		<h2 class="qg-game-title">One Eyed Willy</h2>
+		<!-- The game's logo art, in flow above the panel and then pulled back down over it (see
+		     `.qg-title-art`). Ahead of the panel in the DOM, painted above it, and transparent to the
+		     mouse so the overlapping part doesn't take clicks off the frame it is lying on. -->
+		<img
+			class="qg-title-art"
+			src={staticUrl('img/quick_guide/quick_guide_title.webp')}
+			alt="One-Eyed Willy Plinko"
+		/>
 
 		<!-- `container-type: size` + an explicit width/aspect make this the coordinate space for
 		     everything inside: the interior is sized entirely in `cqw`, so the frame art, its type and
@@ -186,6 +207,10 @@
 
 				<p class="qg-content">{page.content}</p>
 
+				{#if page.note}
+					<p class="qg-note">{page.note}</p>
+				{/if}
+
 				<div class="qg-nav">
 					<button
 						type="button"
@@ -224,39 +249,81 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 2vh;
 		padding: 2vh 2vw;
 		box-sizing: border-box;
 		background: rgba(0, 0, 0, 0.82);
+
+		/*
+		 * The panel's width, hoisted to the backdrop because the logo above is sized AND positioned
+		 * from it: the two are one design, and `cqw` cannot be used outside the panel it measures.
+		 *
+		 * Three caps, all binding somewhere: the vw term holds it inside a narrow portrait screen, the
+		 * --ui-px term keeps it from ballooning on a wide desktop, and the vh term is what saves
+		 * Stake's 400x225 popout — at that frame the height, not the width, is what runs out.
+		 *
+		 * The vh term reads 68 and not the 72 it was before the logo: that budget has to cover the
+		 * panel AND the ~14.5% of a panel-width the logo stands proud of it, or a viewport the vh term
+		 * binds on centres a block taller than itself and crops the top off the logo. 68 leaves ~9% of
+		 * the height spare at every vh-bound frame, from 1280x720 down to the popout. It costs the
+		 * panel ~6% of its width there, which the interior absorbs by being sized in cqw.
+		 */
+		--qg-panel-w: min(90vw, calc(760 * var(--ui-px)), calc(68vh * 943 / 740));
 	}
 
-	/* Same face + gold as the Buy Plinko Bonus headline (BuyBonusModal `.bb-title`), one step larger:
-	   this is the game's name, sitting above the panel rather than inside one. */
-	.qg-game-title {
-		margin: 0;
-		font-family: 'PiecesOfEight', serif;
-		font-weight: 400;
-		font-size: clamp(calc(30 * var(--ui-px)), 6vw, calc(72 * var(--ui-px)));
-		line-height: 1.1;
-		letter-spacing: 0.02em;
-		text-align: center;
-		color: #f6c54a;
-		text-shadow:
-			0 0 calc(12 * var(--ui-px)) rgba(246, 168, 32, 0.65),
-			0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.8);
+	/*
+	 * The game's name, as delivered logo art rather than as type — it sits above the panel and hangs
+	 * down over it, which is the whole reason it is a sibling of the panel and not a child: a child
+	 * would be laid out inside the frame, and the art is meant to break that outline.
+	 *
+	 * Sized off `--qg-panel-w` rather than off the viewport, so the logo and the panel stay one design
+	 * at every frame. Both numbers below are fractions of the panel's WIDTH:
+	 *
+	 *   • 54% wide — 337px against a 624px panel at 1280x720, a shade narrower than the ~450px the
+	 *     type it replaces ran to (against the 660px panel that frame allowed before the vh cap came
+	 *     down to make room for the logo). Its own 615x273 gives the height, and it is never scaled
+	 *     up: 54% of the 760px ceiling is 410px against a 615px asset.
+	 *   • 9.5% of overlap, as a negative bottom margin, which is what puts it ON the video rather than
+	 *     merely against the frame. The video's top edge is `.qg-inner`'s 6.6% top padding below the
+	 *     panel's, so the last ~2.9% reaches past it — about 7% of the video's height, which is the
+	 *     "just a little" the design asks for. The backdrop's flex `gap` was removed for this: gap is
+	 *     added between margin boxes, so it would have to be subtracted back out here and the overlap
+	 *     would read as a viewport unit minus a panel fraction. `.qg-continue` carries the spacing that
+	 *     gap used to give it instead.
+	 *
+	 * `z-index` because paint order alone would lose: the panel comes after the logo in the DOM and
+	 * builds a stacking context of its own (it has a `filter`), so an unpositioned logo would be
+	 * painted under the frame it is supposed to overlap.
+	 */
+	.qg-title-art {
+		position: relative;
+		z-index: 1;
+		display: block;
+		width: calc(var(--qg-panel-w) * 0.54);
+		height: auto;
+		margin-bottom: calc(var(--qg-panel-w) * -0.095);
+		/* Lies over the panel — see the note on onBackdropClick for why it must not take the click. */
+		pointer-events: none;
+		/* The shadow the panel casts, so the logo reads as sitting above it rather than printed on it. */
+		filter: drop-shadow(0 calc(6 * var(--ui-px)) calc(14 * var(--ui-px)) rgba(0, 0, 0, 0.7));
 	}
 
 	.qg-modal {
 		position: relative;
 		/* The two knobs the portrait override below turns (see the note there). `--qg-type` multiplies
 		   every interior size so the whole block of type scales together, and `--qg-video-width` trades
-		   width in the video well for the vertical room that pays for it. */
+		   width in the video well for the vertical room that pays for it.
+
+		   The well is under 100% even in landscape: the copy is two lines plus a note line rather than
+		   the single line this page used to carry, and the frame has no slack of its own — at 100% the
+		   nav row is pushed ~37px through the bottom band. The well is 16:9, so width IS height; 82%
+		   both clears that and leaves ~22px spare, which is the one extra line of note the longest
+		   caveat would take if it ever wrapped. Everything inside the panel is sized in cqw or in %, so
+		   this ratio holds identically at every landscape size, from a 1280x720 desktop down to the
+		   400x225 popout. */
 		--qg-type: 1;
-		--qg-video-width: 100%;
-		/* Three caps, all binding somewhere: the vw term holds it inside a narrow portrait screen, the
-		   --ui-px term keeps it from ballooning on a wide desktop, and the vh term is what saves Stake's
-		   400x225 popout — at that frame the height, not the width, is what runs out. */
-		width: min(90vw, calc(760 * var(--ui-px)), calc(72vh * 943 / 740));
+		--qg-video-width: 82%;
+		/* Set on the backdrop, which sizes the logo above from it too — see the note there. */
+		width: var(--qg-panel-w);
 		/* The frame art's own 943x740, so the corner ornaments and the riveted band never stretch. */
 		aspect-ratio: 943 / 740;
 		background-repeat: no-repeat;
@@ -273,12 +340,15 @@
 	   sits a little inside that again. */
 	/*
 	 * ⚠️ 'Instrument Sans' is a REQUIRED second step in every stack below, not decoration — and the
-	 * order matters. Noto Sans contains no arrow glyphs (verified against Google's subsetter: it
-	 * returns nothing for → ← ↑ ↓), and every page of copy in this guide is arrow-led
-	 * ("Ball drops → multiplier pocket → win reacts"). Those characters therefore always come from the
-	 * next face in the stack, so it has to be a deliberate one: Instrument Sans is the game's own UI
-	 * grotesque and has them, which keeps the arrows a sibling of the words instead of whatever the
-	 * device's default sans happens to be.
+	 * order matters. Noto Sans is installed here as Google's two LATIN subsets only, and the face
+	 * carries no arrow glyphs in any case (verified against Google's subsetter: it returns nothing for
+	 * → ← ↑ ↓). Whatever the subsets do not cover falls through to the next face in the stack, so that
+	 * face has to be a deliberate one: Instrument Sans is the game's own UI grotesque and does carry
+	 * them, which keeps a stray glyph a sibling of the words around it instead of whatever the device's
+	 * default sans happens to be. The copy on this page is plain Latin as it stands — the × in
+	 * "SPIN (0×)" is U+00D7, inside the latin subset's own U+0000-00FF range — so the fallback is
+	 * insurance here rather than load-bearing. It was load-bearing when these pages were arrow-led, and
+	 * would be again the moment a page reaches past Latin.
 	 */
 	.qg-inner {
 		position: absolute;
@@ -286,7 +356,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		padding: 7.5% 6.4% 5.5%;
+		padding: 6.6% 6% 5.2%;
 		box-sizing: border-box;
 	}
 
@@ -337,11 +407,11 @@
 	}
 
 	.qg-title {
-		margin: calc(3.2cqw * var(--qg-type)) 0 0;
+		margin: calc(2.6cqw * var(--qg-type)) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 600;
-		font-size: calc(4.2cqw * var(--qg-type));
-		line-height: 1.15;
+		font-size: calc(3.6cqw * var(--qg-type));
+		line-height: 1.1;
 		letter-spacing: 0.02em;
 		text-align: center;
 		text-transform: uppercase;
@@ -349,18 +419,37 @@
 		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
 	}
 
-	/* Same face and colour as the title, a step down in size — the reference reads as one block of
-	   type, not as a heading over a differently-styled paragraph. */
+	/* Same face and colour as the title, a step down in size — the panel reads as one block of type,
+	   not as a heading over a differently-styled paragraph.
+
+	   Sentence case, where the title is still uppercased: these are sentences now rather than the
+	   two-beat labels this page carried before. Caps are ~15% wider per character, which on a
+	   150-character line is a whole extra row inside a frame that has none to give, and they shout a
+	   parenthetical caveat as loudly as the instruction it qualifies. */
 	.qg-content {
-		margin: calc(1.6cqw * var(--qg-type)) 0 0;
+		margin: calc(1.4cqw * var(--qg-type)) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 400;
 		font-size: calc(2.5cqw * var(--qg-type));
-		line-height: 1.4;
-		letter-spacing: 0.02em;
+		line-height: 1.35;
+		letter-spacing: 0.01em;
 		text-align: center;
-		text-transform: uppercase;
 		color: #d4d0c4;
+		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
+	}
+
+	/* The "(Note: … only available with 10, 20 or 50 balls per drop)" line. Smaller and dimmer than
+	   the copy above it, because it qualifies that copy rather than continuing it — a player who is
+	   dropping 10+ balls never needs to read it. */
+	.qg-note {
+		margin: calc(1.2cqw * var(--qg-type)) 0 0;
+		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
+		font-weight: 400;
+		font-size: calc(2cqw * var(--qg-type));
+		line-height: 1.3;
+		letter-spacing: 0.01em;
+		text-align: center;
+		color: #a8a293;
 		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
 	}
 
@@ -387,7 +476,7 @@
 	}
 
 	.qg-nav-btn {
-		padding: 1cqw 2cqw;
+		padding: 0.8cqw 2cqw;
 		border: none;
 		background: none;
 		cursor: pointer;
@@ -419,9 +508,12 @@
 	 * width to spare and height to spare — it is the FRAME that has neither, which is why the trade
 	 * happens inside it rather than by growing the panel.
 	 *
-	 * 1.3 is also the CEILING on the type: it puts the body copy at 11.0 px, and the longest line
-	 * ("Ball drops → multiplier pocket → win reacts") then measures 274 px in a 294 px box. Much past
-	 * this and it wraps.
+	 * 1.3 puts the body copy at 11.0 px, which is the floor exactly — and it is now a floor the height
+	 * has to be argued down to rather than a ceiling the width imposes. At a 338 px panel the copy
+	 * wraps to three lines and the longest caveat to two whatever this is set to, so the type cannot be
+	 * paid for out of the measure; the well pays, and 54% is what leaves the nav row clear with about
+	 * one spare note line in hand. That is a 160 px-wide clip, deliberately: text that overflows the
+	 * frame is broken, where a small clip is only small.
 	 *
 	 * `max-aspect-ratio: 1/1` is height >= width, the same test `isPortraitGameLayout()` uses and the
 	 * exact complement of the landscape query `--ui-px` is defined under (routes/+layout.svelte).
@@ -429,14 +521,16 @@
 	@media (max-aspect-ratio: 1/1) {
 		.qg-modal {
 			--qg-type: 1.3;
-			--qg-video-width: 84%;
+			--qg-video-width: 54%;
 		}
 	}
 
 	/* Same treatment as the bonus congratulations screen's "PRESS ANYWHERE…" line (BonusRoulette
 	   `.bonus-announcement-hint`) — this is the same gesture prompt, so it reads the same. */
 	.qg-continue {
-		margin: 0;
+		/* The backdrop has no flex `gap` (the logo's overlap is written as a negative margin, which gap
+		   would fight), so the space under the panel is this line's own. */
+		margin: 2vh 0 0;
 		font-family: 'Perpetua', serif;
 		font-size: clamp(calc(16 * var(--ui-px)), 3.2vw, calc(34 * var(--ui-px)));
 		line-height: 1.1;
