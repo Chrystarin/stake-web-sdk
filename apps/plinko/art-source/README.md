@@ -335,6 +335,9 @@ part of the frame, so a well that did not match would cost real content.
 253×253 RGBA, the two-arrow ring that spins on the Play plaque while a round is in flight and for the
 whole of a running Autobet (`.bp-btn-play-spinner`, shared by the desktop and mobile buttons). It
 replaced `loading_vector.webp` — a thick, filled ring where this is an open one drawn in white line.
+That file is **deleted** from `static/`: nothing referenced it once the swap landed, and everything
+under `static/` is published whether or not it is loaded. It has no master here — it predates this
+file — so `git show 471a66d:apps/plinko/static/img/loading_vector.webp` is the only copy left.
 
 Lossless, and here that is not even a trade: at **2.1 KB** it comes in *below* lossy q90's 2.6 KB and
 is pixel-identical to the master. White strokes on transparency are all edge, which is the case lossy
