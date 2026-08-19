@@ -7,6 +7,7 @@ import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
 import {
 	addSettledWinAmount,
 	recordFreeSpinWinHistory,
+	releaseInBonusSpinMeterHold,
 	settleBonusRoundWhenFinished,
 } from '../../game/gameOrchestrator';
 import { applyRgsRoundWinFromBet } from '../../game/rgsRoundWin';
@@ -126,17 +127,29 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 		triggerRoulette(queuedRoulette);
 	}
 
-	// IN-BONUS free spin: this wheel was the trailing in-bonus free spin (fired by
-	// `settleBonusRoundWhenFinished` after the bonus balls depleted). The bonus round is still active and
-	// its payout is now folded into `bonusSessionWinAmount`, so re-invoke the settler to CONTINUE the
-	// round: it advances to any remaining level-up or, with nothing pending, ends the bonus round and
-	// releases settlement. Without this the round stayed stuck (bonus never ended → `finalWin` blocked).
+	// THE WIN IS ALLOCATED — now the completed bar can empty. It was pinned FULL for this wheel's whole
+	// life (`creditInBonusSpinMeter`), so the bar the player watched fill is still on screen behind the
+	// reward rather than having snapped to zero as the wheel slid in. This also hands back the spin
+	// pockets that landed behind the wheel, so the bar picks up exactly where the book says it should.
+	//
+	// ⚠️ BEFORE the settler below: releasing can complete the bar again and open the NEXT wheel, and the
+	// settler must see that (`isFreeSpinWheelOwningScreen`) or it would end the bonus over the top of it.
+	releaseInBonusSpinMeterHold();
+
+	// IN-BONUS free spin: the bonus round is still active and its payout is now folded into
+	// `bonusSessionWinAmount`, so re-invoke the settler to CONTINUE the round: it advances to any
+	// remaining level-up or, with nothing pending, ends the bonus round and releases settlement. Without
+	// this the round stayed stuck (bonus never ended → `finalWin` blocked).
 	if (stateGame.bonusRoundActive && stateGame.bonusBallsRemaining <= 0) {
 		void settleBonusRoundWhenFinished();
 	}
 
-	// Persist meter reset without blocking roulette close or round unlock.
-	void resetSpinMeterSession();
+	// Persist the meter reset without blocking roulette close or round unlock.
+	//
+	// ⚠️ BASE GAME ONLY. The in-bonus bar is owned by `releaseInBonusSpinMeterHold` above, which empties
+	// it and then re-credits the banked hits. Zeroing again here would wipe that fresh progress and put
+	// the bar behind the book for the rest of the bonus round.
+	if (!stateGame.bonusRoundActive) void resetSpinMeterSession();
 }
 
 /** Map math/RGS free-spin wheel segment label to wheel index (no client RNG). The wheel is

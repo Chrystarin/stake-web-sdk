@@ -3,12 +3,14 @@ import {
 	bankBonusPegDuringLevelUp,
 	clearBonusMeterDrainTimer,
 	combineNextBonusLevelNow,
+	creditInBonusSpinMeter,
 	hasPendingBonusLevelAward,
 	isSingleBallMode,
 	onBonusMeterFilledDuringRound,
 	scheduleBonusMeterDrainDuringRoll,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
+import type { PlinkoBallOutcome } from './typesBookEvent';
 import { coefficientsForTier } from '../game-logic/constants';
 import config from './config';
 import { traceBonusMeterWrite, traceBonusMeterWriteAfter } from './plinkoMeterTrace';
@@ -248,17 +250,36 @@ export function onCoinPegHit(ballId: number) {
 	});
 }
 
-export function onSpinSlotLand(ballId?: number) {
+export function onSpinSlotLand(ballId?: number, outcome?: PlinkoBallOutcome) {
 	// 1-ball is a feature-free mode: never let a spin-slot land fill the spin meter (max is 1 on this
 	// tier, so a single center land would otherwise fire a free spin). No meter is shown here.
 	if (isSingleBallMode()) return;
 	if (stateGame.authoritativeMeterFlow && !stateGame.dropRoundActive) return;
-	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin') return;
-	if (stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax) return;
+	// Count the ball ONCE, before any gate below can drop it — a land is a land whether or not the meter
+	// is in a position to show it right now.
 	if (ballId != null) {
 		if (stateGame.spinSlotMeterCreditedBallIds.has(ballId)) return;
 		stateGame.spinSlotMeterCreditedBallIds.add(ballId);
 	}
+
+	// IN-BONUS: the bar is BOOK-DRIVEN (per-batch carry-in + fire on completion), not a free-running
+	// visual counter — that mismatch is what let a completed bar sit with no wheel behind it, and let
+	// two book free spins run off one visible fill. See `creditInBonusSpinMeter`.
+	//
+	// ⚠️ THIS MUST STAY ABOVE THE ROULETTE-FLOW GATE BELOW. `beginRoulette('spin')` raises
+	// `rouletteFlowInProgress` synchronously on the very ball that completes the bar, so that gate would
+	// swallow exactly the in-flight lands the bar is waiting to bank — the balls that were already
+	// falling when the wheel was called, which the book counts and which must be credited once the bar
+	// resets. `creditInBonusSpinMeter` decides for itself whether to fill, bank, or ignore.
+	if (stateGame.bonusRoundActive) {
+		creditInBonusSpinMeter(outcome);
+		return;
+	}
+
+	if (stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin') return;
+	// BASE DROP: the meter is per-drop and the book clamps it at max, so a land once the bar is full is
+	// genuinely worth nothing — the round is about to reset it to the tier start either way.
+	if (stateGame.spinMeterMax > 0 && stateGame.spinMeterValue >= stateGame.spinMeterMax) return;
 
 	if (stateGame.authoritativeMeterFlow) {
 		// Provisional animation only — authoritative value comes from RGS `spinMeter` book events.

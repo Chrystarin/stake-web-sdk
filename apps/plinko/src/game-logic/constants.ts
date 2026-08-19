@@ -101,6 +101,20 @@ export const BUY_BONUS_BALLS_PER_DROP_REF = 10;
  * and load-bearing the moment they diverge. */
 export const BUY_BONUS_IN_BONUS_SPIN_METER_MAX = 6;
 
+/**
+ * ⚠️ THE ABOVE IS NOW ONLY A BOOTSTRAP, not the bar the bonus actually plays on.
+ *
+ * Since 2026-08-19 the in-bonus free-spin meter fires every time it fills, and the math sizes its bar
+ * from the round's own entry balls (`plinko_data.in_bonus_spin_meter_max`) so every tier gets about the
+ * same number of fills — 8 notches for a 72-ball standard buy up to 25 for a 239-ball superfury, where a
+ * single flat value would have put ~8 wheels on top of the biggest rounds. The client takes that from
+ * the book, on the in-bonus `spinMeter.max` (see the `spinMeter` handler in `bookEventHandlerMap`).
+ *
+ * This constant is only what the bar is seeded with in the gap between pressing Activate and the book
+ * arriving — a window where the meter is EMPTY, so the max is invisible and any disagreement with the
+ * book costs nothing.
+ */
+
 /** Pyramid row counts available in the UI. */
 export const ROW_COUNT_OPTIONS = [10, 14, 20] as const;
 
@@ -270,9 +284,9 @@ export const BONUS_WHEEL_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20] as c
  * matches the per-tier boards in `coefficientSetsByBalls` and the per-tier max-win ladder.
  * ⚠️ The game-rules copy should say the bonus award scales with the ball count. */
 export const BONUS_WHEEL_WEIGHTS: Record<number, readonly number[]> = {
-	10: [1, 2, 7, 23, 71, 223, 696, 2176, 6801],
-	20: [386, 483, 604, 755, 945, 1182, 1479, 1851, 2315],
-	50: [2766, 2053, 1524, 1132, 840, 624, 463, 344, 255],
+	10: [1, 2, 7, 23, 71, 100, 120, 1807, 7869],
+	20: [357, 283, 504, 755, 945, 1182, 1479, 1851, 2644],
+	50: [2544, 2053, 1524, 1132, 840, 624, 463, 344, 476],
 };
 
 /** Bonus-wheel free-ball values. ABSOLUTE, independent of the balls-per-drop tier. Mirror of
@@ -301,7 +315,14 @@ export const FREE_SPIN_SEGMENTS = [
 	'15X',
 ] as const;
 
-/** Free-spin wheel landing WEIGHTS (index-aligned). EQUAL (the labeled wheel is 8 equal slices). The
- * math is authoritative (the book carries the landed segment); mirrored for display only. Mirror of
- * stake-math-sdk `plinko_data.FREE_SPIN_WEIGHTS`. */
-export const FREE_SPIN_WEIGHTS = [1, 1, 1, 1, 1, 1, 1, 1] as const;
+/** Free-spin wheel landing WEIGHTS (index-aligned, per-10,000 so `w / 100` reads as a percentage). The
+ * labeled wheel keeps its 8 EQUAL visual slices and every painted value is unchanged — only how often
+ * each is landed on. The math is authoritative (the book carries the landed segment); mirrored here for
+ * display only. Mirror of stake-math-sdk `plinko_data.FREE_SPIN_WEIGHTS`.
+ *
+ * ⚠️ No longer uniform as of 2026-08-19: the in-bonus meter now fires on EVERY refill rather than once
+ * per bonus level, so a bought round spins this wheel about twice instead of once. The mean numeric
+ * award is clipped 7.64× → 4.97× to pay for that, with the two top wedges carrying the cut (20X
+ * 12.50% → 3.70%, 15X → 5.50%). `BONUS` stays pinned at 12.50% — it chains a bonus round rather than
+ * paying, and the flat 2% bonus incidence is solved against exactly that probability. */
+export const FREE_SPIN_WEIGHTS = [1550, 1530, 1500, 2000, 1250, 1250, 370, 550] as const;

@@ -33,8 +33,17 @@ export class FreeSpinMeterEngine {
 	}
 
 
-  
-  progress = 1;
+  /**
+   * Fill the meter is seeded with before anything drives it — EMPTY.
+   *
+   * ⚠️ This was 1, and `init` copies it into both `targetProgress` and `displayedProgress`, so a
+   * freshly-initialised meter drew itself FULL and only eased down once `setProgress` arrived and the
+   * ticker ran a few frames. On the 1-ball tier the meter is hidden from mount, which STOPS the ticker
+   * (see `setVisible`) — so those frames never ran, the canvas stayed frozen on that full first frame,
+   * and buying a bonus from that tier (the one place a 1-ball player ever sees this bar) revealed a
+   * meter that was already full before a single ball had dropped.
+   */
+  progress = 0;
 
   private app?: Application;
   private resizeObserver?: ResizeObserver;
@@ -330,8 +339,17 @@ export class FreeSpinMeterEngine {
   }
 
   private setTargetProgress(value: number): void {
-    // Just retarget — the ticker is always running and picks the new value up next frame. (The old
-    // code kicked off a fresh rAF chain here, which is what created the second, competing loop.)
+    // Retarget — a RUNNING ticker picks the new value up next frame and eases to it. (The old code
+    // kicked off a fresh rAF chain here, which is what created the second, competing loop.)
     this.targetProgress = Math.max(0, Math.min(1, Number(value) || 0));
+    // A STOPPED ticker (this meter is hidden — see `setVisible`) will never run that easing, so the
+    // canvas would keep showing whatever fill it was frozen on and hand that stale frame straight back
+    // to the player the moment it is shown again. Jump to the value and draw it once instead: there is
+    // no one watching, so there is no animation to lose — only a wrong frame to avoid.
+    if (this.app && !this.app.ticker.started) {
+      this.displayedProgress = this.targetProgress;
+      this.fillVelocity = 0;
+      this.updateMeterFill();
+    }
   }
 }

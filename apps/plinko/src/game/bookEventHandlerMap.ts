@@ -234,7 +234,16 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 	},
 	spinMeter: async (bookEvent: BookEventOfType<'spinMeter'>) => {
 		stateGame.authoritativeMeterFlow = true;
+		// The `max` is welcome from either phase — it is how the book sizes the bar, and the in-bonus bar
+		// is allowed to differ from the paid drop's.
 		if (bookEvent.max > 0) applyAuthoritativeSpinMeterMax(bookEvent.max);
+		// ⚠️ IN-BONUS: TAKE THE MAX, IGNORE THE VALUE. A bonus round's `spinMeter` events describe a fill
+		// that happens over hundreds of player-driven ball drops, but they are READ in one go, before a
+		// single bonus ball has left the funnel. Applying them here would run the whole fill instantly —
+		// and `applySpinMeterBookEvent` never regresses, so the trailing `value: 0` reset is ignored and
+		// the bar is left pinned FULL for the entire round. The in-bonus bar is driven per landed ball
+		// instead (`creditInBonusSpinMeter`), seated on each batch's published `spinMeterStart`.
+		if (stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
 		// Map the book value onto the carried session meter (bet-relative when the served book
 		// starts at 0), updating both the HUD and the persisted session value.
 		applySpinMeterBookEvent(bookEvent.value);
@@ -317,18 +326,36 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 		// mode. 0 = legacy book → `sizeBonusMeterForLevel` falls back to the mirrored `bonusLevelupPegs`
 		// for this level.
 		const levelupPegs = Math.max(0, Math.floor(bookEvent.levelupPegs ?? 0));
+		// FREE-SPIN meter this batch opens on. The in-bonus meter runs ACROSS levels (it resets only when
+		// it fires), so the carry is a real value the client cannot re-derive once the combine has merged
+		// two levels' balls into one pool — see `registerBonusSpinBatch`.
+		//
+		// `undefined` (not 0) on a legacy book that predates the field: 0 would wrongly ZERO the bar at
+		// every batch boundary and strand any free spin that book earned across two batches. Left
+		// undefined, the bar carries — which is exactly what the old math's counter did.
+		const spinMeterStart =
+			bookEvent.spinMeterStart == null
+				? undefined
+				: Math.max(0, Math.floor(bookEvent.spinMeterStart));
 		if (!stateGame.bonusRoundActive) {
 			// No preceding wheel award (e.g. resume) — start the round and award balls.
-			startAuthoritativeBonusRound(freeBalls, outcomes, level, ballsPlayed, levelupPegs);
+			startAuthoritativeBonusRound(
+				freeBalls,
+				outcomes,
+				level,
+				ballsPlayed,
+				levelupPegs,
+				spinMeterStart,
+			);
 			return;
 		}
 		if (level <= stateGame.bonusLevelProgress) {
 			// Entry level: balls were just awarded by the bonus wheel; load their outcomes.
-			loadAuthoritativeBonusOutcomes(outcomes, ballsPlayed, levelupPegs);
+			loadAuthoritativeBonusOutcomes(outcomes, ballsPlayed, levelupPegs, spinMeterStart);
 			return;
 		}
 		// True level-up: play after the current level's balls finish (book-driven, no RNG).
-		enqueueAuthoritativeBonusLevel(freeBalls, outcomes, level, levelupPegs);
+		enqueueAuthoritativeBonusLevel(freeBalls, outcomes, level, levelupPegs, spinMeterStart);
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
 		// Rapid 1-ball mode reveals the win on ball-land (see `finalWin`), so don't apply a partial win
@@ -468,9 +495,20 @@ export const playBet = async (bet: Bet) => {
 	// Open this round's single My Bet History row (base game + bonus + free spin fold into it).
 	beginRoundHistory();
 	stateGame.authoritativeBonusLevelQueue = [];
-	// Stale in-bonus free-spin payload must not carry across bets (set later by this book's
-	// `freeSpinTrigger` event if a free spin fires during the bonus round).
+	// Stale in-bonus free-spin state must not carry across bets (all three are set by this book's own
+	// `freeSpinTrigger` events if a free spin fires during its bonus round).
+	//
+	// ⚠️ The queue and the flag used to be cleared ONLY by `resetBonusRoundVisualState`, which needs the
+	// end-of-bonus treasure screen to reach full cover. Any bonus that ended by another route (a forced
+	// unlock, a reload, an error) therefore left them set, and both leftovers are damaging: a stale queue
+	// entry opens a phantom extra wheel in the NEXT bonus (one award, two wheel sequences), and a stale
+	// `pendingSpinRouletteAfterBonusLevelDepletion` keeps `isBonusRoundBlockingSettlement` true, parking
+	// the next round's settlement on the 10-minute completion timeout.
 	stateGame.pendingBonusFreeSpinPayload = undefined;
+	if (!stateGame.bonusRoundActive) {
+		stateGame.pendingBonusFreeSpins = [];
+		stateGame.pendingSpinRouletteAfterBonusLevelDepletion = false;
+	}
 	// The trigger mode was already captured into `activeBetModeKey`; clear so we don't re-fire it.
 	stateGame.pendingFeatureTrigger = null;
 

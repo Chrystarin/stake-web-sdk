@@ -78,6 +78,11 @@ type BookEventBonusRound = {
 	 * in-bonus energy bar / fires the combine-level-up at this value. Absent on legacy books → the meter
 	 * event's flat max is used. */
 	levelupPegs?: number;
+	/** FREE-SPIN meter carried INTO this batch of balls. The in-bonus spin meter runs ACROSS levels (it
+	 * resets only when it fires), so a batch can open part-full, and once `combineNextBonusLevelNow` has
+	 * merged two levels' balls into one pool the client can no longer recover the carry from its own
+	 * level boundaries. Absent on legacy books → treated as "keep the running value". */
+	spinMeterStart?: number;
 };
 
 type BookEventSetTotalWin = {
