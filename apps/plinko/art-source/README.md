@@ -341,3 +341,33 @@ introduces the wobble it looks like it removes.
 Its clear hole is 0.58 of the ring's radius (the old art's was 0.40) and the ring is drawn larger
 besides, which is what lets the Autobet rounds-left count sit inside without crossing the arcs — see
 `.bp-bonus-count-badge`.
+
+## Buy Bonus bet component (2026-08-20)
+
+| master | installed as | encode |
+|---|---|---|
+| `buy_bonus_bet_container.png` | `static/img/buy_bonus/buy_bonus_bet_container.webp` | lossy q90 |
+| `buy_bonus_bet_button_decrease.png` | `static/img/buy_bonus/buy_bonus_bet_button_decrease.webp` | lossy q90 |
+| `buy_bonus_bet_button_increase.png` | `static/img/buy_bonus/buy_bonus_bet_button_increase.webp` | lossy q90 |
+
+The BET stepper at the top of the Buy Bonus modal: a 661×308 container and two 123×123 wooden
+buttons, replacing the tier-card frame that used to be 9-sliced into a bar with plain − / + glyphs
+(`variant="panel"` in `BetPerBallField.svelte`). Lossy q90 like the rest of `img/`: 118 KB PNG →
+**9.1 KB** for the container at RGB RMS 1.09, 17 KB → **3.3 KB** per button at RMS 2.32, alpha
+byte-exact in all three. The buttons' higher error is their white glyph against wood — the one edge
+lossy handles worst — and they render at ~32 CSS px against a 123 px asset, so it never surfaces.
+
+⚠️ **The container's geometry is the layout.** The art is drawn as a finished bar, so it is stretched
+to the field box rather than 9-sliced, and that is only distortion-free while the box holds 661/308 —
+`--bp-field-plaque-width` on `.bb-bet-row` (BuyBonusModal.svelte) derives the width from the height to
+guarantee it. Everything else is a fraction of the same canvas, carried through `--panel-art-px`:
+
+- the frame band runs x 30..56 and y 26..50 (its outermost pixels are a baked-in drop shadow, not
+  frame — alpha only reaches full opacity at 29/24), leaving a cavity of x 56..605, y 50..258;
+- the buttons render 98 art px square, 96 in from each canvas edge — i.e. 40 px of clear cavity
+  outside each one, and 261 px (39% of the width) between them for the label and value.
+
+A redelivery at different proportions means re-deriving all of it: the ratio in the modal, the 200 px
+gutter, and the 98 / 96 pair in `BetPerBallField.svelte`. The 39% interior is also what caps the value
+type — it holds `formatCompactAmount`'s widest output ("999.99", ~3.3em) in ~4.3em, which is why the
+panel skin's contents scale is 1.15× the shared clamp rather than the 1.25× the old frame allowed.

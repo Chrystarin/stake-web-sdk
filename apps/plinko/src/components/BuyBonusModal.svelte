@@ -77,9 +77,9 @@
 
 			<!-- Bet, centred between the title and the tiers. Every tier price is cost × bet-per-ball (see
 			     `buyBonusPrice`), so stepping the stake here re-prices all four cards live. It is the
-			     betting bar's control (BetPerBallField.svelte) in its `panel` skin — the tier-card frame
-			     re-cut as a bar, with − / + glyphs. `.bp-field-host` hands it the same plaque metrics the
-			     bottom panel uses. -->
+			     betting bar's control (BetPerBallField.svelte) in its `panel` skin — the delivered bet
+			     container art with its own wooden − / + buttons. `.bp-field-host` hands it the same plaque
+			     metrics the bottom panel uses. -->
 			<div class="bb-bet-row bp-field-host">
 				<!-- The control is sized in vw against the LANDSCAPE bottom panel, so a straight copy reads
 				     tiny in portrait (where the HUD swaps to its own mobile cards instead) and smaller than
@@ -218,16 +218,26 @@
 	   shared control renders here (1 = the size it is in the landscape betting bar). */
 	.bb-bet-row {
 		--bb-bet-scale: 1.2;
-		/* Taller than the betting bar's 4.5vw. The bar's plaque is nearly all interior, but this skin
-		   spends 24% of its height on the frame band at the top and 24% at the bottom (that factor is
-		   also what sizes the corner brackets — see BetPerBallField.svelte), leaving 52% for the
-		   label/value pair, which centres itself in whatever height it is given. 6.0vw is the FLOOR for
-		   the current text: the pair is ~37px tall at the reference width (after the label went back to
-		   its shared size — see the contents scale in BetPerBallField.svelte) and 52% of this height is
-		   ~43px, leaving only ~3px of air. Shorter than this needs the VALUE or the band to give. Feeds
-		   --bp-field-height / --bp-field-plaque-height through the `bp-field-metrics` chain, so the row
-		   height follows it. */
-		--bp-item-height: 6vw;
+		/* Taller than the betting bar's 4.5vw. Feeds --bp-field-height / --bp-field-plaque-height through
+		   the `bp-field-metrics` chain, so the row height (and now the WIDTH — see below) follows it.
+		   The panel skin's frame spends the top 16% of its canvas on drop shadow plus band, and the same
+		   at the bottom, leaving 67% of it for the label/value pair, which centres itself in whatever height
+		   it is given: ~67px of cavity for ~37px of text at the reference width, so this is no longer bound
+		   by the text the way the old 9-sliced card frame was. What binds it now is the MODAL's vertical budget — the
+		   row's rendered height is this × --bb-bet-scale, and the column clears the reference 1024×576
+		   frame by only ~5px (see the margin below). Raising it also widens the control, since the two are
+		   locked together by the frame ratio.
+		   7.5vw (up from the 6vw the old frame used) is what puts the VISIBLE frame back at the ~82px it
+		   painted before, since 17.5% of the new art's canvas height is transparent drop shadow — see the
+		   margin below, which hands that 17.5% back to the column so the swap costs it only ~2px. */
+		--bp-item-height: 7.5vw;
+		/* The delivered container is a finished 661×308 bar, not a square frame to be re-cut, so it is
+		   drawn as a plain stretched image and the plaque has to carry the art's ratio or the rivets go
+		   oval. This overrides the shared 16.38846vw (which would have stretched it 43% wide) and is the
+		   ONLY thing that makes --panel-art-px in BetPerBallField.svelte — and with it the stepper
+		   placement — a true fraction of the art. Everything downstream (--bp-field-base-width, the
+		   gutters) is derived, so this is the single width knob. */
+		--bp-field-plaque-width: calc(var(--bp-field-plaque-height) * 661 / 308);
 		/* The bar lifts its label/value pair off the field's centre line to suit its own frame art (see
 		   --bp-field-label-rise in GameHud.scss). This frame is symmetric top-to-bottom, so the lift just
 		   pushes the pair towards the upper band — zero it and the pair centres between the two bands. */
@@ -241,13 +251,22 @@
 		/* The plaque is painted by a transform, which leaves the layout box unscaled — so state the
 		   scaled height here or the modal's gap would be measured against the unscaled plaque. */
 		height: calc(var(--bp-field-plaque-height) * var(--bb-bet-scale));
-		/* Trims the modal's own `gap` (2.2rem) down to the ~23px that four blocks can afford. The binding
-		   case is the REFERENCE 1024×576 frame, not this one: --ui-px is 1px at both 1024×576 and
-		   1280×720, so these gaps are the same pixel size in each, while the tier cards scale with vw —
-		   1024×576 is where the column is tightest and the backdrop would start scrolling. It currently
+		/* Two things at once.
+		   (1) The −12ui-px trims the modal's own `gap` (2.2rem) down to the ~23px that four blocks can
+		   afford. The binding case is the REFERENCE 1024×576 frame, not this one: --ui-px is 1px at both
+		   1024×576 and 1280×720, so these gaps are the same pixel size in each, while the tier cards scale
+		   with vw — 1024×576 is where the column is tightest and the backdrop would start scrolling. It
 		   clears that frame by ~5px, so treat this and the balance's margin below as one budget: buy a
-		   bigger gap by shortening a block, not by loosening both. */
-		margin: calc(-12 * var(--ui-px)) 0;
+		   bigger gap by shortening a block, not by loosening both.
+		   (2) The container art bakes its drop shadow into its own canvas — the frame's solid edge starts
+		   24 px down a 308 px canvas — so `height` above reserves 7.8% of transparent air at the top and
+		   the same at the bottom. Pulling exactly that back means the column spaces the VISIBLE frame
+		   rather than the canvas, which is what keeps the taller --bp-item-height affordable. Derived, not
+		   a constant: it tracks the row height, so it stays right at every viewport and scale. */
+		margin: calc(
+				-12 * var(--ui-px) - var(--bp-field-plaque-height) * var(--bb-bet-scale) * 24 / 308
+			)
+			0;
 	}
 
 	.bb-bet-scale {

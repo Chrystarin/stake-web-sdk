@@ -18,12 +18,12 @@
 	 * The BET PER BALL control from the betting panel — − / + steppers that walk the RGS `betLevels`
 	 * grid one level at a time, plus the quick-jump presets popup — as a standalone component.
 	 *
-	 * Two skins:
+	 * Two skins, which now differ ONLY in which three files `art` below points at:
 	 *  • `plaque` (default) — the betting bar's frame art and image steppers.
-	 *  • `panel`  — the Buy Bonus modal's copy: the TIER CARD frame art 9-sliced into a wide rectangle,
-	 *               and plain − / + glyphs instead of the bar's button art.
+	 *  • `panel`  — the Buy Bonus modal's copy: the delivered bet component — its own wide container
+	 *               and its own wooden − / + buttons.
 	 * Both are the same box, the same `.bp-*` classes (GameHud.scss) and the same stepping behaviour —
-	 * only the frame and the two buttons differ.
+	 * only the art, and the geometry the panel skin solves from it, differ.
 	 *
 	 * Today the MODAL is the only caller; the bar itself still renders its own inline copy of the plaque
 	 * skin (the `betPerBallField` snippet in GameHud.svelte). Keep the two in step, or point the bar here.
@@ -64,6 +64,26 @@
 	}: Props = $props();
 
 	const context = getContext();
+
+	/**
+	 * Frame + stepper art for the skin. The panel set is the delivered Buy Bonus bet component: a
+	 * 661×308 container (its drop shadow baked into the canvas) and two 123×123 buttons. How big those
+	 * buttons render and how far in they sit is solved from those canvas dimensions in the `<style>`
+	 * block below, so a redelivery at a different size means re-deriving the numbers there.
+	 */
+	const art = $derived(
+		variant === 'panel'
+			? {
+					frame: 'img/buy_bonus/buy_bonus_bet_container.webp',
+					decrease: 'img/buy_bonus/buy_bonus_bet_button_decrease.webp',
+					increase: 'img/buy_bonus/buy_bonus_bet_button_increase.webp',
+				}
+			: {
+					frame: 'img/betting-component-frame.webp',
+					decrease: 'img/betting-component-input-decrease.webp',
+					increase: 'img/betting-component-input-increase.webp',
+				},
+	);
 
 	// Social Mode restricts the word "Bet": the wager-field label becomes "Play (per ball)" (rendered
 	// uppercase by CSS). Non-social sessions keep the localized "Bet" wording.
@@ -141,25 +161,10 @@
 	class="bp-field bp-field--bet bp-field--select bp-field--bet-controls bp-bet-presets-wrap"
 	class:bp-field--panel={variant === 'panel'}
 >
-	{#if variant === 'panel'}
-		<!-- The tier-card frame, 9-sliced into a wide rectangle: the corner brackets stay intact at their
-		     own scale, the rivetted edge bands tile along each side, and the middle (`fill`) paints the
-		     card's wood texture across the interior. A DIV, not an <img>: `border-image` is the only way
-		     to re-cut this square frame to a bar without squashing its corners. The URL rides in on a
-		     custom property so SvelteKit's `base` still resolves it (see lib/staticUrl.ts). -->
-		<div
-			class="bp-field-frame bp-field-frame--panel"
-			style:--panel-frame-img="url({staticUrl('img/buy_bonus_panel.webp')})"
-			aria-hidden="true"
-		></div>
-	{:else}
-		<img
-			class="bp-field-frame"
-			src={staticUrl('img/betting-component-frame.webp')}
-			alt=""
-			aria-hidden="true"
-		/>
-	{/if}
+	<!-- Stretched to the field box by the shared `.bp-field-frame` rule (`object-fit: fill`). For the
+	     panel skin that is only distortion-free while the box keeps the container art's 661/308 ratio,
+	     which the host guarantees — see `--bp-field-plaque-width` on `.bb-bet-row` in BuyBonusModal. -->
+	<img class="bp-field-frame" src={staticUrl(art.frame)} alt="" aria-hidden="true" />
 	<span class="bp-field-label">{label}</span>
 	<div class="bp-bet-input-wrap">
 		{#if !steppersHidden}
@@ -170,15 +175,7 @@
 				aria-label="Decrease bet per ball"
 				onclick={() => adjustStep(-1)}
 			>
-				{#if variant === 'panel'}
-					<span class="bp-stepper-glyph" aria-hidden="true">−</span>
-				{:else}
-					<img
-						src={staticUrl('img/betting-component-input-decrease.webp')}
-						alt=""
-						aria-hidden="true"
-					/>
-				{/if}
+				<img src={staticUrl(art.decrease)} alt="" aria-hidden="true" />
 			</button>
 		{/if}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -208,15 +205,7 @@
 				aria-label="Increase bet per ball"
 				onclick={() => adjustStep(1)}
 			>
-				{#if variant === 'panel'}
-					<span class="bp-stepper-glyph" aria-hidden="true">+</span>
-				{:else}
-					<img
-						src={staticUrl('img/betting-component-input-increase.webp')}
-						alt=""
-						aria-hidden="true"
-					/>
-				{/if}
+				<img src={staticUrl(art.increase)} alt="" aria-hidden="true" />
 			</button>
 		{/if}
 	</div>
@@ -239,54 +228,54 @@
 
 <style lang="scss">
 	/* PANEL SKIN — everything below is scoped to this component and applies only to `variant="panel"`.
-	   The `plaque` skin is entirely the shared GameHud.scss rules; this one overrides the frame and the
-	   two stepper buttons on top of them. */
+	   The `plaque` skin is entirely the shared GameHud.scss rules; this one overrides the two steppers
+	   and the interior they leave on top of them (the frame itself is now just a different `src`).
 
-	/* Frame band thickness, and with it the CORNER BRACKET SIZE — a border-image corner is drawn into a
-	   border-width × border-width box, so the bracket can only grow by thickening the band. The two are
-	   one knob, and the band eats interior at twice the rate it grows (top AND bottom), so a host that
-	   raises this must give the field height to match or the label/value pair ends up on the frame —
-	   see --bp-item-height on `.bb-bet-row` in BuyBonusModal.svelte, which is solved against this 0.24. */
-	.bp-field--panel .bp-field-frame--panel {
-		box-sizing: border-box;
-		border-style: solid;
-		border-width: calc(var(--bp-field-plaque-height) * 0.24);
-		border-image-source: var(--panel-frame-img);
-		/* 115px of the 741×694 source is exactly the corner bracket, so each corner renders whole. `fill`
-		   also paints the middle slice — the card's wood texture — behind the value. */
-		border-image-slice: 115 fill;
-		/* `round`, not `stretch`: the edge bands tile at (near) their own scale instead of being squashed
-		   to the band's length, so the rivets stay round and keep the source's spacing. */
-		border-image-repeat: round;
+	   ⚠️ EVERY number here is a fraction of the delivered container's 661×308 canvas, carried in through
+	   --panel-art-px, so the whole layout is stated in the art's own pixels. Measured off that file:
+	   the frame band runs x 30..56 / y 26..50 (its outer few px are the baked-in drop shadow), leaving
+	   an interior cavity of x 56..605, y 50..258 centred on the canvas. */
+	.bp-field--panel {
+		/* One pixel of the 661×308 canvas. Valid only because the host sizes the plaque to the art's
+		   ratio — --bp-field-plaque-width = height × 661/308 (see `.bb-bet-row` in BuyBonusModal.svelte),
+		   which is also what keeps `object-fit: fill` from stretching the frame. */
+		--panel-art-px: calc(var(--bp-field-plaque-height) / 308);
+
+		/* Reserved on each side for a stepper: the button's outer edge (96 + 98 art px) plus a couple of
+		   px of air. Stated here rather than inherited from --bp-stepper-side (a whole field height, cut
+		   for the OTHER frame's cavity) because these buttons are sized to their own art. Overriding the
+		   gutter means restating --bp-field-base-width with it: `.bp-field` is content-box, so content +
+		   both gutters is what has to add back up to the plaque width. */
+		--bp-panel-gutter: calc(var(--panel-art-px) * 200);
+		--bp-field-base-width: calc(var(--bp-field-plaque-width) - 2 * var(--bp-panel-gutter));
 	}
 
-	/* − / + glyphs replace the bar's button art. The button box itself (size, absolute placement) is
-	   still the shared `.bp-field--bet-controls .bp-stepper-btn` rule; only the contents change — plus
-	   the two adjustments below, which the panel frame's thicker band calls for. */
+	.bp-field--panel.bp-field--bet-controls {
+		padding-left: var(--bp-panel-gutter);
+		padding-right: var(--bp-panel-gutter);
+	}
+
+	/* The − / + are delivered art now, so the shared rule's box — square, sized and top-anchored to the
+	   betting bar frame's cavity — is replaced outright by the buttons' own 98×98 at 96 px in from each
+	   canvas edge, vertically centred. That leaves 40 art px of clear cavity between the frame band and
+	   each button, and 261 (39% of the width) between the two for the label/value pair. */
 	.bp-field--panel .bp-stepper-btn {
-		/* Centre in the panel instead of hanging from the old frame's cavity top (see GameHud.scss). */
 		top: 50%;
 		transform: translateY(-50%);
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		width: calc(var(--panel-art-px) * 98);
+		height: calc(var(--panel-art-px) * 98);
 	}
 
-	/* Push the − / + out to the panel's side edges, stopping just clear of the frame band so a glyph
-	   never sits on the rivets. The inset looks tiny next to the band because it positions the BUTTON
-	   BOX, which is much wider than the glyph centred in it: the visible glyph lands at
-	   `inset + ~0.35 × plaque height`, i.e. roughly a band-and-a-half in. The box's outer half simply
-	   overhangs the frame as extra hit area, which is all upside on touch. */
 	.bp-field--panel .bp-stepper-btn--decrease {
-		left: calc(var(--bp-field-plaque-height) * 0.03);
+		left: calc(var(--panel-art-px) * 96);
 	}
 
 	.bp-field--panel .bp-stepper-btn--increase {
-		right: calc(var(--bp-field-plaque-height) * 0.03);
+		right: calc(var(--panel-art-px) * 96);
 	}
 
 	/* The shared rule scales the button on hover/press; with `top: 50%` that would drop the translate and
-	   snap the glyph downward, so both states restate it. */
+	   snap the button downward, so both states restate it. */
 	.bp-field--panel .bp-stepper-btn:hover:not(:disabled) {
 		transform: translateY(-50%) scale(1.12);
 	}
@@ -295,38 +284,18 @@
 		transform: translateY(-50%) scale(0.94);
 	}
 
-	/* CONTENTS SCALE — the label, the value and the − / + glyphs are all the shared `.bp-*` clamps
-	   (GameHud.scss) taken up a quarter, so the panel's insides read at their own weight rather than at
-	   the betting bar's. Restated as literal clamps rather than a transform so the pair still lays out
-	   (and centres) at its true size. The interior they have to fit in is
-	   `plaque height − 2 × band`, so a bump here is bounded by the band factor above and the host's
-	   --bp-item-height; 1.25 is what the current 0.24 / 7.7vw pair affords with ~5px of air left. */
-	/* The LABEL is the exception: it stays at the shared size. The pair's height is what sets how short
-	   the panel can be, and between "BET" and the number the number is the content worth the pixels —
-	   so the label gives its 25% back, and the gap under it is tightened, to buy panel height. */
-	.bp-field--panel .bp-field-label {
-		--bp-label-value-gap: 0.04em;
-	}
+	/* CONTENTS SCALE — the value is the shared `.bp-select-display` clamp (GameHud.scss) taken up 15%, so
+	   the panel's insides read at their own weight rather than at the betting bar's. Restated as a literal
+	   clamp rather than a transform so the pair still lays out (and centres) at its true size. The LABEL
+	   is left at the shared size: between "BET" and the number, the number is the content worth the pixels.
 
+	   1.15 is bounded by WIDTH, not height — this frame's interior is 67% of its height (the old 9-sliced
+	   card frame's was 52%), so the label/value pair has room to spare vertically, but the gutters above
+	   leave it only 0.85 × the plaque height across, ~4.3em at this size. The widest value the field can
+	   show is `formatCompactAmount`'s 6 characters ("999.99"), ~3.3em of Poppins, so the headroom is
+	   about 30%; 1.25 (what the old frame ran) spends most of that. */
 	.bp-field--panel .bp-select-display {
-		/* .bp-select-display's clamp(0.92vw, 1.12vw, 1.4vw) × 1.25 */
-		font-size: clamp(1.15vw, 1.4vw, 1.75vw);
-	}
-
-	.bp-field--panel .bp-stepper-glyph {
-		font-family: 'Poppins', 'Instrument Sans', sans-serif;
-		font-weight: 700;
-		font-synthesis: none;
-		/* The VALUE's size above × 1.2, NOT a fraction of the plaque height: the two are sized on
-		   different curves, and a plaque-derived glyph ends up more than twice the value's size in
-		   portrait, where the value sits on its clamp floor. Tracking the value keeps the − / + one step
-		   heavier than the number in every orientation. */
-		font-size: clamp(1.38vw, 1.68vw, 2.1vw);
-		line-height: 1;
-		color: #f2f4f6;
-		text-shadow: 0 calc(var(--bp-field-plaque-height) * 0.03)
-			calc(var(--bp-field-plaque-height) * 0.06) rgba(0, 0, 0, 0.85);
-		user-select: none;
-		pointer-events: none;
+		/* .bp-select-display's clamp(0.92vw, 1.12vw, 1.4vw) × 1.15 */
+		font-size: clamp(1.06vw, 1.29vw, 1.61vw);
 	}
 </style>
