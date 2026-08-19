@@ -916,7 +916,7 @@
 					{#if showPlayLoading || autoBetRunning}
 						<img
 							class="bp-btn-play-spinner"
-							src={staticUrl('img/loading_vector.webp')}
+							src={staticUrl('img/spinner_logo.webp')}
 							alt=""
 							aria-hidden="true"
 						/>
@@ -927,7 +927,7 @@
 						<span class="hud-play-count-badge">{props.bonusBallsRemaining}</span>
 					{:else if autoBetRunning}
 						<!-- Rounds left in the running Autobet, centred in the spinning ring — the same place
-						     desktop puts it (see .bp-bonus-count-badge). It is NOT stamped over the Autobet
+						     desktop puts it (see .bp-bonus-count-badge--auto). It is NOT stamped over the Autobet
 						     toggle any more; that button is purely the Stop control while a run is up. -->
 						<span class="hud-play-count-badge hud-play-count-badge--auto">
 							{mobileAutoCountDisplay}
@@ -1136,7 +1136,7 @@
 								{#if showPlayLoading}
 									<img
 										class="bp-btn-play-spinner"
-										src={staticUrl('img/loading_vector.webp')}
+										src={staticUrl('img/spinner_logo.webp')}
 										alt=""
 										aria-hidden="true"
 									/>
@@ -1161,11 +1161,13 @@
 								{@render mainButtonBase()}
 								<img
 									class="bp-btn-play-spinner"
-									src={staticUrl('img/loading_vector.webp')}
+									src={staticUrl('img/spinner_logo.webp')}
 									alt=""
 									aria-hidden="true"
 								/>
-								<span class="bp-bonus-count-badge">{props.autoRoundsLeft}</span>
+								<span class="bp-bonus-count-badge bp-bonus-count-badge--auto">
+									{props.autoRoundsLeft}
+								</span>
 							</button>
 						{:else}
 							<button

@@ -1128,26 +1128,40 @@
 	// image's true center (translate-based centering made the rotation wobble off-axis).
 	inset: 0;
 	margin: auto;
-	// 70% of the round plaque. This is a proportion of the button's WIDTH, which used to be the 11.5vw
+	// 70.3% of the round plaque. This is a proportion of the button's WIDTH, which used to be the 11.5vw
 	// pill — 42% of that was 4.83vw. The button is now a 5.75vw circle, so the old 42% would render the
-	// spinner at barely 2.4vw, lost in the middle of the plaque; 70% restores the ring to roughly the
-	// size it read at before while still leaving a green margin inside the rim.
-	width: 70% !important;
+	// spinner at barely 2.4vw, lost in the middle of the plaque.
+	// ⚠️ The number is a PAIR with the art, not a free choice, because the two differ in how much of
+	// their own canvas the ring fills. Measured across the OUTER EDGE OF THE ARC: loading_vector.webp
+	// filled 0.831 of its canvas and sat at 70% here, giving a rendered outer diameter of 58.2% of the
+	// button; spinner_logo.webp is drawn nearly edge to edge at 0.993. Matching that same 58.2% would
+	// be 59%, and this is a deliberate 20% up from there — 58.2 × 1.2 = 69.8% of the button, ÷ 0.993 =
+	// 70.3%. It still lands well inside the plaque's gold rim, which starts at 89% of the button width.
+	// ⚠️ Measure the ARC on a redelivery, never the ink bbox: the arts throw their arrowheads outside
+	// their own ring by different amounts (bbox 0.883 against 0.996), so normalising on that instead
+	// mis-sizes the ring by several percent, in whichever direction the new art happens to differ.
+	width: 70.3% !important;
 	height: auto !important;
 	aspect-ratio: 1;
 	// Sit the ring on the DISC's centre, not the button box's — see --bp-play-disc-rise on .bp-btn-play.
 	// That rise is a % of the BUTTON's height; a % translate here resolves against the SPINNER's own
-	// height, so it converts through the 70% width above (hence the /0.7). Lands within 0.25px of the
-	// measured optimum.
-	// ⚠️ Do NOT "correct" this by the ring's bbox — loading_vector.png's ink bbox looks 4/120 low only
-	// because an arrowhead pokes further down than up. By MASS the ring is symmetric about its canvas
-	// centre (it self-matches under a 180° rotation there), so transform-origin: center is right and the
-	// art needs no bias of its own; trusting the bbox double-corrects and throws it ~2px high.
+	// height, so it converts through the 70.3% width above (hence the /0.703). ⚠️ The divisor TRACKS
+	// the width — change one without the other and the ring silently lands off the disc's centre.
+	// ⚠️ Do NOT give the art a centring bias of its own. spinner_logo.webp is a two-arrow design with
+	// real 2-fold symmetry, and its symmetry centre — the point it must spin about if the outline is to
+	// stay put rather than orbit — measures 0.11% / 0.31% of the canvas off the box centre. Even at
+	// this larger width that is 0.21px on a 92px button: the ring's own centre traces a circle a fifth
+	// of a pixel across as it turns, so transform-origin: center is right to well under a device pixel.
+	// Do not try to improve on it off the ink BBOX either: one arrow tail reaches further down than up,
+	// so the bbox reads ~2px low, and "correcting" by it introduces the very wobble it looks like it
+	// fixes. Re-measure the SYMMETRY CENTRE, not the bbox, if the art is ever redelivered.
 	// Uses the standalone `translate` property, NOT `transform`: the spin animation owns `transform`, so
-	// a translate there would be overwritten by the keyframes — and baking it INTO them is wrong too,
-	// since `bp-play-spin` is shared with the mobile spinner, whose art has no such offset.
-	// `translate` composes BEFORE `transform`, so the ring still spins about its own centre.
-	translate: 0 calc(-1 * var(--bp-play-disc-rise) / 0.7);
+	// a translate written there would simply be overwritten by the keyframes, and baking it into them
+	// instead would tie a layout offset to an animation that has no other reason to know about it.
+	// `translate` composes BEFORE `transform` in the individual-properties order, which means it is
+	// applied AFTER the rotation — the ring spins about its own centre and the result is then lifted,
+	// rather than being swung around a pivot 3% below it.
+	translate: 0 calc(-1 * var(--bp-play-disc-rise) / 0.703);
 	transform-origin: center center;
 	animation: bp-play-spin 0.9s linear infinite;
 	pointer-events: none;
@@ -1208,10 +1222,9 @@
 	}
 }
 
-/* The centred count: bonus free balls left, or rounds left in a running Autobet (where it sits inside
-   the spinning ring). Sized down from 1.34vw with the plaque, which lost half its width becoming a
-   circle — at the old size a 3-digit count ran past the ring. The loader art's hole is small, so the
-   number still overlaps the arcs a little; it rides above them (z-index) and the shadow carries it. */
+/* The centred count: bonus free balls left, or — with the --auto modifier below — rounds left in a
+   running Autobet, where it sits inside the spinning ring. Sized down from 1.34vw with the plaque,
+   which lost half its width becoming a circle. */
 .bp-bonus-count-badge {
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
 	position: absolute;
@@ -1231,6 +1244,18 @@
 	text-shadow:
 		0 0.08vw 0.28vw rgba(0, 0, 0, 0.9),
 		0 0 0.5vw rgba(0, 0, 0, 0.75);
+}
+
+/* Rounds left in a running Autobet: the same badge, 20% down from the base 2.24vw. It is the one use
+   that sits INSIDE the spinning ring, and the one that reaches 3 digits (an Autobet run goes to 100),
+   where the free-balls count above is at most 2 and sits on an empty plaque. The ring has room for it
+   either way — spinner_logo.webp's clear interior is 0.58 of its radius against the old loader art's
+   0.40, and the ring is drawn 20% larger besides, so the usable middle is 40% of the button's width
+   rather than 23% — but at this size even a 3-digit count clears the arcs instead of crossing them.
+   ⚠️ Scoped to Autobet on purpose. Putting this on the base rule would shrink the bonus free-balls
+   count too, which has neither the ring around it nor the third digit to fit. */
+.bp-bonus-count-badge--auto {
+	font-size: 1.792vw;
 }
 
 .bp-auto-wrap {
@@ -1901,13 +1926,16 @@
 }
 
 /* Rounds left in a running Autobet, sitting INSIDE the spinning ring (the mobile twin of desktop's
-   .bp-bonus-count-badge). Two deliberate differences from the bonus count above:
-   - Smaller, because an Autobet run reaches 3 digits (100) and has to clear the ring's small hole,
-     where the free-balls count is at most 2.
+   .bp-bonus-count-badge--auto). Two deliberate differences from the bonus count above:
+   - Smaller, because an Autobet run reaches 3 digits (100) where the free-balls count is at most 2.
+     ⚠️ It does NOT track the desktop badge's size. That one was taken 20% down; this clamp followed,
+     then went 25% back up — 0.8 × 1.25 = 1, so these are once again the 18/4.8/28 it started at. The
+     mobile button is a fixed ~85px rather than a vw-scaled plaque, so the count has to hold its own
+     legibility floor there; keep the two sizes independent.
    - Raised onto the DISC's centre, not the button box's: main_btn_empty draws its disc
      --bp-play-disc-rise high, and the spinner is raised by the same amount — so the number only
      agrees with the arrows around it if it rides up too.
-   Above the spinner (z-index 3) so the digits stay legible where they overlap the arcs. */
+   Above the spinner (z-index 3) so the digits stay legible if they ever reach the arcs. */
 .hud-play-count-badge--auto {
 	top: calc(50% - var(--bp-play-disc-rise));
 	font-size: clamp(18px, 4.8vw, 28px);

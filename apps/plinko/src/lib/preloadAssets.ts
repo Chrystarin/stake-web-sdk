@@ -90,7 +90,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/auto-bet-stop-btn-mobile.webp',
 	'img/fast-game-btn.webp',
 	'img/fast-game-btn-mobile.webp',
-	'img/loading_vector.webp',
+	'img/spinner_logo.webp',
 	// Portrait-only strap behind the mobile action row (see .mobile-play-strap).
 	'img/portait_bet_panel_strap.webp',
 	// Landscape-only gradient behind the whole betting panel, total bet included (see .bp-panel-scrim).

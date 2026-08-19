@@ -298,3 +298,46 @@ visible lost.
 ⚠️ Re-deliver them at **16:9**. The well is sized to that ratio precisely so nothing is cropped —
 measured across four frames of each clip, none is letterboxed and the outer bands are often the busiest
 part of the frame, so a well that did not match would cost real content.
+
+## Play-button loader ring (2026-08-19)
+
+| master | installed as | encode |
+|---|---|---|
+| `spinner_logo.png` | `static/img/spinner_logo.webp` | lossless |
+
+253×253 RGBA, the two-arrow ring that spins on the Play plaque while a round is in flight and for the
+whole of a running Autobet (`.bp-btn-play-spinner`, shared by the desktop and mobile buttons). It
+replaced `loading_vector.webp` — a thick, filled ring where this is an open one drawn in white line.
+
+Lossless, and here that is not even a trade: at **2.1 KB** it comes in *below* lossy q90's 2.6 KB and
+is pixel-identical to the master. White strokes on transparency are all edge, which is the case lossy
+handles worst and compresses least.
+
+⚠️ **The art is drawn past the canvas edge** — 0.993 of it across the ring's outer arc, and the bottom
+of the stroke is cut flat by the last row rather than fading out. What is lost is a fraction of a pixel
+and it is invisible at the size this renders, but there is no bleed at all, so any margin the design
+needs has to be taken in CSS.
+
+⚠️ Two knobs in `GameHud.scss` are derived from this file's proportions. Re-derive them on a
+redelivery; do not carry them over.
+
+- `.bp-btn-play-spinner`'s `width` (70.3%). The old art filled 0.831 of its canvas across the arc and
+  sat at 70%, for a rendered ring 58.2% of the button wide; this art fills 0.993, so the same ring
+  would be 59%. 70.3% is a deliberate 20% up from that (58.2 × 1.2 ÷ 0.993), and still clears the
+  plaque's gold rim, which starts at 89% of the button's width.
+  ⚠️ Measure the ARC, not the ink bbox: the two arts throw their arrowheads outside their own ring by
+  different amounts (bbox 0.883 against 0.996), so normalising on that mis-sizes the ring.
+- the `/0.703` in the same rule's `translate`, which converts `--bp-play-disc-rise` through that width.
+  It tracks `width`; changing one alone slides the ring off the disc's centre.
+
+It needs no centring bias of its own, and must not be given one. The design has true 2-fold symmetry,
+and its symmetry centre — the point it has to spin about for the outline to stay put rather than orbit
+— measures 0.11% and 0.31% of the canvas from the box centre, so `transform-origin: center` is exact to
+well under a device pixel (the ring's centre traces a circle 0.2 px across on a 92 px button). That is
+*better* centred than the art it replaces, which was off by 0.86% and 0.68%. The ink bbox is the trap
+here: one arrow tail reaches further down than up, so it reads ~2 px low, and correcting by it
+introduces the wobble it looks like it removes.
+
+Its clear hole is 0.58 of the ring's radius (the old art's was 0.40) and the ring is drawn larger
+besides, which is what lets the Autobet rounds-left count sit inside without crossing the arcs — see
+`.bp-bonus-count-badge`.
