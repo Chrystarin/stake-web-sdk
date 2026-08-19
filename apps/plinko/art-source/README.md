@@ -262,14 +262,25 @@ board again is cheap and they are ~700 B each, but nothing loads them.
 
 | master | installed as | encode |
 |---|---|---|
-| `quick_guide_container.png` | `static/img/quick_guide/quick_guide_container.webp` | lossy q90 |
+| `quick_guide_container.png` | — **superseded, see below** | lossy q90 |
+| `quick_guide_container_wide.png` | `static/img/quick_guide/quick_guide_container_wide.webp` | lossy q90 |
+| `quick_guide_container_tall.png` | `static/img/quick_guide/quick_guide_container_tall.webp` | lossy q90 |
 | `quick_guide_title.png` | `static/img/quick_guide/quick_guide_title.webp` | lossy q90 |
+| `quick_guide_button_container.png` | `static/img/quick_guide/quick_guide_button_container.webp` | lossy q90 |
 
-943×740 RGBA, the panel behind the 4-page walkthrough (`QuickGuideModal.svelte`). Lossy like the other
-`img/` frame art and by a wide margin: 638 KB PNG → **20 KB** at q90, against 410 KB lossless, for an
-RGB RMS error of 1.26 and a byte-exact alpha channel. q95 costs 36 KB and only moves the RMS to 1.16 —
-not worth 16 KB on a dark, heavily textured panel that is never scaled up (it renders at ~530 CSS px
-against a 943 px asset at the 1024×576 reference).
+Two panels behind the 4-page walkthrough (`QuickGuideModal.svelte`), one per orientation: **wide**
+at 1311×735 for landscape, **tall** at 769×980 for portrait. Lossy like the other `img/` frame art:
+879 KB PNG → **24 KB** and 741 KB → **112 KB** at q90, against 615 KB and 570 KB lossless, both with
+a byte-exact alpha channel and an RGB RMS error of ~1.2. The tall frame costs 4.7× the wide one for
+the same RMS because its texture is noisier, not because it is bigger — it is the smaller image of
+the two.
+
+Both are preloaded, not just the one this orientation needs: which frame shows is a media query, so
+a device rotated mid-guide has to find the other already in memory.
+
+The single 943×740 `quick_guide_container.png` these replaced is **superseded**. Its master is kept
+as the record of what shipped before; the encoded `quick_guide_container.webp` is deleted, because
+everything under `static/` is published whether or not anything references it.
 
 615×273 RGBA, the ONE-EYED WILLY PLINKO logo that sits over the top of that panel — it replaced the
 `PiecesOfEight` type the guide opened with. Lossy q90 again, though the margin is narrower than the
@@ -280,20 +291,36 @@ this renders — ~340 CSS px at 1280×720, 410 px at the widest the panel is eve
 under the asset's own 615 px. q95 buys RMS 3.2 for another 12 KB, which is not worth it on an asset
 that blocks the splash.
 
-The art's own 943:740 is the modal's `aspect-ratio`, so the riveted band and the corner ornaments are
-never stretched; the interior is laid out in `cqw` against that box — one container-query coordinate
-space for the whole frame, so the type, the video well and the nav row stay a fixed design at every
-viewport. Re-derive those percentages only if a redelivery changes the frame's proportions.
+170×84 RGBA, the wooden plate behind the guide's BACK and NEXT controls — one asset, both buttons.
+q90 at **2.5 KB** against 13 KB of PNG and 9 KB lossless, alpha byte-exact, RGB RMS 2.1. It renders
+at 97 CSS px wide at 1280×720 and 118 px at the widest the panel is allowed to be, so like the other
+two it is never upscaled.
+
+Each frame's own aspect — 1311:735 and 769:980 — is the modal's `aspect-ratio` in that orientation,
+so the riveted band and the corner ornaments are never stretched; the interior is laid out in `cqw`
+against that box — one container-query coordinate space for the whole frame, so the type, the video
+well and the nav row stay a fixed design at every viewport.
+
+⚠️ Three things in `QuickGuideModal.svelte` describe the frame and must be changed together for a
+redelivery: the `background-image`, the `aspect-ratio`, and the aspect written into the vh term of
+`--qg-panel-w` (which is really "panel height ≤ 68vh", expressed as a width). Everything else in the
+interior is a knob at the top of the panel's rule, tuned per orientation — re-derive those only if a
+redelivery changes the frame's proportions.
 
 ### ⚠️ The four `quick_guide_video_*.mp4` under `static/` are NOT masters — and they are large
 
-~78 MB together (1080p H.264, 13–21 s each), served as-is, so unlike everything else in this file there
-is no master-here / encode-there split to maintain. They are deliberately outside the blocking preload
-manifest and are streamed one page at a time — see `QUICK_GUIDE_VIDEO_PATHS` in `lib/preloadAssets.ts`
-for why. If CDN cost or a slow-link open ever becomes the complaint, this is the obvious thing to
-re-encode: the well they play in is only ~461 CSS px wide at the 1024×576 reference, so a 1920-wide
-master is a 4× oversample. 720p at a sane bitrate would cut them by an order of magnitude with nothing
-visible lost.
+38.7 MB together (960×540 H.264, 4–10 s each), served as-is, so unlike everything else in this file
+there is no master-here / encode-there split to maintain. They were 1080p and ~78 MB on delivery and
+were re-cut to halve that; there is no master for the re-cut here either, so a further pass starts from
+these files.
+
+They are on the BLOCKING preload path, fetched as blobs and played from memory — see
+`QUICK_GUIDE_VIDEO_PATHS` in `lib/preloadAssets.ts` for what that buys and what it costs. That makes
+them, by a wide margin, the most expensive thing in the manifest: 38.7 MB against ~27 MB for everything
+else on that path, and the splash is ~2.4× longer on a cold link because of them. If a slow-link open
+ever becomes the complaint, they are the first place to look, and there is room — the well they play in
+is ~450 CSS px wide at 1280×720 and ~380 px at the 1024×576 reference, so 960 wide is still a ~2.4×
+oversample.
 
 ⚠️ Re-deliver them at **16:9**. The well is sized to that ratio precisely so nothing is cropped —
 measured across four frames of each clip, none is letterboxed and the outer bands are often the busiest
