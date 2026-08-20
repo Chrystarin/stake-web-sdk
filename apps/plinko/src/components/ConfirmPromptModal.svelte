@@ -61,8 +61,15 @@
 			shadowBlur: number;
 			/**
 			 * The "?" is set in Noto Sans rather than PiecesOfEight (whose question mark is a decorative
-			 * outlier next to the caps). Noto's glyph runs taller at the same font-size, so this is its
-			 * size as a multiple of the headline's own — tune per prompt if the art changes.
+			 * outlier next to the caps), so it carries its own size — this, as a multiple of the headline's
+			 * own font size. Measured off the two faces: Noto's "?" and PiecesOfEight's caps both stand
+			 * 0.724em above the baseline, so 1.0 — what every prompt is set to — stands the mark exactly as
+			 * tall as the letters beside it. Above that it overhangs them; below, it reads as an afterthought.
+			 *
+			 * Noto's ascent is the taller of the two even at 1.0, so it is the mark and not the strut that
+			 * sets the line box — 1.041em rather than 1.0 — and the headline sits ~0.02em lower than the caps
+			 * alone would put it. Worth knowing when centring a headline against the frame: it is the ink that
+			 * has to land centred, and the line box is not the ink.
 			 */
 			questionEm: number;
 		};
@@ -97,7 +104,7 @@
 				shadowX: 0,
 				shadowY: 0.08,
 				shadowBlur: 0.035,
-				questionEm: 0.86,
+				questionEm: 1,
 			},
 			yes: { x: 33, y: 63, width: 31, scale: 1 },
 			no: { x: 67, y: 63, width: 31, scale: 1 },
@@ -106,7 +113,7 @@
 		// Arming an Autobet run at a high-bet stake. Deliberately the HIGH BET board, not the Autobet
 		// one: the thing being warned about is the stake, so it should read as the high-bet warning the
 		// player already knows. Its headline is the longest of the set and it is the only prompt with a
-		// caption, so the title is set smaller and both it and the plates move apart to make room.
+		// caption, so it gets the widest plate of the three and the title is set smaller.
 		highAutobet: {
 			art: {
 				panel: 'high_bet_container.webp',
@@ -114,24 +121,45 @@
 				no: 'high_bet_no_container.webp',
 			},
 			aspect: { panel: 4700 / 3205, button: 1501 / 821 },
-			panel: { maxWidthPx: 1600, widthVw: 65, scale: 0.95, offsetX: 0, offsetY: -10 },
-			portrait: { widthVw: 92, offsetY: -6 },
+			// A wider board than the plain high-bet prompt (65 → 72vw) so the headline and caption are not
+			// crowding the frame. Every `cqw` number below is re-based by 65/72 against that variant, so the
+			// board grew and the type stayed exactly the size it already was. `offsetY` eases off with it: a
+			// taller panel needs less lift to clear the bet panel, and -10 would run the frame off the top.
+			panel: { maxWidthPx: 1775, widthVw: 72, scale: 0.95, offsetX: 0, offsetY: -7 },
+			// Portrait is already near full-bleed, so it takes the last 8vw it has rather than the same 11%
+			// the landscape plate gained — enough that the re-based type lands within a hair of its old size.
+			portrait: { widthVw: 100, offsetY: -6 },
+			// The `y` values below — title 29, caption 46, plates 67 — are the old 27 / 44 / 65 carried
+			// down 2 as one block. Measured off the art rather than eyeballed: the frame's wooden interior
+			// runs 16.8%–82.2% of the panel's height, and once the plates shrank the block was riding high
+			// in it. The shift lands the headline's ink and the plates' bottom edge ~5.9cqw off the wood
+			// top and bottom respectively. Note that is the ink, not the line box: PiecesOfEight's caps sit
+			// well below the top of their em box, so centring the boxes instead drops it visibly too low.
 			title: {
 				x: 50,
-				y: 27,
-				// A hair under the plain high-bet headline's effective size (8.1 × 1.05): this wording is
-				// four characters longer, and that keeps the run of caps the same width on the plate.
-				size: 6.8,
+				y: 29,
+				// 6.8 re-based onto the wider plate, so it renders at the size it always did. Still a hair
+				// under the plain high-bet headline's effective size (8.1 × 1.05 on its own plate): this
+				// wording is four characters longer, and that keeps the run of caps the same width.
+				size: 6.14,
 				scale: 1,
 				shadowX: 0,
 				shadowY: 0.08,
 				shadowBlur: 0.035,
-				questionEm: 0.86,
+				questionEm: 1,
 			},
-			caption: { x: 50, y: 44, size: 3.4, width: 64, lineHeight: 1.4 },
-			yes: { x: 33, y: 65, width: 31, scale: 1 },
-			no: { x: 67, y: 65, width: 31, scale: 1 },
-			label: { size: 6.4, offsetX: 0, offsetY: -0.31, stroke: 0.2 },
+			caption: { x: 50, y: 46, size: 3.07, width: 57.8, lineHeight: 1.4 },
+			// The plates are 25/31 of their former width, with `label` scaled by that same 25/31 so the
+			// wording keeps its proportion on the plate rather than outgrowing it.
+			//
+			// Their `x` is set from the art: each button's opaque plate is 84.25% of its own canvas (the
+			// rest is glow and drop shadow), so at 25cqw the visible plate is 21.1cqw, and the interior
+			// wood runs 12.1%–88.0% of the panel's width. Centres of 34.7 / 65.3 leave 9.5cqw between the
+			// plates against 12.1cqw of wood outside each — the gap is no longer the tightest space on the
+			// board, and the two still read as a pair rather than as opposite corners.
+			yes: { x: 34.7, y: 67, width: 25, scale: 1 },
+			no: { x: 65.3, y: 67, width: 25, scale: 1 },
+			label: { size: 5.16, offsetX: 0, offsetY: -0.25, stroke: 0.16 },
 		},
 		autobet: {
 			art: {
@@ -150,7 +178,7 @@
 				shadowX: 0,
 				shadowY: 0.08,
 				shadowBlur: 0.035,
-				questionEm: 0.86,
+				questionEm: 1,
 			},
 			// Plates sit roughly midway between the headline and the bottom rope — this board is the
 			// shortest of the three, so leaving them tucked under the title stranded a wide run of
@@ -178,7 +206,7 @@
 				shadowX: 0,
 				shadowY: 0.08,
 				shadowBlur: 0.035,
-				questionEm: 0.86,
+				questionEm: 1,
 			},
 			yes: { x: 35, y: 66.5, width: 24, scale: 1.1 },
 			no: { x: 65, y: 66.5, width: 24, scale: 1.1 },
