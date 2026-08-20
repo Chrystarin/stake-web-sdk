@@ -193,10 +193,31 @@
 	 * two remaining mobile cards centre themselves in the row.
 	 */
 	const wagerSteppersHidden = $derived(stateGame.bonusRoundActive);
-	// Replay drives bonus-ball drops itself — keep the visible bonus-play button locked for the viewer.
-	const bonusPlayDisabled = $derived(
-		isBonusPlayButtonDisabled() || props.bonusPlayDisabled || isReplayMode(),
-	);
+	/**
+	 * Replay drives bonus-ball drops itself — keep the visible bonus-play button locked for the viewer.
+	 *
+	 * ⚠️ The reads below ARE the dependency list, and they are deliberately made BEFORE the call — same
+	 * pattern as `controlsLocked` / `autoBetConfigLocked` above, and for a sharper reason here.
+	 * `isBonusPlayButtonDisabled()` is a chain of `||`, so the first true operand short-circuits every
+	 * read after it and Svelte re-collects this derived's dependencies on each run. Once the free-spin
+	 * hold pinned the bar full, the derived's dep set shrank to the two flags ahead of it — so when the
+	 * wheel closed and cleared `spinMeterHoldFull` / `freeSpinRouletteOpen` / `activeRouletteSource`,
+	 * nothing invalidated this value. It stayed stale-true, which left the Play button natively
+	 * `disabled` and (through `isPlayButtonHardDisabled`) muted the Space hotkey with it: the free drops
+	 * could not be resumed at all. Listing every reactive input up front makes the value track all of
+	 * them regardless of where the chain stops.
+	 */
+	const bonusPlayDisabled = $derived.by(() => {
+		stateGameDerived.hasPendingBonusBalls;
+		stateGame.bonusLevelUpPending;
+		stateGame.spinMeterHoldFull;
+		stateGame.bonusRouletteOpen;
+		stateGame.freeSpinRouletteOpen;
+		stateGame.rouletteFlowInProgress;
+		stateGame.activeRouletteSource;
+		stateGame.pendingRouletteSource;
+		return isBonusPlayButtonDisabled() || props.bonusPlayDisabled || isReplayMode();
+	});
 	// During a bonus round the drop is always single-ball (free balls), so the HUD shows 1 regardless
 	// of the selected tier. `stateGame.ballPerDrop` itself is left untouched (tier logic / meters).
 	const ballPerDropDisplay = $derived(stateGame.bonusRoundActive ? 1 : stateGame.ballPerDrop);
@@ -211,11 +232,21 @@
 	// Disable reasons OTHER than "can't afford the wager". The affordability reason is split out so a
 	// click on a button greyed out PURELY for insufficient balance can still surface a toast — a
 	// natively `disabled` button fires no click event at all, so it must stay clickable for that.
-	const playDisabledMainOther = $derived(
-		props.playDisabled ||
+	//
+	// Dependencies listed up front for the same reason as `bonusPlayDisabled` below: these are `||`
+	// chains behind function calls, so whichever operand reads true hides every reactive field after it
+	// from Svelte's dependency collection and the value can then miss its own un-blocking.
+	const playDisabledMainOther = $derived.by(() => {
+		stateGame.bonusRoundActive;
+		stateGame.freeSpinRouletteOpen;
+		stateGame.activeRouletteSource;
+		stateGame.pendingRouletteSource;
+		return (
+			props.playDisabled ||
 			isPlayActionBlockedByBonusRoulette() ||
-			isPlayActionBlockedByFreeSpinRoulette(),
-	);
+			isPlayActionBlockedByFreeSpinRoulette()
+		);
+	});
 
 	// The wager is a real (>0) bet the player can't afford — the sole "insufficient balance" reason.
 	const wagerUnaffordable = $derived(plinkoWagerAmount() > 0 && !canAffordPlinkoWager());
@@ -511,6 +542,45 @@
 	 */
 	let bonusPointerPressActive = false;
 
+	/**
+	 * Which transport currently holds the free-ball stream open, so a release on one never ends a hold
+	 * owned by the other (clicking something else mid Space-hold, and vice versa).
+	 */
+	let bonusHoldTransport: 'pointer' | 'key' | null = null;
+
+	function beginBonusBallHold(
+		transport: 'pointer' | 'key',
+		options?: { holdAlreadyQualified?: boolean },
+	) {
+		bonusHoldTransport = transport;
+		startBonusBallHoldDrop(options);
+	}
+
+	/**
+	 * A hold ends for one of two very different reasons, and only one of them should stop the stream:
+	 *
+	 *  - THE PLAYER LET GO (`'release'`) — stop, obviously.
+	 *  - THE CONTROL WENT INERT UNDER THEM (`'transport'`) — a free-spin wheel or a level-up card
+	 *    hard-disables the Play button mid-hold, and BOTH transports report that as an end: `OnHotkey`
+	 *    synthesises a key-up when it goes `disabled`, and the button's pointer capture is dropped with
+	 *    a `lostpointercapture`. The player never let go.
+	 *
+	 * Stopping on that second kind is what parked a Buy Bonus run: a ball triggered the Free Spin Wheel,
+	 * the stream was torn down behind the overlay, and the remaining free drops then sat there until a
+	 * fresh press. The stream was already built to ride this out — every tick re-checks
+	 * `canDropBonusBallNow()`, so it PAUSES for the overlay and resumes on its own — so a transport end
+	 * that arrives while the button is hard-disabled is ignored and the hold simply idles through the
+	 * wheel. The genuine release is still heard: the window-level listeners below keep listening while
+	 * the button and the Space hotkey are muted.
+	 */
+	function endBonusBallHold(transport: 'pointer' | 'key', via: 'release' | 'transport' = 'release') {
+		if (via === 'transport' && isPlayButtonHardDisabled) return;
+		// A hold owned by the other transport is none of this release's business.
+		if (bonusHoldTransport !== null && bonusHoldTransport !== transport) return;
+		bonusHoldTransport = null;
+		stopBonusBallHoldDrop();
+	}
+
 	function onPlayPointerDown(event: PointerEvent) {
 		// Base game: a press is an ordinary single bet — leave it to the click handler. (Repeat-betting
 		// with real money is Autobet's job, and it is armed deliberately.)
@@ -518,19 +588,60 @@
 		if (!event.isPrimary) return;
 		if (event.pointerType === 'mouse' && event.button !== 0) return;
 		bonusPointerPressActive = true;
-		// Follow the pointer off the button so the release still reaches us; `lostpointercapture` then
-		// also covers the button going `disabled` mid-hold (a wheel opening), which would otherwise
-		// swallow the pointerup and leave the stream running.
+		// Follow the pointer off the button so the release still reaches us. The button going `disabled`
+		// mid-hold (a wheel opening) also drops the capture — that arrives as `lostpointercapture`, which
+		// is reported as a TRANSPORT end so the stream rides the overlay out instead of being torn down.
 		(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-		startBonusBallHoldDrop();
+		beginBonusBallHold('pointer');
 	}
 
 	function onPlayPointerRelease() {
-		stopBonusBallHoldDrop();
+		endBonusBallHold('pointer');
+		clearBonusPointerPress();
+	}
+
+	/**
+	 * The capture was dropped, not released — usually the button going `disabled` under the finger. The
+	 * finger is still down, so `bonusPointerPressActive` deliberately STAYS set: clearing it here would
+	 * hand the eventual release's trailing `click` to `onMainActionClick` and spend an extra free ball.
+	 * The window-level release below clears it when the press actually ends.
+	 */
+	function onPlayPointerCaptureLost() {
+		endBonusBallHold('pointer', 'transport');
+	}
+
+	function clearBonusPointerPress() {
 		// The trailing `click` fires before this, so it still sees the flag set.
 		setTimeout(() => {
 			bonusPointerPressActive = false;
 		}, 0);
+	}
+
+	/**
+	 * WINDOW-LEVEL RELEASES. Once the Play button goes `disabled` it stops receiving pointer events and
+	 * `OnHotkey` stops forwarding hotkeys, so neither can tell us the player has let go — and a hold
+	 * that now survives a wheel (see `endBonusBallHold`) must never survive an actual release. These fire
+	 * regardless of what the button is doing, so they are also the authoritative end of the press.
+	 */
+	function onWindowPointerRelease() {
+		endBonusBallHold('pointer');
+		clearBonusPointerPress();
+	}
+
+	function onWindowKeyUp(event: KeyboardEvent) {
+		if (event.key !== ' ' && event.code !== 'Space') return;
+		endBonusBallHold('key');
+	}
+
+	/**
+	 * Focus left the game entirely — no transport can still be held, so drop whichever owns the stream.
+	 * The pointer release may never arrive (the button was released outside the window), so end the
+	 * press here too rather than leaving it to swallow the next click.
+	 */
+	function onWindowBlur() {
+		bonusHoldTransport = null;
+		stopBonusBallHoldDrop();
+		clearBonusPointerPress();
 	}
 
 	function onMainActionClick() {
@@ -591,7 +702,7 @@
 		if (isConfirmPromptOpen()) return;
 		// `OnHotkey` only calls this once the key has been down for its own hold threshold, so the press
 		// has already qualified — waiting out a second identical window would just stall the stream.
-		startBonusBallHoldDrop({ holdAlreadyQualified: true });
+		beginBonusBallHold('key', { holdAlreadyQualified: true });
 	}
 
 	function onMobileAutoButtonClick(event: MouseEvent) {
@@ -643,10 +754,15 @@
 	disabled={isPlayButtonHardDisabled}
 	onpress={onSpacePlay}
 	onhold={onSpaceHold}
-	onholdend={stopBonusBallHoldDrop}
+	onholdend={() => endBonusBallHold('key', 'transport')}
 />
 
-<svelte:window onblur={stopBonusBallHoldDrop} />
+<svelte:window
+	onblur={onWindowBlur}
+	onkeyup={onWindowKeyUp}
+	onpointerup={onWindowPointerRelease}
+	onpointercancel={onWindowPointerRelease}
+/>
 
 {#snippet bettingFieldFrame()}
 	<img
@@ -920,7 +1036,7 @@
 					onpointerdown={onPlayPointerDown}
 					onpointerup={onPlayPointerRelease}
 					onpointercancel={onPlayPointerRelease}
-					onlostpointercapture={onPlayPointerRelease}
+					onlostpointercapture={onPlayPointerCaptureLost}
 				>
 					<!-- Play button now uses the desktop round plaque + icon (main_btn_empty.png +
 					     main_btn_play_icon.png) via the shared snippets, replacing play-btn-mobile.png. The
@@ -1145,7 +1261,7 @@
 								onpointerdown={onPlayPointerDown}
 								onpointerup={onPlayPointerRelease}
 								onpointercancel={onPlayPointerRelease}
-								onlostpointercapture={onPlayPointerRelease}
+								onlostpointercapture={onPlayPointerCaptureLost}
 							>
 								{@render mainButtonBase()}
 								{#if showPlayLoading}

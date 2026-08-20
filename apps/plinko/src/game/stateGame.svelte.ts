@@ -75,6 +75,16 @@ export const stateGame = $state({
 	spinMeterValue: 0,
 	spinMeterMax: 10,
 	spinMeterBaseMax: 10,
+	/**
+	 * The completed IN-BONUS free-spin bar is pinned FULL while its wheel plays — see
+	 * `creditInBonusSpinMeter` / `releaseInBonusSpinMeterHold`. Sibling of `bonusMeterHoldFull`.
+	 *
+	 * ⚠️ Lives on `stateGame` (rather than as a module-local flag in gameOrchestrator) because the HUD
+	 * gates the bonus Play button on it via `isBonusPlayButtonDisabled`. A plain `let` is invisible to
+	 * Svelte, so a `$derived` that short-circuited on it while it was true never re-ran when it went
+	 * false again — leaving the Play button (and with it the Space hotkey) dead after the wheel closed.
+	 */
+	spinMeterHoldFull: false,
 	bonusMeterMax: 20,
 	bonusMeterBaseMax: 20,
 	bonusMeterOverflowValue: 0,

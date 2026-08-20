@@ -102,8 +102,6 @@ let bonusSpinBatchLanded = -1;
  * served while a republish is in flight, instead of making the two deploys land in the same minute.
  */
 let bonusSpinLegacyBatchFired = false;
-/** The completed bar is pinned FULL while its wheel plays — see `creditInBonusSpinMeter`. */
-let bonusSpinHoldFull = false;
 /** Spin-pocket lands banked behind that pinned bar, re-credited when the wheel is done. */
 let bonusSpinBankedOutcomes: PlinkoBallOutcome[] = [];
 /**
@@ -389,7 +387,7 @@ export function isBonusPlayButtonDisabled(): boolean {
 		// below only covers the window once `triggerRoulette` has been called — a wheel waiting out a
 		// level-up card has not reached that point yet, and balls dropped into it would just queue up
 		// behind the wheel (banked, so nothing is lost — but spent on a bar that cannot move).
-		bonusSpinHoldFull ||
+		stateGame.spinMeterHoldFull ||
 		stateGame.bonusRouletteOpen ||
 		isPlayActionBlockedByFreeSpinRoulette() ||
 		isPlayActionBlockedByBonusRoulette()
@@ -1322,10 +1320,10 @@ export function creditInBonusSpinMeter(outcome?: PlinkoBallOutcome) {
 	if (stateGame.spinMeterValue < max) return;
 	if (legacyBatch) bonusSpinLegacyBatchFired = true;
 	// THE BAR JUST COMPLETED. Hold it full and fire the book-authored free spin.
-	bonusSpinHoldFull = true;
+	stateGame.spinMeterHoldFull = true;
 	if (fireBonusFreeSpinOnMeterComplete()) return;
 	// Nothing queued to open — don't strand the bar pinned on a wheel that will never come.
-	bonusSpinHoldFull = false;
+	stateGame.spinMeterHoldFull = false;
 	stateGame.spinMeterValue = 0;
 	if (import.meta.env.DEV) {
 		console.warn(
@@ -1347,8 +1345,8 @@ export function creditInBonusSpinMeter(outcome?: PlinkoBallOutcome) {
 export function releaseInBonusSpinMeterHold() {
 	// Drop the pin FIRST: the bank is drained through `creditInBonusSpinMeter`, which banks straight back
 	// while a wheel still owns the screen.
-	if (bonusSpinHoldFull) {
-		bonusSpinHoldFull = false;
+	if (stateGame.spinMeterHoldFull) {
+		stateGame.spinMeterHoldFull = false;
 		stateGame.spinMeterValue = 0;
 	}
 	// Drained even when nothing was pinned — a wheel opened by the depletion catch-all (rather than by
@@ -1370,7 +1368,7 @@ function isFreeSpinWheelOwningScreen(): boolean {
 	return (
 		stateGame.freeSpinRouletteOpen ||
 		bonusFreeSpinOpenPending ||
-		bonusSpinHoldFull ||
+		stateGame.spinMeterHoldFull ||
 		(stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin')
 	);
 }
@@ -1547,7 +1545,7 @@ export function resetBonusRoundVisualState() {
 	bonusSpinBatchStarts = [];
 	bonusSpinBatchLanded = -1;
 	bonusSpinLegacyBatchFired = false;
-	bonusSpinHoldFull = false;
+	stateGame.spinMeterHoldFull = false;
 	bonusSpinBankedOutcomes = [];
 	// Next bonus re-derives its own per-level threshold from that round's book.
 	bonusLevelPegThreshold = 0;
