@@ -25,6 +25,7 @@
 	} from '../game/gameOrchestrator';
 	import {
 		canAffordPlinkoWager,
+		isPlinkoHighBet,
 		plinkoDisplayBalance,
 		plinkoMaxStakePerBall,
 		plinkoMinStakePerBall,
@@ -33,7 +34,11 @@
 		plinkoWagerAmount,
 	} from '../game/plinkoBet';
 	import { syncPlinkoBetModeFromUi } from '../game/plinkoBetMode';
-	import { isConfirmPromptOpen, requestConfirmPrompt } from '../game/confirmPrompt.svelte';
+	import {
+		isConfirmPromptOpen,
+		requestConfirmPrompt,
+		type ConfirmPromptKind,
+	} from '../game/confirmPrompt.svelte';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { stateXstate } from '../game/stateXstate';
 	import { getContext } from '../game/context';
@@ -398,6 +403,16 @@
 		autoPanelOpen = !autoPanelOpen;
 	}
 
+	/**
+	 * Which confirmation an Autobet start gets. A run is confirmed ONCE, here, and its rounds never
+	 * re-prompt (see `needsHighBetConfirm` in Game.svelte) — so if the stake is a high bet, this is the
+	 * player's only chance to be told that, and the prompt has to say so rather than just asking about
+	 * Autobet. Measured against the CURRENT wager, which is what every round of the run will cost.
+	 */
+	function autoBetPromptKind(): ConfirmPromptKind {
+		return isPlinkoHighBet() ? 'highAutobet' : 'autobet';
+	}
+
 	function selectAutoBetCount(count: number) {
 		// The panel is closing either way; make sure the hover-preview doesn't stay pinned to the
 		// last-hovered option (esp. on the toast branch, which doesn't move focus off the option).
@@ -423,7 +438,7 @@
 		autoPanelOpen = false;
 		if (props.betAmount <= 0) return;
 		// A run commits `count` whole wagers up front, so ask before arming anything.
-		requestConfirmPrompt('autobet', () => beginAutoBetRun(count));
+		requestConfirmPrompt(autoBetPromptKind(), () => beginAutoBetRun(count));
 	}
 
 	/**
@@ -465,7 +480,7 @@
 			return;
 		}
 		if (props.betAmount <= 0) return;
-		requestConfirmPrompt('autobet', startArmedAutoBetRun);
+		requestConfirmPrompt(autoBetPromptKind(), startArmedAutoBetRun);
 	}
 
 	/** Start the already-armed run once confirmed; preconditions re-checked (the prompt is not modal to

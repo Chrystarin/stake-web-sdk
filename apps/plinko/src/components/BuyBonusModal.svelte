@@ -159,16 +159,66 @@
 {/if}
 
 <style>
+	/* This is the one modal in the game that is allowed to SCROLL — the four tier cards plus the bet row
+	   and balance don't always fit a phone in portrait — and a scrolling overlay has two mobile traps
+	   that a merely-centred one doesn't. Both are handled here; see the two notes below.
+
+	   ⚠️ Whatever you change, keep the pair intact: `svh` alone still leaves the top of an overflowing
+	   column unreachable, and the `margin: auto` alone still centres inside a box taller than the
+	   screen. QA hit both together on Brave for Android (the title scrolled off above the viewport and
+	   the close button sat under the toolbar) while Chrome looked fine — Chrome's toolbar auto-hides, so
+	   the column happened to fit and neither trap fired. */
 	.bb-backdrop {
 		position: fixed;
 		inset: 0;
+		/* (1) A `position: fixed` box is laid out against the LAYOUT viewport, which on Android Chromium
+		   is the browser-chrome-HIDDEN height — so with a toolbar on screen (Brave keeps one that Chrome
+		   hides on scroll) `inset: 0` describes a box taller than what the player can actually see, and
+		   the part of it under the toolbar is simply unreachable. `svh` is the chrome-MAXIMISED height,
+		   i.e. the smallest the visible area can ever be, so the overlay fits every chrome state of
+		   every browser. Same unit and same reasoning as `.game-root` / `.plinko-app-shell`, which is
+		   also why the strip this leaves uncovered when the toolbar does hide is a non-issue: the game
+		   root ends there too, and what shows through is the flat dark body colour behind a 93%-black
+		   dim. Left after `inset` so a browser without `svh` keeps exactly the old behaviour.
+		   `border-box` is required with it — there is no global box-sizing reset in this app, so a
+		   content-box height of 100svh plus this padding would overflow the screen by the padding. */
+		height: 100svh;
+		box-sizing: border-box;
 		z-index: 60;
 		display: flex;
-		align-items: center;
+		/* (2) NOT `align-items: center` — that is the classic centred-scroll-container trap. When the
+		   column is taller than the backdrop, centring splits the overflow evenly above and below, and
+		   the half above is unscrollable: `scrollTop` cannot go negative, so the title and close button
+		   are gone for good. `flex-start` here plus `margin: auto` on `.bb-modal` centres exactly as
+		   before while it fits (auto margins split the free space) and falls back to top-aligned the
+		   moment it doesn't (auto margins resolve to zero against negative free space), which keeps the
+		   top of the column reachable. */
+		align-items: flex-start;
 		justify-content: center;
 		background: rgba(0, 0, 0, 0.93);
-		padding: 3vh 2vw;
+		/* The safe-area insets are what hold the close button clear of a notch/cutout or a gesture bar;
+		   `viewport-fit=cover` is set in app.html, so without them the overlay draws under both. They
+		   add nothing (0px) on a desktop or an iframe, so the tuned landscape budget is untouched — see
+		   the portrait override below for the one place that asks for more than 3vh. */
+		padding: calc(3vh + env(safe-area-inset-top, 0px)) calc(2vw + env(safe-area-inset-right, 0px))
+			calc(3vh + env(safe-area-inset-bottom, 0px)) calc(2vw + env(safe-area-inset-left, 0px));
 		overflow: auto;
+		/* Keeps a flick inside the modal from chaining to the document once this list hits its end —
+		   that chained scroll is what makes a mobile browser re-show its toolbar mid-gesture, resizing
+		   the visible area under the player's finger. */
+		overscroll-behavior: contain;
+	}
+
+	/* Portrait/mobile only: the close button hangs 8ui-px ABOVE the modal box (see `.bb-close`), so the
+	   backdrop's own top padding is all that stands between it and the browser's toolbar. 3vh is ample
+	   on a tall phone in the abstract, but this states an absolute floor so the button keeps a full
+	   finger's clearance rather than a fraction of whatever the viewport happens to be. Portrait only
+	   because landscape's vertical budget is spent to ~5px at the 1024×576 reference frame (see the
+	   notes on `.bb-bet-row` and `.bb-balance`) and must not be charged for this. */
+	@media (max-aspect-ratio: 1/1) {
+		.bb-backdrop {
+			padding-top: calc(max(3vh, calc(34 * var(--ui-px))) + env(safe-area-inset-top, 0px));
+		}
 	}
 
 	/* Every absolute length in this modal (px AND rem — rem is just as fixed, the app never rescales the
@@ -178,6 +228,10 @@
 	.bb-modal {
 		position: relative;
 		width: min(calc(1100 * var(--ui-px)), 96vw);
+		/* Carries the vertical centring that used to be `align-items: center` on the backdrop — and the
+		   reason it moved (the top of an overflowing column being unreachable) is written up there.
+		   Horizontally it does nothing the backdrop's `justify-content` wasn't already doing. */
+		margin: auto;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -195,6 +249,15 @@
 		cursor: pointer;
 		padding: 0;
 		z-index: 2;
+	}
+	/* The X art is 41.6ui-px square, which lands under the ~44px a thumb needs and reads as "missed the
+	   button" on a phone. This pads the HIT area out to ~58ui-px without touching how big the X draws —
+	   growing the button itself would scale the delivered art with it. Cheap insurance rather than the
+	   main fix: what actually put this button out of reach on Brave was the backdrop above it. */
+	.bb-close::after {
+		content: '';
+		position: absolute;
+		inset: calc(-8 * var(--ui-px));
 	}
 	.bb-close img {
 		width: 100%;

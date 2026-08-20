@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		answerConfirmPrompt,
+		CONFIRM_PROMPT_CAPTIONS,
 		CONFIRM_PROMPT_TITLES,
 		confirmPrompt,
 		type ConfirmPromptKind,
@@ -58,7 +59,19 @@
 			shadowX: number;
 			shadowY: number;
 			shadowBlur: number;
+			/**
+			 * The "?" is set in Noto Sans rather than PiecesOfEight (whose question mark is a decorative
+			 * outlier next to the caps). Noto's glyph runs taller at the same font-size, so this is its
+			 * size as a multiple of the headline's own — tune per prompt if the art changes.
+			 */
+			questionEm: number;
 		};
+		/**
+		 * Plain-copy line under the headline, for the prompts that carry one (see
+		 * CONFIRM_PROMPT_CAPTIONS). `width` caps the text block so a long line wraps inside the plate
+		 * instead of running onto the frame; `lineHeight` is in `em` of the caption's own size.
+		 */
+		caption?: { x: number; y: number; size: number; width: number; lineHeight: number };
 		/** The two choice plates. Give them different `y` values to stagger them. */
 		yes: { x: number; y: number; width: number; scale: number };
 		no: { x: number; y: number; width: number; scale: number };
@@ -76,9 +89,48 @@
 			aspect: { panel: 4700 / 3205, button: 1501 / 821 },
 			panel: { maxWidthPx: 1600, widthVw: 65, scale: 0.95, offsetX: 0, offsetY: -10 },
 			portrait: { widthVw: 92, offsetY: -6 },
-			title: { x: 50, y: 36, size: 8.1, scale: 1.05, shadowX: 0, shadowY: 0.08, shadowBlur: 0.035 },
+			title: {
+				x: 50,
+				y: 36,
+				size: 8.1,
+				scale: 1.05,
+				shadowX: 0,
+				shadowY: 0.08,
+				shadowBlur: 0.035,
+				questionEm: 0.86,
+			},
 			yes: { x: 33, y: 63, width: 31, scale: 1 },
 			no: { x: 67, y: 63, width: 31, scale: 1 },
+			label: { size: 6.4, offsetX: 0, offsetY: -0.31, stroke: 0.2 },
+		},
+		// Arming an Autobet run at a high-bet stake. Deliberately the HIGH BET board, not the Autobet
+		// one: the thing being warned about is the stake, so it should read as the high-bet warning the
+		// player already knows. Its headline is the longest of the set and it is the only prompt with a
+		// caption, so the title is set smaller and both it and the plates move apart to make room.
+		highAutobet: {
+			art: {
+				panel: 'high_bet_container.webp',
+				yes: 'high_bet_yes_container.webp',
+				no: 'high_bet_no_container.webp',
+			},
+			aspect: { panel: 4700 / 3205, button: 1501 / 821 },
+			panel: { maxWidthPx: 1600, widthVw: 65, scale: 0.95, offsetX: 0, offsetY: -10 },
+			portrait: { widthVw: 92, offsetY: -6 },
+			title: {
+				x: 50,
+				y: 27,
+				// A hair under the plain high-bet headline's effective size (8.1 × 1.05): this wording is
+				// four characters longer, and that keeps the run of caps the same width on the plate.
+				size: 6.8,
+				scale: 1,
+				shadowX: 0,
+				shadowY: 0.08,
+				shadowBlur: 0.035,
+				questionEm: 0.86,
+			},
+			caption: { x: 50, y: 44, size: 3.4, width: 64, lineHeight: 1.4 },
+			yes: { x: 33, y: 65, width: 31, scale: 1 },
+			no: { x: 67, y: 65, width: 31, scale: 1 },
 			label: { size: 6.4, offsetX: 0, offsetY: -0.31, stroke: 0.2 },
 		},
 		autobet: {
@@ -90,7 +142,16 @@
 			aspect: { panel: 5167 / 2897, button: 1568 / 569 },
 			panel: { maxWidthPx: 1600, widthVw: 69, scale: .95, offsetX: 0, offsetY: -13 },
 			portrait: { widthVw: 94, offsetY: -6 },
-			title: { x: 50, y: 38, size: 8.2, scale: 1.1, shadowX: 0, shadowY: 0.08, shadowBlur: 0.035 },
+			title: {
+				x: 50,
+				y: 38,
+				size: 8.2,
+				scale: 1.1,
+				shadowX: 0,
+				shadowY: 0.08,
+				shadowBlur: 0.035,
+				questionEm: 0.86,
+			},
 			// Plates sit roughly midway between the headline and the bottom rope — this board is the
 			// shortest of the three, so leaving them tucked under the title stranded a wide run of
 			// empty plank below them.
@@ -109,7 +170,16 @@
 			portrait: { widthVw: 92, offsetY: -6 },
 			// The skull arch eats the top of this board and the coin piles eat the bottom corners, so
 			// the headline sits lower here than on the other two and the plates are narrower.
-			title: { x: 50, y: 44, size: 7.4, scale: 1, shadowX: 0, shadowY: 0.08, shadowBlur: 0.035 },
+			title: {
+				x: 50,
+				y: 44,
+				size: 7.4,
+				scale: 1,
+				shadowX: 0,
+				shadowY: 0.08,
+				shadowBlur: 0.035,
+				questionEm: 0.86,
+			},
 			yes: { x: 35, y: 66.5, width: 24, scale: 1.1 },
 			no: { x: 65, y: 66.5, width: 24, scale: 1.1 },
 			label: { size: 5.2, offsetX: 0, offsetY: -0.8, stroke: 0.2 },
@@ -121,6 +191,18 @@
 	const kind = $derived(confirmPrompt.kind);
 	const layout = $derived(kind ? LAYOUT[kind] : null);
 	const title = $derived(kind ? CONFIRM_PROMPT_TITLES[kind] : '');
+	/**
+	 * The headline split so every "?" can be handed to its own face (see `.cf-title-q`). Splitting on a
+	 * CAPTURING group keeps the marks in the output, so the parts still concatenate back to `title`.
+	 */
+	const titleParts = $derived(
+		title
+			.split(/(\?)/)
+			.filter((part) => part !== '')
+			.map((part) => ({ text: part, question: part === '?' })),
+	);
+	/** Caption copy, pre-split on its authored line breaks (empty for the prompts without one). */
+	const captionLines = $derived(kind ? (CONFIRM_PROMPT_CAPTIONS[kind]?.split('\n') ?? []) : []);
 
 	const artUrl = (file: string) => staticUrl(`img/confirmation_popup/${file}`);
 
@@ -175,9 +257,26 @@
 				style:--shadow-y="{layout.title.shadowY}em"
 				style:--shadow-blur="{layout.title.shadowBlur}em"
 				style:font-size="{layout.title.size}cqw"
+				style:--q-em="{layout.title.questionEm}em"
 			>
-				{title}
+				<!-- prettier-ignore -->
+				{#each titleParts as part}{#if part.question}<span class="cf-title-q">{part.text}</span>{:else}{part.text}{/if}{/each}
 			</h2>
+
+			{#if layout.caption && captionLines.length}
+				<p
+					class="cf-caption"
+					style:--x="{layout.caption.x}%"
+					style:--y="{layout.caption.y}%"
+					style:--w="{layout.caption.width}cqw"
+					style:--scale={1}
+					style:font-size="{layout.caption.size}cqw"
+					style:line-height={layout.caption.lineHeight}
+				>
+					<!-- prettier-ignore -->
+					{#each captionLines as line, index}{#if index > 0}<br />{/if}{line}{/each}
+				</p>
+			{/if}
 
 			<button
 				type="button"
@@ -271,6 +370,7 @@
 
 	/* `--x` / `--y` are the element's CENTRE within the panel, hence the -50% pre-translate. */
 	.cf-title,
+	.cf-caption,
 	.cf-choice {
 		position: absolute;
 		left: var(--x);
@@ -305,6 +405,33 @@
 		   Offsets are `em`, so the shadow scales with the headline instead of being pinned to px. */
 		filter: drop-shadow(var(--shadow-x) var(--shadow-y) var(--shadow-blur) #000000)
 			drop-shadow(var(--shadow-x) var(--shadow-y) var(--shadow-blur) #000000);
+		pointer-events: none;
+	}
+
+	/* Only the "?" is Noto Sans — PiecesOfEight's own question mark is a decorative outlier that reads
+	   as a different mark entirely next to its caps. Everything that makes the headline gold (the
+	   clipped gradient, the drop shadow) lives on `.cf-title` and paints through this span's glyph
+	   unchanged, so this only has to undo the parts that are specific to the display face: its size
+	   ratio (`--q-em`) and the letter-spacing that was tuned for those caps. */
+	.cf-title-q {
+		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
+		font-size: var(--q-em);
+		font-weight: 600;
+		letter-spacing: 0;
+		word-spacing: 0;
+	}
+
+	.cf-caption {
+		margin: 0;
+		width: var(--w);
+		font-family: 'Poppins', sans-serif;
+		font-weight: 600;
+		/* font-size / line-height are set inline from the `caption` knobs. */
+		text-align: center;
+		color: #ffffff;
+		/* Plain text on a dark plank — a soft shadow is enough to keep it off the wood grain. Sized in
+		   `em` so it scales with the caption rather than being pinned to px. */
+		text-shadow: 0 0.06em 0.1em rgba(0, 0, 0, 0.9);
 		pointer-events: none;
 	}
 
