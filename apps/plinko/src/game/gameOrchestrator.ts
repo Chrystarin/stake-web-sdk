@@ -190,19 +190,30 @@ function sizeBonusMeterForLevel(
 	applyBonusMeterLevelMax();
 }
 
+/** The ladder is out of rungs — level 9, the last one `BONUS_LEVEL_LABELS` defines. */
+function isAtBonusLadderTop(): boolean {
+	return stateGame.bonusLevelProgress >= BONUS_LEVEL_LABELS.length;
+}
+
 /**
  * Settle the bar a level-up just completed, for whatever the round does next.
  *
- * THE FINAL LEVEL DOES NOT DRAIN. Once the book has no level left to award — or the ladder is at its
- * top — there is nothing further to climb to, and `onCoinPegHit` already turns every subsequent
- * coin-peg hit away: with `hasPendingBonusLevelAward()` false it drops the fill ceiling to `max - 1`,
- * which a completed bar is never under. Draining here restarted a climb that could not finish, so the
- * player watched the bar creep back up toward a level-up that was never coming and read their remaining
- * hits as progress they were not making. Left standing at max it says the true thing: topped out,
- * nothing left to earn.
+ * THE TOP OF THE LADDER DOES NOT DRAIN. At level 9 there is no rung left for any round to climb to, so
+ * the bar has nothing left to measure — and `onCoinPegHit` already turns every subsequent coin-peg hit
+ * away, since `hasPendingBonusLevelAward()` is false there and drops the fill ceiling to `max - 1`,
+ * which a completed bar is never under. Draining would restart a climb that cannot finish: the player
+ * watches the bar creep back up toward a level-up that is never coming and reads their remaining hits
+ * as progress they are not making. Left standing at max it says the true thing — topped out.
  *
- * The pegs banked behind the pin go with it — `completeBonusMeterThenLevelUp` only hands those to a bar
+ * The pegs banked behind the pin go with it: `completeBonusMeterThenLevelUp` only hands those to a bar
  * that starts from empty, and there is no bar left for them to move.
+ *
+ * ⚠️ THE TOP OF THE LADDER, NOT THE TOP OF THIS ROUND. A round that simply runs out of book-authored
+ * levels below level 9 still drains and re-sizes: level 9 is a fixed ceiling every round shares and the
+ * player can read off the arch, whereas "this book had no more levels" is invisible to them and differs
+ * bet to bet — a bar parked full on level 3 just looks broken. Those rounds keep the older behaviour,
+ * where `applyBonusMeterLevelMax` holds the max above anything the pool can deliver so the bar fills
+ * honestly but never completes.
  *
  * Otherwise: re-size to the level being ENTERED and drain, so its new, taller bar visibly re-fills from
  * empty as that level's balls drop.
@@ -215,7 +226,7 @@ function settleBonusMeterForEnteredLevel(
 ): void {
 	// Runs from `completeBonusMeterThenLevelUp`'s settle step — the queue entry is already consumed and
 	// `bonusLevelProgress` already advanced, so this reads the ladder as it stands AFTER the level-up.
-	if (!hasPendingBonusLevelAward()) return;
+	if (isAtBonusLadderTop()) return;
 	sizeBonusMeterForLevel(levelupPegs, bonusLevel, ownPegs, carryPegs);
 	if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
 }
