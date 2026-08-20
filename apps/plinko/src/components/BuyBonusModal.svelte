@@ -159,9 +159,12 @@
 {/if}
 
 <style>
-	/* This is the one modal in the game that is allowed to SCROLL — the four tier cards plus the bet row
-	   and balance don't always fit a phone in portrait — and a scrolling overlay has two mobile traps
-	   that a merely-centred one doesn't. Both are handled here; see the two notes below.
+	/* This is the one modal in the game that is allowed to SCROLL — and a scrolling overlay has two mobile
+	   traps that a merely-centred one doesn't. Both are handled here; see the two notes below.
+	   It should no longer ever need to: the PORTRAIT FIT block at the bottom of this stylesheet solves the
+	   tier cards against the viewport's height, so the column fits by construction. The scroll stays as
+	   the safety net behind that, which is exactly why these two traps still have to be kept shut — if it
+	   ever does fire, it has to fire correctly.
 
 	   ⚠️ Whatever you change, keep the pair intact: `svh` alone still leaves the top of an overflowing
 	   column unreachable, and the `margin: auto` alone still centres inside a box taller than the
@@ -217,7 +220,34 @@
 	   notes on `.bb-bet-row` and `.bb-balance`) and must not be charged for this. */
 	@media (max-aspect-ratio: 1/1) {
 		.bb-backdrop {
+			/* PORTRAIT UI SCALE. The root only scales --ui-px in LANDSCAPE (see +layout.svelte) — portrait
+			   holds it at a flat 1px, which is why this column used to be a fixed 667px tall no matter how
+			   short the viewport was, and why anything under ~730px of height scrolled. Re-pointing the
+			   unit here makes the whole modal a uniform scale of its portrait reference self, exactly the
+			   way the landscape rule does for 1024×576: every absolute length in this file is stated in
+			   --ui-px, so one declaration moves the title, the four gaps, the balance and (through
+			   --bb-card-w below) the tier cards together.
+			   812 is the height this portrait layout was tuned at (375×812), and the `1px` cap is what
+			   keeps a taller phone rendering EXACTLY as it does today — this only ever shrinks.
+			   WIDTH is deliberately absent: the column's width budget is already 96vw (see `.bb-modal`),
+			   so a second width term would double-count it and shrink the chrome on narrow phones for no
+			   reason. Scoped to `.bb-backdrop`, so it reaches this modal's subtree and nothing else —
+			   neither GameHud.scss nor BetPerBallField.svelte reads --ui-px. */
+			--ui-px: min(1px, calc(100svh / 812));
+			/* The backdrop's own vertical padding, restated as a value the card budget below can read, so
+			   the two can never drift. Mirrors the shorthand in the base rule plus the floor below. */
+			--bb-pad-y: calc(
+				max(3vh, calc(34 * var(--ui-px))) + env(safe-area-inset-top, 0px) + 3vh +
+					env(safe-area-inset-bottom, 0px)
+			);
 			padding-top: calc(max(3vh, calc(34 * var(--ui-px))) + env(safe-area-inset-top, 0px));
+			/* The other scrollbar, and a portrait-only one. `.bb-close::after` pads the X's TAP target 8ui-px
+			   past the button, which itself hangs 8ui-px past the modal's corner — 16ui-px of reach against
+			   the 2vw the backdrop keeps on that side. Landscape has 20px of it and swallows the overhang;
+			   portrait has ~8px, so the tap target stuck out and `overflow: auto` answered with a horizontal
+			   scrollbar over an invisible box. Clipping X costs nothing: it trims dead hit area that was off
+			   the side of the screen anyway, and the visible X still sits inside the viewport. */
+			overflow-x: hidden;
 		}
 	}
 
@@ -227,7 +257,11 @@
 	   no longer fit the frame. */
 	.bb-modal {
 		position: relative;
-		width: min(calc(1100 * var(--ui-px)), 96vw);
+		/* Held as a variable because the portrait card budget has to divide it between the columns, and a
+		   literal `100%` cannot be used there — that value is divided down into a font scale on `.bb-card`,
+		   where a percentage would resolve against the font size instead of the grid. */
+		--bb-modal-width: min(calc(1100 * var(--ui-px)), 96vw);
+		width: var(--bb-modal-width);
 		/* Carries the vertical centring that used to be `align-items: center` on the backdrop — and the
 		   reason it moved (the top of an overflowing column being unreachable) is written up there.
 		   Horizontally it does nothing the backdrop's `justify-content` wasn't already doing. */
@@ -366,9 +400,14 @@
 	}
 
 	.bb-cards {
+		/* Grid shape, restated as data so the portrait fit block at the bottom of this file can solve a
+		   card size against it without having to know which of the two grids is in play. */
+		--bb-cols: 4;
+		--bb-rows: 1;
+		--bb-card-gap: calc(19.2 * var(--ui-px)); /* 1.2rem */
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		gap: calc(19.2 * var(--ui-px)); /* 1.2rem */
+		gap: var(--bb-card-gap);
 		width: 100%;
 	}
 
@@ -583,8 +622,97 @@
 	   query --ui-px is defined under (routes/+layout.svelte), so the two can never both apply. */
 	@media (max-width: 760px) and (max-aspect-ratio: 1/1) {
 		.bb-cards {
+			--bb-cols: 2;
+			--bb-rows: 2;
+			/* 7.2ui-px, not the 0.9rem this used to say: the app halves the root font-size on narrow
+			   screens, so that rem resolved to 7.2px — the same number, but now it scales with the rest of
+			   the column instead of standing still. */
+			--bb-card-gap: calc(7.2 * var(--ui-px));
 			grid-template-columns: repeat(2, 1fr);
-			gap: 0.9rem;
+			gap: var(--bb-card-gap);
+		}
+	}
+
+	/* ── PORTRAIT FIT ────────────────────────────────────────────────────────────────────────────────
+	   The tier cards are the whole vertical budget: they carry a fixed `aspect-ratio`, so their HEIGHT
+	   is decided by the modal's WIDTH, and in portrait that width is 96vw. Nothing in the column ever
+	   consulted the viewport's HEIGHT, which is why a 375×667 phone overflowed by 54px and scrolled
+	   while the same layout cleared 375×812 by 86px.
+
+	   So the card is now sized from BOTH budgets and takes the smaller:
+	     • WIDTH  — the modal's own width, split between the columns (what it always did), and
+	     • HEIGHT — whatever `100svh` has left after the backdrop's padding and the other three blocks.
+	   Everything else in the column is stated in --ui-px, which the portrait rule at the top of this
+	   stylesheet now shrinks with `svh`, so the chrome gives ground on a short screen instead of
+	   leaving the cards to absorb the whole shortfall. Together the two make the column fit by
+	   construction at every portrait size — the backdrop keeps `overflow: auto` purely as a safety net
+	   that should now never fire.
+
+	   ⚠️ `137.6` is the rest of the column MEASURED, in --ui-px, and has to be re-derived if any of it
+	   changes:
+	       37.0  .bb-title       (32ui-px × the 1.16 line-height pinned below)
+	      105.6  three .bb-modal gaps (3 × 35.2)
+	      −24.0  .bb-bet-row's two −12ui-px margins (its art-shadow term is in the vw figure below)
+	      −16.0  .bb-balance's negative margin-top
+	       27.0  .bb-balance     (18ui-px × the 1.5 line-height pinned below)
+	        8.0  slack, so a rounding or font-metric surprise costs a slightly smaller card rather than
+	             a scrollbar
+	   and `14.265vw` is the bet row, the one block that stays vw-driven (its plaque is solved by the
+	   shared `bp-field-metrics` chain, which is vw throughout): 6.4993vw of plaque × the 2.6 portrait
+	   scale × the 0.844 left of it after its own negative margins. Both line-heights are pinned rather
+	   than left at `normal` so that sum is exact even before the display faces have loaded.
+
+	   @supports, because every one of these values is invalid on a browser without `svh` — and an
+	   invalid `var()` in `grid-template-columns` computes to `none`, i.e. one card per row. Guarded, such
+	   a browser simply keeps the pre-fit layout (which is all it could ever have had). */
+	@supports (height: 100svh) {
+		@media (max-aspect-ratio: 1/1) {
+			.bb-title {
+				/* Portrait drops the vw term — 5vw is only ~19px on a phone, so the clamp's --ui-px floor was
+				   already winning; stating it plainly keeps the title a true multiple of the unit at every
+				   height instead of catching on the vw preference once --ui-px shrinks. */
+				font-size: calc(32 * var(--ui-px));
+				line-height: 1.16;
+			}
+
+			.bb-balance {
+				font-size: calc(18 * var(--ui-px));
+				line-height: 1.5;
+			}
+
+			.bb-cards {
+				--bb-cards-budget: calc(100svh - var(--bb-pad-y) - 137.6 * var(--ui-px) - 14.265vw);
+				/* The tighter of the two budgets. The height one is turned into a WIDTH by the same 0.74 the
+				   card carries as its `aspect-ratio`, so one number can drive the tracks. The outer `max()` is
+				   a floor for a viewport so short the budget goes negative — a negative track size would drop
+				   the declaration outright and take the grid with it. */
+				--bb-card-w: max(
+					calc(48 * var(--ui-px)),
+					min(
+						calc(
+							(var(--bb-modal-width) - (var(--bb-cols) - 1) * var(--bb-card-gap)) / var(--bb-cols)
+						),
+						calc(
+							(var(--bb-cards-budget) - (var(--bb-rows) - 1) * var(--bb-card-gap)) /
+								var(--bb-rows) * 0.74
+						)
+					)
+				);
+				/* Explicit tracks, not `1fr`: the cards have to be free to sit NARROWER than the modal once the
+				   height budget is the binding one. `justify-content` then centres them under the title. */
+				grid-template-columns: repeat(var(--bb-cols), var(--bb-card-w));
+				justify-content: center;
+			}
+
+			/* The same trick as the backdrop, one level down: inside a card, "one pixel" means one pixel of a
+			   REFERENCE CARD — 176ui-px across, which is what a card measures on the 375×812 phone this
+			   layout was tuned at. Every size in the card (both headings, the tagline, the free-ball count,
+			   the price, the button label, their strokes and shadows) is already stated in --ui-px, so this
+			   one line keeps a card's contents a fixed fraction of the card at whatever size it lands on.
+			   Without it the type held still while the card shrank, and the tagline overran the panel. */
+			.bb-card {
+				--ui-px: calc(var(--bb-card-w) / 176);
+			}
 		}
 	}
 </style>
