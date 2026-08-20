@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 
+	import { OnHotkey } from 'components-shared';
+
 	import { bonusRouletteSegmentsForTier } from '../../game-logic/constants';
 	import { eventEmitter } from '../../game/eventEmitter';
 	import { assertAuthoritativeOutcome } from '../../game/plinkoFairnessGuard';
@@ -811,13 +813,21 @@
 			}),
 		);
 		if (props.autoDismiss) scheduleAutoDismiss(AUTO_DISMISS_DELAY_MS);
+		// SPACE ALREADY DOWN as this screen opens — the player is pressing "anywhere", they just started
+		// before there was anything to press. `OnHotkey` cannot see it (it only reports presses it watched
+		// begin, and it mounts with this screen), so without this they sit on a held key that does nothing.
+		// Dismissed on exactly the cadence an Autobet run uses, so a held Space and an auto-driven run
+		// read identically on screen.
+		else if (stateGame.spaceHotkeyDown) scheduleAutoDismiss(AUTO_DISMISS_DELAY_MS, 'heldSpace');
 	}
 
 	let autoDismissDone = false;
 
 	/**
 	 * Auto-dismiss for the callers with no player to press "anywhere" (replay, and an Autobet run
-	 * driving its own bonus round).
+	 * driving its own bonus round) — and, as `'heldSpace'`, for a player already holding Space when the
+	 * screen opened. Both land on the same delay, which is the point: the screen behaves the same way
+	 * whether the run is driving it or the player is leaning on the key.
 	 *
 	 * RETRIES rather than firing once. `onAnnouncementClick` is a deliberate no-op until the screen has
 	 * finished sliding down (`announcementCoversScreen`), and that cover is driven by a double-rAF plus a
@@ -826,26 +836,56 @@
 	 * nothing left to close it. Autobet is exactly where that bites: it is designed to keep running in a
 	 * BACKGROUNDED tab (see Game.svelte's `visibilitychange` note), which is precisely when rAF parks.
 	 */
-	function scheduleAutoDismiss(delayMs: number) {
+	function scheduleAutoDismiss(delayMs: number, source: 'auto' | 'heldSpace' = 'auto') {
 		timers.push(
 			setTimeout(() => {
 				if (autoDismissDone || slidePhase === 'exit') return;
+				// They let go before the screen was ready to take the press — hand it back to them, exactly
+				// as releasing a mouse button short of a click would. A fresh press still dismisses at once.
+				if (source === 'heldSpace' && !stateGame.spaceHotkeyDown) return;
 				if (!announcementCoversScreen) {
-					scheduleAutoDismiss(AUTO_DISMISS_RETRY_MS);
+					scheduleAutoDismiss(AUTO_DISMISS_RETRY_MS, source);
 					return;
 				}
 				autoDismissDone = true;
+				// Still down, and the play hotkey re-enables the moment this screen clears — spend the press
+				// here so it cannot also drive Play. See `spaceHotkeyConsumedUntilRelease`.
+				if (source === 'heldSpace') stateGame.spaceHotkeyConsumedUntilRelease = true;
 				onAnnouncementClick();
 			}, delayMs),
 		);
 	}
 
+	/**
+	 * One dismissal per screen. The button stays mounted through the slide-up, and Space auto-repeats
+	 * while held, so without this a second press part-way out would creak the door again and queue a
+	 * duplicate `onClosed` / `onFinished` behind the first.
+	 */
+	let announcementDismissed = false;
+
+	/**
+	 * Space is the keyboard "press anywhere" — a press and a long press both do exactly what a click
+	 * does, no more. Guarded by `onAnnouncementClick` itself, so a hold's repeat presses are no-ops.
+	 *
+	 * The key can still be down when the game comes back, and the play hotkey re-enables the moment this
+	 * screen clears — so the press is marked spent until the player physically lets go. See
+	 * `spaceHotkeyConsumedUntilRelease`: without it the same press that dismissed the pre-bonus screen
+	 * drops a free ball, and the one that dismissed the post-bonus screen places a real wager.
+	 */
+	function onAnnouncementHotkey() {
+		if (announcementDismissed || !announcementVisible || !announcementCoversScreen) return;
+		stateGame.spaceHotkeyConsumedUntilRelease = true;
+		onAnnouncementClick();
+	}
+
 	function onAnnouncementClick() {
+		if (announcementDismissed) return;
 		if (!announcementVisible) return;
 		// Ignore presses while the screen is still sliding down — its "press anywhere" hint isn't even up
 		// yet, and dismissing here would slide the view back open on a game that hasn't switched to bonus
 		// mode (that switch happens at full cover, below), putting the change back in front of the player.
 		if (!announcementCoversScreen) return;
+		announcementDismissed = true;
 		announcementTextVisible = false;
 		announcementCoinsVisible = false;
 		// The game is about to be revealed by the slide-up — put the background back to full rate NOW, so
@@ -949,6 +989,9 @@
 	{/if}
 
 	{#if announcementVisible}
+		<!-- Scoped to the announcement: mounted with it, gone with it. No `disabled` prop — the handler
+		     owns every precondition (and `announcementCoversScreen` is not reactive state). -->
+		<OnHotkey hotkey="Space" onpress={onAnnouncementHotkey} onhold={onAnnouncementHotkey} />
 		<button
 			type="button"
 			class="bonus-announcement"

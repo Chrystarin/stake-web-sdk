@@ -85,6 +85,30 @@ export const stateGame = $state({
 	 * false again — leaving the Play button (and with it the Space hotkey) dead after the wheel closed.
 	 */
 	spinMeterHoldFull: false,
+	/**
+	 * A Space press was SPENT dismissing a full-screen announcement (`BonusRoulette`'s "press anywhere"
+	 * screen), and the key can still be down when the game comes back.
+	 *
+	 * Bars that press from placing a WAGER until the player physically lets go: the post-bonus screen
+	 * hands straight back to the base game, where the play hotkey re-enables the instant it clears, and
+	 * one press must not both dismiss the screen and bet again.
+	 *
+	 * Deliberately NOT a bar on free bonus balls. Out of the PRE-bonus screen the player is holding Play
+	 * on a round they have already won, and the drops are meant to carry on from the screen they just
+	 * dismissed — so `onSpacePlay` waives this whenever free balls are pending, and the hold-to-stream
+	 * path ignores it outright. Cleared by GameHud's window-level Space key-up (and by blur, in case the
+	 * release lands off-window).
+	 */
+	spaceHotkeyConsumedUntilRelease: false,
+	/**
+	 * True while the Space key is PHYSICALLY down, tracked at the window by GameHud so it stays correct
+	 * even while every `OnHotkey` subscriber is muted.
+	 *
+	 * `OnHotkey` only knows about a press it watched begin, so a key already held when a component mounts
+	 * is invisible to it. The congratulations screens need exactly that: a player holding Space as the
+	 * screen slides down is pressing it, and should not have to lift and press again.
+	 */
+	spaceHotkeyDown: false,
 	bonusMeterMax: 20,
 	bonusMeterBaseMax: 20,
 	bonusMeterOverflowValue: 0,

@@ -628,8 +628,29 @@
 		clearBonusPointerPress();
 	}
 
+	const isSpaceKey = (event: KeyboardEvent) => event.key === ' ' || event.code === 'Space';
+
+	/**
+	 * Physical Space state, kept at the window so it survives every mute in the game. `OnHotkey` reports
+	 * presses to whoever is listening AT THE TIME, which leaves two blind spots this covers: a subscriber
+	 * that is `disabled` hears nothing, and one that mounts mid-press never learns the key is down. The
+	 * congratulations screens read it to recognise a Space the player is already holding as they open.
+	 *
+	 * Written only on the transition — auto-repeat fires keydown dozens of times a second, and this is
+	 * reactive state.
+	 */
+	function onWindowKeyDown(event: KeyboardEvent) {
+		if (!isSpaceKey(event)) return;
+		if (!stateGame.spaceHotkeyDown) stateGame.spaceHotkeyDown = true;
+	}
+
 	function onWindowKeyUp(event: KeyboardEvent) {
-		if (event.key !== ' ' && event.code !== 'Space') return;
+		if (!isSpaceKey(event)) return;
+		stateGame.spaceHotkeyDown = false;
+		// The player has let go, so a press spent on a congratulations screen is done being spent — the
+		// NEXT press is theirs to use on Play. This listener is the only one that always hears the
+		// release, which is why the latch is cleared here rather than by the overlay that set it.
+		stateGame.spaceHotkeyConsumedUntilRelease = false;
 		endBonusBallHold('key');
 	}
 
@@ -642,6 +663,10 @@
 		bonusHoldTransport = null;
 		stopBonusBallHoldDrop();
 		clearBonusPointerPress();
+		// The key-up may land off-window and never reach us; leaving either flag set would deaden Space
+		// for the rest of the session.
+		stateGame.spaceHotkeyConsumedUntilRelease = false;
+		stateGame.spaceHotkeyDown = false;
 	}
 
 	function onMainActionClick() {
@@ -679,6 +704,12 @@
 	 * (e.g. the bet-preset opener) — so Space doesn't both open that control and fire a bet.
 	 */
 	function onSpacePlay() {
+		// This press was already spent dismissing a congratulations screen and the key is still down —
+		// see `spaceHotkeyConsumedUntilRelease`. It bars a WAGER only: letting it through after the
+		// post-bonus screen would place a real bet the player never asked for. A free bonus ball is the
+		// opposite case — the player is holding Play on a round they have already won, and the drops are
+		// meant to carry straight on from the screen they just dismissed.
+		if (stateGame.spaceHotkeyConsumedUntilRelease && !props.hasPendingBonusBalls) return;
 		// Hard-disabled blocks Space entirely; the soft insufficient-balance case falls through to
 		// onMainActionClick, which shows the toast (keeping Space consistent with a click).
 		if (isPlayButtonHardDisabled) return;
@@ -697,6 +728,9 @@
 	 * (a wheel opening), so the stream can't outlive the hold.
 	 */
 	function onSpaceHold() {
+		// No `spaceHotkeyConsumedUntilRelease` check: this path is free-balls-only (the guard below), so
+		// there is no wager to bar, and a Space still held out of the pre-bonus screen is exactly the
+		// hold that should be streaming them.
 		if (!props.hasPendingBonusBalls) return;
 		if (stateGame.menuOpen || stateGame.infoModalOpen) return;
 		if (isConfirmPromptOpen()) return;
@@ -759,6 +793,7 @@
 
 <svelte:window
 	onblur={onWindowBlur}
+	onkeydown={onWindowKeyDown}
 	onkeyup={onWindowKeyUp}
 	onpointerup={onWindowPointerRelease}
 	onpointercancel={onWindowPointerRelease}
