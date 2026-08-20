@@ -337,6 +337,21 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 			bookEvent.spinMeterStart == null
 				? undefined
 				: Math.max(0, Math.floor(bookEvent.spinMeterStart));
+		// ...and the bar that carry fills against. The math re-sizes it per level from the round's own
+		// ball supply, so it grows as the round climbs and CANNOT be inferred from this batch's
+		// `spinMeter` events — a batch that hits no centre pocket emits none, and the bar would be drawn
+		// against the previous level's smaller max and read full too early.
+		//
+		// ⚠️ HANDED DOWN, NOT APPLIED HERE. Every `bonusRound` of the round is read in one go, before a
+		// single bonus ball has left the funnel (same reason the `spinMeter` handler ignores in-bonus
+		// values), so applying it now would leave the whole round on the DEEPEST level's bar — 536
+		// notches on a nine-level 10-ball climb — and the level-1 balls could never fill it. The
+		// orchestrator holds it per batch and applies it as each batch becomes current
+		// (`bonusSpinBatchMaxes`). Absent on a legacy book → the running max is left alone.
+		const spinMeterMax =
+			bookEvent.spinMeterMax == null || bookEvent.spinMeterMax <= 0
+				? undefined
+				: Math.floor(bookEvent.spinMeterMax);
 		if (!stateGame.bonusRoundActive) {
 			// No preceding wheel award (e.g. resume) — start the round and award balls.
 			startAuthoritativeBonusRound(
@@ -346,16 +361,30 @@ export const bookEventHandlerMap: BookEventHandlerMap<import('./typesBookEvent')
 				ballsPlayed,
 				levelupPegs,
 				spinMeterStart,
+				spinMeterMax,
 			);
 			return;
 		}
 		if (level <= stateGame.bonusLevelProgress) {
 			// Entry level: balls were just awarded by the bonus wheel; load their outcomes.
-			loadAuthoritativeBonusOutcomes(outcomes, ballsPlayed, levelupPegs, spinMeterStart);
+			loadAuthoritativeBonusOutcomes(
+				outcomes,
+				ballsPlayed,
+				levelupPegs,
+				spinMeterStart,
+				spinMeterMax,
+			);
 			return;
 		}
 		// True level-up: play after the current level's balls finish (book-driven, no RNG).
-		enqueueAuthoritativeBonusLevel(freeBalls, outcomes, level, levelupPegs, spinMeterStart);
+		enqueueAuthoritativeBonusLevel(
+			freeBalls,
+			outcomes,
+			level,
+			levelupPegs,
+			spinMeterStart,
+			spinMeterMax,
+		);
 	},
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>) => {
 		// Rapid 1-ball mode reveals the win on ball-land (see `finalWin`), so don't apply a partial win

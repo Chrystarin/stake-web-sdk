@@ -211,7 +211,7 @@ export const stateGame = $state({
 	authoritativeBonusOutcomes: [] as PlinkoBallOutcome[],
 	authoritativeBonusOutcomeIndex: 0,
 	/** Pending book-driven bonus level-ups (one entry per `bonusRound` event above the entry level). */
-	authoritativeBonusLevelQueue: [] as { freeBalls: number; outcomes: PlinkoBallOutcome[]; level: number; levelupPegs?: number; spinMeterStart?: number }[],
+	authoritativeBonusLevelQueue: [] as { freeBalls: number; outcomes: PlinkoBallOutcome[]; level: number; levelupPegs?: number; spinMeterStart?: number; spinMeterMax?: number }[],
 	bonusLevelUpOverlayOpen: false,
 	bonusLevelUpOverlayVisible: false,
 	bonusLevelUpLevel: 0,

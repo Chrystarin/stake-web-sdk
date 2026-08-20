@@ -83,6 +83,12 @@ type BookEventBonusRound = {
 	 * merged two levels' balls into one pool the client can no longer recover the carry from its own
 	 * level boundaries. Absent on legacy books → treated as "keep the running value". */
 	spinMeterStart?: number;
+	/** FREE-SPIN meter bar this batch fills against. The math sizes it from the round's ball supply at
+	 * THIS level (`in_bonus_spin_meter_max_at_level`), so it GROWS as the round climbs — it cannot be
+	 * taken from the batch's `spinMeter` events, because a batch whose balls all miss the centre pocket
+	 * emits none and the bar would then render against the previous, smaller level's max. Absent on
+	 * legacy books (which had one fixed bar for the whole round) → keep the running max. */
+	spinMeterMax?: number;
 };
 
 type BookEventSetTotalWin = {

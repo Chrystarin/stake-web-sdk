@@ -7,6 +7,9 @@ import {
 	BONUS_HOLD_ACTIVATION_DELAY_MS,
 	BONUS_HOLD_DROP_INTERVAL_MS,
 	BONUS_LEVEL_LABELS,
+	BONUS_STREAM_DENSIFY_ABOVE_BALLS,
+	BONUS_STREAM_MAX_BALLS_PER_SECOND,
+	BONUS_STREAM_TARGET_TICKS,
 	FREE_SPIN_SEGMENTS,
 	SIM_SPEED,
 	bonusLevelBalls,
@@ -35,6 +38,7 @@ import {
 	plinkoWagerAmount,
 } from './plinkoBet';
 import { applyRgsRoundWinDisplayFromCurrencyWin } from './rgsRoundWin';
+import { applyAuthoritativeSpinMeterMax } from './plinkoMeterConfig';
 import type { PlinkoBallOutcome } from './typesBookEvent';
 
 const BONUS_LEVEL_ACTIVATION_DELAY_MS = 250;
@@ -87,6 +91,19 @@ const bonusOutcomeBatchOrdinal = new WeakMap<PlinkoBallOutcome, number>();
  * legacy path deliberately carries and only the lock is re-armed.
  */
 let bonusSpinBatchStarts: (number | undefined)[] = [];
+/**
+ * Per-batch spin-meter MAX (book `bonusRound.spinMeterMax`), parallel to `bonusSpinBatchStarts`.
+ *
+ * The math sizes this bar from the round's ball supply at that batch's LEVEL
+ * (`in_bonus_spin_meter_max_at_level`), so unlike before it GROWS as the round climbs — a nine-level
+ * climb runs 3 → 536 on the 10-ball entry. It is kept per batch rather than applied when the event is
+ * read because EVERY `bonusRound` of the round is read before the first bonus ball leaves the funnel:
+ * applying it at read time would leave the whole round measured against the DEEPEST level's bar and the
+ * level-1 balls unable to fill it. `applyBonusSpinBatch` applies it as each batch becomes current.
+ *
+ * `undefined` on a legacy book (one fixed bar per round) → leave the running max alone.
+ */
+let bonusSpinBatchMaxes: (number | undefined)[] = [];
 /** Batch ordinal the LANDED balls are currently in (-1 before the first bonus ball lands). */
 let bonusSpinBatchLanded = -1;
 /**
@@ -528,6 +545,7 @@ export function startAuthoritativeBonusRound(
 	ballsPlayed = 0,
 	levelupPegs = 0,
 	spinMeterStart?: number,
+	spinMeterMax?: number,
 ) {
 	const played = Math.max(0, Math.floor(ballsPlayed || 0));
 	// Seed the persisted-progress counter so continued play keeps saving the cumulative count
@@ -536,7 +554,7 @@ export function startAuthoritativeBonusRound(
 	stateGame.authoritativeBonusOutcomes = normalizeBonusOutcomes(outcomes);
 	stateGame.authoritativeBonusOutcomeIndex = played;
 	// This batch OWNS the outcome array (resume / no preceding wheel), so it restarts the batch ledger.
-	registerBonusSpinBatch(stateGame.authoritativeBonusOutcomes, spinMeterStart, true);
+	registerBonusSpinBatch(stateGame.authoritativeBonusOutcomes, spinMeterStart, true, spinMeterMax);
 	// Size the energy bar to what THIS (entry) level's own balls will actually deliver. No carry: the
 	// entry level starts on an empty pool.
 	sizeBonusMeterForLevel(
@@ -564,6 +582,7 @@ export function enqueueAuthoritativeBonusLevel(
 	level: number,
 	levelupPegs = 0,
 	spinMeterStart?: number,
+	spinMeterMax?: number,
 ) {
 	stateGame.authoritativeBonusLevelQueue = [
 		...stateGame.authoritativeBonusLevelQueue,
@@ -576,6 +595,8 @@ export function enqueueAuthoritativeBonusLevel(
 			// Free-spin meter this batch opens on — carried until the batch's balls are actually poured
 			// into the pool, which is where the bar re-seats (`registerBonusSpinBatch`).
 			spinMeterStart: spinMeterStart == null ? undefined : Math.max(0, Math.floor(spinMeterStart)),
+			spinMeterMax:
+				spinMeterMax == null || spinMeterMax <= 0 ? undefined : Math.floor(spinMeterMax),
 		},
 	];
 	// The book's `bonusRound` events arrive in level order, so the ENTRY level's bar is sized before this
@@ -591,13 +612,14 @@ export function loadAuthoritativeBonusOutcomes(
 	ballsPlayed = 0,
 	levelupPegs = 0,
 	spinMeterStart?: number,
+	spinMeterMax?: number,
 ) {
 	const played = Math.max(0, Math.floor(ballsPlayed || 0));
 	roundBonusBallsPlayed = played;
 	stateGame.authoritativeBonusOutcomes = normalizeBonusOutcomes(outcomes);
 	stateGame.authoritativeBonusOutcomeIndex = played;
 	// Entry level: this batch owns the (fresh) outcome array, so it opens the batch ledger.
-	registerBonusSpinBatch(stateGame.authoritativeBonusOutcomes, spinMeterStart, true);
+	registerBonusSpinBatch(stateGame.authoritativeBonusOutcomes, spinMeterStart, true, spinMeterMax);
 	// Rescue an entry bar that is still sitting FULL. `awardBonusBalls` deliberately snaps the meter to max
 	// as the wheel awards the entry balls, so the trigger reads as "fill → fire"; the book's in-bonus
 	// `bonusMeter` event is what hands it over to the level-1 energy bar (value 0, max = the threshold). If
@@ -671,6 +693,37 @@ async function completeBonusMeterThenLevelUp(reveal: () => void, settleBar: () =
 			stateGame.bonusMeterHoldFull = false;
 			return;
 		}
+		// ⚠️ RE-CHECK THE WHEEL HERE — the gate on entry is not enough, and this is the collision QA sees.
+		//
+		// Everything between that gate and this line is a WAIT: the balls already in the air have to land,
+		// the bar has to render full, and the hold beat has to play. Those landing balls are exactly the
+		// ones that can complete the SPIN bar, and a completed spin bar commits a wheel
+		// (`creditInBonusSpinMeter` → `fireBonusFreeSpinOnMeterComplete`). So the common case is not a tight
+		// race at all — the level-up checks for a wheel, then deliberately waits through the window in which
+		// one is most likely to be committed, and reveals its card on top of it.
+		//
+		// One ball can even carry both flags: `hitBonusPeg` and `hitSpinSlot` are sampled independently, so
+		// the same landing can fill the energy bar and the spin bar together.
+		//
+		// Deadlock-free for the same reason the entry gate is: the wheel's own gate
+		// (`waitForBonusLevelUpCardHidden`) waits only on an already-DRAWN card, and this card is by
+		// definition not drawn yet — it is still here, waiting.
+		// ⚠️ A LOOP, NOT A SINGLE WAIT. Closing one wheel can immediately commit the next: the spin-slot
+		// lands that arrived while the bar was pinned are BANKED, and `releaseInBonusSpinMeterHold` drains
+		// them back through `creditInBonusSpinMeter` the moment the wheel closes — enough of them refill the
+		// bar and open another. A deep round queues several of these back to back, so the card has to wait
+		// out the whole run of them, not just the first. Bounded so a wheel that never reports closed can
+		// only delay the card, never strand it.
+		for (let guard = 0; guard < 8 && isFreeSpinWheelOwningScreen(); guard += 1) {
+			await waitForFreeSpinRouletteClosed();
+			// Don't reveal on the frame the wheel clears; give the card the beat it would normally open on.
+			// Re-checked at the top of the loop, because a banked hit can commit the next wheel inside it.
+			await sleep(BONUS_METER_FULL_HOLD_MS);
+			if (!stateGame.bonusRoundActive) {
+				stateGame.bonusMeterHoldFull = false;
+				return;
+			}
+		}
 		// `reveal` runs the game-facing side of the level-up (award, card, this level's free spin). Whatever
 		// it does, the bar MUST be settled and un-pinned afterwards: a pin left on displays a permanently
 		// full bar AND makes `onCoinPegHit` bank every further hit instead of crediting it, which kills the
@@ -731,6 +784,7 @@ async function applyAuthoritativeBonusLevel(level: {
 	level: number;
 	levelupPegs?: number;
 	spinMeterStart?: number;
+	spinMeterMax?: number;
 }) {
 	await waitForDropBatchCompletion();
 	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
@@ -744,7 +798,7 @@ async function applyAuthoritativeBonusLevel(level: {
 			stateGame.authoritativeBonusOutcomeIndex = 0;
 			// Depletion path: this level REPLACES the outcome array (nothing is left of the last batch),
 			// so the batch ledger restarts on its published spin-meter carry-in.
-			registerBonusSpinBatch(level.outcomes, level.spinMeterStart, true);
+			registerBonusSpinBatch(level.outcomes, level.spinMeterStart, true, level.spinMeterMax);
 			awardBonusBalls(level.freeBalls);
 			// NOTHING free-spin related fires here any more. A level-up is an ENERGY-bar event; the free
 			// spin belongs to the SPIN bar and is fired the instant that one completes
@@ -802,8 +856,9 @@ export function combineNextBonusLevelNow(): boolean {
 	];
 	// APPEND, so the earlier batches stay in the ledger: the leftover balls of the level we are leaving
 	// still land after this point and must keep reporting their own batch, or they would be credited
-	// against the new level's spin-meter carry-in.
-	registerBonusSpinBatch(next.outcomes, next.spinMeterStart);
+	// against the new level's spin-meter carry-in — or, now that the bar grows per level, against the
+	// new level's taller max while they are still the old level's balls (`bonusSpinBatchMaxes`).
+	registerBonusSpinBatch(next.outcomes, next.spinMeterStart, false, next.spinMeterMax);
 	// Reaching max is the TRIGGER, not the visual: the fill is animated and can be well behind the value
 	// that just tripped it, so hand the celebration to the shared "finish the bar first" step. It reveals
 	// the +N reward on a completed bar, then re-sizes to the new level's threshold and drains.
@@ -903,11 +958,70 @@ export function playOneBonusBall() {
 let bonusHoldDropTimer: ReturnType<typeof setInterval> | null = null;
 /** Pending "is this press actually a hold?" window — see `startBonusBallHoldDrop`. */
 let bonusHoldActivationTimer: ReturnType<typeof setTimeout> | null = null;
+/** In-flight stagger timers for a densified tick (see `streamBonusBallsForTick`). */
+const bonusStreamStaggerTimers = new Set<ReturnType<typeof setTimeout>>();
 
 /** Cadence of a held free-ball stream, compressed in Fast Game like the board's own spawn spread. */
 function bonusHoldDropIntervalMs(): number {
 	const speedUp = stateGame.fastGameEnabled ? SIM_SPEED.normal / SIM_SPEED.fast : 1;
 	return Math.round(BONUS_HOLD_DROP_INTERVAL_MS * speedUp);
+}
+
+/**
+ * Balls the held stream releases on THIS tick.
+ *
+ * One, for every round the live library can serve — see `BONUS_STREAM_DENSIFY_ABOVE_BALLS`. Past that
+ * the stream widens rather than speeding up, so the ×10 ladder's deep rounds (up to 5,100 balls at
+ * level 9) finish in tens of seconds instead of tens of minutes without the balls themselves reading
+ * any faster. Recomputed every tick, so it tapers back to a single ball as the pool drains and the
+ * round always ENDS on the normal cadence.
+ */
+function bonusHoldBallsPerTick(): number {
+	const remaining = Math.max(0, Math.floor(stateGame.bonusBallsRemaining));
+	if (remaining <= BONUS_STREAM_DENSIFY_ABOVE_BALLS) return 1;
+	// The ceiling is balls per SECOND, converted against THIS tick — Fast Game halves the tick, so a
+	// per-tick ceiling would quietly double the spawn rate and the on-board ball count with it. See
+	// `BONUS_STREAM_MAX_BALLS_PER_SECOND`.
+	const ceilingThisTick = Math.max(
+		1,
+		Math.round((BONUS_STREAM_MAX_BALLS_PER_SECOND * bonusHoldDropIntervalMs()) / 1000),
+	);
+	return Math.max(1, Math.min(ceilingThisTick, Math.ceil(remaining / BONUS_STREAM_TARGET_TICKS)));
+}
+
+/**
+ * Release one tick's worth of free balls: the first now, the rest staggered evenly across the tick.
+ *
+ * Staggered rather than looped, for two reasons. Visually, `playOneBonusBall` spawns immediately, so a
+ * loop would put all of them in the funnel on the same frame and they would fall as one clump instead
+ * of a stream. Mechanically, each staggered ball re-checks `canDropBonusBallNow`, so a level-up card or
+ * a free-spin wheel that opens mid-tick stops the rest of the tick just as it stops the next one —
+ * without that, a densified tick could push balls into a bar that is already full and owed a wheel.
+ */
+function streamBonusBallsForTick(): void {
+	const count = bonusHoldBallsPerTick();
+	playOneBonusBall();
+	if (count <= 1) return;
+	const spreadMs = bonusHoldDropIntervalMs();
+	for (let i = 1; i < count; i++) {
+		const timer = setTimeout(
+			() => {
+				bonusStreamStaggerTimers.delete(timer);
+				if (!stateGame.bonusRoundActive) return;
+				if (stateGame.bonusBallsRemaining <= 0) return;
+				if (!canDropBonusBallNow()) return;
+				playOneBonusBall();
+			},
+			Math.round((i / count) * spreadMs),
+		);
+		bonusStreamStaggerTimers.add(timer);
+	}
+}
+
+/** Drop any stagger timers still pending — the hold ended, or the round did. */
+function clearBonusStreamStaggerTimers(): void {
+	for (const timer of bonusStreamStaggerTimers) clearTimeout(timer);
+	bonusStreamStaggerTimers.clear();
 }
 
 /**
@@ -964,7 +1078,7 @@ function beginBonusBallHoldStream(): void {
 			stopBonusBallHoldDrop();
 			return;
 		}
-		if (canDropBonusBallNow()) playOneBonusBall();
+		if (canDropBonusBallNow()) streamBonusBallsForTick();
 	}, bonusHoldDropIntervalMs());
 }
 
@@ -974,6 +1088,9 @@ export function stopBonusBallHoldDrop(): void {
 		clearTimeout(bonusHoldActivationTimer);
 		bonusHoldActivationTimer = null;
 	}
+	// A densified tick has balls scheduled across it; the release must take those with it, or the player
+	// keeps spending free balls for up to a tick after letting go.
+	clearBonusStreamStaggerTimers();
 	if (bonusHoldDropTimer === null) return;
 	clearInterval(bonusHoldDropTimer);
 	bonusHoldDropTimer = null;
@@ -1022,12 +1139,15 @@ export function syncAutoBetBonusBallDriver(): void {
 			stopAutoBetBonusBallDriver();
 			return;
 		}
-		if (canDropBonusBallNow()) playOneBonusBall();
+		// Same densification as the held stream — an auto-driven deep round would otherwise sit on the
+		// board for as long as a hand-held one, with nobody watching it.
+		if (canDropBonusBallNow()) streamBonusBallsForTick();
 	}, bonusHoldDropIntervalMs());
 }
 
 /** Idempotent — called from the driver itself, from Stop, and when the run finishes. */
 export function stopAutoBetBonusBallDriver(): void {
+	clearBonusStreamStaggerTimers();
 	if (autoBetBonusDropTimer === null) return;
 	clearInterval(autoBetBonusDropTimer);
 	autoBetBonusDropTimer = null;
@@ -1161,6 +1281,24 @@ function clearBonusLevelUpOverlayHideTimer() {
 }
 
 function showBonusLevelUpOverlay(levelNumber: number, addedBalls: number) {
+	// The level-up card and the free-spin wheel are the two full-screen celebrations of a bonus round and
+	// they must never share the screen. The card yields to the wheel (`completeBonusMeterThenLevelUp`
+	// waits it out) and the wheel yields to a drawn card (`waitForBonusLevelUpCardHidden`), so reaching
+	// here with a wheel up means one of those gates has been bypassed — surface it rather than letting it
+	// show up as a QA screenshot.
+	if (import.meta.env.DEV && isFreeSpinWheelOwningScreen()) {
+		console.error(
+			'[plinko] level-up card drawn while a free-spin wheel owns the screen — the two celebrations are overlapping',
+			{
+				level: levelNumber,
+				freeSpinRouletteOpen: stateGame.freeSpinRouletteOpen,
+				bonusFreeSpinOpenPending,
+				spinMeterHoldFull: stateGame.spinMeterHoldFull,
+				rouletteFlowInProgress: stateGame.rouletteFlowInProgress,
+				activeRouletteSource: stateGame.activeRouletteSource,
+			},
+		);
+	}
 	clearBonusLevelUpOverlayTimer();
 	clearBonusLevelUpOverlayHideTimer();
 	stateGame.bonusLevelUpLevel = Math.max(1, Math.floor(levelNumber || 1));
@@ -1285,9 +1423,11 @@ function registerBonusSpinBatch(
 	outcomes: PlinkoBallOutcome[],
 	spinMeterStart: number | undefined,
 	replace = false,
+	spinMeterMax?: number,
 ) {
 	if (replace) {
 		bonusSpinBatchStarts = [];
+		bonusSpinBatchMaxes = [];
 		bonusSpinBatchLanded = -1;
 		bonusSpinLegacyBatchFired = false;
 	}
@@ -1295,15 +1435,43 @@ function registerBonusSpinBatch(
 	bonusSpinBatchStarts.push(
 		spinMeterStart == null ? undefined : Math.max(0, Math.floor(spinMeterStart)),
 	);
+	bonusSpinBatchMaxes.push(
+		spinMeterMax == null || spinMeterMax <= 0 ? undefined : Math.floor(spinMeterMax),
+	);
 	for (const outcome of outcomes) bonusOutcomeBatchOrdinal.set(outcome, ordinal);
 	// The very first batch seats the bar directly: no ball has landed yet to carry the stamp in.
 	if (ordinal === 0) applyBonusSpinBatch(0);
 }
 
-/** Seat the in-bonus bar on `ordinal`'s published carry-in and re-arm the legacy one-shot lock. */
+/**
+ * Re-assert `ordinal`'s published bar as the one the meter is measured against.
+ *
+ * ⚠️ THIS HAS TO RUN ON EVERY CREDIT, not just when a batch becomes current, because the `spinMeter`
+ * handler applies the `max` off every in-bonus event it READS — and the whole round is read before a
+ * single bonus ball leaves the funnel. On a book whose bar grows per level (the math sizes it from the
+ * round's ball supply) that leaves `stateGame.spinMeterMax` sitting on the DEEPEST batch's value by the
+ * time anything drops: seating batch 0 at register time is immediately overwritten, and its balls then
+ * credit against a bar up to 500+ notches tall instead of 3. Replaying real books through the client
+ * rule put 1,881 of 8,400 bonus rounds short of the wheels their book had already paid for.
+ *
+ * No-op on a legacy book (no per-batch max) and whenever the bar is already right, so the common path
+ * costs one comparison.
+ */
+function ensureBonusSpinBatchMax(ordinal: number): void {
+	const batchMax = bonusSpinBatchMaxes[ordinal];
+	if (batchMax != null && batchMax > 0 && stateGame.spinMeterMax !== batchMax) {
+		applyAuthoritativeSpinMeterMax(batchMax);
+	}
+}
+
+/** Seat the in-bonus bar on `ordinal`'s published max + carry-in, and re-arm the legacy one-shot lock. */
 function applyBonusSpinBatch(ordinal: number) {
 	bonusSpinBatchLanded = ordinal;
 	bonusSpinLegacyBatchFired = false;
+	// The bar THIS batch fills against, applied as the batch becomes current — see `bonusSpinBatchMaxes`
+	// for why it cannot be applied when the event is read. It only ever grows, so the carry seated below
+	// is always within it.
+	ensureBonusSpinBatchMax(ordinal);
 	const start = bonusSpinBatchStarts[ordinal];
 	// Legacy book (no `spinMeterStart`): leave the bar where the previous batch left it — see the note
 	// on `bonusSpinBatchStarts`. Only the fire lock re-arms.
@@ -1345,6 +1513,9 @@ export function creditInBonusSpinMeter(outcome?: PlinkoBallOutcome) {
 	// forward-only: the pool is read in book order, but two balls in the air can still land out of order,
 	// and re-seating backwards on a straggler would replay a batch's carry-in.
 	if (batch != null && batch > bonusSpinBatchLanded) applyBonusSpinBatch(batch);
+	// Already on this batch — but the bar may have been stomped by a later batch's read-ahead
+	// `spinMeter` event, so re-assert it before crediting. See `ensureBonusSpinBatchMax`.
+	else if (batch != null) ensureBonusSpinBatchMax(batch);
 	// A legacy batch pays one free spin and then drops the rest of its hits, exactly as the book that
 	// authored it did — see `bonusSpinLegacyBatchFired`.
 	const legacyBatch = batch != null && bonusSpinBatchStarts[batch] == null;
@@ -1575,8 +1746,12 @@ export function resetBonusRoundVisualState() {
 	stateGame.bonusLevelUpPending = false;
 	bonusFreeSpinOpenPending = false;
 	bonusPegsBankedDuringLevelUp = 0;
+	// A round can end mid-tick (the last ball of a densified tick settles it), so drop any stagger
+	// timers still queued behind it before the next round can inherit them.
+	clearBonusStreamStaggerTimers();
 	// Next bonus rebuilds its own batch ledger from that round's book (`registerBonusSpinBatch`).
 	bonusSpinBatchStarts = [];
+	bonusSpinBatchMaxes = [];
 	bonusSpinBatchLanded = -1;
 	bonusSpinLegacyBatchFired = false;
 	stateGame.spinMeterHoldFull = false;

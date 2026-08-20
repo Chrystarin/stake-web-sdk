@@ -173,6 +173,49 @@ export const MIN_MS_BETWEEN_BALL_SPAWNS = 400;
 export const BONUS_HOLD_DROP_INTERVAL_MS = 200;
 
 /**
+ * Bonus hold-to-drop: the batch size above which the held stream starts releasing MORE THAN ONE ball
+ * per tick, and the pacing it aims for once it does.
+ *
+ * ⚠️ WHY A DENSER STREAM RATHER THAN A FASTER ONE. `BONUS_HOLD_DROP_INTERVAL_MS` is the cadence a free
+ * ball reads at — drop it and the balls stop looking like balls. The ×10 level ladder, though, tops out
+ * at 5,100 balls in one round (level 9), which is 17 minutes of holding at one per 200ms, and roughly
+ * half that in Fast Game. So past a point the stream has to widen instead: several balls per tick,
+ * staggered across it, which is exactly what a 50-ball `fiftydrop` drop already looks like
+ * (`PlinkoBoard.spawnOutcomes` spreads 50 spawns over 5-10s).
+ *
+ * ⚠️ THE THRESHOLD IS SET ABOVE EVERY ROUND THE LIVE LIBRARY CAN PRODUCE — the largest bought entry is
+ * 239 balls and the deepest published book is 376 (a level-5 `fiftydrop`) — so nothing that ships today
+ * changes cadence at all. It only engages on the deep rounds the level ladder can reach in principle but
+ * the current library never serves. Keep it that way: if the library later serves deeper rounds
+ * routinely, re-check this against the round-length numbers rather than nudging it blind.
+ *
+ * At the cap a level-9 round streams in ~41s instead of ~17min.
+ */
+export const BONUS_STREAM_DENSIFY_ABOVE_BALLS = 400;
+/** Ticks the densified stream aims to finish the remaining balls in (~32s at a 200ms tick). */
+export const BONUS_STREAM_TARGET_TICKS = 160;
+/**
+ * Hard ceiling on the densified stream, as balls per SECOND rather than per tick.
+ *
+ * ⚠️ PER SECOND IS THE LOAD-BEARING PART. What costs frame time is how many balls are on the board at
+ * once, and that is `spawn rate × fall time` — a per-TICK cap silently doubles the rate in Fast Game,
+ * where the tick halves to 100ms. Measured on the engine's own per-frame path (physics steps +
+ * `drawFrame`, driven synchronously): a flat 25/tick settles at 534 concurrent at normal speed but 834
+ * in Fast Game, i.e. the "same" cap costs 16.8% of a 60fps frame budget in one mode and 24.6% in the
+ * other. Expressed per second the two modes match — 60/s gives 271 vs 256 concurrent and 9.0% vs 7.8%.
+ *
+ * 60/s was chosen off that measurement: ~270 concurrent balls for ~9% of the frame budget on a desktop,
+ * which still fits inside one frame on a phone several times slower. 80/s measured 11.4% and was
+ * rejected as too little headroom for a low-end device. Ball cost is linear (~5µs per ball per frame),
+ * so if this ever needs to move, re-measure rather than extrapolating past ~600 balls.
+ *
+ * ⚠️ NOT VERIFIED ON REAL MOBILE HARDWARE. The numbers above are one desktop, CPU-side only (the GPU
+ * present is excluded). Confirm on a mid-range phone before shipping a library that can actually serve
+ * these rounds.
+ */
+export const BONUS_STREAM_MAX_BALLS_PER_SECOND = 60;
+
+/**
  * Bonus hold-to-drop: how long Play must stay pressed before the press counts as a HOLD and starts
  * streaming free balls. A press shorter than this drops exactly one ball — an unhurried single click
  * (easily 200-300ms on touch) must not quietly spend a second free ball.
