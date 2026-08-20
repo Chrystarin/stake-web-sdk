@@ -174,6 +174,36 @@ function sizeBonusMeterForLevel(
 }
 
 /**
+ * Settle the bar a level-up just completed, for whatever the round does next.
+ *
+ * THE FINAL LEVEL DOES NOT DRAIN. Once the book has no level left to award — or the ladder is at its
+ * top — there is nothing further to climb to, and `onCoinPegHit` already turns every subsequent
+ * coin-peg hit away: with `hasPendingBonusLevelAward()` false it drops the fill ceiling to `max - 1`,
+ * which a completed bar is never under. Draining here restarted a climb that could not finish, so the
+ * player watched the bar creep back up toward a level-up that was never coming and read their remaining
+ * hits as progress they were not making. Left standing at max it says the true thing: topped out,
+ * nothing left to earn.
+ *
+ * The pegs banked behind the pin go with it — `completeBonusMeterThenLevelUp` only hands those to a bar
+ * that starts from empty, and there is no bar left for them to move.
+ *
+ * Otherwise: re-size to the level being ENTERED and drain, so its new, taller bar visibly re-fills from
+ * empty as that level's balls drop.
+ */
+function settleBonusMeterForEnteredLevel(
+	levelupPegs: number,
+	bonusLevel: number,
+	ownPegs: number,
+	carryPegs: number,
+): void {
+	// Runs from `completeBonusMeterThenLevelUp`'s settle step — the queue entry is already consumed and
+	// `bonusLevelProgress` already advanced, so this reads the ladder as it stands AFTER the level-up.
+	if (!hasPendingBonusLevelAward()) return;
+	sizeBonusMeterForLevel(levelupPegs, bonusLevel, ownPegs, carryPegs);
+	if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
+}
+
+/**
  * THE BAR MUST BE FILLABLE. Set the current level's `bonusMeterMax` from what the BOOK will actually
  * deliver, not from a threshold picked independently of it.
  *
@@ -724,10 +754,15 @@ async function applyAuthoritativeBonusLevel(level: {
 		},
 		() => {
 			// Re-size the bar to the new level's escalating threshold (mirrors the mid-drop combine path),
-			// then drain so the new, taller bar visibly re-fills from empty as its balls drop. This path only
-			// runs once the level's balls have DEPLETED, so there is no leftover carry to fold in.
-			sizeBonusMeterForLevel(level.levelupPegs ?? 0, level.level, countBonusPegs(level.outcomes), 0);
-			if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
+			// then drain so the new, taller bar visibly re-fills from empty as its balls drop — unless this
+			// was the last level, which keeps its completed bar (see `settleBonusMeterForEnteredLevel`).
+			// This path only runs once the level's balls have DEPLETED, so there is no leftover carry.
+			settleBonusMeterForEnteredLevel(
+				level.levelupPegs ?? 0,
+				level.level,
+				countBonusPegs(level.outcomes),
+				0,
+			);
 		},
 	);
 }
@@ -790,13 +825,12 @@ export function combineNextBonusLevelNow(): boolean {
 			// spin bar fires its own wheel when it completes; this level-up only owns the energy bar.
 		},
 		() => {
-			sizeBonusMeterForLevel(
+			settleBonusMeterForEnteredLevel(
 				next.levelupPegs ?? 0,
 				next.level,
 				countBonusPegs(next.outcomes),
 				carryPegs,
 			);
-			if (stateGame.bonusRoundActive) stateGame.bonusMeterValue = 0;
 		},
 	);
 	return true;
