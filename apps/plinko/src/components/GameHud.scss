@@ -602,6 +602,13 @@
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 0.52vw;
+	/* Both rows are fixed-height (2.6vw), so the row TRACKS must not swallow the 0.2vw of slack
+	   left over inside the plaque. `align-content`'s default stretch hands that slack to the
+	   auto-sized tracks, which opens the visible row gap to 0.62vw and leaves the pair of rows
+	   sitting ~1px above the plaque's middle. Centring the tracks holds the gap at the declared
+	   0.52vw and seats the block on the true centre — the line the ::before/::after inset frames
+	   below are drawn around. */
+	align-content: center;
 	z-index: 6;
 	overflow: hidden;
 
@@ -666,7 +673,14 @@
 	height: 2.6vw;
 	border: 0.05vw solid #492a16;
 	border-radius: 0.31vw;
-	padding: 0;
+	/* Optical centring for the numerals. `align-items: center` centres the LINE BOX, and Poppins
+	   reserves a descender's worth of that box below the baseline — space these digits never use,
+	   since they sit ON the baseline and rise only ~0.742em above it. Box-centred, the figures
+	   therefore land ~0.05em high: 10.6px of headroom against 13.8px underneath, measured in a
+	   2.6vw button at 1920w. Top padding shifts centred content down by HALF its value, so 0.1em
+	   buys exactly that 0.05em. em-based, so it holds at every viewport width. The other three
+	   sides stay 0 — the box itself is already centred by the grid. */
+	padding: 0.1em 0 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1395,6 +1409,11 @@
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 0.52vw;
+	/* Both rows are fixed-height (2.6vw), so the row TRACKS must not swallow the 0.2vw of slack
+	   left over inside the plaque — `align-content`'s default stretch would open the visible row
+	   gap to 0.62vw and lift the pair ~1px off the plaque's middle. Same plaque geometry, same
+	   fix as .bp-bet-presets-panel; keep the two in step. */
+	align-content: center;
 	z-index: 6;
 	overflow: hidden;
 
@@ -1440,7 +1459,11 @@
 	height: 2.6vw;
 	border: 0.05vw solid #492a16;
 	border-radius: 0.31vw;
-	padding: 0;
+	/* Optical centring for the numerals — see .bp-bet-presets-option, this rule's twin, for the
+	   full derivation: `align-items: center` centres the line box, but Poppins's box reserves a
+	   descender below the baseline that digits never occupy, so box-centred figures sit ~0.05em
+	   high. Top padding moves centred content down by half its value, so 0.1em buys the 0.05em. */
+	padding: 0.1em 0 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1973,7 +1996,16 @@
 	border: 0.12vw solid rgba(191, 100, 42, 0.42);
 	border-radius: clamp(6px, 1.4vw, 10px);
 	height: clamp(32px, 8.5vw, 52px);
-	padding: 0;
+	/* Optical centring for the numerals — the portrait half of .bp-autobet-option's fix, and the
+	   same 0.1em: Poppins reserves a descender below the baseline that digits never occupy, so a
+	   box-centred figure sits ~0.05em high, and top padding moves centred content down by half
+	   its value. This button is a plain (non-flex) one, so the UA centres the content block
+	   rather than a flex line, but the correction lands the same: 7.82px of headroom against
+	   9.5px underneath becomes 8.7/8.7 in a 32px button at 375w. Both of this rule's sizes are
+	   clamped, and Blink rounds the font ascent/descent to whole px, so the ideal shift drifts
+	   between ~0.026em and ~0.057em across the clamp range — 0.05em is exact at phone widths and
+	   at worst ~0.5px generous on a tablet. */
+	padding: 0.1em 0 0;
 	background: linear-gradient(180deg, rgba(56, 33, 22, 0.92) 0%, rgba(31, 20, 14, 0.94) 100%);
 	color: #ffffff;
 	font-size: clamp(17px, 4.51vw, 26px);
