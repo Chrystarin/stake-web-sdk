@@ -856,7 +856,11 @@
 
 	<div class="game-content">
 		<div class="game-area" class:game-area--pixi-fill={!mobile}>
-			<div class="container" class:container--bonus={stateGameDerived.isBonusBackgroundActive}>
+			<!-- `container--bonus` cross-fades the bonus game-area frame (`img/game_area_bonus.webp`) in.
+			     It rides `isBonusFrameOverlayActive`, NOT `isBonusBackgroundActive`: the frame is meant to
+			     light the instant the bonus meter tops out, ahead of the wheel/congratulations screens,
+			     while the backdrop swap still waits for the round itself. -->
+			<div class="container" class:container--bonus={stateGameDerived.isBonusFrameOverlayActive}>
 				{#if stateGame.bonusRoundActive}
 					<div class="bonus-level-behind-game-area">
 						<BonusLevel
@@ -1559,6 +1563,9 @@
 		transition: opacity 0.28s ease-in-out;
 	}
 
+	/* Fades in the moment `.container--bonus` lands (bonus meter full — see the binding above), and back
+	   out when the bonus round ends. Cross-fades against the base frame beneath it, so both sides of the
+	   swap share the same 0.28s ease-in-out. */
 	.game-area-bonus-overlay {
 		opacity: 0;
 		z-index: 3;

@@ -394,6 +394,24 @@ export const stateGameDerived = {
 	get isBonusBackgroundActive(): boolean {
 		return stateGame.bonusRoundActive;
 	},
+	/**
+	 * The bonus GAME-AREA FRAME overlay (`img/game_area_bonus.webp`) on its own — deliberately a WIDER
+	 * signal than `isBonusBackgroundActive` above, which still holds the backdrop / spine swap back until
+	 * the bonus round is genuinely running.
+	 *
+	 * The frame lights the MOMENT the bonus meter reads full, so filling the bar and dressing the board
+	 * are one beat: the overlay is already fading in while the wheel and the congratulations screen play
+	 * out behind it. It then stays on for the whole round via `bonusRoundActive` — which also covers the
+	 * in-bonus meter dropping back to 0 at the start of every level — and fades out with the round, since
+	 * `resetBonusRoundVisualState` clears that flag and returns the meter to its tier start in one block.
+	 *
+	 * Gated on the meter actually being ON SCREEN (`areTierMetersVisible`): the plain 1-ball tier hides
+	 * its meters, and a frame lighting up there with no visible bar to explain it reads as a glitch.
+	 */
+	get isBonusFrameOverlayActive(): boolean {
+		if (stateGame.bonusRoundActive) return true;
+		return stateGameDerived.areTierMetersVisible && isBonusMeterFull();
+	},
 	get bonusLevelLabels(): readonly number[] {
 		return BONUS_LEVEL_LABELS;
 	},
