@@ -97,6 +97,7 @@
 	$effect(() => {
 		if (stateGame.quickGuideOpen) return;
 		pageIndex = 0;
+		resetVideoSlots();
 	});
 
 	function click() {
@@ -126,15 +127,102 @@
 		close();
 	}
 
+	/**
+	 * ── THE VIDEO CROSS-FADE ─────────────────────────────────────────────────────────────────────
+	 * The well runs TWO <video> elements stacked on top of each other and dissolves between them,
+	 * rather than re-keying a single one on the page.
+	 *
+	 * A keyed element flickered, and the cause is decode rather than bytes: tearing the element down
+	 * and standing a new one up with a fresh `src` leaves a hole of one to several frames in which
+	 * the incoming clip has nothing to paint, and the well behind it is `#000` — so every page turn
+	 * flashed black. Preloading does not help; the data was already resident, it is the decode
+	 * pipeline that starts from nothing each time.
+	 *
+	 * So the outgoing clip is left on screen, untouched and still playing, until the incoming one has
+	 * a frame of its own to show — `loadeddata` is what says so, and only then does the swap start.
+	 * The fade is never racing a decoder. Two elements is the fewest a dissolve can be done with, and
+	 * they exist only while the guide is open.
+	 */
+	const VIDEO_SLOTS = [0, 1] as const;
+
+	/**
+	 * Safety net on the wait above. `loadeddata` from a `blob:` source that is already resident is
+	 * effectively immediate, but a decoder that never reports would leave the guide stuck on the
+	 * previous page's clip — far worse than the flash this replaces. Past this, swap regardless and
+	 * let the fade look however it looks.
+	 */
+	const VIDEO_READY_TIMEOUT_MS = 500;
+
+	/**
+	 * The clip in each slot, and which slot is in front. `null` is a slot that has never been used:
+	 * the second one stays empty until the first page turn, so simply opening the guide still stands
+	 * up one decoder rather than two.
+	 */
+	let slotVideos = $state<(number | null)[]>([PAGES[0].video, null]);
+	let activeSlot = $state(0);
+
+	/** The slot whose `loadeddata` we are waiting on, or null when the well is settled. */
+	let pendingSlot: number | null = null;
+	let readyTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function cancelPendingVideo() {
+		clearTimeout(readyTimer);
+		readyTimer = undefined;
+		pendingSlot = null;
+	}
+
+	function resetVideoSlots() {
+		cancelPendingVideo();
+		slotVideos = [PAGES[0].video, null];
+		activeSlot = 0;
+	}
+
+	/**
+	 * Bring `slot` to the front, which is what actually starts the dissolve.
+	 *
+	 * Gated on `pendingSlot` rather than run unconditionally, because BOTH elements report
+	 * `loadeddata` and a timer can outlive the turn that armed it. Without the guard the slot already
+	 * on screen would hand itself the front the moment its own clip finished loading.
+	 */
+	function showSlot(slot: number) {
+		if (pendingSlot !== slot) return;
+		cancelPendingVideo();
+		activeSlot = slot;
+	}
+
+	/** Point the idle slot at `video` and hand it the front once it has a frame to show. */
+	function crossfadeTo(video: number) {
+		/* Paged back onto the clip that is already showing, mid-fade. Whatever the idle slot is
+		   loading is now the wrong answer — drop the wait, or it takes the front when it lands. */
+		if (slotVideos[activeSlot] === video) {
+			cancelPendingVideo();
+			return;
+		}
+		const idle = activeSlot === 0 ? 1 : 0;
+		pendingSlot = idle;
+		/* The idle slot still holds this clip from an earlier turn and never stopped playing, so it
+		   has a frame up already and there is nothing to wait for. Re-assigning the same `src` would
+		   not reload it either, so no second `loadeddata` would ever arrive to release the fade. */
+		if (slotVideos[idle] === video) {
+			showSlot(idle);
+			return;
+		}
+		slotVideos[idle] = video;
+		clearTimeout(readyTimer);
+		readyTimer = setTimeout(() => showSlot(idle), VIDEO_READY_TIMEOUT_MS);
+	}
+
 	function goBack() {
 		if (isFirstPage) return;
 		pageIndex -= 1;
+		crossfadeTo(PAGES[pageIndex].video);
 		click();
 	}
 
 	function goNext() {
 		if (isLastPage) return;
 		pageIndex += 1;
+		crossfadeTo(PAGES[pageIndex].video);
 		click();
 	}
 
@@ -196,13 +284,18 @@
 					     opens, so `staticUrl` hands back a `blob:` URL and the loop plays with no request
 					     of its own — see QUICK_GUIDE_VIDEO_PATHS for what that costs the splash.
 
-					     Still keyed on the page, so only the CURRENT loop is ever in the DOM. That is about
-					     decoders rather than bytes now: mounting four `<video>`s would stand up four decode
-					     pipelines for three clips nobody is looking at. -->
-					{#key pageIndex}
+					     Two elements, never four: the well dissolves from one clip into the next and a
+					     dissolve needs both of them alive at once, but mounting all four would stand up four
+					     decode pipelines for three clips nobody is looking at. The second slot stands up
+					     empty and stays that way until the first page turn — see the cross-fade note in the
+					     script for why this is a pair of fixed slots rather than one element keyed on the
+					     page. -->
+					{#each VIDEO_SLOTS as slot (slot)}
+						{@const clip = slotVideos[slot]}
 						<video
 							class="qg-video-el"
-							src={staticUrl(QUICK_GUIDE_VIDEO_PATHS[page.video])}
+							class:qg-video-el--on={slot === activeSlot}
+							src={clip === null ? undefined : staticUrl(QUICK_GUIDE_VIDEO_PATHS[clip])}
 							autoplay
 							loop
 							muted
@@ -210,8 +303,9 @@
 							preload="auto"
 							disablepictureinpicture
 							tabindex="-1"
+							onloadeddata={() => showSlot(slot)}
 						></video>
-					{/key}
+					{/each}
 				</div>
 
 				<h3 class="qg-title">{page.title}</h3>
@@ -588,6 +682,16 @@
 	/* The looping-video well. Black, and sized to the clips' own 16:9 so nothing is cropped — the
 	   reference's placeholder rectangle is flatter than the delivered footage. */
 	.qg-video {
+		/*
+		 * How long one clip takes to dissolve into the next. Nothing in JS reads it: the script
+		 * decides WHEN a swap starts — once the incoming clip has a frame to show — and this decides
+		 * how long it then takes to look. Long enough to read as a dissolve rather than a cut, short
+		 * enough that paging through all four pages never feels like waiting on it.
+		 */
+		--qg-video-fade: 260ms;
+		/* The containing block for the two stacked clips. The transform below already establishes one,
+		   but positioning that depends on a tuning knob staying non-neutral is positioning by luck. */
+		position: relative;
 		width: calc(var(--qg-video-width) * var(--qg-video-scale));
 		transform: translate(calc(var(--qg-video-x) * 1cqw), calc(var(--qg-video-y) * 1cqw));
 		aspect-ratio: 16 / 9;
@@ -597,13 +701,38 @@
 		box-shadow: inset 0 0 0 0.2cqw rgba(0, 0, 0, 0.9);
 	}
 
+	/*
+	 * Both clips sit here, stacked, one visible at a time.
+	 *
+	 * The incoming clip fades UP over the outgoing one, which is held at full opacity for exactly as
+	 * long as the fade lasts and only then dropped. Fading both at once — the obvious way — does not
+	 * work: two opacities crossing at 0.5 leave the composite a quarter short, so the well's black
+	 * shows through the middle of every transition. That is a softer version of the very flash this
+	 * exists to remove. Holding the outgoing clip instead means it is covered by a fully opaque one at
+	 * the instant it goes, so there is no frame in which anything behind either of them is visible.
+	 *
+	 * `z-index` is what makes "over" true in both directions: DOM order alone would always paint slot
+	 * 1 above slot 0, and the dissolve has to work whichever way the player is paging.
+	 */
 	.qg-video-el {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
 		display: block;
 		width: 100%;
 		height: 100%;
 		/* `cover` rather than `contain`: the well already matches the source aspect, so this only
 		   guards against a re-delivered clip at a different ratio leaving bars inside the frame. */
 		object-fit: cover;
+		opacity: 0;
+		/* Leaving: hold, then cut. The delay IS the fade's length — see above for why it waits. */
+		transition: opacity 0s linear var(--qg-video-fade);
+	}
+
+	.qg-video-el--on {
+		z-index: 1;
+		opacity: 1;
+		transition: opacity var(--qg-video-fade) ease;
 	}
 
 	.qg-title {
