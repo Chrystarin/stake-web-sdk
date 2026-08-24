@@ -8,6 +8,7 @@ import { getBackgroundPortraitAsset } from './spine/backgroundPortraitAsset';
 import { getBalanceCoinGlowAssets } from './spine/balanceCoinGlowAsset';
 import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvLogoAsset';
 import { getCoinFountainAssets } from './spine/coinFountainAsset';
+import { getFreeSpinMeterFullAssets } from './spine/freeSpinMeterFullAssets';
 import { getGlowNumbersAsset } from './spine/glowNumbersAsset';
 import { loadSpineAsset, spineAssetTreeTasks } from './spine/spineAssetCache';
 import type { SpineAssetDef } from './spine/types';
@@ -352,6 +353,8 @@ function spineAssetTasks(): (() => Promise<unknown>)[] {
 		...getCoinFountainAssets().map((asset) => () => loadSpineAsset(asset)),
 		// Balance-coin light burst (BalanceCoinGlowRenderer) — glow behind the coin, sparkle over it.
 		...getBalanceCoinGlowAssets().map((asset) => () => loadSpineAsset(asset)),
+		// FREE SPIN meter's full-bar celebration (FreeSpinMeterEngine) — bar shine + helm glow/ring.
+		...getFreeSpinMeterFullAssets().map((asset) => () => loadSpineAsset(asset)),
 	];
 }
 
@@ -583,6 +586,7 @@ function coveredUrls(): Set<string> {
 		...spineDefFiles(getGlowNumbersAsset()),
 		...getCoinFountainAssets().flatMap(spineDefFiles),
 		...getBalanceCoinGlowAssets().flatMap(spineDefFiles),
+		...getFreeSpinMeterFullAssets().flatMap(spineDefFiles),
 		...spineDefFiles(getCasinoTvLogoAsset()),
 		CASINO_TV_LOGO_BACKDROP,
 		...otherOrientationBackgroundFiles(),

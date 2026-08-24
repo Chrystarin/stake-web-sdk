@@ -1,5 +1,27 @@
+import '@esotericsoftware/spine-pixi-v8';
+import { Physics, Spine, Vector2 } from '@esotericsoftware/spine-pixi-v8';
 import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import {
+	getFreeSpinMeterFullAssets,
+	type FreeSpinMeterFullAssetDef,
+} from '../../lib/spine/freeSpinMeterFullAssets';
+import { loadSpineAsset } from '../../lib/spine/spineAssetCache';
+import { readSkeletonData } from '../../lib/spine/spineSkeletonData';
 import { staticUrl } from '../../lib/staticUrl';
+
+/**
+ * One half of the meter-full effect: its skeleton plus the SETUP-POSE box it is placed by.
+ *
+ * The box is in spine WORLD space, where y has already been flipped for the screen (spine-pixi sets
+ * `Skeleton.yDown`, which negates the skeleton's scaleY). So a world point lands at
+ * `position + world * scale` with NO second flip — see `layoutFullEffect`.
+ */
+type FullEffectLayer = {
+	spine: Spine;
+	animation: string;
+	offset: Vector2;
+	size: Vector2;
+};
 
 export class FreeSpinMeterEngine {
 	private hostElement!: HTMLElement;
@@ -93,7 +115,32 @@ export class FreeSpinMeterEngine {
   private readonly meterOffsetYByBaseHeight = 0.5;
   private readonly meterWidthByBaseWidth = 0.8;
   private readonly meterHeightByBaseHeight = 0.25;
+  /**
+   * Fraction of the canvas WIDTH held back as empty bleed on EACH side when fitting the base art.
+   *
+   * At 0 the art fills the canvas exactly, which leaves NO room to the right of the helm — it sits at
+   * 0.9 of the base width and is ~0.11 wide, so its own last few pixels were already being cut flat
+   * by the canvas edge, and the meter-full effect's ring (1.44x the helm) was cut from roughly
+   * halfway through its expansion, at full alpha.
+   *
+   * The ring needs ≥ 0.0527 to clear (solve `b + (1 - 2b)(0.9 + 0.1588) ≤ 1`, where 0.1588 is its
+   * half-width as a fraction of the base art). 0.06 takes that with ~0.8% to spare.
+   *
+   * ⚠️ PAIRED WITH CSS — this is not a knob to turn on its own. It shrinks the art in the canvas by
+   * `1 - 2x`, so `.bp-free-spin-meter-wrap` and `.mobile-free-spin-meter` are grown by `1/(1 - 2x)`
+   * = 1.13636 and re-anchored right by `x` of their new width, which keeps the meter at exactly the
+   * size and position on screen it had at 0. Change one, change all four.
+   */
+  private readonly artBleedByViewportWidth = 0.06;
   private frameTicker?: (ticker: { deltaMS: number }) => void;
+  /** Both halves of the meter-full effect (see `loadFullEffect`) — iterated per frame, so built once. */
+  private fullEffect: FullEffectLayer[] = [];
+  private barHighlight?: FullEffectLayer;
+  private wheelGlow?: FullEffectLayer;
+  /** Whether the effect is currently lit — see `syncFullEffect`. */
+  private fullEffectLit = false;
+  /** Set by `destroy`, so an in-flight async init never adds children to a torn-down stage. */
+  private destroyed = false;
 
 	async init(host: HTMLElement): Promise<void> {
 		this.hostElement = host;
@@ -101,6 +148,7 @@ export class FreeSpinMeterEngine {
 	}
 
   destroy(): void {
+    this.destroyed = true;
     if (this.resizeRafId !== null) {
       cancelAnimationFrame(this.resizeRafId);
       this.resizeRafId = null;
@@ -117,6 +165,10 @@ export class FreeSpinMeterEngine {
     // only on a full teardown (page unload / orientation swap).
     const canvas = this.app?.canvas as HTMLCanvasElement | undefined;
     if (canvas) canvas.style.visibility = 'hidden';
+    for (const layer of this.fullEffect) layer.spine.destroy();
+    this.fullEffect = [];
+    this.barHighlight = undefined;
+    this.wheelGlow = undefined;
     this.app?.destroy(true, { children: true, texture: false });
   }
 
@@ -166,7 +218,16 @@ export class FreeSpinMeterEngine {
     this.meterScene.addChild(this.baseSprite);
     this.meterScene.addChild(this.meterMask);
     this.meterScene.addChild(this.meterSprite);
+
+    await this.loadFullEffect();
+    if (this.destroyed) return;
+    // The meter-full effect STRADDLES the wheel, exactly as its slots do in the rig it was exported
+    // from (`highlightbar`, then `helm2`, then `glowWheel` and `ring`): the shine sweeps over the
+    // gold fill but UNDER the helm, while the cyan glow and its ring paint OVER it — so the helm
+    // reads as lighting up rather than sitting in front of its own halo.
+    if (this.barHighlight) this.meterScene.addChild(this.barHighlight.spine);
     this.meterScene.addChild(this.wheelSprite);
+    if (this.wheelGlow) this.meterScene.addChild(this.wheelGlow.spine);
     app.stage.addChild(this.meterScene);
     this.startFrameTicker();
 
@@ -176,6 +237,172 @@ export class FreeSpinMeterEngine {
     this.targetProgress = Math.max(0, Math.min(1, Number(this.progress) || 0));
     this.displayedProgress = this.targetProgress;
     this.resizeToHost();
+  }
+
+  /**
+   * Load the two skeletons the FULL meter celebrates with (see `syncFullEffect`).
+   *
+   * A missing bar highlight takes the wheel glow down with it: the bar's authored box is the scale
+   * basis BOTH layers are placed from (see `layoutFullEffect`), so the survivor would have nothing
+   * to be sized against. Half an effect is worse than none anyway — the two were drawn as one beat.
+   *
+   * Sequential, not `Promise.all`: both bundles name their atlas page `skeleton.png`, and loading
+   * them concurrently can race in Pixi's asset cache — the same reason `BalanceCoinGlowRenderer`
+   * loads its pair one at a time.
+   */
+  private async loadFullEffect(): Promise<void> {
+    for (const def of getFreeSpinMeterFullAssets()) {
+      if (this.destroyed) return;
+      const layer = await this.loadFullEffectLayer(def);
+      if (!layer) continue;
+      if (def.layer === 'barHighlight') this.barHighlight = layer;
+      else this.wheelGlow = layer;
+    }
+    if (!this.barHighlight || this.destroyed) {
+      this.barHighlight?.spine.destroy();
+      this.wheelGlow?.spine.destroy();
+      this.barHighlight = undefined;
+      this.wheelGlow = undefined;
+    }
+    this.fullEffect = [this.barHighlight, this.wheelGlow].filter(
+      (layer): layer is FullEffectLayer => layer !== undefined
+    );
+  }
+
+  private async loadFullEffectLayer(
+    def: FreeSpinMeterFullAssetDef
+  ): Promise<FullEffectLayer | undefined> {
+    try {
+      // Shared cache — preloaded by the intro loader, and registered with Pixi's resolver once.
+      const { atlasAlias, skeletonAlias } = await loadSpineAsset(def);
+      const atlas = Assets.get(atlasAlias);
+      const skeletonSource = Assets.get(skeletonAlias);
+      if (!atlas || !skeletonSource) throw new Error('atlas/skeleton missing from the cache');
+
+      const spine = new Spine({
+        skeletonData: readSkeletonData(def, atlas, skeletonSource),
+        autoUpdate: false
+      });
+      // Measure the SETUP pose, BEFORE any animation is set. Both layers open COLLAPSED — the wheel
+      // glow's first deform key shrinks its meshes to ~27% and the bar's flipbook opens on a
+      // near-empty frame — so measuring after `state.apply` would read a fraction of the real box,
+      // and a DIFFERENT fraction for each, destroying the authored size relationship the shared
+      // scale in `layoutFullEffect` depends on.
+      spine.skeleton.setupPose();
+      spine.state.apply(spine.skeleton);
+      spine.skeleton.updateWorldTransform(Physics.update);
+      const offset = new Vector2();
+      const size = new Vector2();
+      spine.skeleton.getBounds(offset, size, []);
+      const measured =
+        size.x > 0 && size.y > 0 && Number.isFinite(offset.x) && Number.isFinite(offset.y);
+      if (!measured) {
+        // No usable box means no way to place it, and a layer parked off-centre over the meter is
+        // worse than a meter that simply doesn't celebrate.
+        spine.destroy();
+        throw new Error('skeleton has no measurable content bounds');
+      }
+      spine.visible = false;
+      return { spine, animation: def.animation, offset, size };
+    } catch (err) {
+      console.error('[FreeSpinMeterEngine] meter-full effect failed to load', def.id, err);
+      return undefined;
+    }
+  }
+
+  /**
+   * Place both halves of the meter-full effect. Called from `resizeToHost`, which owns every other
+   * placement in this scene.
+   *
+   * ONE SHARED SCALE. The two skeletons come out of the same editor scene (see
+   * `freeSpinMeterFullAssets`), so scaling them together is what preserves the sizes they were drawn
+   * at RELATIVE to each other — the ring ends up ~1.4x the helm because that is how it was authored,
+   * not because a constant here says so. The basis is the bar highlight's own box measured against
+   * the fill bar it sweeps over.
+   *
+   * TWO ANCHORS, though, rather than one scene transform. The authored scene and the engine's
+   * hand-tuned wheel placement (`wheelOffsetXByBaseWidth`) agree to within ~1% of the bar's width,
+   * which is nothing on the soft cyan halo but shows on the crisp ring expanding out of it — that
+   * has to be exactly concentric with the helm, so it is pinned to the sprite instead of inheriting
+   * the drift.
+   */
+  private layoutFullEffect(wheelCenterXPx: number, wheelCenterYPx: number): void {
+    const bar = this.barHighlight;
+    if (!bar) return;
+    const scale = this.meterNativeWidth / bar.size.x;
+
+    // The shine is anchored to the FILL RECT: its box's left edge on the fill's left edge, its
+    // centre line on the fill's. The art is ~1.7x the bar's height, so the glow spills onto the
+    // plaque above and below the bar — that spill is the effect, not a misfit.
+    bar.spine.scale.set(scale);
+    bar.spine.position.set(
+      this.meterOffsetXPx - bar.offset.x * scale,
+      this.meterOffsetYPx + this.meterNativeHeight / 2 - (bar.offset.y + bar.size.y / 2) * scale
+    );
+
+    const wheel = this.wheelGlow;
+    if (!wheel) return;
+    wheel.spine.scale.set(scale);
+    wheel.spine.position.set(
+      wheelCenterXPx - (wheel.offset.x + wheel.size.x / 2) * scale,
+      wheelCenterYPx - (wheel.offset.y + wheel.size.y / 2) * scale
+    );
+  }
+
+  /**
+   * Light the meter-full effect while the bar reads FULL, and advance it.
+   *
+   * Keyed off `displayedProgress`, NOT the target: the fill takes ~0.5s to ease home (see
+   * `fillSmoothTimeSeconds`), and a shine lit on the target would be sweeping a bar the player can
+   * still see climbing under it. This way the celebration lands on the frame the bar completes.
+   *
+   * Stepped from THIS ticker rather than spine's own `autoUpdate` so it inherits `setVisible` for
+   * free: a hidden meter stops this ticker, whereas an effect running off Pixi's SHARED ticker would
+   * go on animating (and re-uploading its atlas frames) behind `visibility: hidden` — exactly the
+   * waste `setVisible` exists to kill.
+   */
+  private stepFullEffect(deltaSec: number): void {
+    if (!this.syncFullEffect()) return;
+    for (const layer of this.fullEffect) layer.spine.update(deltaSec);
+  }
+
+  /** Start/stop the effect to match whether the bar is DRAWN full. Returns whether it is now lit. */
+  private syncFullEffect(): boolean {
+    // Nothing loaded (yet, or at all). Answering `false` rather than latching `fullEffectLit` keeps
+    // the flag honest, so a fill that completes while the skeletons are still in flight still lights
+    // them on the first frame after they land instead of being swallowed as "already lit".
+    if (this.fullEffect.length === 0) return false;
+    const lit = this.targetProgress >= 1 && this.displayedProgress >= 1 - this.fillSnapEpsilon;
+    if (lit === this.fullEffectLit) return lit;
+    this.fullEffectLit = lit;
+    for (const layer of this.fullEffect) layer.spine.visible = lit;
+    if (!lit) {
+      for (const layer of this.fullEffect) layer.spine.state.clearTracks();
+      return false;
+    }
+
+    // Replay from the top on every fill rather than resuming. The meter empties the moment its wheel
+    // pays out, so "full" is an EVENT, not a state the effect drifts in and out of — its shine has
+    // to start at the head of the sweep every time.
+    const barEntry = this.barHighlight
+      ? this.barHighlight.spine.state.setAnimation(0, this.barHighlight.animation, true)
+      : undefined;
+    const cycleSeconds = barEntry?.animation?.duration ?? 0;
+    if (this.wheelGlow) {
+      const entry = this.wheelGlow.spine.state.setAnimation(0, this.wheelGlow.animation, true);
+      // Keep the two in phase FOREVER. They are one authored cycle split across two exports, and the
+      // wheel's half is the shorter (its burst is spent well before the bar's flipbook finishes and
+      // holds), so on its own duration it would gain a whole beat on the bar within seconds. Wrapping
+      // its track on the bar's duration replays it on the bar's beat instead — and the time that adds
+      // is dead anyway, since both its slots key back to alpha 0 before its own animation ends.
+      if (cycleSeconds > entry.animationEnd) entry.animationEnd = cycleSeconds;
+    }
+    // Pose frame 0 NOW. `setAnimation` only queues the track: until something calls `update` the
+    // skeleton is still in its SETUP pose, which for these two is every layer at full size and full
+    // alpha. A stopped ticker (hidden meter) or the synchronous render at the end of `resizeToHost`
+    // would otherwise present that as the opening frame — a full-blown glow with no build-up.
+    for (const layer of this.fullEffect) layer.spine.update(0);
+    return true;
   }
 
   private scheduleResize(): void {
@@ -208,7 +435,10 @@ export class FreeSpinMeterEngine {
     const wheelBaseWidth = this.wheelSprite.texture.width || 1;
     const wheelBaseHeight = this.wheelSprite.texture.height || 1;
 
-    const scale = Math.min(width / baseWidth, height / baseHeight);
+    // `artBleedByViewportWidth` reserves empty margin for the meter-full effect to expand into; at
+    // its shipped 0 this is exactly the old `width / baseWidth`.
+    const fitWidth = width * (1 - this.artBleedByViewportWidth * 2);
+    const scale = Math.min(fitWidth / baseWidth, height / baseHeight);
     const scaledBaseWidth = baseWidth * scale;
     const scaledBaseHeight = baseHeight * scale;
     const offsetX = (width - scaledBaseWidth) / 2;
@@ -229,12 +459,13 @@ export class FreeSpinMeterEngine {
 
     const wheelHeight = scaledBaseHeight * this.wheelScaleByBaseHeight;
     const wheelWidth = wheelHeight * (wheelBaseWidth / wheelBaseHeight);
+    const wheelCenterXPx = offsetX + scaledBaseWidth * this.wheelOffsetXByBaseWidth;
+    const wheelCenterYPx = offsetY + scaledBaseHeight * this.wheelOffsetYByBaseHeight;
     this.wheelSprite.width = wheelWidth;
     this.wheelSprite.height = wheelHeight;
-    this.wheelSprite.position.set(
-      offsetX + scaledBaseWidth * this.wheelOffsetXByBaseWidth,
-      offsetY + scaledBaseHeight * this.wheelOffsetYByBaseHeight
-    );
+    this.wheelSprite.position.set(wheelCenterXPx, wheelCenterYPx);
+
+    this.layoutFullEffect(wheelCenterXPx, wheelCenterYPx);
 
     this.viewportWidth = width;
     this.viewportHeight = height;
@@ -292,6 +523,7 @@ export class FreeSpinMeterEngine {
         this.wheelSprite.rotation += this.wheelSpinRadiansPerSecond * deltaSec;
       }
       this.stepFill(deltaSec);
+      this.stepFullEffect(deltaSec);
     };
     this.app.ticker.add(this.frameTicker as any);
   }
@@ -350,6 +582,10 @@ export class FreeSpinMeterEngine {
       this.displayedProgress = this.targetProgress;
       this.fillVelocity = 0;
       this.updateMeterFill();
+      // Settle the meter-full effect for the same reason the fill jumps: nobody is watching, so
+      // there is no animation to lose — only a wrong frame to hand back. A shine left frozen over a
+      // bar that has since emptied is exactly that, and `resizeToHost` renders synchronously.
+      this.syncFullEffect();
     }
   }
 }

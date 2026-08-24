@@ -64,10 +64,20 @@
 
 .bp-free-spin-meter-wrap {
 	position: absolute;
-	/* Negative right nudges the meter outward (to the right) past the panel edge. */
-	right: -1vw;
+	/* Negative right nudges the meter outward (to the right) past the panel edge.
+	   ⚠️ -1vw was the value when the canvas held no bleed. The box is now 1/(1 - 2 × 0.06) = 1.13636×
+	   wider than the 22vw it needs (see `width`), and the art is CENTRED in it, so it would otherwise
+	   sit 0.86 × 25vw × 0.06 = 1.29vw further left than it used to. -1 - 1.29 puts it back: the meter
+	   lands pixel-for-pixel where it did before, with the new right-hand bleed hanging past the panel.
+	   The panel's own scale(0.9) applies to both terms equally, so it does not enter the sum. */
+	right: -2.29vw;
 	top: -8.35vw;
-	width: 22vw;
+	/* 22vw of ART + the bleed `FreeSpinMeterEngine.artBleedByViewportWidth` reserves on each side, so
+	   the meter-full effect's ring can expand past the helm instead of being cut off by the canvas
+	   edge. 22 / (1 - 2 × 0.06) = 25. The art itself is still fitted to 22vw, unchanged.
+	   ⚠️ Height is NOT grown to match: the ring's full extent is 6.93vw against this 8.8vw, so it
+	   already clears vertically, and growing it would move the art down. */
+	width: 25vw;
 	height: 8.8vw;
 	/* Free-spin component scale, anchored to its bottom-right so it keeps sitting in
 	   the same corner above the panel. */
@@ -1684,16 +1694,28 @@
 	// pull --portrait-fit-scale down. Re-check the board/scrim after changing this.
 	// 1.25 (+25%) then reduced 10% → 1.125, i.e. +12.5% over the baseline below.
 	--fs-meter-scale: 1.125;
+	// Bleed multiplier, mirroring `FreeSpinMeterEngine.artBleedByViewportWidth`: 1 / (1 - 2 × 0.06).
+	// The engine now fits the art into the middle 88% of its canvas and leaves the rest empty, so the
+	// meter-full effect's ring can expand past the helm instead of being cut off by the canvas edge.
+	// Growing the BOX by the same factor keeps the ART at exactly the size it was.
+	// ⚠️ `aspect-ratio` is grown with it (306 × 1.13636 = 347.73) rather than left at 306, so the
+	// HEIGHT is unchanged — this row must not get taller, see the --fs-meter-scale warning above.
+	--fs-meter-bleed-grow: 1.13636;
 	// Right-aligned. Native free-spin-base.png ratio (306 × 137) → no letterbox padding inside the
 	// canvas. Baseline width is 15% smaller than the previous 120px/40%/196px.
 	width: clamp(
-		calc(102px * var(--fs-meter-scale, 1)),
-		calc(34% * var(--fs-meter-scale, 1)),
-		calc(167px * var(--fs-meter-scale, 1))
+		calc(102px * var(--fs-meter-scale, 1) * var(--fs-meter-bleed-grow)),
+		calc(34% * var(--fs-meter-scale, 1) * var(--fs-meter-bleed-grow)),
+		calc(167px * var(--fs-meter-scale, 1) * var(--fs-meter-bleed-grow))
 	);
 	height: auto;
-	aspect-ratio: 306 / 137;
+	aspect-ratio: 347.73 / 137;
 	min-height: 0;
+	// The row is right-aligned and the art is centred in the (now wider) box, so without this the
+	// meter would drift left by 6% of its width. Shifting it back parks the bleed in .mobile-hud's
+	// own 3vw side padding — which is roomier than the bleed at every width the clamp can produce, so
+	// nothing clips it. Transform, not margin, so the row's layout is untouched.
+	transform: translateX(6%);
 }
 
 // Hidden state for the always-mounted mobile free-spin meter (1-ball tier). `visibility` — not
