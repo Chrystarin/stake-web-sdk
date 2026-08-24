@@ -307,7 +307,11 @@
 		   cannot read the panel's properties, and in the panel's own unit: the offsets are a % of the
 		   PANEL's width, not of the logo's, so nudging the logo and nudging the copy mean the same
 		   thing. (`cqw` would not work here — outside the panel there is no container to measure.) */
-		--qg-logo-scale: 1.1;
+		/* 0.99, not the 1.1 the old logo ran at: the art delivered with the hat is 1.88:1 where the
+		   one before it was 2.25:1, so at an unchanged width it stands ~20% taller and the block it
+		   makes with the panel grew past what the 68vh budget leaves. See the note on `--qg-panel-w`
+		   for what runs out first — the logo's own top edge, at 1280x720 and in the 400x225 popout. */
+		--qg-logo-scale: 0.99;
 		--qg-logo-x: 0;
 		--qg-logo-y: -5;
 
@@ -809,7 +813,8 @@
 			/* The same logo at roughly the same size on screen; it is the panel under it that narrowed. */
 			--qg-logo-w: 0.58;
 			--qg-logo-overlap: 0.085;
-			--qg-logo-scale: 1.2;
+			/* Down a tenth with the landscape one, and for the same reason — see the note there. */
+			--qg-logo-scale: 1.08;
 			--qg-logo-x: 0;
 			--qg-logo-y: -7;
 			--qg-panel-scale: 1;

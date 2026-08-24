@@ -29,7 +29,7 @@ export const CONFIRM_PROMPT_TITLES: Record<ConfirmPromptKind, string> = {
  * rendered as-is rather than left to wrap wherever the panel width happens to land.
  */
 export const CONFIRM_PROMPT_CAPTIONS: Partial<Record<ConfirmPromptKind, string>> = {
-	highAutobet: 'You are about to start Auto Bet\nwith a highbet amount.',
+	highAutobet: 'You are about to start Auto Bet\nwith a high bet amount.',
 };
 
 /** Which prompt is on screen (`null` = none). Reactive; read by ConfirmPromptModal. */
