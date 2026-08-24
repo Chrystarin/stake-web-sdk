@@ -280,6 +280,15 @@ let bonusMeterDrainTimer: ReturnType<typeof setTimeout> | null = null;
 let bonusLevelUpOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 let bonusLevelUpOverlayHideTimer: ReturnType<typeof setTimeout> | null = null;
 let autoBetTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Identity of the CURRENT Autobet run. Bumped when a run starts and again when one ends, so a loop
+ * iteration belonging to a run that has already been finished elsewhere can recognise itself as stale
+ * and return silently instead of finishing it a second time (which would fire a second toast).
+ *
+ * This matters now that a run can end from OUTSIDE the loop: a bonus trigger ends the run on the spot
+ * (`endAutoBetForBonusRound`) while `playAutoRounds` is still parked in `waitForAutoBetRoundIdle`.
+ */
+let autoBetRunGeneration = 0;
 const AUTO_BET_INTER_ROUND_DELAY_MS = 200;
 const AUTO_BET_ROUND_START_TIMEOUT_MS = 5000;
 const AUTO_BET_ROUND_IDLE_TIMEOUT_MS = 120_000;
@@ -913,6 +922,11 @@ export function takeAuthoritativeBonusOutcome(): PlinkoBallOutcome | undefined {
 export function awardBonusBalls(count: number) {
 	const amount = Math.max(1, Math.floor(count || 1));
 	if (!stateGame.bonusRoundActive) {
+		// A bonus round ends an Autobet run and goes manual. Normally the wheel's `triggerRoulette`
+		// already ended it well before this point; this covers the starts that have no wheel in front of
+		// them — a buy-bonus (which raises `bonusRouletteOpen` directly) and a resume that skips straight
+		// to `startAuthoritativeBonusRound`. No-op when the run is already over.
+		endAutoBetForBonusRound();
 		stateGame.bonusAwardedThisRound = true;
 		stateGame.baseRoundDropWinAmount = stateGame.pendingDropWinAmount;
 		stateGame.bonusRoundActive = true;
@@ -1105,63 +1119,6 @@ export function stopBonusBallHoldDrop(): void {
 	if (bonusHoldDropTimer === null) return;
 	clearInterval(bonusHoldDropTimer);
 	bonusHoldDropTimer = null;
-}
-
-let autoBetBonusDropTimer: ReturnType<typeof setInterval> | null = null;
-
-/**
- * True while an Autobet run owns the bonus round — i.e. it should drop the free balls itself and
- * auto-dismiss the wheel / congratulations screens instead of waiting for a player who isn't there.
- *
- * Goes false the moment the player presses Stop, which is the whole point: the run places no further
- * wagers, the driver below shuts down, and whatever free balls are left go back to being player-driven
- * (they are already won — stopping Autobet must never forfeit them). Replay drives its own bonus balls
- * (`tickReplayBonusBalls`) and must not be double-driven.
- */
-export function isAutoBetDrivingBonus(): boolean {
-	return stateGame.autoPlayStarted && !stateGame.autoPlayStopping && !isReplayMode();
-}
-
-/**
- * AUTOBET BONUS DRIVER. A bonus round drops its free balls on player Play presses; an Autobet run has
- * no player, so it streams them out itself at the hold-to-drop cadence until the round is played out —
- * then the loop settles the round and moves on to the next wager, so the run reaches the count the
- * player actually selected.
- *
- * Kept on its OWN timer rather than sharing `bonusHoldDropTimer`: the player can still press/hold Play
- * during an auto-driven bonus, and a shared timer would let their release (`stopBonusBallHoldDrop`)
- * silently kill the run's stream.
- *
- * Like the held stream this re-checks `canDropBonusBallNow()` every tick instead of stopping, so it
- * PAUSES for a level-up reward / wheel / end-of-level gap and resumes on its own once the next batch of
- * free balls is awarded. Idempotent — safe to call from a reactive effect on every state change.
- */
-export function syncAutoBetBonusBallDriver(): void {
-	if (!isAutoBetDrivingBonus() || !stateGame.bonusRoundActive) {
-		stopAutoBetBonusBallDriver();
-		return;
-	}
-	if (autoBetBonusDropTimer !== null) return;
-	if (canDropBonusBallNow()) playOneBonusBall();
-	autoBetBonusDropTimer = setInterval(() => {
-		// Bonus played out, or the player stopped the run — hand the board back rather than leaving a
-		// timer idling behind a run that no longer exists.
-		if (!isAutoBetDrivingBonus() || !stateGame.bonusRoundActive) {
-			stopAutoBetBonusBallDriver();
-			return;
-		}
-		// Same densification as the held stream — an auto-driven deep round would otherwise sit on the
-		// board for as long as a hand-held one, with nobody watching it.
-		if (canDropBonusBallNow()) streamBonusBallsForTick();
-	}, bonusHoldDropIntervalMs());
-}
-
-/** Idempotent — called from the driver itself, from Stop, and when the run finishes. */
-export function stopAutoBetBonusBallDriver(): void {
-	clearBonusStreamStaggerTimers();
-	if (autoBetBonusDropTimer === null) return;
-	clearInterval(autoBetBonusDropTimer);
-	autoBetBonusDropTimer = null;
 }
 
 /**
@@ -2215,11 +2172,12 @@ function isAutoBetRoundBusy(): boolean {
 		stateGame.isSubmitting ||
 		stateGame.dropRoundActive ||
 		stateGame.bonusBallsRemaining > 0 ||
-		// The bonus round is played out INSIDE the round the run already paid for, so it must hold the
-		// loop for its whole life — including the gaps where no ball is in flight and no wager has been
-		// placed: a committed-but-uncelebrated level-up, and the congratulations screen on its way out.
-		// Settlement deliberately lands behind that screen (see `isBonusRoundBlockingSettlement`), which
-		// releases the round's own locks, so without these the next wager could fire over it.
+		// A bonus ENDS the run (`endAutoBetForBonusRound`), so in practice the loop is already gone by
+		// the time any of these are set — `waitForAutoBetRoundIdle` bails on the generation change rather
+		// than sitting out a hand-played bonus. They stay as the backstop for the ordering: the flags are
+		// raised from several places and this is what guarantees no wager can slip out over a bonus in
+		// the window before the run is torn down (settlement lands BEHIND the congratulations screen, see
+		// `isBonusRoundBlockingSettlement`, which releases the round's own locks early).
 		stateGame.bonusRoundActive ||
 		stateGame.bonusLevelUpPending ||
 		stateGame.bonusEndAnnouncementOpen ||
@@ -2237,26 +2195,58 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Resolver of the delay `autoBetTimer` is currently counting down, so a cancel can settle it. */
+let autoBetDelayResolve: (() => void) | null = null;
+
 function autoBetDelay(ms: number): Promise<void> {
 	return new Promise((resolve) => {
+		autoBetDelayResolve = resolve;
 		autoBetTimer = setTimeout(() => {
 			autoBetTimer = null;
+			autoBetDelayResolve = null;
 			resolve();
 		}, ms);
 	});
 }
 
-/** Wait until the current autobet round fully settles (balls, wheels, wallet). */
-async function waitForAutoBetRoundIdle(): Promise<boolean> {
+/**
+ * Cancel the pending inter-round delay AND settle its promise.
+ *
+ * Resolving matters as much as clearing: the run can now be ended from outside the loop (a bonus
+ * trigger), and the loop can be sitting on this delay when that happens — inside `waitForAutoBetRoundIdle`'s
+ * settle-confirm as well as between rounds. Clearing the timeout alone leaves that `await` waiting on a
+ * promise nothing will ever resolve, stranding the whole call chain and its closures. Resolving instead
+ * lets each `await` return normally and immediately fall out on its generation check.
+ */
+function cancelAutoBetDelay() {
+	if (autoBetTimer) {
+		clearTimeout(autoBetTimer);
+		autoBetTimer = null;
+	}
+	const resolve = autoBetDelayResolve;
+	autoBetDelayResolve = null;
+	resolve?.();
+}
+
+/**
+ * Wait until the current autobet round fully settles (balls, wheels, wallet).
+ *
+ * `runId` is the generation of the run that started this wait. A bonus trigger ends the run from
+ * outside the loop and hands the board to the player, who may then take as long as they like over the
+ * free balls — so bail the moment this wait no longer belongs to the live run rather than sit on a
+ * round nobody is waiting for.
+ */
+async function waitForAutoBetRoundIdle(runId: number): Promise<boolean> {
 	let started = Date.now();
 	let sawActiveRound = false;
 
 	while (Date.now() - started < AUTO_BET_ROUND_IDLE_TIMEOUT_MS) {
-		// The idle timeout is a stall backstop for a BASE drop, which is over in seconds. A bonus round
-		// plays out inside the same round and is legitimately far longer (a Super Fury-sized award plus
-		// its level-ups is hundreds of free balls), so it must not be measured against that budget —
-		// keep the clock parked while one is running. The bonus has its own terminating conditions
-		// (`waitForBonusRoundCompletion` / `settleBonusRoundWhenFinished`), so this cannot run away.
+		if (runId !== autoBetRunGeneration) return false;
+		// The idle timeout is a stall backstop for a BASE drop, which is over in seconds; a bonus round
+		// is legitimately far longer and must not be measured against that budget, so keep the clock
+		// parked while one is running. Normally moot — a bonus ends the run and the generation check
+		// above has already returned — but it still covers the beat between the bonus flags going up and
+		// the tear-down, and any bonus that reaches the board without an Autobet stop in front of it.
 		if (isBonusRoundInProgress()) started = Date.now();
 		if (isAutoBetRoundBusy()) sawActiveRound = true;
 		if (sawActiveRound && !isAutoBetRoundBusy()) {
@@ -2287,10 +2277,10 @@ function canFundNextAutoBetRound(): boolean {
 	return canAffordPlinkoWager();
 }
 
-async function placeAutoBetRound(onBet: () => void): Promise<boolean> {
+async function placeAutoBetRound(onBet: () => void, runId: number): Promise<boolean> {
 	if (isAutoBetRoundBusy()) return false;
 	onBet();
-	return waitForAutoBetRoundIdle();
+	return waitForAutoBetRoundIdle(runId);
 }
 
 /**
@@ -2309,9 +2299,9 @@ async function placeAutoBetRound(onBet: () => void): Promise<boolean> {
  * after the confirm prompt is answered, and the prompt can be answered while the reveal is up.
  */
 export function startAutoBet(onBet: () => void): boolean {
-	// A bonus round already on the board belongs to the round that paid for it — arming a run into the
-	// middle of one would have the driver adopt free balls the run never wagered for. Let the player
-	// finish it, then start.
+	// A bonus round already on the board belongs to the round that paid for it, and it is the player's to
+	// finish by hand (a bonus is what ENDS a run, see `endAutoBetForBonusRound` — starting one back up
+	// over the top of it would undo that on the spot). Let them play it out, then start.
 	if (isGameOngoing() || stateGame.showWinPopup || isBonusRoundInProgress()) return false;
 	stateGame.autoPlayStarted = true;
 	stateGame.autoPlayStopping = false;
@@ -2320,34 +2310,64 @@ export function startAutoBet(onBet: () => void): boolean {
 	stateGame.autoRoundsDisplay = selected;
 	showToast('Autobet Started');
 	const firstRoundLeft = selected >= 1000 ? selected : selected - 1;
-	void playAutoRounds(firstRoundLeft, onBet);
+	const runId = ++autoBetRunGeneration;
+	void playAutoRounds(firstRoundLeft, onBet, runId);
 	return true;
 }
 
 /**
- * Stop the run. Safe at ANY point, including mid-bonus: the free balls left in the funnel are already
- * won, so this never forfeits them — it stops the auto-driver and hands them back to the player, who
- * finishes the bonus round by hand. The loop then settles that round and ends the run without placing
- * another wager (`playAutoRounds` checks `autoPlayStopping` on the way out).
+ * A BONUS ROUND ENDS THE RUN. The bonus is the part of the game the player came for, so the moment one
+ * is triggered inside an Autobet round the run stops there and the whole bonus — the entry wheel, every
+ * free ball, each level-up, the congratulations screen — is played out by hand.
+ *
+ * Ends it IMMEDIATELY rather than flagging it `autoPlayStopping` and letting the loop wind down, because
+ * the loop's exit is parked behind the whole bonus: `isAutoBetRoundBusy` holds for every free ball and
+ * every overlay, and the player takes as long as they like over those. A wind-down would leave the HUD
+ * showing a stopping-but-not-stopped run for the entire bonus and then fire "Autobet Finished" minutes
+ * later, on top of the congratulations screen — announcing the end of a run that plainly ended when the
+ * bonus began. Bumping the generation lets `playAutoRounds`, still parked in `waitForAutoBetRoundIdle`,
+ * recognise itself as stale and return without a second toast.
+ *
+ * The round itself is untouched: the free balls were paid for by the wager the run already placed, so
+ * this forfeits nothing — it only stops the NEXT wager from going out. Called from the bonus wheel's
+ * trigger (`triggerRoulette('bonus')`) and, for the paths that award balls with no wheel in front of
+ * them (resume, buy-bonus), from `awardBonusBalls` as the round opens. Idempotent and a no-op when no
+ * run is live.
+ */
+export function endAutoBetForBonusRound(): void {
+	if (!stateGame.autoPlayStarted) return;
+	// Already winding down from a deliberate Stop press. The run places no further wagers either way and
+	// both endings show the same toast, so there is nothing to add here — leave the exit to the loop,
+	// which owns it.
+	if (stateGame.autoPlayStopping) return;
+	finishAutoBet('bonusTriggered');
+}
+
+/**
+ * Stop the run — the player's own Stop press. The loop finishes without placing another wager
+ * (`playAutoRounds` checks `autoPlayStopping` on the way out).
+ *
+ * Never reaches a bonus round: one of those ends the run outright the moment it triggers
+ * (`endAutoBetForBonusRound`), so by the time free balls are on the board there is no run left to stop.
  */
 export function stopAutoBet() {
 	stateGame.autoPlayStopping = true;
 	stateGame.autoMode = false;
-	stopAutoBetBonusBallDriver();
 }
 
-async function playAutoRounds(roundsLeft: number, onBet: () => void): Promise<void> {
-	if (autoBetTimer) {
-		clearTimeout(autoBetTimer);
-		autoBetTimer = null;
-	}
+async function playAutoRounds(roundsLeft: number, onBet: () => void, runId: number): Promise<void> {
+	// This iteration belongs to a run that has already been ended elsewhere — a bonus trigger
+	// (`endAutoBetForBonusRound`) or a fresh run started over the top of it. It is not ours to finish:
+	// `finishAutoBet` has already run, so calling it again would only fire a duplicate toast.
+	if (runId !== autoBetRunGeneration) return;
+	cancelAutoBetDelay();
 	if (!stateGame.autoPlayStarted || stateGame.autoPlayStopping) {
 		finishAutoBet();
 		return;
 	}
 	if (stateGame.autoPlayPausedByFreeSpin || stateGame.freeSpinRouletteOpen) {
 		await autoBetDelay(AUTO_BET_INTER_ROUND_DELAY_MS);
-		void playAutoRounds(roundsLeft, onBet);
+		void playAutoRounds(roundsLeft, onBet, runId);
 		return;
 	}
 
@@ -2360,7 +2380,9 @@ async function playAutoRounds(roundsLeft: number, onBet: () => void): Promise<vo
 		return;
 	}
 
-	const placed = await placeAutoBetRound(onBet);
+	const placed = await placeAutoBetRound(onBet, runId);
+	// Re-check first: a bonus fired inside the round we just waited on and ended the run mid-await.
+	if (runId !== autoBetRunGeneration) return;
 	if (!stateGame.autoPlayStarted || stateGame.autoPlayStopping) {
 		finishAutoBet();
 		return;
@@ -2381,26 +2403,37 @@ async function playAutoRounds(roundsLeft: number, onBet: () => void): Promise<vo
 	}
 
 	await autoBetDelay(AUTO_BET_INTER_ROUND_DELAY_MS);
+	if (runId !== autoBetRunGeneration) return;
 	if (!stateGame.autoPlayStarted || stateGame.autoPlayStopping) {
 		finishAutoBet();
 		return;
 	}
-	void playAutoRounds(roundsLeft - 1, onBet);
+	void playAutoRounds(roundsLeft - 1, onBet, runId);
 }
 
-function finishAutoBet(reason: 'completed' | 'insufficientBalance' = 'completed') {
-	if (autoBetTimer) {
-		clearTimeout(autoBetTimer);
-		autoBetTimer = null;
-	}
-	stopAutoBetBonusBallDriver();
+function finishAutoBet(
+	reason: 'completed' | 'insufficientBalance' | 'bonusTriggered' = 'completed',
+) {
+	// Retire this run's identity so any loop iteration still in flight for it returns silently instead
+	// of finishing it again — see `playAutoRounds`.
+	autoBetRunGeneration += 1;
+	cancelAutoBetDelay();
 	stateGame.autoPlayStarted = false;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
 	stateGame.autoMode = false;
 	// Soft-lock recovery: if no round is actually in flight, clear any stuck submit/round lock
 	// so the Play button stays responsive. Never clears while a round is still settling.
+	//
+	// ⚠️ NOT on a bonus stop. That run is ending INTO a live round — the wager is placed, the book is
+	// mid-playback and the bonus is about to take the board — so there is by definition nothing stuck to
+	// recover, and the guards below cannot see that yet: the flow's own flags are raised in the same
+	// synchronous breath as this call (`beginRoulette`), and `bonusRoundActive` / `bonusBallsRemaining`
+	// only follow once the player dismisses the wheel. Clearing `dropRoundActive` here would strip the
+	// round mid-flight — `onCoinPegHit` ignores every peg without it, so the bonus's own energy meter
+	// would stop filling.
 	if (
+		reason !== 'bonusTriggered' &&
 		!stateXstateDerived.isPlaying() &&
 		!isGameOngoing() &&
 		!isBonusRoundInProgress() &&
@@ -2409,8 +2442,11 @@ function finishAutoBet(reason: 'completed' | 'insufficientBalance' = 'completed'
 		stateGame.isSubmitting = false;
 		stateGame.dropRoundActive = false;
 	}
-	// One toast slot: a run cut short by the balance says so, instead of the generic completion notice —
-	// "Autobet Finished" on a run that still had rounds left would read as if it had run its course.
+	// One toast slot, and only the balance earns its own wording: "Autobet Finished" tells a player whose
+	// funds ran out nothing about why it stopped with rounds still on the counter. Every other ending —
+	// ran its course, stopped by hand, ended by a bonus — reads as the same event to the player and says
+	// so. A bonus stop needs no explaining here: the wheel arriving on the very next beat is the
+	// explanation, and `reason` still separates it from the rest for the soft-lock guard above.
 	showToast(reason === 'insufficientBalance' ? 'Insufficient Balance' : 'Autobet Finished');
 }
 

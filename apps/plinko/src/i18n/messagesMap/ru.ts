@@ -26,7 +26,6 @@ export default {
 	'How to Play?': 'Как играть?',
 	'Autobet Started': 'Автоставка запущена',
 	'Autobet Finished': 'Автоставка завершена',
-	'Autobet Finished — game was left': 'Автоставка завершена — игра была покинута',
 	'Finishing your previous round…': 'Завершение предыдущего раунда…',
 	'Set a valid bet amount': 'Укажите корректную сумму ставки',
 	'Insufficient Balance': 'Недостаточно средств',

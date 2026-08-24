@@ -26,7 +26,6 @@ export default {
 	'How to Play?': 'कैसे खेलें?',
 	'Autobet Started': 'ऑटोबेट शुरू हुआ',
 	'Autobet Finished': 'ऑटोबेट समाप्त हुआ',
-	'Autobet Finished — game was left': 'ऑटोबेट समाप्त — खेल छोड़ दिया गया',
 	'Finishing your previous round…': 'आपका पिछला राउंड पूरा किया जा रहा है…',
 	'Set a valid bet amount': 'एक मान्य दांव राशि सेट करें',
 	'Insufficient Balance': 'अपर्याप्त राशि',

@@ -26,7 +26,6 @@ export default {
 	'How to Play?': 'Nasıl oynanır?',
 	'Autobet Started': 'Otomatik bahis başladı',
 	'Autobet Finished': 'Otomatik bahis tamamlandı',
-	'Autobet Finished — game was left': 'Otomatik bahis tamamlandı — oyundan çıkıldı',
 	'Finishing your previous round…': 'Önceki turunuz tamamlanıyor…',
 	'Set a valid bet amount': 'Geçerli bir bahis tutarı belirleyin',
 	'Insufficient Balance': 'Yetersiz bakiye',

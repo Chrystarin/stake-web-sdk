@@ -33,7 +33,6 @@
 	import { getContext } from '../game/context';
 
 	import {
-		isAutoBetDrivingBonus,
 		isBetControlsLocked,
 		isGameOngoing,
 		isRapidSingleBallMode,
@@ -47,8 +46,6 @@
 		showToast,
 		startAutoBet,
 		stopAutoBet,
-		stopAutoBetBonusBallDriver,
-		syncAutoBetBonusBallDriver,
 	} from '../game/gameOrchestrator';
 
 	import {
@@ -363,41 +360,6 @@
 		stateGame.pendingFeatureTrigger;
 		stateXstate.value;
 		maybeAutoFireFeatureTrigger(placeBet);
-	});
-
-	/**
-	 * An Autobet run owns the bonus round it triggered: it streams the free balls out itself so the run
-	 * reaches the count the player selected instead of parking on a board that needs Play presses.
-	 *
-	 * `autoPlayStopping` is in the dependency list because Stop must take effect immediately — the driver
-	 * shuts down and the remaining (already-won) free balls go back to being player-driven.
-	 * `fastGameEnabled` is tracked so a speed change re-times the stream's cadence.
-	 *
-	 * ⚠️ These four reads ARE the whole dependency list, and `bonusBallsRemaining` is deliberately NOT
-	 * among them. The teardown below runs before every re-run, so a dep that changes once per free ball
-	 * would tear the interval down and rebuild it on each drop — and the rebuild drops a ball immediately,
-	 * collapsing the cadence into "as fast as the effect re-fires". The driver polls the per-tick
-	 * conditions itself, so it needs no reactivity beyond start/stop.
-	 */
-	$effect(() => {
-		stateGame.autoPlayStarted;
-		stateGame.autoPlayStopping;
-		stateGame.bonusRoundActive;
-		stateGame.fastGameEnabled;
-		untrack(() => syncAutoBetBonusBallDriver());
-		return () => stopAutoBetBonusBallDriver();
-	});
-
-	/**
-	 * The bonus wheel and the post-bonus congratulations screen both wait on a "press anywhere". Replay
-	 * has no player to press it, and neither does a running Autobet — without this the run stalls on the
-	 * overlay forever. Reads false again the moment the player presses Stop, handing the dismissal (and
-	 * the rest of the bonus round) back to them.
-	 */
-	const bonusOverlaysAutoDismiss = $derived.by(() => {
-		stateGame.autoPlayStarted;
-		stateGame.autoPlayStopping;
-		return isReplay || isAutoBetDrivingBonus();
 	});
 
 	function handleBetAmountChange(value: number) {
@@ -978,12 +940,16 @@
 		/>
 	{/if}
 
+	<!-- `autoDismiss` on this wheel and on the congratulations screen below: both wait on a "press
+	     anywhere", and REPLAY is the only mode with nobody there to press it. An Autobet run used to be
+	     the other one — a bonus now ENDS the run before this wheel mounts
+	     (`endAutoBetForBonusRound`), so every bonus overlay has a real player behind it. -->
 	{#if stateGame.bonusRouletteOpen}
 		<BonusRoulette
 			targetFreeBalls={stateGame.serverBonusFreeBalls}
 			serverAuthoritative={stateGame.authoritativeMeterFlow}
 			skipSpin={!!stateGame.pendingBuyBonusMode}
-			autoDismiss={bonusOverlaysAutoDismiss}
+			autoDismiss={isReplay}
 			onResultReady={(result) => onBonusRouletteResultReady(result.freeBallCount)}
 			onFinished={(result) => onBonusRouletteFinished(result.freeBallCount)}
 		/>
@@ -997,7 +963,7 @@
 			messageValue="YOU HAVE WON"
 			winValue={formatWinAmount(stateGame.bonusEndWinAmount, currencySign(stateBet.currency))}
 			messageHint="PRESS ANYWHERE TO GO BACK TO THE GAME"
-			autoDismiss={bonusOverlaysAutoDismiss}
+			autoDismiss={isReplay}
 			onCovered={onBonusEndAnnouncementCovered}
 			onClosed={onBonusEndAnnouncementClosed}
 		/>

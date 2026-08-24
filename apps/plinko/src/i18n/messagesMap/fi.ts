@@ -26,7 +26,6 @@ export default {
 	'How to Play?': 'Miten pelataan?',
 	'Autobet Started': 'Automaattiveto aloitettu',
 	'Autobet Finished': 'Automaattiveto päättyi',
-	'Autobet Finished — game was left': 'Automaattiveto päättyi — peli jätettiin',
 	'Finishing your previous round…': 'Viimeistellään edellistä kierrostasi…',
 	'Set a valid bet amount': 'Aseta kelvollinen panossumma',
 	'Insufficient Balance': 'Riittämätön saldo',

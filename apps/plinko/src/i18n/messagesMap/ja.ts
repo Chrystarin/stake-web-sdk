@@ -26,7 +26,6 @@ export default {
 	'How to Play?': '遊び方は？',
 	'Autobet Started': 'オートベットを開始しました',
 	'Autobet Finished': 'オートベットが終了しました',
-	'Autobet Finished — game was left': 'オートベット終了 — ゲームを離れました',
 	'Finishing your previous round…': '前回のラウンドを終了しています…',
 	'Set a valid bet amount': '有効なベット額を設定してください',
 	'Insufficient Balance': '残高不足',

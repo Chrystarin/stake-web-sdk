@@ -26,7 +26,6 @@ export default {
 	'How to Play?': 'Cara bermain?',
 	'Autobet Started': 'Taruhan otomatis dimulai',
 	'Autobet Finished': 'Taruhan otomatis selesai',
-	'Autobet Finished — game was left': 'Taruhan otomatis selesai — permainan ditinggalkan',
 	'Finishing your previous round…': 'Menyelesaikan ronde sebelumnya…',
 	'Set a valid bet amount': 'Tetapkan jumlah taruhan yang valid',
 	'Insufficient Balance': 'Saldo tidak cukup',

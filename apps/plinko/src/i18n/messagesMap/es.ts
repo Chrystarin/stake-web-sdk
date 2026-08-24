@@ -26,7 +26,6 @@ export default {
 	'How to Play?': '¿Cómo jugar?',
 	'Autobet Started': 'Apuesta automática iniciada',
 	'Autobet Finished': 'Apuesta automática finalizada',
-	'Autobet Finished — game was left': 'Apuesta automática finalizada — se abandonó el juego',
 	'Finishing your previous round…': 'Finalizando tu ronda anterior…',
 	'Set a valid bet amount': 'Establece un importe de apuesta válido',
 	'Insufficient Balance': 'Fondos insuficientes',

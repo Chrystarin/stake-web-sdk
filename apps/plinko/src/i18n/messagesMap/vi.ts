@@ -26,7 +26,6 @@ export default {
 	'How to Play?': 'Cách chơi?',
 	'Autobet Started': 'Đã bắt đầu cược tự động',
 	'Autobet Finished': 'Đã kết thúc cược tự động',
-	'Autobet Finished — game was left': 'Đã kết thúc cược tự động — đã rời trò chơi',
 	'Finishing your previous round…': 'Đang hoàn tất lượt chơi trước…',
 	'Set a valid bet amount': 'Đặt số tiền cược hợp lệ',
 	'Insufficient Balance': 'Số dư không đủ',

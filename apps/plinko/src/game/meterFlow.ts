@@ -4,6 +4,7 @@ import {
 	clearBonusMeterDrainTimer,
 	combineNextBonusLevelNow,
 	creditInBonusSpinMeter,
+	endAutoBetForBonusRound,
 	hasPendingBonusLevelAward,
 	isSingleBallMode,
 	onBonusMeterFilledDuringRound,
@@ -147,11 +148,9 @@ export function triggerRoulette(source: RouletteSource) {
 		stateGame.pendingRouletteSource = source;
 		return;
 	}
-	// Both features PAUSE Autobet rather than end it. A free spin parks the loop on this flag and resumes
-	// once the wheel closes; a bonus needs no flag — it is played out INSIDE the round the loop is already
-	// waiting on (`isAutoBetRoundBusy` covers its whole life) and the run drives its free balls itself,
-	// see `syncAutoBetBonusBallDriver`. Stopping the run mid-bonus stays possible and hands the remaining
-	// free balls back to the player.
+	// The two features part ways here. A FREE SPIN pauses the run — set SYNCHRONOUSLY, so nothing can
+	// slip a wager in behind it. A BONUS ENDS the run outright, but that is deliberately deferred to the
+	// opener below rather than done here; see the note at the end-call itself.
 	if (stateGame.autoPlayStarted && source === 'spin') stateGame.autoPlayPausedByFreeSpin = true;
 	meterController.beginRoulette(source);
 	const openGeneration = rouletteOpenGeneration;
@@ -170,6 +169,15 @@ export function triggerRoulette(source: RouletteSource) {
 			stateGame.freeSpinRouletteOpen = true;
 			return;
 		}
+		// A BONUS ENDS THE AUTOBET RUN, and this is the spot: the wheel is committed, one statement away
+		// from mounting, and every path that could still have abandoned it has already returned above.
+		// Ending back at the top instead would resurrect the bug `releaseAutoPlayRoulettePause` exists
+		// for — an Autobet run killed by a wheel that then never appeared.
+		//
+		// Waiting this long costs nothing: `isAutoBetRoundBusy` holds on `rouletteFlowInProgress`, raised
+		// before the await above, so the loop cannot place another wager while the opener sits on the
+		// drop pipeline. The run simply ends on the beat the player sees the bonus arrive.
+		endAutoBetForBonusRound();
 		stateGame.bonusRouletteOpen = true;
 		scheduleBonusMeterDrainDuringRoll();
 	})();

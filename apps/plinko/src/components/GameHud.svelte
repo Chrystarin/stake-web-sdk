@@ -308,9 +308,9 @@
 
 	// The run has been stopped and is winding down (still `autoPlayStarted` but `autoPlayStopping`): the
 	// Autobet toggle goes inert and drops its remaining-rounds badge, so the player can't re-arm it and no
-	// stale count lingers. A mid-run bonus no longer lands here — it PAUSES the run (the round drives its
-	// own free balls, see `syncAutoBetBonusBallDriver`) rather than ending it, so this is now reached only
-	// by a deliberate Stop press or an unaffordable wager.
+	// stale count lingers. Reached only by a deliberate Stop press. An unaffordable wager and a triggered
+	// bonus (`endAutoBetForBonusRound`) both end the run outright instead — `autoPlayStarted` goes false
+	// in the same tick, so there is no winding-down state to show for either.
 	const autoBetStopping = $derived(props.autoPlayStarted && stateGame.autoPlayStopping);
 
 	// An Autobet run that is genuinely running (not winding down after a mid-run bonus). On mobile this

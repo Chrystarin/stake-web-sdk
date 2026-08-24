@@ -26,7 +26,6 @@ export default {
 	'How to Play?': '게임 방법?',
 	'Autobet Started': '자동 베팅 시작됨',
 	'Autobet Finished': '자동 베팅 종료됨',
-	'Autobet Finished — game was left': '자동 베팅 종료됨 — 게임을 떠남',
 	'Finishing your previous round…': '이전 라운드를 완료하는 중…',
 	'Set a valid bet amount': '유효한 베팅 금액을 설정하세요',
 	'Insufficient Balance': '잔액 부족',
