@@ -173,6 +173,47 @@ export const MIN_MS_BETWEEN_BALL_SPAWNS = 400;
 export const BONUS_HOLD_DROP_INTERVAL_MS = 200;
 
 /**
+ * IN-BONUS FREE-SPIN BANK: how long the emptied bar is left alone before banked centre-pocket lands
+ * start being handed back to it.
+ *
+ * The bar is drawn by a critically damped spring that takes ~0.47s to land whatever the distance
+ * (`FreeSpinMeterEngine.fillSmoothTimeSeconds`), so the drawn fill is still on its way DOWN from full
+ * when a wheel closes. Re-crediting on the ball cadence alone would retarget it mid-descent — it would
+ * ease from full straight to a third and the player would never see it reach empty, which reads as "the
+ * bar barely moved and another wheel appeared". One spring settle-time of quiet lets the reset land
+ * first, so the re-fill that follows is legible as a NEW fill.
+ */
+export const IN_BONUS_SPIN_BANK_RESET_READ_MS = 480;
+
+/**
+ * IN-BONUS FREE-SPIN BANK: total time the paced hand-back may take, however many lands it holds.
+ *
+ * The bank holds the centre pockets of every ball that was IN FLIGHT when the bar completed, and that
+ * count scales with the stream: a shallow round banks a handful, but a densified deep round runs ~270
+ * balls concurrently (`BONUS_STREAM_MAX_BALLS_PER_SECOND`), so ~57 of them can be centre pockets. Paced
+ * at the flat ball cadence those would take 11s to hand back — and the round is held open for all of it
+ * (`settleBonusRoundWhenFinished` waits out a running drain). So the cadence is a CEILING, not a rate:
+ * small banks get the full per-ball beat, big ones compress to fit this budget.
+ *
+ * Sized so the common case is untouched: at `BONUS_HOLD_DROP_INTERVAL_MS` this is 6 lands, and a bank
+ * bigger than that belongs to a bar too tall to complete from it anyway.
+ */
+export const IN_BONUS_SPIN_BANK_DRAIN_BUDGET_MS = 1200;
+
+/**
+ * Beat between the free-spin wheel being committed and it actually appearing.
+ *
+ * The bar completing is the moment the player earned the wheel, and without a pause the two land on the
+ * same breath — a full-screen overlay slides over the bar in the frame it fills, so the thing that
+ * announced the reward is gone before it reads. A second is enough to see the bar complete and
+ * still feel like the wheel arrived because of it.
+ *
+ * Applies to the free spin only. The bonus wheel keeps its own timing (its meter has already run a
+ * separate drain animation by the time it opens).
+ */
+export const FREE_SPIN_WHEEL_OPEN_DELAY_MS = 1000;
+
+/**
  * Bonus hold-to-drop: the batch size above which the held stream starts releasing MORE THAN ONE ball
  * per tick, and the pacing it aims for once it does.
  *

@@ -7,12 +7,13 @@ import {
 	endAutoBetForBonusRound,
 	hasPendingBonusLevelAward,
 	isSingleBallMode,
+	noteInBonusSpinHitLanded,
 	onBonusMeterFilledDuringRound,
 	scheduleBonusMeterDrainDuringRoll,
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
 import type { PlinkoBallOutcome } from './typesBookEvent';
-import { coefficientsForTier } from '../game-logic/constants';
+import { FREE_SPIN_WHEEL_OPEN_DELAY_MS, coefficientsForTier } from '../game-logic/constants';
 import config from './config';
 import { traceBonusMeterWrite, traceBonusMeterWriteAfter } from './plinkoMeterTrace';
 import {
@@ -156,6 +157,10 @@ export function triggerRoulette(source: RouletteSource) {
 	const openGeneration = rouletteOpenGeneration;
 	void (async () => {
 		await waitForDropPipelineIdle();
+		// Let the completed bar be seen before the wheel covers it — see `FREE_SPIN_WHEEL_OPEN_DELAY_MS`.
+		// Deliberately BEFORE the staleness checks below, so they re-validate on the far side of the wait
+		// rather than vouching for a state half a second out of date.
+		if (source === 'spin') await new Promise((r) => setTimeout(r, FREE_SPIN_WHEEL_OPEN_DELAY_MS));
 		if (openGeneration !== rouletteOpenGeneration) {
 			releaseAutoPlayRoulettePause(source);
 			return;
@@ -280,6 +285,11 @@ export function onSpinSlotLand(ballId?: number, outcome?: PlinkoBallOutcome) {
 	// falling when the wheel was called, which the book counts and which must be credited once the bar
 	// resets. `creditInBonusSpinMeter` decides for itself whether to fill, bank, or ignore.
 	if (stateGame.bonusRoundActive) {
+		// This centre pocket is no longer "in the air" — it has arrived, and the bar is about to count it.
+		// Paired with the increment in `takeAuthoritativeBonusOutcome`; done HERE rather than inside
+		// `creditInBonusSpinMeter` because the banked-land drain re-enters that function and would
+		// decrement a second time for a ball that only ever landed once.
+		noteInBonusSpinHitLanded();
 		creditInBonusSpinMeter(outcome);
 		return;
 	}
@@ -334,6 +344,23 @@ export function onBonusRouletteResultReady(wheelFreeBallCount?: number) {
 	// Activate bonus mode as soon as the wheel announcement is shown (crimson parity).
 	resetBonusMeterForRouletteIfNeeded();
 	awardBonusBalls(freeBallCount);
+	// HAND THE BAR TO THE LEVEL-1 ENERGY METER *NOW*, behind the congratulations screen.
+	//
+	// `awardBonusBalls` has just snapped it to max so the trigger reads as "fill → fire", and the book's
+	// `bonusRound` event is what normally empties it again for the level-1 bar
+	// (`loadAuthoritativeBonusOutcomes`). But that event is gated on the wheel flow CLOSING, so it lands
+	// after the screen has slid back up — the player watched a full bar ease down to zero in front of
+	// them, when the whole point of this screen is that the game re-dresses itself out of sight.
+	//
+	// Zeroing here costs nothing: the target ends at 0 in the same synchronous breath the snap set it to
+	// max, so the drawn bar never travels, and `loadAuthoritativeBonusOutcomes` setting 0 again later is
+	// then a no-op. Only the VALUE is handed over — the level's max is still sized from the book when its
+	// `bonusRound` arrives, and a bar reading 0 is 0 against either max.
+	//
+	// This is the same rule the bonus-END screen already follows (`onBonusEndAnnouncementCovered`): state
+	// the player would otherwise watch change is changed while the screen covers the view.
+	traceBonusMeterWrite('onBonusRouletteResultReady:handOverToEntryLevel', 0);
+	stateGame.bonusMeterValue = 0;
 	stateGame.bonusRouletteResultAppliedEarly = true;
 }
 

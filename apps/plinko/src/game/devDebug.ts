@@ -13,7 +13,9 @@ import {
 	isBetControlsLocked,
 	isDropBatchPending,
 	isGameOngoing,
+	isInBonusFreeSpinInevitable,
 	pushRapidWinSparkle,
+	snapshotInBonusSpinBank,
 } from './gameOrchestrator';
 import { forceUnlockBettingControls } from './meterFlow';
 import { plinkoActiveModeMaxWin, plinkoStakePerBall } from './plinkoBet';
@@ -59,6 +61,19 @@ export type PlinkoLockDebugSnapshot = {
 	showWinPopup: boolean;
 	winAmount: number;
 	freeSpinRouletteOpen: boolean;
+	/** In-bonus free-spin bar pinned full, owed a wheel. Stuck true = the free-ball stream stays blocked. */
+	spinMeterHoldFull: boolean;
+	/** Centre pockets that landed BEHIND a wheel and are owed back to the bar, plus whether the paced
+	 * hand-back is running (`startInBonusSpinBankDrain`). A bank that empties in one frame is what used
+	 * to chain two wheels together; one that never empties leaves the bar behind the book. */
+	inBonusSpinBanked: number;
+	inBonusSpinBankDraining: boolean;
+	/** Book free spins queued for this bonus round but not yet opened. */
+	pendingBonusFreeSpins: number;
+	/** ...of which THIS level can fire. The Play lock is scoped to this, not to the whole queue. */
+	freeSpinsFirableAtLevel: number;
+	/** The balls already in the air will finish the free-spin bar, so Play is locked ahead of the fill. */
+	freeSpinInevitable: boolean;
 	bonusRouletteOpen: boolean;
 	rouletteFlowInProgress: boolean;
 	activeRouletteSource: string | null;
@@ -66,6 +81,7 @@ export type PlinkoLockDebugSnapshot = {
 };
 
 export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
+	const inBonusSpinBank = snapshotInBonusSpinBank();
 	return {
 		controlsLocked: isBetControlsLocked(),
 		isSubmitting: stateGame.isSubmitting,
@@ -94,6 +110,14 @@ export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
 		showWinPopup: stateGame.showWinPopup,
 		winAmount: stateGame.winAmount,
 		freeSpinRouletteOpen: stateGame.freeSpinRouletteOpen,
+		spinMeterHoldFull: stateGame.spinMeterHoldFull,
+		inBonusSpinBanked: inBonusSpinBank.banked,
+		inBonusSpinBankDraining: inBonusSpinBank.draining,
+		pendingBonusFreeSpins: stateGame.pendingBonusFreeSpins.length,
+		freeSpinsFirableAtLevel: stateGame.pendingBonusFreeSpins.filter(
+			(fs) => fs.level <= stateGame.bonusLevelProgress,
+		).length,
+		freeSpinInevitable: isInBonusFreeSpinInevitable(),
 		bonusRouletteOpen: stateGame.bonusRouletteOpen,
 		rouletteFlowInProgress: stateGame.rouletteFlowInProgress,
 		activeRouletteSource: stateGame.activeRouletteSource,

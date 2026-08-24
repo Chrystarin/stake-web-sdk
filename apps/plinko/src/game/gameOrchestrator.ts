@@ -11,6 +11,8 @@ import {
 	BONUS_STREAM_MAX_BALLS_PER_SECOND,
 	BONUS_STREAM_TARGET_TICKS,
 	FREE_SPIN_SEGMENTS,
+	IN_BONUS_SPIN_BANK_DRAIN_BUDGET_MS,
+	IN_BONUS_SPIN_BANK_RESET_READ_MS,
 	SIM_SPEED,
 	bonusLevelBalls,
 	bonusLevelupPegs,
@@ -121,6 +123,8 @@ let bonusSpinBatchLanded = -1;
 let bonusSpinLegacyBatchFired = false;
 /** Spin-pocket lands banked behind that pinned bar, re-credited when the wheel is done. */
 let bonusSpinBankedOutcomes: PlinkoBallOutcome[] = [];
+/** Paces that re-credit one land at a time, so a big bank can't chain wheels — `startInBonusSpinBankDrain`. */
+let bonusSpinBankDrainTimer: ReturnType<typeof setTimeout> | null = null;
 /**
  * Coin-peg hits the CURRENT in-bonus level must collect from its OWN balls to level up (the book's
  * `bonusRound.levelupPegs`). Kept apart from `bonusMeterMax`, which is this plus the carry described in
@@ -455,6 +459,11 @@ export function isBonusPlayButtonDisabled(): boolean {
 		// level-up card has not reached that point yet, and balls dropped into it would just queue up
 		// behind the wheel (banked, so nothing is lost — but spent on a bar that cannot move).
 		stateGame.spinMeterHoldFull ||
+		// ...and the same rule again, one beat EARLIER: the balls already in the air carry enough centre
+		// pockets to finish the bar, so the wheel is coming whether or not it has landed yet. Waiting for
+		// the bar itself lets a dozen more balls out of the funnel first, and those are what chain one
+		// wheel straight into the next. See `isInBonusFreeSpinInevitable`.
+		isInBonusFreeSpinInevitable() ||
 		stateGame.bonusRouletteOpen ||
 		isPlayActionBlockedByFreeSpinRoulette() ||
 		isPlayActionBlockedByBonusRoulette()
@@ -916,7 +925,63 @@ export function takeAuthoritativeBonusOutcome(): PlinkoBallOutcome | undefined {
 	const index = stateGame.authoritativeBonusOutcomeIndex;
 	if (!outcomes.length || index >= outcomes.length) return undefined;
 	stateGame.authoritativeBonusOutcomeIndex = index + 1;
-	return outcomes[index];
+	const outcome = outcomes[index];
+	// This ball's pocket is book-authored, so the instant it LEAVES the funnel we already know whether
+	// it will fill the free-spin bar — long before it lands. See `isInBonusFreeSpinInevitable`.
+	if (outcome?.hitSpinSlot) bonusSpinHitsInFlight += 1;
+	return outcome;
+}
+
+/**
+ * Book centre pockets that have been RELEASED but have not landed yet.
+ *
+ * The bar only moves on a LANDING, so between a ball leaving the funnel and reaching its pocket the
+ * meter reads lower than the round has already committed to. This closes that gap.
+ */
+let bonusSpinHitsInFlight = 0;
+
+/** One in-flight centre pocket has landed and been counted by the bar. */
+export function noteInBonusSpinHitLanded(): void {
+	bonusSpinHitsInFlight = Math.max(0, bonusSpinHitsInFlight - 1);
+}
+
+/**
+ * IS A FREE SPIN ALREADY UNAVOIDABLE? True once the balls in the air carry enough centre pockets to
+ * finish the bar, whether or not any of them has landed yet.
+ *
+ * ⚠️ THIS IS WHAT KEEPS TWO WHEELS APART, and it works by stopping the round a beat EARLIER than the
+ * bar does. `spinMeterHoldFull` only locks the Play button once the bar has actually completed — by
+ * which point ~8-13 more balls have already been released and cannot be recalled. They land behind the
+ * wheel, get banked, and that bank is what used to re-complete the bar the instant the wheel closed:
+ * two full-screen wheels with no play between them (tendrop event 1199026 — centre pockets on balls
+ * 1,3,6,7,8,12,13,17,18 against a 3-notch bar, firing after 6, 12 and 18).
+ *
+ * Locking on the RELEASE instead means the ball that completes the bar is the last one out of the
+ * funnel, so it is also the last one to land: the pipeline is empty when the wheel opens, nothing is
+ * banked, and the next fill has to come from balls dropped after the wheel — real gameplay the player
+ * watches. The book's ball order and pocket assignments are untouched; only the moment the Play button
+ * greys out moves.
+ *
+ * Reads the CURRENT batch's bar, so it re-arms per batch exactly as the meter does.
+ */
+export function isInBonusFreeSpinInevitable(): boolean {
+	if (!stateGame.bonusRoundActive) return false;
+	// NOTHING TO CHAIN INTO AT THIS LEVEL → DON'T LOCK. Covers every end: no trigger left at all (the bar
+	// can still complete — a legacy book carries fewer triggers than its centre pockets fill), the LAST
+	// trigger of the level, and a queue holding only triggers tagged for levels the round has not reached.
+	// In none of those can a second wheel follow HERE, so holding the funnel shut buys nothing and costs
+	// the player a stalled round.
+	if (!hasBonusFreeSpinBeyondTheNext()) return false;
+	// ⚠️ CLAMPED TO THE BALLS ACTUALLY IN THE AIR, and that clamp is load-bearing rather than tidy. This
+	// gate DISABLES Play, so a counter that over-counts even once leaves the round unplayable with no way
+	// back. The count is incremented on release and decremented on landing, and a ball can leave without
+	// ever arriving — the board being torn down mid-drop, a forced settle, a land that took an early
+	// return. The pipeline map is authoritative about what is still falling, so a stale count can never
+	// outlive the balls it was counting: an empty board reads zero in flight and the button comes back.
+	const inFlight = Math.min(bonusSpinHitsInFlight, stateGame.expectedOutcomeByBallId.size);
+	if (inFlight <= 0) return false;
+	const max = stateGame.spinMeterMax > 0 ? stateGame.spinMeterMax : 1;
+	return stateGame.spinMeterValue + inFlight >= max;
 }
 
 export function awardBonusBalls(count: number) {
@@ -1514,10 +1579,15 @@ export function creditInBonusSpinMeter(outcome?: PlinkoBallOutcome) {
  * The wheel is done and its win is allocated — empty the completed bar and hand back the hits that
  * landed behind it. Re-credited through the normal path, so a banked run long enough to complete the bar
  * again opens its own wheel rather than being silently absorbed.
+ *
+ * The hand-back is PACED while the round still has balls to drop (`startInBonusSpinBankDrain`) and
+ * synchronous once it doesn't — so the caller's rule is unchanged: when the round is out of balls this
+ * still completes the bar, and any wheel it earns is committed, before it returns.
  */
 export function releaseInBonusSpinMeterHold() {
 	// Drop the pin FIRST: the bank is drained through `creditInBonusSpinMeter`, which banks straight back
-	// while a wheel still owns the screen.
+	// while a wheel still owns the screen. It also un-blocks the round's own ball stream
+	// (`isBonusPlayButtonDisabled`), so real balls start falling again alongside the paced drain below.
 	if (stateGame.spinMeterHoldFull) {
 		stateGame.spinMeterHoldFull = false;
 		stateGame.spinMeterValue = 0;
@@ -1525,11 +1595,86 @@ export function releaseInBonusSpinMeterHold() {
 	// Drained even when nothing was pinned — a wheel opened by the depletion catch-all (rather than by
 	// the bar completing) still banks whatever lands behind it, and those hits are owed to the bar.
 	if (bonusSpinBankedOutcomes.length === 0) return;
-	// Taken before the loop: a banked hit can complete the bar and re-pin it, and the outcomes banked
-	// behind THAT wheel belong to the new hold, not to this one.
-	const banked = bonusSpinBankedOutcomes;
-	bonusSpinBankedOutcomes = [];
-	for (const outcome of banked) creditInBonusSpinMeter(outcome);
+	startInBonusSpinBankDrain();
+}
+
+/**
+ * Hand the bank back ONE land at a time, at the cadence of a falling free ball.
+ *
+ * ⚠️ THIS IS WHAT STOPS TWO WHEELS CHAINING. The bar is pinned the instant it completes, which stops the
+ * stream — but the balls already falling cannot be recalled, so their centre pockets land behind the
+ * wheel and are banked (the math counts them, so the bar must too). Draining that bank in one loop
+ * re-completed the bar on the frame the wheel closed and opened the next wheel on the same beat: two
+ * full-screen wheels welded together with no play between them.
+ *
+ * Real example — tendrop event 1199026, a 20-ball level-1 batch whose centre pockets land on balls
+ * 1,3,6,7,8,12,13,17,18 against a 3-notch bar. The book fires after balls 6, 12 and 18. The client
+ * pinned on ball 6 with ~8 balls in flight, banked 7/8/12/13, and cashed all four out at once.
+ *
+ * Paced, one banked land reads exactly like one ball landing, so the bar visibly re-fills at the rhythm
+ * the player already knows before the next wheel is earned.
+ *
+ * ⚠️ ALWAYS PACED — never "only while balls are left to drop". `bonusBallsRemaining` counts balls not yet
+ * RELEASED, not balls still falling, and the replay driver (and a held stream) release far faster than
+ * balls land: measured on 1199026, all 20 were out of the funnel before the first one touched a pocket,
+ * so the bar completed with `bonusBallsRemaining` already 0. Gating on it sent every chained wheel down
+ * the synchronous path — the exact case this exists to fix. When there really is nothing left to drop
+ * the pacing is still what separates the wheels; it just separates them with a re-filling bar rather
+ * than with falling balls.
+ *
+ * NOT a change to the ACCOUNTING: every banked land is still credited, in order, through the one path
+ * (`creditInBonusSpinMeter`). Only WHEN they arrive moves, so the book's wheel count is untouched.
+ */
+function startInBonusSpinBankDrain() {
+	if (bonusSpinBankDrainTimer != null) return;
+	// One beat per land, but never so many beats that the round sits waiting on them — see
+	// `IN_BONUS_SPIN_BANK_DRAIN_BUDGET_MS`. Floored at a frame so every land still gets its own tick.
+	const stepMs = Math.max(
+		Math.round(1000 / 60),
+		Math.min(
+			bonusHoldDropIntervalMs(),
+			Math.round(IN_BONUS_SPIN_BANK_DRAIN_BUDGET_MS / Math.max(1, bonusSpinBankedOutcomes.length)),
+		),
+	);
+	const step = (): void => {
+		bonusSpinBankDrainTimer = null;
+		if (!stateGame.bonusRoundActive) return;
+		// Checked BEFORE the shift as well as after: `creditInBonusSpinMeter` banks straight back while a
+		// wheel owns the screen, so handing it a land here would only move that land to the BACK of the
+		// bank — losing the book order the batch stamps are read in. A real ball landing can complete the
+		// bar between two ticks, so this is not a rare path.
+		if (isFreeSpinWheelOwningScreen()) return;
+		const outcome = bonusSpinBankedOutcomes.shift();
+		if (outcome) creditInBonusSpinMeter(outcome);
+		// That land may have completed the bar and committed the next wheel. The next
+		// `releaseInBonusSpinMeterHold` restarts the drain once that wheel is done.
+		if (isFreeSpinWheelOwningScreen()) return;
+		if (bonusSpinBankedOutcomes.length > 0) {
+			bonusSpinBankDrainTimer = setTimeout(step, stepMs);
+			return;
+		}
+		// Bank empty and no wheel taken the screen. The settler bailed out while this was running (see
+		// its drain guard), so nothing else is going to end the round — re-invoke it. No-op unless the
+		// round is genuinely out of balls.
+		if (stateGame.bonusBallsRemaining <= 0) void settleBonusRoundWhenFinished();
+	};
+	// The FIRST land waits longer than the rest — long enough for the emptied bar to visibly reach zero
+	// before it starts climbing again. See `IN_BONUS_SPIN_BANK_RESET_READ_MS`.
+	bonusSpinBankDrainTimer = setTimeout(step, IN_BONUS_SPIN_BANK_RESET_READ_MS);
+}
+
+function clearInBonusSpinBankDrain() {
+	if (bonusSpinBankDrainTimer == null) return;
+	clearTimeout(bonusSpinBankDrainTimer);
+	bonusSpinBankDrainTimer = null;
+}
+
+/**
+ * Diagnostics for the banked centre pockets (`plinkoDebugLocks`). A bank that never drains is a bar
+ * permanently behind the book; one that empties in a single frame is the wheel-chaining fault above.
+ */
+export function snapshotInBonusSpinBank(): { banked: number; draining: boolean } {
+	return { banked: bonusSpinBankedOutcomes.length, draining: bonusSpinBankDrainTimer != null };
 }
 
 /**
@@ -1551,6 +1696,41 @@ function isFreeSpinWheelOwningScreen(): boolean {
  * tagged for a level we have reached; falls back to the head of the queue (a book tag can sit a level
  * ahead of `bonusLevelProgress` when the combine merged that level's balls in early).
  */
+/**
+ * Book free spins queued that THIS level can fire — the same eligibility test
+ * `fireBonusFreeSpinOnMeterComplete` selects on.
+ *
+ * `<=` rather than `===` on purpose: a trigger tagged for an EARLIER level that never got fired is still
+ * fireable now and still chains, so it has to count. Only tags sitting ahead of the level the round has
+ * actually reached are excluded.
+ */
+function bonusFreeSpinsFirableAtCurrentLevel(): number {
+	const level = stateGame.bonusLevelProgress;
+	return stateGame.pendingBonusFreeSpins.filter((fs) => fs.level <= level).length;
+}
+
+/**
+ * Is there a second free spin THIS LEVEL can still fire after the one a completing bar is about to open?
+ *
+ * The Play-button lock exists to stop two wheels running into each other, so what it needs to know is not
+ * "will a wheel open" but "will another one follow it here". With one trigger left for this level there
+ * is nothing to chain into: the balls that carry on falling land behind that last wheel and are banked,
+ * and when the bank drains it finds nothing this level can fire, so `fireBonusFreeSpinOnMeterComplete`
+ * either returns false or the round has moved on. Locking there would stall play to prevent a collision
+ * that cannot happen.
+ *
+ * ⚠️ SCOPED TO THE LEVEL, which is narrower than what the firing rule will actually accept. That rule
+ * prefers a trigger tagged for a level already REACHED but falls back to the head of the queue, so a
+ * level-2 tag CAN fire while the round still reads level 1 — the combine merges the next level's balls in
+ * before `bonusLevelProgress` catches up. In that window this reports "nothing to chain into" and the
+ * button stays live even though a wheel may open. That is the deliberate trade: a lock that fires on
+ * triggers belonging to a level the player has not reached yet reads as the button jamming for no
+ * visible reason, and the bank + its paced drain still handle anything that lands behind such a wheel.
+ */
+function hasBonusFreeSpinBeyondTheNext(): boolean {
+	return bonusFreeSpinsFirableAtCurrentLevel() > 1;
+}
+
 function fireBonusFreeSpinOnMeterComplete(): boolean {
 	const queue = stateGame.pendingBonusFreeSpins;
 	if (queue.length === 0) return false;
@@ -1668,6 +1848,12 @@ export async function settleBonusRoundWhenFinished() {
 		if (stateGame.bonusBallsRemaining <= 0 && consumePendingBonusLevelUp()) {
 			return;
 		}
+		// (1b) Centre pockets that landed behind the last wheel are still being handed back to the bar one
+		// at a time (`startInBonusSpinBankDrain`). Those lands are what earns the NEXT book free spin, so
+		// running on from here would fire it from the safety net below — instantly, on a bar the player
+		// never saw fill — which is the wheel-chaining this pacing exists to stop. It would also end the
+		// round on a bar still short of the book. The drain re-invokes this settler once it empties.
+		if (bonusSpinBankDrainTimer != null) return;
 		// (2)+(3) SAFETY NET ONLY, and it should now find nothing. Every book free spin is fired by its own
 		// bar completing; what can still land here is a trigger whose bar never completed — a legacy book
 		// whose meter the client could not reproduce, or a wheel `beginInBonusFreeSpin` handed back because
@@ -1723,6 +1909,11 @@ export function resetBonusRoundVisualState() {
 	bonusSpinBatchLanded = -1;
 	bonusSpinLegacyBatchFired = false;
 	stateGame.spinMeterHoldFull = false;
+	// Drop the paced hand-back with the bank it was feeding — a timer left armed would credit this
+	// round's leftover lands into the next one's bar.
+	clearInBonusSpinBankDrain();
+	// Next round counts its own balls out of the funnel (`takeAuthoritativeBonusOutcome`).
+	bonusSpinHitsInFlight = 0;
 	bonusSpinBankedOutcomes = [];
 	// Next bonus re-derives its own per-level threshold from that round's book.
 	bonusLevelPegThreshold = 0;
