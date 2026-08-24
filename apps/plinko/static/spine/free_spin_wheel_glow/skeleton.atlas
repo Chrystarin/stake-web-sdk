@@ -1,0 +1,10 @@
+skeleton.png
+size:540,286
+filter:Linear,Linear
+pma:true
+glowWheel
+bounds:2,2,282,286
+rotate:90
+ring
+bounds:290,34,250,248
+rotate:90
