@@ -362,11 +362,22 @@ export const BONUS_WHEEL_FREE_BALLS = [100, 90, 80, 70, 60, 50, 40, 30, 20] as c
  *
  * ⚠️ THE TIERS SKEW IN OPPOSITE DIRECTIONS, and that is the design. A 50-ball bet costs 5x a 10-ball
  * bet, so at the same trigger rate it can afford 5x the bonus: big-ball players land the big wedges
- * (100 lands 27.66% of the time), small-ball players land the small ones (10-ball lands 20 on 68.01%
- * and 100 on 0.01%). Mean entry is 24.70 / 46.00 / 77.80 balls. Every wedge keeps a non-zero weight, so
- * none is unreachable on any tier. This is the same device `FREE_SPIN_WEIGHTS` already uses, and it
- * matches the per-tier boards in `coefficientSetsByBalls` and the per-tier max-win ladder.
- * ⚠️ The game-rules copy should say the bonus award scales with the ball count. */
+ * (50-ball lands 100 on 25.44%), small-ball players land the small ones (10-ball lands 20 on 78.69%
+ * and 100 on 0.01%). Mean entry is 22.81 / 43.77 / 76.03 balls.
+ *
+ * ⚠️ EVERY FIGURE IN THE PARAGRAPH ABOVE IS COMPUTED FROM THE TABLE BELOW — recompute them together.
+ * They had gone stale against it (27.66% / 68.01%, and a mean of 24.70 / 46.00 / 77.80, all from a
+ * weighting that no longer exists). Cross-checked against the published books, which measure 78.67% /
+ * 25.03% and 22.83 / 43.81 / 75.56 over 3.2M rounds — the small gap on the means is the deep-bonus
+ * injections, not a disagreement.
+ *
+ * Every wedge keeps a non-zero weight, so none is unreachable on any tier. This is the same device
+ * `FREE_SPIN_WEIGHTS` already uses, and it matches the per-tier boards in `coefficientSetsByBalls` and
+ * the per-tier max-win ladder.
+ * ✅ The game-rules copy says the bonus award scales with the ball count — in PROSE, with no per-tier
+ * mean. A table of the means was drafted and cut: publishing a figure computed off this mirror would
+ * state odds the math has not declared, and the prose claim survives any re-weighting that keeps the
+ * skew. See the note above `tierRows` in InfoModal.svelte if it is ever wanted back. */
 export const BONUS_WHEEL_WEIGHTS: Record<number, readonly number[]> = {
 	10: [1, 2, 7, 23, 71, 100, 120, 1807, 7869],
 	20: [357, 283, 504, 755, 945, 1182, 1479, 1851, 2644],

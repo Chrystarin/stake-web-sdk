@@ -18,6 +18,7 @@
 		BONUS_LEVEL_LABELS,
 		BONUS_LEVELUP_PEGS,
 		BONUS_WHEEL_FREE_BALLS,
+		BUY_BONUS_BALLS_PER_DROP_REF,
 		FREE_SPIN_SEGMENTS,
 		bonusInDropForBalls,
 		bonusLevelBalls,
@@ -43,6 +44,17 @@
 		props.onClose?.();
 	}
 
+	/**
+	 * ⚠️ HOUSE STYLE FOR EVERY PLAYER-FACING STRING IN THIS FILE: no em dashes, no semicolons.
+	 *
+	 * Both read as machine-written to players, and this modal is the game's most-read prose. Where one
+	 * would go, use a full stop, a comma, a colon, or brackets instead. A label followed by its gloss
+	 * takes a full stop ("Balance. Your available funds."), not a dash. Number ranges are spelled "20 to
+	 * 100", not "20–100".
+	 *
+	 * Applies to rendered copy only. Code comments (this one included) are free to use whatever punctuation
+	 * is clearest.
+	 */
 	const sectionTitles: Record<InfoModalTab, string> = {
 		rules: 'Game Rules',
 		history: 'My Bet History',
@@ -70,23 +82,61 @@
 	}
 
 	/**
-	 * Feature-trigger thresholds, per balls-per-drop tier, read straight from the meter tables so the
-	 * published rules can never drift from the numbers the meters actually use. Only the tiers that can
-	 * fire a feature are listed — the 1-ball tier has neither meter, and is called out in prose instead.
-	 * `hits` is what THIS drop must land: the free-spin meter seeds at a per-tier head start
-	 * (`spinMeterTierFor().start`), so its remaining hits are max − start, not max.
+	 * ⚠️ NO PER-TIER AVERAGE ENTRY AWARD IS PUBLISHED, deliberately.
+	 *
+	 * The bonus wheel's nine painted values are the same on every tier and only the landing odds shift
+	 * (`BONUS_WHEEL_WEIGHTS`), so the natural way to show the award scaling with Ball per Drop is a mean
+	 * — 22.8 / 43.8 / 76.0 balls at 10 / 20 / 50. That was drafted as a table here and cut: it is a
+	 * number computed off a DISPLAY MIRROR of the math's weights, and a rules document should not state
+	 * odds the server has not itself declared. The rules make the scaling claim in prose instead, which
+	 * stays true under any re-weighting that keeps the skew.
+	 *
+	 * If it is ever wanted back, derive it from `BONUS_WHEEL_WEIGHTS` at render time rather than typing
+	 * the numbers in — the comment above that table had itself gone stale once already.
 	 */
-	const meterRows = BALL_PER_DROP_TIERS.filter(bonusInDropForBalls).map((balls) => {
+
+	/**
+	 * ONE ROW PER BALL-PER-DROP TIER — the single comparison table the rules publish, read straight from
+	 * the meter tables, the board tables and `config.betModes` so the published numbers can never drift
+	 * from the ones the game actually plays.
+	 *
+	 * `bonusHits` / `spinHits` are what THIS drop must land, not the bar's max: the free-spin meter seeds
+	 * at a per-tier head start (`spinMeterTierFor().start`), so its remaining hits are max − start. The
+	 * 1-ball tier is listed too (rather than described in prose) — it is the tier a player is most likely
+	 * to be surprised by, and a row reading "—" across the feature columns says that faster than a
+	 * paragraph does.
+	 */
+	const tierRows = BALL_PER_DROP_TIERS.map((balls) => {
 		const bonus = bonusMeterTierFor(balls);
 		const spin = spinMeterTierFor(balls);
+		const hasFeatures = bonusInDropForBalls(balls);
+		const modeConfig = config.betModes[
+			PLINKO_BET_MODE_BY_BALLS[balls] as keyof typeof config.betModes
+		];
 		return {
 			balls,
+			hasFeatures,
+			bonusMax: bonus.max,
 			bonusHits: bonus.max - bonus.start,
-			spinHits: spin.max - spin.start,
-			spinStart: spin.start,
 			spinMax: spin.max,
+			spinStart: spin.start,
+			spinHits: spin.max - spin.start,
+			maxWinPerBall: modeConfig?.max_win ?? 0,
 		};
 	});
+
+	/** Tiers that actually have the features (10 / 20 / 50) — used wherever the prose speaks about them. */
+	const featureTiers = tierRows.filter((row) => row.hasFeatures);
+
+	/** Buy-bonus tiers with their price and cap alongside the entry batch, so one table carries the lot. */
+	const buyRows = BUY_BONUS_TIERS.map((tier) => ({
+		key: tier.key,
+		name: tier.name,
+		freeBalls: tier.freeBalls,
+		cost: buyBonusCost(tier.key),
+		maxWinPerBall:
+			config.betModes[buyBonusModeName(tier.key) as keyof typeof config.betModes]?.max_win ?? 0,
+	}));
 
 	/** Bonus re-trigger ladder: index i is the hits needed to LEAVE level i+1, i.e. to REACH level i+2. */
 	const bonusLevelRows = BONUS_LEVELUP_PEGS.map((pegs, index) => ({
@@ -164,21 +214,16 @@
 	 * `max_win` is a multiple of BET PER BALL, not of the total bet (math `wincap_for_balls`: "per
 	 * stake_per_ball"; the client agrees — see `bookEventHandlerMap`'s note that the payout multiplier is
 	 * "normalized to the PER-BALL stake, NOT win ÷ total-bet"). A bare "500×" therefore reads as 500× the
-	 * total bet and overstates every mode whose cost is above 1, so both framings are published: the
-	 * per-ball cap and `max_win ÷ cost`, which is the same ceiling expressed against the wager the player
-	 * actually places.
+	 * total bet and overstates every mode whose cost is above 1, which is why the rules always name the
+	 * per-ball framing and convert it explicitly where a total-bet number is wanted (see the max-win
+	 * bullet under Game Information).
 	 */
 	function betModeFacts(mode: string, label: string) {
 		const modeConfig = config.betModes[mode as keyof typeof config.betModes];
-		const cost = modeConfig?.cost ?? 0;
-		const maxWin = modeConfig?.max_win ?? 0;
 		return {
 			label,
 			rtpPercent: (modeConfig?.rtp ?? 0) * 100,
-			maxWinPerBall: maxWin,
-			// Exact for every published pair (100/1, 250/10, 300/20, 400/50, 250/80, 300/100, 350/150,
-			// 500/250); trimmed rather than fixed-width so 8× doesn't render as "8.00×".
-			maxWinTotalBet: cost > 0 ? maxWin / cost : 0,
+			maxWinPerBall: modeConfig?.max_win ?? 0,
 		};
 	}
 
@@ -201,9 +246,20 @@
 		(row) => formatRtp(row.rtpPercent) !== formatRtp(gameRtpPercent),
 	);
 
-	/** Headline caps: the biggest of each framing across every mode. */
+	/**
+	 * The RANGE of the per-mode cap, not one headline number.
+	 *
+	 * A single "up to N×" is the one thing about max win that cannot be said honestly here: the cap is a
+	 * multiple of BET PER BALL, so the biggest per-ball cap (500×, buysuperfury) and the biggest cap
+	 * against the TOTAL bet (100×, the 1-ball tier) belong to different modes. Pairing them in one
+	 * sentence — as the rules used to — reads as a single mode paying both, which no mode does. The
+	 * range plus one worked example off `topBaseTier` says it without overstating any mode.
+	 */
 	const maxWinPerBallCap = Math.max(...allModeRows.map((row) => row.maxWinPerBall));
-	const maxWinTotalBetCap = Math.max(...allModeRows.map((row) => row.maxWinTotalBet));
+	const minWinPerBallCap = Math.min(...allModeRows.map((row) => row.maxWinPerBall));
+
+	/** Biggest base tier — the worked example for "the cap is per BALL, not per round". */
+	const topBaseTier = tierRows[tierRows.length - 1];
 
 	/** `95.7` → "95.7%"; whole percentages keep their trailing `.0` so the column reads evenly. */
 	function formatRtp(percent: number) {
@@ -275,44 +331,40 @@
 								</div>
 							</div>
 						{:else}
-							<h3 class="info-section-title">Main Betting Components</h3>
-							<p>The betting interface is straightforward and matches the on-screen controls:</p>
+							<h3 class="info-section-title">How the Game Works</h3>
 							<ul>
 								<li>
-									<strong>BET</strong> – Shows your total wager for the current round (automatically
-									calculated).
+									<strong>Bet per Ball</strong> is the stake on each single ball. Adjust it with − / +.
 								</li>
 								<li>
-									<strong>BET PER BALL</strong> – Base amount wagered on each single ball. Adjust with
-									+ / − buttons.
+									<strong>Ball per Drop</strong> is how many balls a drop releases: {BALL_PER_DROP_TIERS.join(
+										' / ',
+									)}. Adjust it with − / +.
 								</li>
-								<li>
-									<strong>BALL PER DROP</strong> – Number of balls released per round. Adjust with +
-									/ − buttons.
-								</li>
+								<li><strong>Bet</strong> is your total wager, calculated for you.</li>
 							</ul>
-							<p>Total Bet is calculated as:</p>
-							<div class="info-formula">Total Bet = Bet Per Ball × Ball Per Drop</div>
-							<p><strong>Example:</strong></p>
 							<div class="info-formula">
-								Bet Per Ball = $0.10<br />
-								Ball Per Drop = 10<br />
-								Total Bet = $1.00
+								Total Bet = Bet per Ball × Ball per Drop<br />
+								{formatMoney(0.1)} × 10 balls = {formatMoney(1)}
 							</div>
 							<p>
-								The game clearly displays the WIN amount after each round and shows your current
-								total bet near the controls.
+								Press <strong>Play</strong> (or the Space bar) and the balls fall through the pegs into
+								the pockets along the bottom. Each ball pays <strong>Bet per Ball × its pocket</strong>,
+								and your Win for the round is every ball added together, plus anything the features
+								award.
+							</p>
+							<p>
+								<strong
+									>Every multiplier in this game applies to your Bet per Ball, never to your total bet.
+									That covers the pockets, both wheels, and the max-win caps.</strong
+								>
 							</p>
 
-							<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
+							<h3 class="info-section-title">Pocket Payouts</h3>
 							<p>
-								The bottom of the board features a row of colored multiplier slots, running from low in
-								the center to high on the edges.
-							</p>
-							<p>
-								Every ball pays <strong>Bet per Ball × the multiplier of the pocket it lands in</strong
-								>. The board has {BOARD_SLOT_MULTIPLIERS.length} pockets, mirrored around the center, so
-								each row below is the matching PAIR of pockets at that distance from the middle:
+								The board is the same on every drop: {BOARD_SLOT_MULTIPLIERS.length} pockets, mirrored around
+								the center, paying least in the middle and most at the edges. Each row below is the matching
+								PAIR of pockets at that distance from the middle.
 							</p>
 							<table class="info-rules-table info-paytable">
 								<thead>
@@ -336,7 +388,7 @@
 											<td>
 												{formatMultiplier(row.shared)}
 												{#if row.isCenter}
-													<span class="info-rules-note">SPIN slot — pays nothing, fills the meter</span>
+													<span class="info-rules-note">SPIN slot, pays nothing and fills the meter</span>
 												{/if}
 											</td>
 											<td>{formatMultiplier(row.oneBall)}</td>
@@ -345,86 +397,77 @@
 								</tbody>
 							</table>
 							<p>
-								The two tiers play <strong>different boards</strong>. On 10 / 20 / 50 balls the center
-								pocket is the SPIN slot: it pays {formatMultiplier(
-									BOARD_SLOT_MULTIPLIERS[boardCenterIndex],
-								)} and feeds the Free Spin meter instead. The 1 Ball per Drop tier has no meter to feed,
-								so its center pays {formatMultiplier(
-									ONE_BALL_BOARD_SLOT_MULTIPLIERS[boardCenterIndex],
-								)} and nothing more.
+								The center pocket pays {formatMultiplier(BOARD_SLOT_MULTIPLIERS[boardCenterIndex])} on every
+								tier. On 10 / 20 / 50 balls it is the <strong>SPIN slot</strong>: it feeds the Free Spin
+								meter instead of paying.
 								{#if boardDiffs.length}
-									It has no bonus features either, so it makes that up in the board itself: its
+									<strong>1 Ball per Drop</strong> plays its own board. It has no meters to feed, so its
 									{#each boardDiffs as diff, index (diff.index)}{index > 0
 											? index === boardDiffs.length - 1
-												? ' and its '
-												: ', its '
-											: ''}{formatMultiplier(diff.shared)} pockets pay {formatMultiplier(
-											diff.oneBall,
-										)}{/each}. Every other pocket is identical on both boards.
+												? ' and '
+												: ', '
+											: ''}{formatMultiplier(diff.shared)}{/each} pockets pay
+									{#each boardDiffs as diff, index (diff.index)}{index > 0
+											? ' and '
+											: ''}{formatMultiplier(diff.oneBall)}{/each} instead. Every other pocket is identical.
 								{/if}
-							</p>
-							<p>
-								The board layout is fixed — you control your own risk through your Bet per Ball and
-								Ball per Drop, not a difficulty or rows setting. Dropping more balls spreads them
-								across more pockets and raises the top potential payout. A single ball can pay at most
-								{formatMultiplier(Math.max(...BOARD_SLOT_MULTIPLIERS))}; the 1 Ball per Drop tier has no
-								bonus features, so that is also its maximum payout, while from 10 balls up bonus rounds
-								reach your tier's own cap ({baseModeRows
-									.filter((row) => row.maxWinPerBall > baseModeRows[0].maxWinPerBall)
-									.map((row) => formatTimes(row.maxWinPerBall))
-									.join(' / ')} your Bet per Ball at
-								{BALL_PER_DROP_TIERS.slice(1).join(' / ')} balls). Every mode's cap is listed under Key
-								Features below.
 							</p>
 
-							<h3 class="info-section-title">Key Features &amp; Settings</h3>
+							<h3 class="info-section-title">What Each Ball per Drop Gets</h3>
 							<p>
-								<strong>RTP</strong> — Approximately {formatRtp(gameRtpPercent)}.
-								{#if offRtpModes.length}
-									The {offRtpModes.map((row) => row.label).join(' and ')}
-									{offRtpModes.length === 1 ? 'tier plays' : 'tiers play'} a different board with no
-									bonus features, and {offRtpModes.length === 1 ? 'returns' : 'return'}
-									{offRtpModes.map((row) => formatRtp(row.rtpPercent)).join(' and ')}.
-								{/if}
-							</p>
-							<p>
-								<strong>Max Win</strong> — up to {formatTimes(maxWinPerBallCap)} your Bet per Ball, which
-								is up to {formatTimes(maxWinTotalBetCap)} your total bet. The cap is declared per bet mode:
+								Ball per Drop is the only risk setting in the game. It decides which features are live,
+								how many hits each meter needs to fire, and your payout cap:
 							</p>
 							<table class="info-rules-table">
 								<thead>
 									<tr>
-										<th>Bet mode</th>
-										<th>Max win (× Bet per Ball)</th>
+										<th>Ball per Drop</th>
+										<th>Bonus meter</th>
+										<th>Free Spin meter</th>
+										<th>Max win</th>
 									</tr>
 								</thead>
 								<tbody>
-									{#each allModeRows as row (row.label)}
+									{#each tierRows as row (row.balls)}
 										<tr>
-											<td>{row.label}</td>
+											<td>{row.balls}</td>
+											<td>
+												{#if row.hasFeatures}
+													{row.bonusHits} coin-peg hits
+												{:else}
+													<span class="info-rules-note">no Bonus</span>
+												{/if}
+											</td>
+											<td>
+												{#if row.hasFeatures}
+													{row.spinHits} SPIN-slot hits
+													{#if row.spinStart > 0}
+														<span class="info-rules-note"
+															>(bar of {row.spinMax}, starting {row.spinStart} filled)</span
+														>
+													{/if}
+												{:else}
+													<span class="info-rules-note">no Free Spin</span>
+												{/if}
+											</td>
 											<td>{formatTimes(row.maxWinPerBall)}</td>
 										</tr>
 									{/each}
 								</tbody>
 							</table>
 							<p>
-								Every multiplier in this game — pockets, wheels and these caps — is applied to your
-								<strong>Bet per Ball</strong>, not to your total bet for the round.
-							</p>
-							<p>
-								<strong>Volatility</strong> — High. Most balls settle near the center for small returns,
-								so dry spells are possible, but rare edge landings and the bonus features can deliver
-								big wins.
+								Both meters are <strong>per drop</strong>: they fill from the current drop's hits only
+								and reset every round, so nothing carries over between bets. The
+								<strong>1 Ball per Drop</strong> tier has no Free Spin and no Bonus, and both meters stay
+								hidden while you play it.
 							</p>
 
-							<h3 class="info-section-title">Bonus Features</h3>
-							<p><strong>Free Spin</strong> — multiplier wheel</p>
+							<h3 class="info-section-title">Free Spin</h3>
 							<p>
-								The FREE SPIN meter (lower-right of the board) fills as balls land in the center
-								SPIN (0×) slot. When it fills during a drop, a wheel adds a multiplier of your Bet
-								per Ball, from 0.5× up to 20×, on top of your win.
+								Balls that land in the center SPIN slot fill the <strong>Free Spin meter</strong> in the
+								betting panel. Fill it during a drop and a wheel spins, adding a multiplier of your Bet
+								per Ball on top of your win.
 							</p>
-							<p>The wheel's {FREE_SPIN_SEGMENTS.length} segments are:</p>
 							<table class="info-rules-table">
 								<thead>
 									<tr>
@@ -438,7 +481,7 @@
 											<td>{row.label}</td>
 											<td>
 												{#if row.isBonus}
-													Chains straight into a Bonus round
+													Starts a Bonus round
 												{:else}
 													{row.value} × your Bet per Ball
 												{/if}
@@ -448,63 +491,31 @@
 								</tbody>
 							</table>
 							<p>
-								A free spin can also fire while a bonus round is already running. That wheel
-								<strong>cannot land on BONUS</strong> — a bonus can't start another bonus inside itself
-								— so it always pays one of the multipliers.
-							</p>
-							<p>The Free Spin feature is not available on the single-ball drop.</p>
-							<p><strong>Bonus</strong> — free balls</p>
-							<ul>
-								<li>
-									The Bonus meter (top-center of the board) fills as balls strike the 3 gold coin
-									pegs.
-								</li>
-								<li>
-									When it fills during a drop, a wheel awards a batch of free balls that drop
-									automatically at no extra cost. The wheel has {wheelSegmentCount} segments paying
-									from <strong>{wheelMinBalls} to {wheelMaxBalls} free balls</strong>.
-								</li>
-							</ul>
-
-							<p>
-								<strong>Trigger conditions</strong> — how many hits each meter needs to fill and fire
-								the feature, for every Ball per Drop tier:
-							</p>
-							<table class="info-rules-table">
-								<thead>
-									<tr>
-										<th>Ball per Drop</th>
-										<th>Bonus meter</th>
-										<th>Free Spin meter</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each meterRows as row (row.balls)}
-										<tr>
-											<td>{row.balls}</td>
-											<td>{row.bonusHits} coin-peg hits</td>
-											<td>
-												{row.spinHits} SPIN-slot hits
-												{#if row.spinStart > 0}
-													<span class="info-rules-note"
-														>(meter starts {row.spinStart} of {row.spinMax} filled)</span
-													>
-												{/if}
-											</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-							<p>
-								Both meters are per-drop: they fill from the current drop's hits and reset each
-								round, so they don't carry over between bets. The <strong>1 Ball per Drop</strong> tier
-								has neither feature — its meters are display only and can never fire.
+								A Free Spin can also fire while a Bonus round is running, as often as its meter refills.
+								That wheel <strong>cannot land on BONUS</strong>, because a bonus can't start another
+								bonus inside itself, so it always pays a multiplier.
 							</p>
 
+							<h3 class="info-section-title">Bonus Round</h3>
 							<p>
-								<strong>Level up (re-trigger)</strong> — once a bonus round is running, coin-peg hits
-								from the free balls fill the meter again. Each fill levels the round up and awards a
-								further batch of free balls:
+								Balls that strike the <strong>3 gold coin pegs</strong> fill the Bonus meter above the
+								board. Fill it during a drop and a wheel awards a batch of free balls. They drop at your
+								current Bet per Ball and cost you nothing.
+							</p>
+							<p>
+								The wheel's {wheelSegmentCount} awards are the same on every tier, from {wheelMinBalls} to {wheelMaxBalls}
+								free balls. What changes is the odds:
+								<strong>the more balls you drop, the more they favour the bigger awards</strong>.
+							</p>
+							<p>
+								<strong>Dropping your free balls.</strong> Press Play once for each free ball, or hold
+								Play (or the Space bar) to release them as a continuous stream. Autobet stops when a
+								Bonus round starts, so the round is always yours to play out.
+							</p>
+							<p>
+								<strong>Levelling up.</strong> Coin-peg hits from the free balls refill the meter. Each
+								refill raises the round a level and awards more free balls, which join the ones still
+								falling:
 							</p>
 							<table class="info-rules-table">
 								<thead>
@@ -525,53 +536,113 @@
 								</tbody>
 							</table>
 							<p>
-								Each level needs its own run of hits, counted from that level's balls — reaching
-								level 3 takes {bonusLevelRows[1]?.pegs} hits after the {bonusLevelRows[0]?.pegs} that
-								reached level 2, not {bonusLevelRows[1]?.pegs} in total. The ladder stops at
-								<strong>level {maxBonusLevel}</strong>, the highest a bonus round can reach.
-							</p>
-							<ul>
-								<li>
-									Free balls are staked at your current Bet per Ball and drop on their own — you
-									don't pay anything extra for them.
-								</li>
-							</ul>
-							<p>
-								Because both features resolve inside the same drop, one round can pay the base drop
-								plus a Free Spin multiplier and a batch of bonus balls.
+								Each level needs its own run of hits, counted from that level's balls. Level 3 takes
+								{bonusLevelRows[1]?.pegs} hits after the {bonusLevelRows[0]?.pegs} that reached level 2, not
+								{bonusLevelRows[1]?.pegs} in total. The ladder stops at
+								<strong>level {maxBonusLevel}</strong>, and the deeper levels are very rare.
 							</p>
 
 							<h3 class="info-section-title">Buy Bonus</h3>
 							<p>
-								The <strong>Buy Bonus</strong> button lets you instantly trigger the Crimson Fury bonus
-								without waiting for the Bonus meter to fill. Pick a tier and the bonus starts straight
-								away with that tier's batch of free balls — there is no separate paid drop.
+								The <strong>Buy Bonus</strong> badge starts a Bonus round straight away with that tier's
+								batch of free balls. There is no paid drop first, because the free balls are what you
+								bought.
 							</p>
+							<table class="info-rules-table">
+								<thead>
+									<tr>
+										<th>Tier</th>
+										<th>Cost</th>
+										<th>Free balls</th>
+										<th>Max win</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each buyRows as row (row.key)}
+										<tr>
+											<td>{row.name}</td>
+											<td>{formatTimes(row.cost)} Bet per Ball</td>
+											<td>{row.freeBalls}</td>
+											<td>{formatTimes(row.maxWinPerBall)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+							<p>
+								The price is your <strong>Bet per Ball × the tier's cost</strong> and does not depend on
+								your Ball per Drop. You can buy from any Ball per Drop, the 1-ball tier included. A
+								bought round always plays the {BUY_BONUS_BALLS_PER_DROP_REF}-ball board, so its Free Spin
+								and level-up meters are live even there.
+							</p>
+							<p>
+								A bought bonus then plays exactly like a triggered one: it can level up for more balls on
+								the same ladder, and an in-bonus Free Spin can still land.
+							</p>
+
+							<h3 class="info-section-title">Game Information</h3>
 							<ul>
-								{#each BUY_BONUS_TIERS as tier}
-									<li>
-										<strong>{tier.name}</strong> — {tier.freeBalls} free balls, costs
-										{buyBonusCost(tier.key)}× your Bet per Ball.
-									</li>
-								{/each}
+								<li>
+									<strong>RTP.</strong> Approximately {formatRtp(gameRtpPercent)}{#if offRtpModes.length}, except the
+										{offRtpModes.map((row) => row.label).join(' and ')}
+										{offRtpModes.length === 1 ? 'tier' : 'tiers'} at
+										{offRtpModes.map((row) => formatRtp(row.rtpPercent)).join(' and ')}{/if}.
+								</li>
+								<li>
+									<strong>Max win.</strong> Every bet mode has its own cap, from {formatTimes(
+										minWinPerBallCap,
+									)} to {formatTimes(maxWinPerBallCap)} your <strong>Bet per Ball</strong> (see the tables
+									above). It is a cap per BALL, not per round: {formatTimes(topBaseTier.maxWinPerBall)} at
+									{topBaseTier.balls} balls per drop works out at {formatTimes(
+										topBaseTier.maxWinPerBall / topBaseTier.balls,
+									)} your total bet.
+								</li>
+								<li>
+									<strong>Volatility.</strong> High. Most balls settle near the center for small returns,
+									so dry spells happen. The edge pockets and the features are where the big wins are.
+								</li>
+								<li>
+									<strong>Auto</strong> runs a set number of rounds for you.
+									<strong>Fast game</strong> speeds the balls up.
+								</li>
+							</ul>
+
+							<h3 class="info-section-title">Controls &amp; Buttons</h3>
+							<p class="info-subhead">Main Bet Panel</p>
+							<ul>
+								<li><strong>Balance.</strong> Your available funds.</li>
+								<li>
+									<strong>Bet.</strong> Your total wager for the round (Bet per Ball × Ball per Drop). It
+									updates automatically.
+								</li>
+								<li><strong>Win.</strong> The amount won on your last round.</li>
+								<li>
+									<strong>Bet per Ball.</strong> The stake on each ball. Adjust it with − / +, or tap the
+									value to choose a preset.
+								</li>
+								<li>
+									<strong>Ball per Drop.</strong> Number of balls released per drop ({BALL_PER_DROP_TIERS.join(
+										' / ',
+									)}). Adjust it with − / +.
+								</li>
+								<li><strong>Play.</strong> Drops your balls. The Space bar does the same.</li>
+								<li>
+									<strong>Auto.</strong> Opens the autobet round-count list. Choose a count to run that
+									many rounds automatically, or press it again to stop.
+								</li>
+								<li><strong>Fast game.</strong> Toggles faster ball drops on or off.</li>
 							</ul>
 							<p>
-								The price is your <strong>Bet per Ball × the tier's multiplier</strong> (for example,
-								at $1.00 per ball the Standard tier costs $80.00) and does not depend on your Ball per
-								Drop.
+								On mobile, tap the coins button to open the Bet per Ball and Ball per Drop settings.
 							</p>
-							<p>
-								<strong>Bigger tiers, bigger batch</strong> — each higher tier drops a larger batch of
-								free balls, so the bought balls are the reward. The round can still level up and chain
-								into extra balls as coin pegs are hit during the bonus, on the same level ladder (and
-								the same level {maxBonusLevel} cap) as a naturally triggered bonus.
-							</p>
-							<p>
-								A bought bonus plays exactly like a naturally triggered one: the free balls drop at
-								your current Bet per Ball, the round can level up for even more balls, and an
-								in-bonus Free Spin multiplier can still land. The balls you bought and any balls won
-								during the bonus are added together into your total.
-							</p>
+							<p class="info-subhead">Menu</p>
+							<p>Open the Menu button in the top corner to access:</p>
+							<ul>
+								<li><strong>Game Rules.</strong> These rules, plus the bet and payout limits.</li>
+								<li><strong>My Bet History.</strong> A log of your recent rounds.</li>
+								<li><strong>How to Play?</strong> A short guide to getting started.</li>
+								<li><strong>Sound.</strong> Toggles game sound on or off.</li>
+								<li><strong>Music.</strong> Toggles game music on or off.</li>
+							</ul>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
 						<div class="howto-pill-bar">
@@ -581,185 +652,84 @@
 						<h3 class="info-section-title">How to Play</h3>
 						<ol class="howto-steps">
 							<li>
-								<strong>Set your Bet per Ball</strong> — Choose the amount staked on each ball using
-								the − / + steppers, or tap the value to pick from the presets. This is the base wager
-								that every pocket multiplier is applied to.
+								<strong>Set your Bet per Ball.</strong> This is the stake on each single ball, set with
+								the − / + steppers or by tapping the value to pick a preset. Every multiplier in the game
+								is applied to this amount.
 							</li>
 							<li>
-								<strong>Choose your Ball per Drop</strong> — Use the − / + steppers to release 1,
-								10, 20, or 50 balls per drop. Your total <strong>Bet</strong> is calculated automatically
-								as Bet per Ball × Ball per Drop. Dropping more balls fills the feature meters faster
-								and raises the top potential payout.
+								<strong>Choose your Ball per Drop.</strong> Release {BALL_PER_DROP_TIERS.join(' / ')} balls
+								per drop, set with the − / + steppers. Your total <strong>Bet</strong> is worked out for
+								you.
 							</li>
 							<li>
-								<strong>Press Play to drop</strong> — Hit the Play button (or press the Space bar) to
-								release your balls from the top of the board. Each ball bounces off the pegs and settles
-								into one of the multiplier pockets along the bottom.
+								<strong>Press Play</strong> (or the Space bar). The balls fall through the pegs and
+								settle into the pockets along the bottom.
 							</li>
 							<li>
-								<strong>Collect your win</strong> — Each ball pays Bet per Ball × the multiplier of the
-								pocket it lands in. Your total Win for the round is the sum of every ball, plus anything
-								awarded by the bonus features.
+								<strong>Collect.</strong> Each ball pays Bet per Ball × its pocket, and your Win is all of
+								them added together, plus anything the features award.
 							</li>
 						</ol>
 						<div class="info-formula">Total Bet = Bet per Ball × Ball per Drop</div>
-
-						<h3 class="info-section-title">Multipliers &amp; Payouts</h3>
-						<p>
-							The pockets along the bottom of the board run from low in the center to high at the
-							edges. The board layout is fixed — you tune your own risk through Bet per Ball and
-							Ball per Drop rather than a difficulty or rows setting.
-						</p>
-						<p>
-							Each row below is the mirrored pair of pockets at that distance from the middle:
-						</p>
-						<table class="info-rules-table info-paytable">
-							<thead>
-								<tr>
-									<th>Pockets</th>
-									<th>10 / 20 / 50 Ball per Drop</th>
-									<th>1 Ball per Drop</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each paytableRows as row (row.index)}
-									<tr>
-										<td>
-											<span
-												class="info-paytable-swatch"
-												style:background={row.color}
-												aria-hidden="true"
-											></span>
-											{row.isCenter ? '1 (center)' : '2'}
-										</td>
-										<td>
-											{formatMultiplier(row.shared)}
-											{#if row.isCenter}
-												<span class="info-rules-note">SPIN slot — fills the Free Spin meter</span>
-											{/if}
-										</td>
-										<td>{formatMultiplier(row.oneBall)}</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
 						<ul>
 							<li>
-								<strong>Center pockets</strong> pay the least — the center pocket itself pays nothing
-								at all on every tier. On 10 / 20 / 50 balls it at least feeds the Free Spin meter; on
-								1 Ball per Drop there is no meter, so that tier pays more on its
-								{#each boardDiffs as diff, index (diff.index)}{index > 0 ? ' and ' : ''}{formatMultiplier(
-										diff.shared,
-									)}{/each} pockets instead.
+								Pockets pay least in the middle and most at the edges, up to
+								{formatMultiplier(Math.max(...BOARD_SLOT_MULTIPLIERS))} on a single ball. The center pocket
+								pays nothing.
 							</li>
 							<li>
-								<strong>Edge pockets</strong> pay the most — up to
-								{formatMultiplier(Math.max(...BOARD_SLOT_MULTIPLIERS))} your Bet per Ball on a single ball.
-							</li>
-							<li>
-								With the bonus features in play, a round can reach your tier's maximum payout —
-								{#each baseModeRows.slice(1) as row, index (row.label)}{index > 0
-										? ', '
-										: ''}{formatTimes(row.maxWinPerBall)} at {BALL_PER_DROP_TIERS[index + 1]}{/each}
-								balls per drop, each measured against your Bet per Ball. The 1 Ball per Drop tier has no
-								bonus features, so its maximum payout is the board's top pocket,
-								{formatMultiplier(Math.max(...ONE_BALL_BOARD_SLOT_MULTIPLIERS))}.
+								Dropping more balls fills the feature meters faster and raises your payout cap. See
+								<strong>Game Rules</strong> for the full paytable and every number quoted here.
 							</li>
 						</ul>
 
-						<h3 class="info-section-title">Bonus Features</h3>
+						<h3 class="info-section-title">Features</h3>
 						<ul>
 							<li>
-								<strong>Free Spin</strong> — Balls that land in the center pockets fill the Free
-								Spin meter beside the board. It fills on
-								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.spinHits}{/each}
-								hits at
-								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.balls}{/each}
-								balls per drop; when it fills during a drop, a wheel spins and adds a multiplier of your
-								Bet per Ball on top of your win. Its {FREE_SPIN_SEGMENTS.length} segments are
-								{#each freeSpinRows as row, index (row.label)}{index > 0
-										? ', '
-										: ''}{row.isBonus ? 'BONUS' : formatMultiplier(row.value)}{/each}, and landing on
-								<strong>BONUS</strong> chains straight into a bonus round. (Not available on the single-ball
-								drop.)
+								<strong>Free Spin.</strong> Balls landing in the center SPIN slot fill the Free Spin
+								meter in the betting panel ({#each featureTiers as row, index (row.balls)}{index > 0
+										? ' / '
+										: ''}{row.spinHits}{/each} hits at
+								{#each featureTiers as row, index (row.balls)}{index > 0
+										? ' / '
+										: ''}{row.balls}{/each} balls). Fill it and a wheel adds a multiplier of your Bet per
+								Ball, up to {formatMultiplier(
+									Math.max(...freeSpinRows.filter((row) => !row.isBonus).map((row) => row.value)),
+								)}, or lands on BONUS and starts a Bonus round.
 							</li>
 							<li>
-								<strong>Bonus Round</strong> — Balls that strike the gold coin pegs fill the Bonus meter,
-								which takes
-								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.bonusHits}{/each}
-								hits at
-								{#each meterRows as row, index (row.balls)}{index > 0 ? ' / ' : ''}{row.balls}{/each}
-								balls per drop. When it fills, a wheel awards {wheelMinBalls}–{wheelMaxBalls} free balls
-								that drop automatically at no extra cost. More coin-peg hits during the bonus level the
-								round up for even more balls, to a maximum of level {maxBonusLevel} — see the Game Rules
-								for the full ladder. (Not available on the single-ball drop.)
+								<strong>Bonus Round.</strong> Balls striking the 3 gold coin pegs fill the Bonus meter
+								above the board ({#each featureTiers as row, index (row.balls)}{index > 0
+										? ' / '
+										: ''}{row.bonusHits}{/each} hits at
+								{#each featureTiers as row, index (row.balls)}{index > 0
+										? ' / '
+										: ''}{row.balls}{/each} balls). Fill it and a wheel awards
+								{wheelMinBalls} to {wheelMaxBalls} free balls, which cost you nothing. More coin-peg hits
+								during the round level it up for more balls, to a maximum of level {maxBonusLevel}.
 							</li>
 							<li>
-								<strong>Buy Bonus</strong> — Skip the wait and trigger the bonus instantly. Tap the Buy
-								Bonus button and pick a tier for a batch of free balls; higher tiers drop a larger batch
-								for bigger chain potential. See the Game Rules for tier details. (Not available on the
-								single-ball drop.)
-							</li>
-						</ul>
-
-						<h3 class="info-section-title">Key Features</h3>
-						<ul>
-							<li>
-								<strong>RTP</strong> — Approximately {formatRtp(gameRtpPercent)}{#if offRtpModes.length}, except the
-									{offRtpModes.map((row) => row.label).join(' and ')}
-									{offRtpModes.length === 1 ? 'tier' : 'tiers'} at
-									{offRtpModes.map((row) => formatRtp(row.rtpPercent)).join(' and ')}{/if}.
+								<strong>Dropping free balls.</strong> Press Play once per free ball, or hold Play (or
+								Space) to release them as a stream. Autobet stops when a Bonus round starts.
 							</li>
 							<li>
-								<strong>Max Win</strong> — up to {formatTimes(maxWinPerBallCap)} your Bet per Ball (up to
-								{formatTimes(maxWinTotalBetCap)} your total bet). The cap is per bet mode — see the Game
-								Rules for the full table.
+								<strong>Buy Bonus.</strong> The badge in the top corner starts a Bonus round straight
+								away. Pick a tier for a bigger batch of free balls. The price is your Bet per Ball × the
+								tier's cost.
 							</li>
-							<li>
-								<strong>Auto</strong> — Pick a number of rounds and the game drops automatically for
-								you. Press Auto again to stop and return to manual play.
-							</li>
-							<li>
-								<strong>Fast game</strong> — Speeds up the ball animation for quicker rounds.
-							</li>
-						</ul>
-
-						<h3 class="info-section-title">Controls &amp; Buttons</h3>
-						<p class="howto-subhead">Main Bet Panel</p>
-						<ul>
-							<li><strong>Balance</strong> — Your available funds.</li>
-							<li>
-								<strong>Bet</strong> — Your total wager for the round (Bet per Ball × Ball per Drop);
-								updates automatically.
-							</li>
-							<li><strong>Win</strong> — The amount won on your last round.</li>
-							<li>
-								<strong>Bet per Ball</strong> — The stake on each ball; adjust with − / + or tap the
-								value to choose a preset.
-							</li>
-							<li>
-								<strong>Ball per Drop</strong> — Number of balls released per drop (1 / 10 / 20 / 50);
-								adjust with − / +.
-							</li>
-							<li><strong>Play</strong> — Drops your balls. The Space bar does the same.</li>
-							<li>
-								<strong>Auto</strong> — Opens the autobet round-count list; choose a count to run that
-								many rounds automatically, or press again to stop.
-							</li>
-							<li><strong>Fast game</strong> — Toggles faster ball drops on or off.</li>
 						</ul>
 						<p>
-							On mobile, tap the coins button to open the Bet per Ball and Ball per Drop settings.
+							Free Spin and Bonus are live from <strong>{featureTiers[0]?.balls} balls per drop</strong>
+							up. The 1 Ball per Drop tier has neither (its meters stay hidden) and pays more in the
+							pockets to make up for it, but you can still Buy Bonus from it.
 						</p>
-						<p class="howto-subhead">Menu</p>
-						<p>Open the Menu button in the top corner to access:</p>
-						<ul>
-							<li><strong>Game Rules</strong> — Full rules plus the bet and payout limits.</li>
-							<li><strong>My Bet History</strong> — A log of your recent rounds.</li>
-							<li><strong>How to Play?</strong> — This guide.</li>
-							<li><strong>Sound</strong> — Toggles game sound on or off.</li>
-							<li><strong>Music</strong> — Toggles game music on or off.</li>
-						</ul>
+						<!-- The per-control reference lives in Game Rules ("Controls & Buttons"), not here — one
+						     copy, not two. This line is the signpost so a player looking for it in the guide is
+						     pointed rather than stranded. -->
+						<p>
+							For what every button and menu entry does, see
+							<strong>Game Rules</strong>.
+						</p>
 
 						<h3 class="info-section-title">Legal Notice</h3>
 						<p>
@@ -1035,7 +1005,9 @@
 		line-height: 1.2;
 		text-align: center;
 	}
-	.howto-subhead {
+	/* Sub-heading inside a section (Controls & Buttons splits into Main Bet Panel / Menu). Named
+	   `howto-subhead` while that section lived in How to Play; renamed when it moved to Game Rules. */
+	.info-subhead {
 		margin: calc(14 * var(--ui-px)) 0 calc(8 * var(--ui-px));
 		font-size: calc(14 * var(--ui-px));
 		font-weight: 700;
