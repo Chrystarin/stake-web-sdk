@@ -234,7 +234,7 @@
 						disabled={isFirstPage}
 						onclick={goBack}
 					>
-						<span class="qg-nav-label">&lt;BACK</span>
+						<span class="qg-nav-label">BACK</span>
 					</button>
 
 					<span class="qg-nav-count">{pageIndex + 1}/{PAGES.length}</span>
@@ -248,7 +248,7 @@
 						disabled={isLastPage}
 						onclick={goNext}
 					>
-						<span class="qg-nav-label">NEXT&gt;</span>
+						<span class="qg-nav-label">NEXT</span>
 					</button>
 				</div>
 			</div>
@@ -311,9 +311,9 @@
 		   one before it was 2.25:1, so at an unchanged width it stands ~20% taller and the block it
 		   makes with the panel grew past what the 68vh budget leaves. See the note on `--qg-panel-w`
 		   for what runs out first — the logo's own top edge, at 1280x720 and in the 400x225 popout. */
-		--qg-logo-scale: 0.99;
+		--qg-logo-scale: 1.15;
 		--qg-logo-x: 0;
-		--qg-logo-y: -5;
+		--qg-logo-y: -3.5;
 
 		/*
 		 * ── THE MODAL AS A WHOLE ─────────────────────────────────────────────────────────────────
@@ -721,10 +721,12 @@
 	 * background image rather than a border treatment: it is delivered art with a moulded rim and a
 	 * grain, and none of that survives being rebuilt in CSS.
 	 *
-	 * Sized, not padded. The label decides nothing here — the plate is an explicit fraction of the
-	 * panel width at the art's own 170x84, and the text is centred on it — because `<BACK` and `NEXT>`
-	 * are different widths and padding would hand the two ends of the row two different plates. Never
-	 * upscaled: the widest it gets is 118px, against a 170px asset.
+	 * Sized, not padded. The label decides nothing here: the plate is an explicit fraction of the
+	 * panel width at the art's own 170x84, and the text is centred on it. BACK and NEXT happen to set
+	 * to nearly the same width, but padding would still tie the plate to whatever the words are — a
+	 * translation, or the chevrons these labels carried until recently, and the two ends of the row
+	 * stop matching. The art is a fixed object; it should be sized like one. Never upscaled: the
+	 * widest it gets is 118px, against a 170px asset.
 	 *
 	 * `--qg-plate-w` is the third knob the portrait override turns, alongside the type and the video
 	 * well. It is 15.5% of the panel width in landscape, and the type factor is folded in there so the
@@ -814,9 +816,9 @@
 			--qg-logo-w: 0.58;
 			--qg-logo-overlap: 0.085;
 			/* Down a tenth with the landscape one, and for the same reason — see the note there. */
-			--qg-logo-scale: 1.08;
+			--qg-logo-scale: 1.25;
 			--qg-logo-x: 0;
-			--qg-logo-y: -7;
+			--qg-logo-y: -1;
 			--qg-panel-scale: 1;
 			--qg-modal-x: 0;
 			--qg-modal-y: 0;
