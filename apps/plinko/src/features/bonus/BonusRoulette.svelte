@@ -251,8 +251,9 @@
 	});
 
 	// ─── Congratulations-screen coin shower ────────────────────────────────────────────────────────
-	// Two coin art variants fall behind the headline while the "PRESS ANYWHERE" screen is up. Generated
-	// once per mount (not reactive) so the shower doesn't reshuffle on every render.
+	// Two coin art variants fall behind the headline while the "PRESS ANYWHERE" screen is up — on BOTH
+	// the pre-bonus (wheel result) and post-bonus (treasure) screens. Generated once per mount (not
+	// reactive) so the shower doesn't reshuffle on every render.
 	const ANNOUNCEMENT_COIN_IMAGES = [
 		staticUrl('img/congratulations_screen/coin_1.webp'),
 		staticUrl('img/congratulations_screen/coin_2.webp'),
@@ -268,8 +269,7 @@
 		driftPx: number;
 	};
 	const ANNOUNCEMENT_COIN_COUNT = 24;
-	// Mobile only: fall 50% slower (doubled duration = half the speed) on the pre-bonus congratulations
-	// screen's coin shower. Desktop is unchanged.
+	// Mobile only: fall 50% slower (doubled duration = half the speed). Desktop is unchanged.
 	const ANNOUNCEMENT_COIN_SLOWDOWN = isPortraitGameLayout() ? 2 : 1;
 	const announcementCoins: AnnouncementCoin[] = Array.from(
 		{ length: ANNOUNCEMENT_COIN_COUNT },
@@ -296,8 +296,8 @@
 	);
 
 	// ─── Treasure-win congratulations screen (treasureWin) ───────────────────────────────────────────
-	// The bonus-end "CONGRATULATIONS! / YOU HAVE WON / $X" screen swaps the falling-coin shower for a
-	// treasure table that rises from the bottom, with white star sparkles twinkling over the hoard and the
+	// The bonus-end "CONGRATULATIONS! / YOU HAVE WON / $X" screen adds a treasure table that rises from
+	// the bottom UNDER the shared coin shower, with white star sparkles twinkling over the hoard and the
 	// win value (matches the reference art + guide video). Positions are hand-placed over the art.
 	// Mobile/portrait gets its own taller treasure art (the desktop one is very wide + short); desktop keeps
 	// the wide version. Picked here rather than in the template so it's decided once at mount.
@@ -527,6 +527,21 @@
 		}, 620);
 		timers.push(assembleTimer);
 		return cleanup;
+	});
+
+	/**
+	 * Post-bonus treasure screen: a coin-clink bed held on loop underneath it.
+	 *
+	 * Tied to `announcementCoinsVisible`, which is exactly the beat the falling-coin shower starts on —
+	 * one `ANNOUNCEMENT_TEXT_POP_MS` after the message pops in, i.e. the moment the text has finished
+	 * animating. The teardown releases it on all three exits: the dismiss that clears the flag and slides
+	 * the screen away, a Sound toggle handled downstream in EnableSound, and an unmount that never went
+	 * through the dismiss path at all.
+	 */
+	$effect(() => {
+		if (!props.treasureWin || !announcementCoinsVisible) return;
+		eventEmitter.broadcast({ type: 'soundLoopStart', name: 'postBonusCoins' });
+		return () => eventEmitter.broadcast({ type: 'soundLoopStop', name: 'postBonusCoins' });
 	});
 
 	function cleanup() {
@@ -1030,23 +1045,25 @@
 						{/each}
 					</div>
 				</div>
-			{:else}
-				<div class="bonus-announcement-coins" aria-hidden="true">
-					{#each announcementCoins as coin (coin.id)}
-						<img
-							class="bonus-announcement-coin"
-							src={coin.img}
-							alt=""
-							style:left="{coin.leftPct}%"
-							style:width="{coin.sizeVw}vw"
-							style:animation-duration="{coin.durationS}s"
-							style:animation-delay="{coin.delayS}s"
-							style:--coin-rotate="{coin.rotateDeg}deg"
-							style:--coin-drift="{coin.driftPx}px"
-						/>
-					{/each}
-				</div>
 			{/if}
+			<!-- The coin shower runs on BOTH congratulations screens, identically. On the treasure screen
+			     it is sandwiched by z-index: over the risen table and its sparkles (z 0), under every
+			     text layer (z 2). -->
+			<div class="bonus-announcement-coins" aria-hidden="true">
+				{#each announcementCoins as coin (coin.id)}
+					<img
+						class="bonus-announcement-coin"
+						src={coin.img}
+						alt=""
+						style:left="{coin.leftPct}%"
+						style:width="{coin.sizeVw}vw"
+						style:animation-duration="{coin.durationS}s"
+						style:animation-delay="{coin.delayS}s"
+						style:--coin-rotate="{coin.rotateDeg}deg"
+						style:--coin-drift="{coin.driftPx}px"
+					/>
+				{/each}
+			</div>
 			<div class="bonus-announcement-main">
 				<div class="bonus-announcement-headline">
 					<span class="bonus-announcement-text-stroke" aria-hidden="true">{headlineText}</span>
@@ -1667,7 +1684,10 @@
 		right: 0;
 		bottom: 0;
 		width: 100%;
-		z-index: 1;
+		/* Above the screen's own background art, below the coin shower at 1 (which must fall IN FRONT of
+		   the table) and the text at 2. The sparkles ride inside this box, so they sit under the shower
+		   too — they twinkle on the hoard, and coins pass over both. */
+		z-index: 0;
 		pointer-events: none;
 		opacity: 0;
 		transform: translateY(103%);

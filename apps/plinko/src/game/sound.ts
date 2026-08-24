@@ -30,10 +30,14 @@ export type SoundEffectName =
 	// (see EnableSound). See BonusRoulette.
 	| 'doorClose'
 	| 'doorOpen'
-	// Bonus level-up overlay: a chime played the instant the LEVEL x / +free-balls card pops. The
-	// source file has ~3.17s of leading silence, so it's loaded as a sprite window that starts at the
-	// onset (see EnableSound) — the sound fires immediately with no dead air.
-	| 'bonusLevelUp';
+	// Bonus level-up overlay: a chime played the instant the LEVEL x / +free-balls card pops. Played
+	// whole — the clip opens on the chime (71ms in). It used to carry ~3.17s of leading silence and a
+	// sprite window to skip it; the re-delivered file does not, and the window went with it.
+	| 'bonusLevelUp'
+	// Post-bonus (treasure) congratulations screen: a coin-clink bed held on LOOP from the moment the
+	// message finishes popping in until the screen slides away. Started/stopped by
+	// `startPlinkoSoundLoop` / `stopPlinkoSoundLoop`, never by `playPlinkoSound`. See BonusRoulette.
+	| 'postBonusCoins';
 
 /** A [startMs, durationMs] slice of the source file to play instead of the whole thing. */
 export type SoundSprite = [startMs: number, durationMs: number];
@@ -41,6 +45,16 @@ export type SoundSprite = [startMs: number, durationMs: number];
 export type LoadSoundOptions = {
 	volume?: number;
 	sprite?: SoundSprite;
+	/**
+	 * Hold this sound on repeat once started. Loops are driven by `startPlinkoSoundLoop` /
+	 * `stopPlinkoSoundLoop` rather than `playPlinkoSound`, so the caller owns exactly how long they run.
+	 */
+	loop?: boolean;
+	/**
+	 * Codec hint for a file whose extension does not name its format — `post_bonus_clinking_coins.mpeg`
+	 * is MP3 data. Without it Howler guesses from the extension and can decide it cannot play the file.
+	 */
+	format?: string[];
 	/**
 	 * Number of INDEPENDENT Howl instances to build for this sound (default 1).
 	 *
@@ -71,7 +85,7 @@ export function loadPlinkoSound(
 	options: LoadSoundOptions = {},
 ): void {
 	if (howls.has(name)) return;
-	const { volume = 1, sprite, voices = 1 } = options;
+	const { volume = 1, sprite, voices = 1, loop = false, format } = options;
 	try {
 		const instances = Array.from(
 			{ length: Math.max(1, voices) },
@@ -79,6 +93,8 @@ export function loadPlinkoSound(
 				new Howl({
 					src: [url],
 					volume,
+					loop,
+					...(format ? { format } : {}),
 					// Play only a slice of the file when a sprite window is given (e.g. seconds 0–1.5 vs 2–4
 					// of the same coin-shuffle sample). Howler indexes sprites in milliseconds.
 					...(sprite ? { sprite: { [SPRITE_ID]: sprite } } : {}),
@@ -223,6 +239,61 @@ export function playPlinkoSound(name: SoundEffectName, rate = 1): void {
 	// A sprite sound must be triggered by its window id so only that slice plays.
 	if (spriteSounds.has(name)) howl.play(SPRITE_ID);
 	else howl.play();
+}
+
+// ─── Held loops ────────────────────────────────────────────────────────────────────────────────
+// A loop is a sound that runs for as long as something is on screen rather than for the length of its
+// clip (currently just the post-bonus treasure screen's coin bed). It always uses the sound's FIRST
+// voice, so start/stop is unambiguous — there is no round-robin cursor to lose track of.
+
+/** Sounds a caller is currently holding on loop. Kept so the page-hidden gate below can find them. */
+const heldLoops = new Set<SoundEffectName>();
+
+function playLoopVoice(name: SoundEffectName): void {
+	const howl = howls.get(name)?.[0];
+	// Re-entrant by design: `playing()` keeps a resume (or a repeat `start` call) from stacking a second
+	// voice on top of the one already running, which would double the level and phase against itself.
+	if (!howl || howl.playing()) return;
+	setVoiceRate(howl, 1);
+	if (spriteSounds.has(name)) howl.play(SPRITE_ID);
+	else howl.play();
+}
+
+/**
+ * Silence held loops while the player is away and bring them back when they return — the same rule
+ * `playPlinkoSound` applies to one-shots, which a loop would otherwise sail straight past (it is
+ * started once and then runs on its own for as long as its screen is up). Installed on the first loop
+ * ever started and left in place: the handler costs nothing while nothing is held.
+ */
+let loopVisibilityGateInstalled = false;
+function installLoopVisibilityGate(): void {
+	if (loopVisibilityGateInstalled || typeof document === 'undefined') return;
+	loopVisibilityGateInstalled = true;
+	document.addEventListener('visibilitychange', () => {
+		for (const name of heldLoops) {
+			if (document.hidden) howls.get(name)?.[0]?.stop();
+			else playLoopVoice(name);
+		}
+	});
+}
+
+/**
+ * Start holding `name` on loop. Idempotent — calling it again while the loop is already up is a no-op,
+ * so it is safe to drive from an effect. The sound must have been loaded with `loop: true`.
+ */
+export function startPlinkoSoundLoop(name: SoundEffectName): void {
+	if (!howls.get(name)?.length) return;
+	installLoopVisibilityGate();
+	heldLoops.add(name);
+	// Nothing may be heard while the player is away — the gate above starts it when they come back.
+	if (typeof document !== 'undefined' && document.hidden) return;
+	playLoopVoice(name);
+}
+
+/** Release a loop held by `startPlinkoSoundLoop`. Safe to call when nothing is playing. */
+export function stopPlinkoSoundLoop(name: SoundEffectName): void {
+	heldLoops.delete(name);
+	howls.get(name)?.[0]?.stop();
 }
 
 /**

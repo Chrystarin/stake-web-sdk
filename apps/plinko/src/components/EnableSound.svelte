@@ -8,6 +8,8 @@
 		installPlinkoAudioResume,
 		loadPlinkoSound,
 		playPlinkoSound,
+		startPlinkoSoundLoop,
+		stopPlinkoSoundLoop,
 		type LoadSoundOptions,
 		type SoundEffectName,
 	} from '../game/sound';
@@ -35,6 +37,8 @@
 		doorOpen: staticUrl('sound/door_open.ogg'),
 		// Bonus level-up chime (leading silence trimmed via sprite below).
 		bonusLevelUp: staticUrl('sound/bonus_level_up.mp3'),
+		// Post-bonus treasure screen coin bed — held on loop, see the `loop` option below.
+		postBonusCoins: staticUrl('sound/post_bonus_clinking_coins.mpeg'),
 	};
 
 	// Per-sound load options (default: full file at volume 1). The coin-shuffle bed is sliced into two
@@ -61,10 +65,16 @@
 		coinShuffleMulti: { sprite: [2000, 2000] },
 		doorClose: { sprite: [2790, 2260] },
 		doorOpen: { sprite: [3200, 900] },
-		// The clip has ~3.17s of leading silence before the chime (onset measured via Web Audio at
-		// 3.170s). The window starts a hair before onset (3150ms) so the attack isn't clipped and runs
-		// to the end of the file (~6.34s) — so it plays on the sound immediately, no dead air.
-		bonusLevelUp: { sprite: [3150, 3200] },
+		// NO sprite, deliberately: this clip used to open with ~3.17s of silence and was played through
+		// a [3150, 3200] window to skip it. The re-delivered file has that silence cut — the chime now
+		// starts 71ms in — so the window would have skipped the chime and played its tail instead
+		// (measured over the old window: peak 0.06 against 0.90 for the chime itself, i.e. inaudible).
+		// It plays whole. Re-measure the onset if it is ever re-delivered again.
+		// Held on loop under the post-bonus treasure screen (started by `soundLoopStart`, below). The
+		// file carries a `.mpeg` extension but is MPEG layer III (MP3) audio, so the format is pinned
+		// rather than guessed from that unusual extension — same as the bonus music track. Mixed under
+		// the music it plays over: it is a texture behind the message, not a cue.
+		postBonusCoins: { loop: true, volume: 0.55, format: ['mp3'] },
 	};
 
 	onMount(() => {
@@ -77,10 +87,31 @@
 		return installPlinkoAudioResume();
 	});
 
+	/** The sound currently being held on loop by a screen, if any. See EmitterEventSoundLoop. */
+	let heldLoop = $state<SoundEffectName | undefined>(undefined);
+
 	context.eventEmitter.subscribeOnMount({
 		soundOnce: ({ name, rate }) => {
 			if (!stateGame.soundEnabled) return;
 			playPlinkoSound(name as SoundEffectName, rate ?? 1);
 		},
+		soundLoopStart: ({ name }) => {
+			heldLoop = name as SoundEffectName;
+		},
+		// Name-checked so a late stop from a screen that has already been replaced cannot cut off the
+		// loop the new one just started.
+		soundLoopStop: ({ name }) => {
+			if (heldLoop === name) heldLoop = undefined;
+		},
+	});
+
+	// Run the held loop for exactly as long as it is held AND Sound is on. The teardown covers all
+	// three ways it ends — the screen releases it, the player turns Sound off mid-screen, or this
+	// component is destroyed — so no loop can outlive what it belongs to.
+	$effect(() => {
+		const name = heldLoop;
+		if (!name || !stateGame.soundEnabled) return;
+		startPlinkoSoundLoop(name);
+		return () => stopPlinkoSoundLoop(name);
 	});
 </script>

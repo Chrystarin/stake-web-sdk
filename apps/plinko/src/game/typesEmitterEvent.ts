@@ -38,6 +38,24 @@ export type EmitterEventSound = {
 	rate?: number;
 };
 
+/**
+ * Start / stop a sound that is HELD for as long as something is on screen, rather than played once
+ * (e.g. the post-bonus treasure screen's coin bed). Handled by EnableSound, which also drops the loop
+ * if the player turns Sound off while it is up.
+ *
+ * ⚠️ Two types rather than one with a union `type` field: the emitter picks a handler's argument with
+ * `Extract<Event, { type: T }>`, which resolves to `never` for an event whose own `type` is a union.
+ */
+export type EmitterEventSoundLoopStart = {
+	type: 'soundLoopStart';
+	name: string;
+};
+
+export type EmitterEventSoundLoopStop = {
+	type: 'soundLoopStop';
+	name: string;
+};
+
 export type EmitterEventBonusBall = {
 	type: 'bonusBallDrop';
 	stake: number;
@@ -50,7 +68,9 @@ export type EmitterEventGame =
 	| EmitterEventBonusRoulette
 	| EmitterEventFreeSpin
 	| EmitterEventBonusBall
-	| EmitterEventSound;
+	| EmitterEventSound
+	| EmitterEventSoundLoopStart
+	| EmitterEventSoundLoopStop;
 
 export type EmitterEvent =
 	| EmitterEventHotKey

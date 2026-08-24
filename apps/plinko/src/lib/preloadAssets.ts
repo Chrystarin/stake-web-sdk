@@ -294,6 +294,8 @@ const AUDIO_PATHS: readonly string[] = [
 	'sound/door_close.ogg',
 	'sound/door_open.ogg',
 	'sound/bonus_level_up.mp3',
+	// Held on loop under the post-bonus treasure screen (EnableSound).
+	'sound/post_bonus_clinking_coins.mpeg',
 
 	// Looping music (EnableMusic).
 	'sound/background_music.m4a',
