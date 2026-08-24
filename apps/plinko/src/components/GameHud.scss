@@ -1958,7 +1958,11 @@
    large on the plaque; a running Autobet's rounds-left uses the --auto modifier below. */
 .hud-play-count-badge {
 	position: absolute;
-	top: 50%;
+	/* Raised onto the DISC's centre, not the button box's: main_btn_empty draws its disc
+	   --bp-play-disc-rise high, so a plain 50% lands the count that far BELOW the middle of the art the
+	   player actually sees. Lives on the BASE rule (as it does on desktop's .bp-bonus-count-badge) so
+	   the bonus free-balls count and the Autobet rounds-left sit on the same centre. */
+	top: calc(50% - var(--bp-play-disc-rise));
 	left: 50%;
 	transform: translate(-50%, -50%);
 	color: #f0f6ff;
@@ -1968,23 +1972,22 @@
 	text-shadow: 0 0.08vw 0.2vw rgba(0, 0, 0, 0.55);
 	pointer-events: none;
 	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	/* Above the spinner (z-index 3): a gated drop mid-bonus round shows the ring and the free-balls
+	   count together, and the count must not disappear behind the arcs. Matches desktop. */
+	z-index: 4;
 }
 
 /* Rounds left in a running Autobet, sitting INSIDE the spinning ring (the mobile twin of desktop's
-   .bp-bonus-count-badge--auto). Two deliberate differences from the bonus count above:
-   - Smaller, because an Autobet run reaches 3 digits (100) where the free-balls count is at most 2.
-     ⚠️ It does NOT track the desktop badge's size. That one was taken 20% down; this clamp followed,
-     then went 25% back up — 0.8 × 1.25 = 1, so these are once again the 18/4.8/28 it started at. The
-     mobile button is a fixed ~85px rather than a vw-scaled plaque, so the count has to hold its own
-     legibility floor there; keep the two sizes independent.
-   - Raised onto the DISC's centre, not the button box's: main_btn_empty draws its disc
-     --bp-play-disc-rise high, and the spinner is raised by the same amount — so the number only
-     agrees with the arrows around it if it rides up too.
-   Above the spinner (z-index 3) so the digits stay legible if they ever reach the arcs. */
+   .bp-bonus-count-badge--auto). The one deliberate difference from the bonus count above is SIZE:
+   smaller, because an Autobet run reaches 3 digits (100) where the free-balls count is at most 2.
+   ⚠️ It does NOT track the desktop badge's size. That one was taken 20% down; this clamp followed,
+   then went 25% back up — 0.8 × 1.25 = 1, so these are once again the 18/4.8/28 it started at. The
+   mobile button is a fixed ~85px rather than a vw-scaled plaque, so the count has to hold its own
+   legibility floor there; keep the two sizes independent.
+   The lift onto the disc's centre and the z-index over the spinner both come from the base rule now
+   — the spinner is raised by the same --bp-play-disc-rise, so the number rides with the arrows. */
 .hud-play-count-badge--auto {
-	top: calc(50% - var(--bp-play-disc-rise));
 	font-size: clamp(18px, 4.8vw, 28px);
-	z-index: 4;
 	text-shadow:
 		0 0.08vw 0.28vw rgba(0, 0, 0, 0.9),
 		0 0 0.5vw rgba(0, 0, 0, 0.75);
