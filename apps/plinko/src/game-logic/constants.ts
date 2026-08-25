@@ -308,6 +308,53 @@ export function bonusLevelBalls(level: number): number {
 }
 
 /**
+ * IN-BONUS FREE-SPIN BAR — how many SPIN-slot hits a Free Spin costs while a bonus round is running.
+ *
+ * ⚠️ DISPLAY MIRROR ONLY. The bar the round actually plays on still comes from the book
+ * (`bonusRound.spinMeterMax` / the in-bonus `spinMeter` events, see `bookEventHandlerMap`) and the math
+ * stays authoritative. These constants exist so the RULES can NAME the bar, which they could not do
+ * before 2026-08-26: the math used to size it from the balls the bonus roulette actually landed, so the
+ * same mode had a different bar every round and there was no number to publish.
+ *
+ * Mirror of stake-math-sdk plinko_data `IN_BONUS_NOMINAL_ENTRY` / `IN_BONUS_TARGET_CYCLES` /
+ * `IN_BONUS_SPIN_HITS_PER_BALL` / `in_bonus_spin_meter_max_at_level`. ⚠️ Keep in step with those. The
+ * math's values are themselves pinned literals (each tier's mean bonus-wheel entry), so they only move
+ * on a deliberate re-solve, and `rtp_audit.py` is what re-solves them.
+ *
+ * A BOUGHT bonus is not in this table: it passes its own pinned entry (`BUY_BONUS_TIERS.freeBalls`),
+ * which has always made its bar a fixed per-level table. 1-ball is absent because it has no free spin.
+ */
+export const IN_BONUS_NOMINAL_ENTRY: Record<number, number> = {
+	10: 23,
+	20: 44,
+	50: 76,
+};
+
+/** Fills the math aims for per batch, and the share of bonus balls that land in the SPIN slot. */
+export const IN_BONUS_TARGET_CYCLES = 2;
+export const IN_BONUS_SPIN_HITS_PER_BALL = 0.2095;
+
+/** Nominal entry balls the in-bonus bar is sized from for a tier (0 = no pinned value). */
+export function inBonusNominalEntry(ballsPerDrop: number): number {
+	return IN_BONUS_NOMINAL_ENTRY[Math.max(1, Math.floor(ballsPerDrop))] ?? 0;
+}
+
+/**
+ * In-bonus Free Spin bar for the batch played AT `level`, sized from the round's NOMINAL supply.
+ *
+ * `nominalEntry` is a mode's nominal entry (`inBonusNominalEntry`) or a buy tier's pinned `freeBalls`,
+ * never the balls a given round won. The bar GROWS with the level because the ×10 award ladder hands the
+ * round more balls at each rung, and it has to: the meter runs ACROSS batches (it resets only when it
+ * fires), so a bar that could shrink would leave a carry sitting above its own max.
+ */
+export function inBonusSpinMeterMaxAtLevel(nominalEntry: number, level: number): number {
+	const capped = Math.max(1, Math.min(Math.floor(level), BONUS_LEVEL_LABELS.length));
+	let supply = Math.max(1, Math.floor(nominalEntry));
+	for (let l = 2; l <= capped; l += 1) supply += bonusLevelBalls(l);
+	return Math.max(3, Math.round((supply * IN_BONUS_SPIN_HITS_PER_BALL) / IN_BONUS_TARGET_CYCLES));
+}
+
+/**
  * SHARED in-bonus level-up ladder — coin-peg hits needed to LEAVE level L (index L-1).
  *
  * IDENTICAL IN EVERY MODE: an earned bonus (10/20/50) and a bought bonus need the same hits to climb.

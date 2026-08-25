@@ -23,6 +23,8 @@
 		bonusInDropForBalls,
 		bonusLevelBalls,
 		bonusMeterTierFor,
+		inBonusNominalEntry,
+		inBonusSpinMeterMaxAtLevel,
 		spinMeterTierFor,
 	} from '../game-logic/constants';
 	import { slotColorForRateIndex } from '../game-logic/slotColors';
@@ -206,6 +208,42 @@
 			value: isBonus ? Infinity : parseFloat(label),
 		};
 	}).sort((a, b) => a.value - b.value);
+
+	/** "A, B and C" for prose lists. House style bans the semicolon, so this is the only joiner used. */
+	function joinWithAnd(items: string[]): string {
+		if (items.length <= 1) return items[0] ?? '';
+		return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+	}
+
+	/** The wheel's segments, low → high with BONUS last, as one sentence-ready list. */
+	const freeSpinSegmentList = joinWithAnd(freeSpinRows.map((row) => row.label));
+
+	/**
+	 * IN-BONUS Free Spin bar per bet mode: the SPIN-slot hits one Free Spin costs while a bonus round is
+	 * running, on the level a round opens at.
+	 *
+	 * ⚠️ THIS BECAME PUBLISHABLE ONLY ON 2026-08-26. The math used to size this bar from the free balls
+	 * the bonus roulette actually landed, so a mode had a different bar every round and the rules had no
+	 * single number to state. It is now fixed per (mode, level) — math `IN_BONUS_NOMINAL_ENTRY`, mirrored
+	 * by `inBonusSpinMeterMaxAtLevel`.
+	 *
+	 * LEVEL 1 ONLY, on purpose. The bar grows as the round climbs the ladder (each level hands it more
+	 * balls), but level 1 is the bar a round opens on and where nearly every bonus stays, so the prose
+	 * says that it grows rather than tabulating nine columns nobody will read. The bar the round actually
+	 * plays on still arrives on the book, so this table can never overrule the math.
+	 */
+	const inBonusSpinRows = [
+		...featureTiers.map((row) => ({
+			key: `balls-${row.balls}`,
+			label: `${row.balls} Balls per Drop`,
+			hits: inBonusSpinMeterMaxAtLevel(inBonusNominalEntry(row.balls), 1),
+		})),
+		...buyRows.map((row) => ({
+			key: `buy-${row.key}`,
+			label: `${row.name} Buy Bonus`,
+			hits: inBonusSpinMeterMaxAtLevel(row.freeBalls, 1),
+		})),
+	];
 
 	/**
 	 * Declared RTP + max win PER BET MODE, read from `config.betModes` — the same table published to the
@@ -468,32 +506,38 @@
 								betting panel. Fill it during a drop and a wheel spins, adding a multiplier of your Bet
 								per Ball on top of your win.
 							</p>
+							<p>
+								The wheel's segments are {freeSpinSegmentList}. Each <strong>xN</strong> segment pays
+								that multiple of your Bet per Ball, and <strong>BONUS</strong> starts a Bonus round
+								instead of paying.
+							</p>
+							<p>
+								A Free Spin can also fire while a Bonus round is running, as often as its meter refills.
+								That wheel <strong>cannot land on BONUS</strong>, because a bonus can't start another
+								bonus inside itself, so it always pays a multiplier. Inside a bonus the meter fills
+								against its own bar, which is fixed for the mode you are playing and does not change
+								with the number of free balls you won:
+							</p>
 							<table class="info-rules-table">
 								<thead>
 									<tr>
-										<th>Segment</th>
-										<th>Pays</th>
+										<th>Mode</th>
+										<th>In-bonus Free Spin</th>
 									</tr>
 								</thead>
 								<tbody>
-									{#each freeSpinRows as row (row.label)}
+									{#each inBonusSpinRows as row (row.key)}
 										<tr>
 											<td>{row.label}</td>
-											<td>
-												{#if row.isBonus}
-													Starts a Bonus round
-												{:else}
-													{row.value} × your Bet per Ball
-												{/if}
-											</td>
+											<td>{row.hits} SPIN-slot hits</td>
 										</tr>
 									{/each}
 								</tbody>
 							</table>
 							<p>
-								A Free Spin can also fire while a Bonus round is running, as often as its meter refills.
-								That wheel <strong>cannot land on BONUS</strong>, because a bonus can't start another
-								bonus inside itself, so it always pays a multiplier.
+								Those are the bars a round opens on. Each level-up hands the round more free balls, so
+								the bar grows with it and a deeper round spins the wheel a handful of times rather than
+								constantly.
 							</p>
 
 							<h3 class="info-section-title">Bonus Round</h3>
