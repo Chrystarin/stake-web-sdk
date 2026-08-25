@@ -171,6 +171,21 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/quick_guide/quick_guide_title.webp',
 	'img/quick_guide/quick_guide_button_container.webp',
 
+	// ── Congratulations screens (pre-bonus wheel result + bonus-end treasure win) ────────────────
+	// The baked CONGRATULATIONS headline art shared by both screens, plus their rope-and-lantern
+	// borders: one per screen in landscape, one shared export in portrait. All of it is
+	// full-screen-scale and paints on the FIRST frame the screen covers the view, so a late arrival is
+	// a visible pop-in on top of an already-opaque overlay rather than a soft degrade.
+	// BOTH orientations' borders, not just this one's: which pair is used is decided at mount from the
+	// layout, and a device that rotates between the splash and the bonus would otherwise fetch its
+	// border live. 0.7 MB for the set.
+	// (The pre-bonus shine burst is absent on purpose: it reuses `img/win_popup/shine_rays.webp`, which
+	// `preloadWinPopupAssets` below already loads and retains.)
+	'img/congratulations_screen/congratulations_title_text.webp',
+	'img/congratulations_screen/pre_congratulations_screen_overlay.webp',
+	'img/congratulations_screen/post_congratulations_screen_overlay.webp',
+	'img/congratulations_screen/portrait_congratulations_screen_overlay.webp',
+
 	// ── Bonus-end "CONGRATULATIONS! YOU HAVE WON" treasure-win screen ────────────────────────────
 	'img/congratulations_screen/treasure_table.webp',
 	'img/congratulations_screen/treasure_table_mobile.webp',
@@ -330,6 +345,9 @@ const FONT_SPECS: readonly string[] = [
 	"600 1rem 'Noto Sans'",
 	"400 1rem 'Righteous'",
 	"400 1rem 'AustereBlackCapsSSK'",
+	// The "YOU WON N DROPS" / "YOU HAVE WON" row on both congratulations screens. Only the Black cut is
+	// declared (see +layout.svelte) — asking for any other weight here would just load nothing.
+	"900 1rem 'Prompt'",
 ];
 
 /**

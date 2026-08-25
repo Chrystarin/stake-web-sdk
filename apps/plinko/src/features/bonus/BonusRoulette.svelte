@@ -9,6 +9,7 @@
 	import { stateGame } from '../../game/stateGame.svelte';
 	import { isPortraitGameLayout } from '../../lib/format';
 	import { staticUrl } from '../../lib/staticUrl';
+	import { WIN_RAYS_ART } from '../../lib/winCelebration';
 
 	export type BonusRouletteResult = {
 		segmentIndex: number;
@@ -294,6 +295,40 @@
 			};
 		},
 	);
+
+	// ─── Congratulations-screen dressing (title art / frame overlay / shine burst) ─────────────────
+	// Shared by BOTH congratulations screens. The headline is BAKED ART, not live text: the reference
+	// face is hand-drawn (per-glyph bevels, an inner gradient that follows each letter's shape) and the
+	// old two-span stroke/fill sandwich could only ever approximate it. The "YOU WON …" row underneath
+	// is still live text — it has to interpolate a count.
+	const CONGRATS_TITLE_ART = staticUrl(
+		'img/congratulations_screen/congratulations_title_text.webp',
+	);
+
+	// Rope-and-lantern border that dresses the screen's edges. LANDSCAPE has one export per screen (the
+	// pre-bonus one carries more props — ship's wheel, anchor, coin sacks); PORTRAIT has a single export
+	// that both screens share, composed for a tall frame rather than a stretched wide one. The screen
+	// picks itself off `treasureWin` (the flag that says "bonus END"), not off `mode`.
+	// Orientation is read the same way `TREASURE_ART` below reads it: once, at mount. These screens are
+	// modal and short-lived, so a device rotated mid-announcement keeps the art it opened with.
+	const CONGRATS_OVERLAY_ART = $derived(
+		staticUrl(
+			isPortraitGameLayout()
+				? 'img/congratulations_screen/portrait_congratulations_screen_overlay.webp'
+				: props.treasureWin
+					? 'img/congratulations_screen/post_congratulations_screen_overlay.webp'
+					: 'img/congratulations_screen/pre_congratulations_screen_overlay.webp',
+		),
+	);
+
+	// The shine burst behind the pre-bonus headline. This is the win popup's ray art, reused verbatim,
+	// and it is deliberately NOT a second copy under this folder: a `shine_rays.png` was delivered
+	// alongside the overlays above, but it was the SAME image (identical alpha, identical colour) at a
+	// LOWER resolution than the export already in the bundle, so it was dropped. Pointing at the
+	// existing one costs nothing — it is loaded, decoded and retained on the blocking preload path
+	// (`preloadWinPopupAssets`), which makes this screen's burst a straight cache hit instead of a
+	// second 2 MB decode.
+	const CONGRATS_SHINE_ART = staticUrl(WIN_RAYS_ART);
 
 	// ─── Treasure-win congratulations screen (treasureWin) ───────────────────────────────────────────
 	// The bonus-end "CONGRATULATIONS! / YOU HAVE WON / $X" screen adds a treasure table that rises from
@@ -729,10 +764,11 @@
 	const ANNOUNCEMENT_SLIDE_UP_MS = 1000;
 
 	/** How long the headline/reward "pop" reveal takes to fully finish — the reward's
-	 * `animation-delay` (0.12s) plus its `bonus-announcement-pop` duration (0.6s). Coins are held off
-	 * until this elapses so the message finishes animating before the shower starts. ⚠️ Keep in sync
-	 * with the CSS below. */
-	const ANNOUNCEMENT_TEXT_POP_MS = 720;
+	 * `animation-delay` (0.12s) plus its `bonus-announcement-pop` duration (`--congrats-pop-duration`,
+	 * 0.58s). Coins are held off until this elapses so the message finishes animating before the shower
+	 * starts; it also clears the shine burst's own entrance (0.4s delay + 0.28s grow = 0.68s). ⚠️ Keep in
+	 * sync with the CSS below. */
+	const ANNOUNCEMENT_TEXT_POP_MS = 700;
 
 	/**
 	 * Hand the result to the game — this is what starts BONUS MODE (`awardBonusBalls` → `bonusRoundActive`,
@@ -1022,6 +1058,26 @@
 				: staticUrl('img/announcement-message-background.webp')})"
 			onclick={onAnnouncementClick}
 		>
+			{#if !props.treasureWin}
+				<!-- Pre-bonus only: a shine burst blooms out from behind the headline as it lands. Two
+				     elements on purpose — the wrap owns the one-shot grow-in, the inner img owns the
+				     endless spin, so the two never fight over `transform` (same split as WinCelebration's
+				     `.wc-rays-*`). -->
+				<div
+					class="congrats-shine"
+					class:congrats-shine--in={announcementTextVisible}
+					aria-hidden="true"
+				>
+					<img class="congrats-shine-img" src={CONGRATS_SHINE_ART} alt="" />
+				</div>
+			{/if}
+			<!-- Rope-and-lantern border. DOM order IS the z-order here — all three of these layers sit at
+			     z 0 — and it is deliberately between the two: OVER the pre-bonus shine burst, so the
+			     border frames the burst instead of being washed out by it, but UNDER the bonus-end
+			     treasure table, so the hoard rises in FRONT of the rope and the border's own wheel/sacks/
+			     anchor tuck in behind it rather than piling up on top. Under the coin shower (z 1) and
+			     every text layer (z 2) either way. -->
+			<img class="congrats-frame" src={CONGRATS_OVERLAY_ART} alt="" aria-hidden="true" />
 			{#if props.treasureWin}
 				<!-- Treasure table rises up from the bottom, then its sparkles twinkle over the hoard. -->
 				<div
@@ -1066,16 +1122,21 @@
 			</div>
 			<div class="bonus-announcement-main">
 				<div class="bonus-announcement-headline">
-					<span class="bonus-announcement-text-stroke" aria-hidden="true">{headlineText}</span>
-					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--headline"
-						>{headlineText}</span
-					>
+					<img
+						class="bonus-announcement-headline-art"
+						src={CONGRATS_TITLE_ART}
+						alt={headlineText}
+					/>
 				</div>
+				<!-- Fill UNDER, rim OVER — the order is the whole trick, see the CSS. The rim is
+				     centre-aligned, so it has to paint over the fill; putting it on its own span (rather
+				     than stroking the fill span) is what keeps the gradient from leaking a bright hairline
+				     out past the rim's own edge. -->
 				<div class="bonus-announcement-reward">
-					<span class="bonus-announcement-text-stroke" aria-hidden="true">{rewardText}</span>
 					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--reward"
 						>{rewardText}</span
 					>
+					<span class="bonus-announcement-text-rim" aria-hidden="true">{rewardText}</span>
 				</div>
 				{#if props.treasureWin}
 					<div class="congrats-value" class:congrats-value--in={announcementTextVisible}>
@@ -1251,6 +1312,9 @@
 		align-items: center;
 		justify-content: center;
 		color: #f4d36d;
+		/* Headline / reward / win-value pop length — see `bonus-announcement-pop` below, and keep it in
+		   sync with ANNOUNCEMENT_TEXT_POP_MS in the script. */
+		--congrats-pop-duration: 0.58s;
 	}
 	.bonus-announcement-coins {
 		position: absolute;
@@ -1310,6 +1374,97 @@
 			opacity: 1;
 		}
 	}
+	/* ─── Screen dressing: rope frame + shine burst ────────────────────────────────────────────── */
+	/* Rope-and-lantern border. z 0 puts it over the screen's own background art (painted by
+	   `.bonus-announcement` itself) and under the coin shower (1) and every text layer (2). Where it
+	   lands WITHIN z 0 is set by DOM order, not here — see the template: over the shine burst, under the
+	   treasure table. */
+	.congrats-frame {
+		position: absolute;
+		inset: 0;
+		/* ⚠️ ORIENTATION-SPECIFIC ART, not one export stretched two ways — see CONGRATS_OVERLAY_ART. The
+		   landscape exports are 16:9 and the portrait one is 1:2, so each only ever stretches a few
+		   percent to reach the viewport. Feeding a 16:9 border to a 9:19.5 phone shears it ~3×: the
+		   lanterns draw as slivers, the ship's wheel as an ellipse, and the corner props swell far enough
+		   inward to sit under the type. */
+		z-index: 0;
+		width: 100%;
+		height: 100%;
+		/* The background art behind it is `background-size: 100% 100%` — STRETCHED to the box, never
+		   cropped — so the frame has to distort the same way or the two stop agreeing about where the
+		   edges of the scene are. `fill` is that same stretch for a replaced element. */
+		object-fit: fill;
+		/* Overscan. The rope runs right along the art's own edges, so at 1:1 it reads as a hairline
+		   border pinned to the viewport; pushing it 3% past each edge (scale about the centre) crops the
+		   outer curve off screen, which is what makes it read as a frame the screen sits inside. */
+		transform: scale(1.06);
+		pointer-events: none;
+		user-select: none;
+	}
+	/* Shine burst behind the pre-bonus headline (`--roulette` only; the bonus-END screen has the
+	   treasure table doing this job). Measured off the reference clip: it is 123% of the viewport width
+	   square, centred, blooming out from ~45% as the headline tops out its overshoot, then turning
+	   forever at 5.8°/s while its opacity breathes on a 2.5s cycle. */
+	.congrats-shine {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		z-index: 0;
+		width: var(--congrats-shine-size);
+		height: var(--congrats-shine-size);
+		transform: translate(-50%, -50%) scale(0.45);
+		opacity: 0;
+		pointer-events: none;
+		/* SCREEN, not plain alpha. The burst is a pale-yellow glow over a mid-brown parchment: composited
+		   normally at the opacity the reference runs it, it flattens the map texture into a milky wash;
+		   screened, it lightens what is already there and the compass rose and coastlines stay readable
+		   straight through the rays. (This is also what the reference does — inverting the screen blend
+		   over the untouched background recovers the ray art's own colour to within a couple of counts.) */
+		mix-blend-mode: screen;
+		/* Same reasoning as `.wc-rays-wrap`: this is a very large layer, and letting it demote when the
+		   entrance transition ends means a full re-raster at burst size — one missed raster is one
+		   flashed frame. */
+		will-change: opacity, transform;
+		/* The 0.4s delay is not a beat for its own sake: it is exactly where the headline tops out its
+		   overshoot (70% of --congrats-pop-duration), so the burst reads as the impact of the title
+		   landing rather than as a second, separate entrance. */
+		transition:
+			opacity 0.28s linear 0.4s,
+			transform 0.28s linear 0.4s;
+	}
+	.congrats-shine--in {
+		opacity: 1;
+		transform: translate(-50%, -50%) scale(1);
+	}
+	.congrats-shine-img {
+		width: 100%;
+		height: 100%;
+		transform-origin: center;
+		backface-visibility: hidden;
+		will-change: transform, opacity;
+		/* Two animations, two properties — they never contend. The spin has to live on the inner img
+		   because the wrap's `transform` is already spoken for by the entrance. */
+		animation:
+			congrats-shine-spin 62s linear infinite,
+			congrats-shine-pulse 1.25s ease-in-out infinite alternate;
+	}
+	@keyframes congrats-shine-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	/* `alternate` over HALF the 2.5s cycle, starting at the bright end — which lands the first peak just
+	   as the burst finishes growing in, the way the reference does. 0.6/0.42 is the screen-blend opacity
+	   recovered from the clip, not a guess. */
+	@keyframes congrats-shine-pulse {
+		from {
+			opacity: 0.6;
+		}
+		to {
+			opacity: 0.42;
+		}
+	}
+
 	/* Text layers. The z-index alone already orders these above `.bonus-announcement-coins`, but the coin
 	   box is a PROMOTED compositor layer (`translateZ(0)` + `contain: paint`, and every coin carries
 	   `will-change: transform`) while these were plain main-thread paint. Ordering between a promoted
@@ -1359,31 +1514,40 @@
 	.bonus-announcement--text-visible .bonus-announcement-hint {
 		opacity: 1;
 	}
-	/* Headline/reward "pop" in with a bouncy overshoot instead of a plain fade. */
+	/* Headline/reward "pop" in from nothing, overshoot, settle. */
 	.bonus-announcement-headline,
 	.bonus-announcement-reward {
-		transform: scale(0.4);
+		transform: scale(0);
 		transition:
 			opacity 0.28s ease,
 			transform 0.28s ease;
 	}
 	.bonus-announcement--text-visible .bonus-announcement-headline {
-		animation: bonus-announcement-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+		animation: bonus-announcement-pop var(--congrats-pop-duration) linear forwards;
 	}
 	.bonus-announcement--text-visible .bonus-announcement-reward {
-		animation: bonus-announcement-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.12s forwards;
+		animation: bonus-announcement-pop var(--congrats-pop-duration) linear 0.12s forwards;
 	}
+	/* ⚠️ Shape and timing function are BOTH load-bearing, and they came off the reference clip rather
+	   than off a feel-good easing curve. Frame-stepping it: the headline's width grows by a CONSTANT
+	   ~72px/frame for 12 frames (i.e. dead linear, not eased), tops out ~10% over its final size, then
+	   falls back to 1 over 6 more frames — with no dip below it on the way. That is why the animation
+	   runs `linear` and the whole shape lives in the keyframes. The old version rode
+	   `cubic-bezier(0.34, 1.56, 0.64, 1)` over a 1.12 → 0.94 → 1 keyframe set, which added a second,
+	   springier bounce the reference does not have. Keep `--congrats-pop-duration` in sync with
+	   ANNOUNCEMENT_TEXT_POP_MS above. */
 	@keyframes bonus-announcement-pop {
 		0% {
-			transform: scale(0.4);
+			transform: scale(0);
 			opacity: 0;
 		}
-		55% {
-			transform: scale(1.12);
+		/* Up to full opacity within the first two frames — the reference's headline is already solid at
+		   its smallest, so this is a scale-up, not a fade-up. */
+		10% {
 			opacity: 1;
 		}
-		75% {
-			transform: scale(0.94);
+		70% {
+			transform: scale(1.1);
 		}
 		100% {
 			transform: scale(1);
@@ -1415,44 +1579,73 @@
 		letter-spacing: inherit;
 		white-space: inherit;
 	}
-	.bonus-announcement-text-stroke {
-		color: transparent;
-		-webkit-text-stroke: var(--announcement-stroke-width) var(--announcement-stroke-color);
-		paint-order: stroke fill;
-		pointer-events: none;
-		user-select: none;
-	}
 	.bonus-announcement-text-fill {
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		color: transparent;
+		pointer-events: none;
+		user-select: none;
 		text-shadow: var(--announcement-glow-shadow), var(--announcement-highlight-shadow);
 	}
+	/* The rim, on its own layer stacked OVER the fill (see the template — DOM order is the stacking
+	   order inside the row's `inline-grid`, both children sit in cell 1/1). Transparent fill, so all it
+	   paints is the stroke, and the gradient underneath shows through everywhere the stroke is not.
+	   ⚠️ THIS SPLIT IS THE FIX FOR A BRIGHT HAIRLINE, not tidiness. The obvious construction is to stroke
+	   the fill span directly — one element, same visual result on paper. It leaks. `-webkit-text-stroke`
+	   widens the `background-clip: text` mask (the same behaviour the headline's old gradient-outline
+	   trick relied on), so the gradient gets clipped to glyph PLUS stroke and the opaque stroke is
+	   composited on top of it. Both edges land on the same pixel and both antialias, so a boundary pixel
+	   at 50% coverage resolves to 0.5·rim + 0.25·gold + 0.25·backdrop — a bright gold hairline tracing
+	   the OUTSIDE of the rim, right where it is most visible against the parchment.
+	   Splitting the layers moves the two edges apart. The gradient is clipped to the bare glyph (no
+	   stroke on that span any more) and never reaches past it; this span's stroke covers glyph ±half,
+	   so the outermost pixels only ever blend rim against backdrop. Gold cannot get out. */
+	.bonus-announcement-text-rim {
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+		pointer-events: none;
+		user-select: none;
+	}
+	/* ⚠️ The headline holds NO type any more — it holds `congratulations_title_text.png`. The font-size
+	   below survives as this row's sizing UNIT: the art's width is an `em` multiple of it and so is the
+	   drop shadow, so every responsive rule that used to size the lettering still sizes the art, with no
+	   second ramp to keep in step. The face, the tracking and the whole stroke/fill/glow sandwich that
+	   used to live here are baked into the export instead. */
 	.bonus-announcement-headline {
-		--announcement-stroke-width: 0.04em;
-		--announcement-stroke-color: #4a2f0a;
-		--announcement-glow-shadow:
-			0 0 0.48em rgba(255, 200, 70, 0.52), 0 0.05em 0.08em rgba(0, 0, 0, 0.28);
-		--announcement-highlight-shadow: 0 -0.02em 0.03em rgba(255, 208, 75, 0.36);
-		font-family: 'PiecesOfEight', serif;
 		/* px bounds in --ui-px throughout this screen: the vw term is what sizes the type at the
 		   1024×576 reference, but every floor below binds on a 400×225 popout and would leave the
 		   headline/reward/value 2–3× oversized against the congratulations plate. */
 		font-size: clamp(calc(48 * var(--ui-px)), 8.2vw, calc(116 * var(--ui-px)));
 		line-height: 0.95;
-		letter-spacing: 0.02em;
 	}
-	.bonus-announcement-text-fill--headline {
-		background-image: linear-gradient(180deg, #fad04a 0%, #f0b82e 56.7%, #de951a 100%);
+	/* The CONGRATULATIONS headline is baked art on both screens. Sized in `em` rather than `vw` so it
+	   stays welded to the row's own font-size — which is what every responsive rule on this screen
+	   already drives (the shared 7.2vw ramp, the --ui-px floors that keep a 400×225 popout sane) and,
+	   crucially, what the row's `em`-based drop shadow is measured in: size the art independently and
+	   the two drift apart at the clamp ends. Against that 7.2vw ramp, 11.8em resolves to ~85vw at EVERY
+	   viewport and orientation — which is where the reference clip puts it. */
+	.bonus-announcement-headline-art {
+		display: block;
+		width: 11.8em;
+		/* Never wider than the row's own cap, whatever the font-size resolves to. */
+		max-width: 100%;
+		height: auto;
+		user-select: none;
 	}
 	.bonus-announcement-reward {
 		--announcement-stroke-width: 0.05em;
-		--announcement-stroke-color: #5c4010;
 		--announcement-glow-shadow:
 			0 0 0.4em rgba(255, 228, 120, 0.48), 0 0.04em 0.08em rgba(0, 0, 0, 0.25);
 		--announcement-highlight-shadow: 0 -0.02em 0.03em rgba(245, 200, 95, 0.32);
-		font-family: 'PotatoSans', sans-serif;
+		/* Prompt, in its BLACK cut — the only weight installed (see +layout.svelte), and the one this row
+		   is drawn around: the 0.1em rim and the cream→gold fill below were built for a display-weight
+		   face, and anything lighter lets the rim eat the letterform. `font-weight` is explicit rather
+		   than inherited so a fallback can never be faux-bolded into something heavier still.
+		   Prompt sets ~17% wider than the PotatoSans Black it replaces at the same size; every box this
+		   row lives in is shrink-to-fit under a 94vw cap, so it simply takes the extra width. */
+		font-family: 'Prompt', sans-serif;
+		font-weight: 900;
 		font-size: clamp(calc(30 * var(--ui-px)), 5.2vw, calc(76 * var(--ui-px)));
 		line-height: 1;
 		letter-spacing: 0.01em;
@@ -1487,9 +1680,9 @@
 	.bonus-announcement--mobile .bonus-announcement-reward,
 	.bonus-announcement--mobile .bonus-announcement-hint {
 		/* A LITTLE more budget than before (was 100vw - 10vw) — the treasure variant's wider letter-spacing
-		   (below) needs the extra room so long strings like "CONGRATULATIONS!" don't overflow this box and
-		   get clipped by the fullscreen overlay's `overflow: hidden` (content here is left-aligned within
-		   the box, so any overflow bleeds off the right edge — that's what was cutting off the "!"/"Y"). */
+		   (below) needs the extra room so long strings like "YOU HAVE WON" don't overflow this box and get
+		   clipped by the fullscreen overlay's `overflow: hidden` (content here is left-aligned within the
+		   box, so any overflow bleeds off the right edge — that's what was cutting off the "!"/"Y"). */
 		max-width: calc(100vw - 6vw);
 		margin-left: auto;
 		margin-right: auto;
@@ -1498,16 +1691,25 @@
 	.bonus-announcement--mobile .bonus-announcement-hint {
 		white-space: nowrap;
 	}
-	.bonus-announcement--mobile .bonus-announcement-headline {
-		font-size: 10vw;
-		line-height: 0.95;
-	}
 	.bonus-announcement--mobile .bonus-announcement-reward {
 		font-size: 7vw;
 		line-height: 1.05;
 	}
 	.bonus-announcement--mobile .bonus-announcement-hint {
-		bottom: clamp(12px, 3.5vh, 32px);
+		/* Raised well off the bottom edge (was `clamp(12px, 3.5vh, 32px)`) to clear the portrait border's
+		   bottom cluster. Unlike the landscape borders — which leave a clear gap between the coin sacks,
+		   which is exactly where this row sits — the portrait one runs props across the full width down
+		   there: ship's wheel left, sacks centre, anchor right.
+		   24vh is measured, not guessed. Compositing the export at viewport scale and sampling the band
+		   this row's text actually occupies (~14–86% of the width), the art is only completely clear
+		   above 78% of the viewport height; between 78% and 88% the wheel's rim and the anchor's shank
+		   still cross it, which is what put "PRESS" on the wheel and "GAME" on the anchor. 78% plus this
+		   row's own ~2vh is 24.
+		   Aspect-independent despite being a bare `vh`: the border is `object-fit: fill` on `inset: 0`, so
+		   an art fraction maps to the same viewport fraction at 9:16 and 9:19.5 alike.
+		   Pre-bonus ONLY in practice — the treasure screen puts it back (below), because its table covers
+		   the props this is dodging. */
+		bottom: 24vh;
 		font-size: 3.5vw;
 		line-height: 1.2;
 	}
@@ -1528,6 +1730,16 @@
 	   glow, hard black drop shadow). Only the text is matched — the roulette screen's layout stays its own. */
 	.bonus-announcement--roulette {
 		--congrats-text-shadow: drop-shadow(0.034em 0.068em 0 #000000);
+		/* 123vw at the 1024×576 reference, with the same --ui-px floor/ceiling breakpoints WinCelebration
+		   bounds its own burst at — below ~709px wide the vw term would shrink the burst faster than the
+		   type it sits behind, and a 400×225 popout would end up with a burst smaller than the headline. */
+		--congrats-shine-size: clamp(calc(872 * var(--ui-px)), 123vw, calc(1948 * var(--ui-px)));
+	}
+	.bonus-announcement--roulette.bonus-announcement--mobile {
+		/* Portrait: vw is the SHORT side now, so carrying 123vw over would shrink the burst to a third of
+		   the screen. 255vw keeps its bright core the same fraction of the viewport DIAGONAL as landscape,
+		   which is what actually preserves the look across aspect ratios. */
+		--congrats-shine-size: 255vw;
 	}
 	.bonus-announcement--treasure .bonus-announcement-headline,
 	.bonus-announcement--treasure .bonus-announcement-reward,
@@ -1553,46 +1765,73 @@
 		font-size: clamp(calc(16 * var(--ui-px)), 4.7vw, calc(68 * var(--ui-px)));
 		/* Wider than the Figma spec's 0.06em — bumped further for more visible breathing room between
 		   characters. Line-height ~0.945 (121/128) still matches the spec. */
-		letter-spacing: 0.12em;
+		/* The Figma spec value. (A previous pass ran this at 0.12em for "more visible breathing room";
+		   the reference tracks noticeably tighter than that, and at 0.12em the row also outgrew the
+		   headline art above it.) */
+		letter-spacing: 0.06em;
 		line-height: 0.945;
-		/* Thinner than the old 0.13em so the outline reads as a rim, not a colour wash. */
-		--announcement-stroke-width: 0.1em;
+		/* The FULL rim thickness, not half of one — the rim is centred on the glyph outline, so all of
+		   this is visible (see the note on the fill span below).
+		   Frame-checking the counters at the real 1024×576 size (48.1px font): 0.12em is where the bowls
+		   of the 6 and the 0 start to choke and 0.14em closes them, so the face tops out just above this.
+		   ⚠️ It is the SMALLEST render that binds, not the largest — a 400×225 popout puts this row at
+		   ~19px, where even this is only ~1.7px of rim against a ~13px cap. */
+		--announcement-stroke-width: 0.088em;
 	}
-	/* Gradient OUTLINE (transparent-stroke + background-clip trick, same as the headline). The colour is a
-	   warm DARK gold (#c8912a→#6e440c) — deliberately darker than the cream fill so the fill reads bright on
-	   top. The old build used a BRIGHT saturated gold here (#f0b743→#d08a1b) at 0.13em, which sat too close
-	   to the fill in lightness and washed the whole word muddy/orange — that (plus a heavy warm glow), not
-	   the text-shadow, was what made it look dark. */
-	.bonus-announcement--treasure .bonus-announcement-reward .bonus-announcement-text-stroke,
-	.bonus-announcement--roulette .bonus-announcement-reward .bonus-announcement-text-stroke {
-		-webkit-text-stroke-color: transparent;
-		background-image: linear-gradient(180deg, #c8912a 4%, #a06818 50%, #6e440c 100%);
-		background-clip: text;
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-	}
-	/* Fill: bright warm cream → gold, matched to the reference art. The literal Figma stops
-	   (#fbeccd / #d4b777 56.7% / #d18a16 81.67%) rendered too dull — the #d4b777 midtone reads as a grey
-	   khaki. Brightened + warmed the midtone and kept the cream holding down ~60% of the glyph so it reads
-	   bright-golden like the reference, not tan. text-shadow = the SAME warm-yellow glow as the CONGRATULATIONS
-	   headline + win value (so all three rows share one halo), then a subtle dark drop for the raised depth.
-	   The dark OUTLINE (above) keeps the glow from muddying the bright fill the way the old bright-gold rim did. */
+	/* Fill: the Figma spec for this row, colours and stop positions verbatim —
+	     linear-gradient(177.39deg, #FBECCD 14.23%, #F4D77A 49.67%, #E8BE37 72.44%)
+	   — with ONE deliberate change: the angle is normalised to a true 180deg.
+	   Figma authors a gradient in the layer's own normalised space and only converts it to degrees on
+	   export, so the same handle reads as a different slope on a box of a different aspect ratio. 177.39deg
+	   is a 2.6° tilt, which is nothing on the near-square text layer it was drawn against and a lot on this
+	   row: at "YOU WON 60 DROPS" the box is ~600×61, so the gradient LINE (|w·sinθ| + |h·cosθ| = 88px) runs
+	   mostly horizontally, and the stops sweep ±0.16 of their range across the width — "YOU" comes out pale
+	   cream and "DROPS" deep gold, a diagonal wash the reference does not have. It also gets worse the
+	   longer the string, and this row's string is variable ("YOU WON 5 DROPS" … "YOU WON 60 DROPS").
+	   180deg keeps every glyph on the same top→bottom ramp, which is what the reference shows.
+	   Within this row's padding box (line-height .945em + .16em padding = 1.265em tall) the glyph cap runs
+	   21%→76%, so the stops land as cream over the top third, #F4D77A through the middle and #E8BE37 held
+	   flat across the bottom — the reference's read exactly.
+	   text-shadow = the SAME warm-yellow glow as the CONGRATULATIONS headline + win value (so all three rows
+	   share one halo), then a subtle dark drop for the raised depth. The dark OUTLINE above keeps the glow
+	   from muddying the fill. */
 	.bonus-announcement--treasure .bonus-announcement-text-fill--reward,
 	.bonus-announcement--roulette .bonus-announcement-text-fill--reward {
-		background-image: linear-gradient(180deg, #fdf2d8 0%, #f2d492 62%, #e2aa2c 90%);
+		background-image: linear-gradient(180deg, #fbeccd 14.23%, #f4d77a 49.67%, #e8be37 72.44%);
+		/* No stroke on THIS span — it lives on `.bonus-announcement-text-rim` stacked over the top. See
+		   the note there for why. */
 		text-shadow:
 			0 0 0.42em rgba(255, 196, 62, 0.75),
 			0 0 0.95em rgba(255, 178, 44, 0.45),
 			0 0.05em 0.055em rgba(0, 0, 0, 0.2);
 	}
-	/* THE FIX for the cut-off "!" and "Y": `background-clip: text` only paints the gradient within each
+	/* THE FIX for the cut-off "!" and "Y": `background-clip: text` only paints the gradient within the
 	   span's own box, but the `-webkit-text-stroke` ink of the FIRST and LAST glyphs extends BEYOND that
-	   box — so their outer outline had no gradient behind it and vanished. Horizontal padding widens each
-	   span's background box past the glyphs so the gradient reaches the stroke overflow. Applied to BOTH
-	   spans (stroke + fill) equally so they stay registered on top of each other. */
-	.bonus-announcement--treasure .bonus-announcement-headline > *,
+	   box — so their outer outline had no gradient behind it and vanished. Padding widens the background
+	   box past the glyphs so the gradient reaches the stroke overflow.
+	   ⚠️ Load-bearing for the gradient's SHAPE as well, not just its coverage: the stops below are
+	   positioned against this padded box (1.265em tall = .945em line-height + .16em top and bottom), and
+	   that is the geometry the glyph-relative read of them was worked out on. Change the padding and the
+	   fill re-ramps.
+	   Reward row only: the headline is baked art now, and padding an <img> would just inset it. */
+	.bonus-announcement--treasure .bonus-announcement-text-rim,
+	.bonus-announcement--roulette .bonus-announcement-text-rim {
+		-webkit-text-stroke: var(--announcement-stroke-width) #6b4410;
+		/* The rim fades DOWN the glyph — solid across the top, 25% by the baseline (the Figma spec).
+		   Done with a mask rather than a gradient stroke on purpose. `-webkit-text-stroke-color` takes a
+		   colour, never a gradient, and the usual dodge — a transparent stroke painted through
+		   `background-clip: text` — only works when the rim sits BEHIND the fill, which is what makes a
+		   rim OUTER. This rim has to stay on top (it is centre-aligned, and being on top is what stops the
+		   fill's gradient leaking a hairline past it — see the note above), so a gradient stroke is off
+		   the table. Masking the whole span modulates the only thing it paints, which is the stroke, and
+		   costs neither of those properties.
+		   Stops are in the same padded-box space as the fill gradient: the glyph cap runs 21%→76% of this
+		   box, so the ramp is pinned to those two marks and reaches 25% exactly at the baseline rather
+		   than somewhere inside the letter. Below the baseline it stays at 25%. */
+		mask-image: linear-gradient(180deg, #000 21%, rgba(0, 0, 0, 0.25) 76%);
+		-webkit-mask-image: linear-gradient(180deg, #000 21%, rgba(0, 0, 0, 0.25) 76%);
+	}
 	.bonus-announcement--treasure .bonus-announcement-reward > *,
-	.bonus-announcement--roulette .bonus-announcement-headline > *,
 	.bonus-announcement--roulette .bonus-announcement-reward > * {
 		/* Vertical padding too (not just inline): the line-height is < 1em, so tall glyphs like "!" poke
 		   ABOVE the line box and the gradient didn't reach their tops either — this widens the background
@@ -1600,37 +1839,14 @@
 		padding: 0.16em 0.18em;
 	}
 
-	/* Each title row (CONGRATULATIONS + YOU HAVE WON) carries the SAME warm-yellow glow as the win value
-	   (a soft halo hugging the glyphs), one per row — via the fill span's --announcement-glow-shadow. */
+	/* Both congratulations screens run the headline art at the same size — this is the ramp the `em`
+	   width above resolves against. */
 	.bonus-announcement--treasure .bonus-announcement-headline,
 	.bonus-announcement--roulette .bonus-announcement-headline {
-		/* Low min (overrides --win's 44px) so "CONGRATULATIONS!" keeps shrinking with the viewport and
-		   never overflows/clips on narrow or high-DPI screens — 7.2vw keeps it on one line at any width.
-		   Unchanged on normal/wide screens where 7.2vw is already above the min. */
+		/* Low min (overrides --win's 44px) so the headline keeps shrinking with the viewport and never
+		   overflows/clips on narrow or high-DPI screens. Unchanged on normal/wide screens where 7.2vw is
+		   already above the min. */
 		font-size: clamp(calc(22 * var(--ui-px)), 7.2vw, calc(100 * var(--ui-px)));
-		/* Wider gap between characters (overrides the base 0.02em). */
-		letter-spacing: 0.08em;
-		/* Kept modest so the fill gradient (the letter body) dominates and the outline is just a rim. */
-		--announcement-stroke-width: 0.08em;
-		--announcement-glow-shadow:
-			0 0 0.42em rgba(255, 196, 62, 0.75), 0 0 0.95em rgba(255, 178, 44, 0.45);
-		--announcement-highlight-shadow: 0 0.05em 0.08em rgba(0, 0, 0, 0.3);
-	}
-	/* CONGRATULATIONS outline: a gradient instead of a flat colour. `-webkit-text-stroke-color` can't take
-	   a gradient directly, so the stroke span's glyph+stroke geometry is widened with a TRANSPARENT stroke
-	   (which still counts for `background-clip: text`'s mask) and painted via the gradient background —
-	   only the rim beyond the fill span's edge is visible, reading as a gradient outline. The outline is
-	   a DARKER golden-brown than the fill so the fill reads distinctly on top (they'd blend otherwise). */
-	.bonus-announcement--treasure .bonus-announcement-headline .bonus-announcement-text-stroke,
-	.bonus-announcement--roulette .bonus-announcement-headline .bonus-announcement-text-stroke {
-		-webkit-text-stroke-color: transparent;
-		background-image: linear-gradient(180deg, #bd8018 6%, #9a6011 48%, #6e430b 100%);
-		background-clip: text;
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-	}
-	.bonus-announcement--treasure .bonus-announcement-text-fill--headline {
-		//background-image: linear-gradient(180deg, #f5b936 0%, #ebad26 57%, #d18a16 82%);
 	}
 
 	/* The win value in the AustereBlackCapsSSK face: white glyphs with a golden-brown outline, a black
@@ -1650,10 +1866,10 @@
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		opacity: 0;
-		transform: scale(0.4);
+		transform: scale(0);
 	}
 	.congrats-value--in {
-		animation: bonus-announcement-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.24s forwards;
+		animation: bonus-announcement-pop var(--congrats-pop-duration) linear 0.24s forwards;
 	}
 	.congrats-value-stroke,
 	.congrats-value-fill {
@@ -1751,20 +1967,22 @@
 	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-main {
 		margin-top: 0;
 	}
-	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-headline,
-	.bonus-announcement--roulette.bonus-announcement--mobile .bonus-announcement-headline {
-		/* Dialed back from the desktop 0.08em — at mobile's 10vw font-size + `white-space: nowrap`,
-		   the full tracking pushed "CONGRATULATIONS!" past its box and got clipped (the "!" vanished off
-		   the right edge). Still wider than the pre-treasure 0.02em default. */
-		letter-spacing: 0.03em;
-	}
 	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-reward,
 	.bonus-announcement--roulette.bonus-announcement--mobile .bonus-announcement-reward {
 		font-size: 6vw;
-		/* Same reasoning as the headline above — dialed back from the desktop 0.12em so it can't overflow. */
-		letter-spacing: 0.05em;
+		/* No tracking override any more: it existed only to dial the old desktop 0.12em back so the row
+		   couldn't overflow its box and get clipped by the fullscreen overlay's `overflow: hidden`, and
+		   0.06em is already inside that. Portrait now runs the same spec value as landscape. */
 	}
 	.bonus-announcement--mobile .congrats-value {
 		font-size: 13vw;
+	}
+	.bonus-announcement--treasure.bonus-announcement--mobile .bonus-announcement-hint {
+		/* Back down to the bottom edge, undoing the lift the pre-bonus screen needs above. The reason for
+		   that lift is the border's bottom props, and on THIS screen the treasure table is full-width,
+		   fills the bottom quarter, and — since the border paints behind it — covers the wheel, sacks and
+		   anchor outright. That leaves this row where it has always sat: on the table's own dark wood
+		   base, with nothing else under it. */
+		bottom: clamp(12px, 3.5vh, 32px);
 	}
 </style>
