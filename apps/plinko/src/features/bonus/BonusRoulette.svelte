@@ -1128,15 +1128,14 @@
 						alt={headlineText}
 					/>
 				</div>
-				<!-- Fill UNDER, rim OVER — the order is the whole trick, see the CSS. The rim is
-				     centre-aligned, so it has to paint over the fill; putting it on its own span (rather
-				     than stroking the fill span) is what keeps the gradient from leaking a bright hairline
-				     out past the rim's own edge. -->
+				<!-- Rim UNDER, fill OVER. The rim is an OUTSIDE stroke (measured off the Figma render — see
+				     the CSS), and the only way to get one out of a `-webkit-text-stroke`, which is always
+				     centred, is to hide its inner half under an unstroked copy of the same text. -->
 				<div class="bonus-announcement-reward">
+					<span class="bonus-announcement-text-rim" aria-hidden="true">{rewardText}</span>
 					<span class="bonus-announcement-text-fill bonus-announcement-text-fill--reward"
 						>{rewardText}</span
 					>
-					<span class="bonus-announcement-text-rim" aria-hidden="true">{rewardText}</span>
 				</div>
 				{#if props.treasureWin}
 					<div class="congrats-value" class:congrats-value--in={announcementTextVisible}>
@@ -1394,10 +1393,15 @@
 		   cropped — so the frame has to distort the same way or the two stop agreeing about where the
 		   edges of the scene are. `fill` is that same stretch for a replaced element. */
 		object-fit: fill;
-		/* Overscan. The rope runs right along the art's own edges, so at 1:1 it reads as a hairline
-		   border pinned to the viewport; pushing it 3% past each edge (scale about the centre) crops the
-		   outer curve off screen, which is what makes it read as a frame the screen sits inside. */
-		transform: scale(1.06);
+		/* Overscan. The rope runs right along the art's own edges, so at 1:1 it reads as a border pinned to
+		   the viewport rather than one the screen sits inside; this pushes it ~1.1% past each edge so the
+		   outer curve crops off. Arrived at by ratio from the 1.06 it started at (×0.9, ×1.05, ×1.02).
+		   ⚠️ The knob is two-sided, and the BONUS-END screen is what binds — its title sits highest, and
+		   the border's top props march INWARD as this comes down. Measuring the border's ink against the
+		   title's letters there: 0% at 1.06, 0.12% here, 0.40% at 1.002, 1.54% at 0.954 (lantern squarely
+		   on the C). Below ~1.0 it also stops bleeding and starts sitting inside the edge, which reads as
+		   a rope lying on the screen. The pre-bonus screen is clear at any of these — its title is lower. */
+		transform: scale(1.022);
 		pointer-events: none;
 		user-select: none;
 	}
@@ -1588,22 +1592,18 @@
 		user-select: none;
 		text-shadow: var(--announcement-glow-shadow), var(--announcement-highlight-shadow);
 	}
-	/* The rim, on its own layer stacked OVER the fill (see the template — DOM order is the stacking
-	   order inside the row's `inline-grid`, both children sit in cell 1/1). Transparent fill, so all it
-	   paints is the stroke, and the gradient underneath shows through everywhere the stroke is not.
-	   ⚠️ THIS SPLIT IS THE FIX FOR A BRIGHT HAIRLINE, not tidiness. The obvious construction is to stroke
-	   the fill span directly — one element, same visual result on paper. It leaks. `-webkit-text-stroke`
-	   widens the `background-clip: text` mask (the same behaviour the headline's old gradient-outline
-	   trick relied on), so the gradient gets clipped to glyph PLUS stroke and the opaque stroke is
-	   composited on top of it. Both edges land on the same pixel and both antialias, so a boundary pixel
-	   at 50% coverage resolves to 0.5·rim + 0.25·gold + 0.25·backdrop — a bright gold hairline tracing
-	   the OUTSIDE of the rim, right where it is most visible against the parchment.
-	   Splitting the layers moves the two edges apart. The gradient is clipped to the bare glyph (no
-	   stroke on that span any more) and never reaches past it; this span's stroke covers glyph ±half,
-	   so the outermost pixels only ever blend rim against backdrop. Gold cannot get out. */
+	/* The rim, on its own layer stacked UNDER the fill (see the template — DOM order is the stacking
+	   order inside the row's `inline-grid`, both children sit in cell 1/1). Painted SOLID, glyph and
+	   stroke in the same colour, so it is just an oversized silhouette; the fill span on top then covers
+	   everything but the overhang, which is what leaves an OUTSIDE stroke.
+	   Two things fall out of this arrangement for free. The gradient on the fill span carries no stroke
+	   of its own, so its `background-clip: text` mask is the bare glyph and it can never reach past the
+	   rim — which is what stops the bright gold hairline that tracing the stroke on the fill span
+	   produces (`-webkit-text-stroke` widens the clip mask, so gradient and stroke antialias against
+	   each other on the same pixel and the gradient wins a quarter of it). And the effects below hang
+	   off THIS span because its ink is the widest: shadows follow the stroked silhouette, as they do in
+	   the source. */
 	.bonus-announcement-text-rim {
-		-webkit-text-fill-color: transparent;
-		color: transparent;
 		pointer-events: none;
 		user-select: none;
 	}
@@ -1638,14 +1638,12 @@
 		--announcement-glow-shadow:
 			0 0 0.4em rgba(255, 228, 120, 0.48), 0 0.04em 0.08em rgba(0, 0, 0, 0.25);
 		--announcement-highlight-shadow: 0 -0.02em 0.03em rgba(245, 200, 95, 0.32);
-		/* Prompt, in its BLACK cut — the only weight installed (see +layout.svelte), and the one this row
-		   is drawn around: the 0.1em rim and the cream→gold fill below were built for a display-weight
-		   face, and anything lighter lets the rim eat the letterform. `font-weight` is explicit rather
-		   than inherited so a fallback can never be faux-bolded into something heavier still.
-		   Prompt sets ~17% wider than the PotatoSans Black it replaces at the same size; every box this
-		   row lives in is shrink-to-fit under a 94vw cap, so it simply takes the extra width. */
+		/* Prompt SemiBold — the weight the Figma source specifies, and the only cut installed (see
+		   +layout.svelte). `font-weight` is explicit rather than inherited so a missing face can never be
+		   faux-bolded into something heavier. It was Black here for a while, which read far too dense
+		   against the source: at 102px SemiBold draws a 16px stem where Black draws 25px. */
 		font-family: 'Prompt', sans-serif;
-		font-weight: 900;
+		font-weight: 600;
 		font-size: clamp(calc(30 * var(--ui-px)), 5.2vw, calc(76 * var(--ui-px)));
 		line-height: 1;
 		letter-spacing: 0.01em;
@@ -1741,20 +1739,26 @@
 		   which is what actually preserves the look across aspect ratios. */
 		--congrats-shine-size: 255vw;
 	}
+	/* The reward row is deliberately NOT in this list: it carries the source's own three effects as a
+	   `text-shadow` on its rim span, and the hard drop below would be a fourth, doubled up on the first
+	   of them. Everything else on the screen still shares this one. */
 	.bonus-announcement--treasure .bonus-announcement-headline,
-	.bonus-announcement--treasure .bonus-announcement-reward,
 	.bonus-announcement--treasure .congrats-value,
 	.bonus-announcement--treasure .bonus-announcement-hint,
-	.bonus-announcement--roulette .bonus-announcement-headline,
-	.bonus-announcement--roulette .bonus-announcement-reward {
+	.bonus-announcement--roulette .bonus-announcement-headline {
 		filter: var(--congrats-text-shadow);
 	}
 	.bonus-announcement--treasure .bonus-announcement-main {
 		position: relative;
 		z-index: 2;
-		/* Sit lower on the screen so the value drops into the treasure zone (matches the reference). */
-		margin-top: clamp(calc(44 * var(--ui-px)), 22vh, calc(150 * var(--ui-px)));
-		gap: clamp(calc(8 * var(--ui-px)), 2vh, calc(22 * var(--ui-px)));
+		/* Both numbers are set by one constraint: the win value has to land ABOVE the hoard, not in it.
+		   The treasure art is 1919×633 drawn full-width from 41% of the screen down, and across the
+		   middle 40% — the only part the value can collide with — its first opaque row is 49.3% into the
+		   art, i.e. ~70% of the way down the screen. Everything above has to fit in what is left.
+		   Was 22vh / 2vh, which put the value's baseline ~46px INTO the coins at the 1024×576 reference.
+		   At 16vh / 1vh the rows close up and the block lifts, leaving the value clear of the hoard. */
+		margin-top: clamp(calc(30 * var(--ui-px)), 16vh, calc(112 * var(--ui-px)));
+		gap: clamp(calc(4 * var(--ui-px)), 1vh, calc(12 * var(--ui-px)));
 	}
 	/* "YOU HAVE WON" subheading: bright Figma cream→gold fill + a warm dark-gold OUTLINE (the reference
 	   look), smaller than the CONGRATULATIONS headline (overrides --win). */
@@ -1770,13 +1774,13 @@
 		   headline art above it.) */
 		letter-spacing: 0.06em;
 		line-height: 0.945;
-		/* The FULL rim thickness, not half of one — the rim is centred on the glyph outline, so all of
-		   this is visible (see the note on the fill span below).
-		   Frame-checking the counters at the real 1024×576 size (48.1px font): 0.12em is where the bowls
-		   of the 6 and the 0 start to choke and 0.14em closes them, so the face tops out just above this.
-		   ⚠️ It is the SMALLEST render that binds, not the largest — a 400×225 popout puts this row at
-		   ~19px, where even this is only ~1.7px of rim against a ~13px cap. */
-		--announcement-stroke-width: 0.088em;
+		/* HALF of this shows: the stroke is centred on the glyph outline and the fill span covers the
+		   inner half, so the visible overhang is 0.049em — which is what the source measures. ⚠️ Figma
+		   strokes text in absolute px, so the two source nodes are not proportional to each other: the
+		   same ~5px band is 0.049em on the 102px "YOU HAVE WON" and 0.095em on the 63px "YOU WON 60
+		   DROPS". No single em reproduces both. Taken from the 102px node — it is the one this request
+		   named, and at 4.7vw this row sits nearer its 5.3vw than the other's 3.3vw. */
+		--announcement-stroke-width: 0.098em;
 	}
 	/* Fill: the Figma spec for this row, colours and stop positions verbatim —
 	     linear-gradient(177.39deg, #FBECCD 14.23%, #F4D77A 49.67%, #E8BE37 72.44%)
@@ -1798,12 +1802,10 @@
 	.bonus-announcement--treasure .bonus-announcement-text-fill--reward,
 	.bonus-announcement--roulette .bonus-announcement-text-fill--reward {
 		background-image: linear-gradient(180deg, #fbeccd 14.23%, #f4d77a 49.67%, #e8be37 72.44%);
-		/* No stroke on THIS span — it lives on `.bonus-announcement-text-rim` stacked over the top. See
-		   the note there for why. */
-		text-shadow:
-			0 0 0.42em rgba(255, 196, 62, 0.75),
-			0 0 0.95em rgba(255, 178, 44, 0.45),
-			0 0.05em 0.055em rgba(0, 0, 0, 0.2);
+		/* No stroke and no shadow on THIS span. Both live on `.bonus-announcement-text-rim` underneath,
+		   whose ink is the stroked silhouette — which is the shape the source casts its effects from.
+		   Repeating the glow here would just double it, at a slightly smaller shape. */
+		text-shadow: none;
 	}
 	/* THE FIX for the cut-off "!" and "Y": `background-clip: text` only paints the gradient within the
 	   span's own box, but the `-webkit-text-stroke` ink of the FIRST and LAST glyphs extends BEYOND that
@@ -1814,22 +1816,26 @@
 	   that is the geometry the glyph-relative read of them was worked out on. Change the padding and the
 	   fill re-ramps.
 	   Reward row only: the headline is baked art now, and padding an <img> would just inset it. */
+	/* Rim colour and effects, both read off the Figma source (nodes 467:22621 / 469:22651). The stroke is
+	   the one thing Figma's codegen does not export for text, so it was measured off the rendered node
+	   instead: scanning a stem, the band is a FLAT #916917 at every height — no gradient, no fade — and
+	   the gold core measures 15.5px against the 16px the bare SemiBold glyph draws at that size, which is
+	   what pins the alignment to OUTSIDE rather than centre. */
 	.bonus-announcement--treasure .bonus-announcement-text-rim,
 	.bonus-announcement--roulette .bonus-announcement-text-rim {
-		-webkit-text-stroke: var(--announcement-stroke-width) #6b4410;
-		/* The rim fades DOWN the glyph — solid across the top, 25% by the baseline (the Figma spec).
-		   Done with a mask rather than a gradient stroke on purpose. `-webkit-text-stroke-color` takes a
-		   colour, never a gradient, and the usual dodge — a transparent stroke painted through
-		   `background-clip: text` — only works when the rim sits BEHIND the fill, which is what makes a
-		   rim OUTER. This rim has to stay on top (it is centre-aligned, and being on top is what stops the
-		   fill's gradient leaking a hairline past it — see the note above), so a gradient stroke is off
-		   the table. Masking the whole span modulates the only thing it paints, which is the stroke, and
-		   costs neither of those properties.
-		   Stops are in the same padded-box space as the fill gradient: the glyph cap runs 21%→76% of this
-		   box, so the ramp is pinned to those two marks and reaches 25% exactly at the baseline rather
-		   than somewhere inside the letter. Below the baseline it stays at 25%. */
-		mask-image: linear-gradient(180deg, #000 21%, rgba(0, 0, 0, 0.25) 76%);
-		-webkit-mask-image: linear-gradient(180deg, #000 21%, rgba(0, 0, 0, 0.25) 76%);
+		color: #916917;
+		-webkit-text-fill-color: #916917;
+		-webkit-text-stroke: var(--announcement-stroke-width) #916917;
+		/* The source's three effects, in its own order. `text-shadow` rather than chained
+		   `filter: drop-shadow()` on purpose: filters compose, so the second would cast a shadow of the
+		   first, while Figma draws all three off the same silhouette — which is exactly what a
+		   comma-separated `text-shadow` does.
+		   Converted against the 102px "YOU HAVE WON" node: (5.095, 10.19)px → 0.05/0.1em,
+		   (0, 20.38)px blur 20.38 → 0/0.2em blur 0.2em, blur 145.21 → 1.424em. #EDB02AA3 is alpha 0.64. */
+		text-shadow:
+			0.05em 0.1em 0 #000000,
+			0 0.2em 0.2em #000000,
+			0 0 1.424em rgba(237, 176, 42, 0.64);
 	}
 	.bonus-announcement--treasure .bonus-announcement-reward > *,
 	.bonus-announcement--roulette .bonus-announcement-reward > * {
@@ -1857,7 +1863,9 @@
 		z-index: 2;
 		display: inline-grid;
 		justify-items: center;
-		margin-top: clamp(calc(6 * var(--ui-px)), 2.2vh, calc(26 * var(--ui-px)));
+		/* On top of the flex gap above, so it is the third gap in the stack and the one that pushed the
+		   value furthest into the hoard. Pulled right back for the same reason. */
+		margin-top: clamp(calc(2 * var(--ui-px)), 0.6vh, calc(8 * var(--ui-px)));
 		font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
 		/* The worst offender on this screen: 7.6vw only wins above ~740px wide, so on a 400×225 popout
 		   the 56px floor pinned the win value at 14% of the frame width instead of 7.6%. */

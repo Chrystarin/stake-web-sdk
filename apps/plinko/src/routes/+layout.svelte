@@ -101,13 +101,16 @@
 
 /* Prompt (the "YOU WON N DROPS" / "YOU HAVE WON" row on both congratulations screens). Google's own
    woff2 subsets, same treatment as Noto Sans above — and for the same reason: Prompt is a Thai family,
-   so the full face carries a Thai block this game never renders. Only the BLACK cut is installed, which
-   is the weight that row is designed around; if a lighter one is ever wanted, pull that subset too
-   rather than letting the browser synthesise it. Both Latin subsets, since the copy is hardcoded
-   English + digits and latin-ext is what covers a currency symbol if that row ever carries one. */
-@font-face{font-family:'Prompt';src:url(${JSON.stringify(staticUrl('fonts/Prompt/Prompt-900-latin.woff2'))}) format('woff2');font-weight:900;font-style:normal;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+   so the full face carries a Thai block this game never renders. Only the SEMIBOLD cut is installed —
+   the weight the Figma source specifies for that row — so anything styling it must ask for 600 exactly;
+   any other weight and the browser synthesises a fake bold off this one.
+   ⚠️ No backticks in this comment, or anywhere else in this block: the whole stylesheet is a JS template
+   literal, so one would close it and the file stops parsing.
+   Both Latin subsets, since the copy is hardcoded English + digits and latin-ext is what covers a
+   currency symbol if that row ever carries one. */
+@font-face{font-family:'Prompt';src:url(${JSON.stringify(staticUrl('fonts/Prompt/Prompt-600-latin.woff2'))}) format('woff2');font-weight:600;font-style:normal;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
 
-@font-face{font-family:'Prompt';src:url(${JSON.stringify(staticUrl('fonts/Prompt/Prompt-900-latin-ext.woff2'))}) format('woff2');font-weight:900;font-style:normal;unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+@font-face{font-family:'Prompt';src:url(${JSON.stringify(staticUrl('fonts/Prompt/Prompt-600-latin-ext.woff2'))}) format('woff2');font-weight:600;font-style:normal;unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
 
 </style>`}
 </svelte:head>

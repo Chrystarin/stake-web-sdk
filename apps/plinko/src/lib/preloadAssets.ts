@@ -345,9 +345,9 @@ const FONT_SPECS: readonly string[] = [
 	"600 1rem 'Noto Sans'",
 	"400 1rem 'Righteous'",
 	"400 1rem 'AustereBlackCapsSSK'",
-	// The "YOU WON N DROPS" / "YOU HAVE WON" row on both congratulations screens. Only the Black cut is
-	// declared (see +layout.svelte) — asking for any other weight here would just load nothing.
-	"900 1rem 'Prompt'",
+	// The "YOU WON N DROPS" / "YOU HAVE WON" row on both congratulations screens. Only the SemiBold cut
+	// is declared (see +layout.svelte) — asking for any other weight here would just load nothing.
+	"600 1rem 'Prompt'",
 ];
 
 /**
