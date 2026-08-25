@@ -205,13 +205,14 @@ export const IN_BONUS_SPIN_BANK_DRAIN_BUDGET_MS = 1200;
  *
  * The bar completing is the moment the player earned the wheel, and without a pause the two land on the
  * same breath — a full-screen overlay slides over the bar in the frame it fills, so the thing that
- * announced the reward is gone before it reads. A second is enough to see the bar complete and
- * still feel like the wheel arrived because of it.
+ * announced the reward is gone before it reads. Long enough to watch the bar complete AND let the
+ * meter's own full-bar celebration play (`freeSpinMeterFullAssets` runs one 2s cycle), so the wheel
+ * still reads as arriving because of the bar rather than interrupting it.
  *
  * Applies to the free spin only. The bonus wheel keeps its own timing (its meter has already run a
  * separate drain animation by the time it opens).
  */
-export const FREE_SPIN_WHEEL_OPEN_DELAY_MS = 1000;
+export const FREE_SPIN_WHEEL_OPEN_DELAY_MS = 2000;
 
 /**
  * Bonus hold-to-drop: the batch size above which the held stream starts releasing MORE THAN ONE ball
