@@ -1330,6 +1330,11 @@ export class PlinkoEngine {
       brighten.tint = PlinkoEngine.COIN_BRIGHTEN_COLOR;
       brighten.alpha = PlinkoEngine.COIN_BRIGHTEN_ALPHA;
       brighten.label = 'coin-brighten';
+      // Pixi v8 treats a Sprite as leaf-only unless it opts in, and logs the "addChild: Only
+      // Containers will be allowed to add children" deprecation on every parent that has not.
+      // `allowChildren` IS that opt-in — it is the only thing `addChild` gates on, so setting it
+      // changes nothing about how the pair is built, drawn or destroyed; it just stops the warning.
+      sprite.allowChildren = true;
       sprite.addChild(brighten);
       this.featuredPegLayer.addChild(sprite);
       this.featuredPegSprites.set(key, sprite);

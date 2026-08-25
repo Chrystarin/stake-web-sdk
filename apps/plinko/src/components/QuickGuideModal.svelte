@@ -280,9 +280,10 @@
 
 			<div class="qg-inner">
 				<div class="qg-video">
-					<!-- All four clips are in the blocking preload and resident in memory by the time this
-					     opens, so `staticUrl` hands back a `blob:` URL and the loop plays with no request
-					     of its own — see QUICK_GUIDE_VIDEO_PATHS for what that costs the splash.
+					<!-- The clips are NOT preloaded — each streams when its page is reached, so on a cold
+					     slow link the first one can buffer in front of the player. Preloading them into
+					     memory was tried and cannot work under Stake's CSP; see QUICK_GUIDE_VIDEO_PATHS
+					     before reaching for it again.
 
 					     Two elements, never four: the well dissolves from one clip into the next and a
 					     dissolve needs both of them alive at once, but mounting all four would stand up four

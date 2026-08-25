@@ -78,9 +78,42 @@
 							console.warn('[plinko] bonus background music failed to load', err);
 						},
 					});
+		silenceHowlerTeardownSrc(howl);
 		trackedVolume.set(howl, kind === 'normal' ? NORMAL_VOLUME : BONUS_VOLUME);
 		pendingSeek.set(howl, resumeSeek[kind]);
 		return howl;
+	}
+
+	/**
+	 * Stop Howler pointing a torn-down `<audio>` element at a base64 `data:` WAV.
+	 *
+	 * Howler ends a streaming download by assigning a scrap of silence as a `data:` URI (its
+	 * `_clearSound`). The page Stake serves the game from sends `Content-Security-Policy:
+	 * default-src 'self'` and never sets `media-src`, so that assignment is refused and the console
+	 * takes a "Loading media from 'data:audio/wav;base64,…' violates … default-src 'self'" error for
+	 * each track, every time the tracks are released — which is every backgrounding of the page, not
+	 * just unmount.
+	 *
+	 * Dropping the attribute and re-running the resource selection algorithm aborts the same
+	 * in-flight download with no URL for the policy to weigh, so the download still stops and the OS
+	 * still drops the media session. Overridden per instance rather than on `Howl.prototype` so it
+	 * reaches only these two tracks — Howler invokes it as `self._clearSound`, so an own property
+	 * shadows the prototype for exactly this Howl.
+	 *
+	 * Safe because the only caller reached here is `unload()` (via `destroyTrack`), which hands the
+	 * element straight back to Howler's pool and rebuilds its `src` from scratch when the pool next
+	 * issues it. Howler's other call site clears a node mid-`stop()` when its duration is `Infinity`
+	 * — an endless live stream, which neither of these finite files can be.
+	 */
+	function silenceHowlerTeardownSrc(howl: Howl) {
+		(howl as unknown as { _clearSound: (node: HTMLAudioElement) => void })._clearSound = (
+			node: HTMLAudioElement,
+		) => {
+			node.removeAttribute('src');
+			// Removing the attribute alone does not abort a load in flight — only setting `src` does
+			// that implicitly, so a source-less element has to be re-run by hand.
+			node.load();
+		};
 	}
 
 	/** Current playhead in seconds, or 0 if the track was never loaded (`seek()` returns the Howl). */

@@ -218,29 +218,34 @@ const WIN_POPUP_IMAGE_PATHS: readonly string[] = [
 /**
  * The quick guide's four looping clips (`QuickGuideModal.svelte`), in page order.
  *
- * ⚠️ These are BLOCKING, and they are far and away the most expensive thing on the blocking path —
- * 38.7 MB against ~27 MB for the whole of the rest of it. Read the trade before adding to them.
+ * ⚠️ NOT PRELOADED — deliberately, and not for the reason you would guess. They are declared here
+ * only so the drift alarm at the bottom of this file can recognise them (`byDesign`) and so the modal
+ * has one list to index. Do not move them into the manifest without reading all of this.
  *
- * They used to sit outside the manifest, because at 1080p and 13–21 s each they were ~78 MB and
- * warming them would have pushed the splash past its own timeout — revealing a part-loaded game, the
- * exact failure this module exists to prevent. The clips have since been re-cut at 960x540 and 4–10 s
- * (see the commit that halved them), which is what makes this affordable at all, and the guide opens
- * 400 ms after the splash clears: it is the FIRST thing a player sees, so a clip that streams in is a
- * hole in the first screen of the game rather than a late frame somewhere downstream.
+ * They ARE the most expensive thing the game could put on the blocking path: 38.7 MB against ~27 MB
+ * for the whole of the rest of it, i.e. a cold load ~2.4x longer on the wire. That was tried. The
+ * clips were re-cut at 960x540 and 4–10 s to afford it, the splash cap was re-derived to 600 s to
+ * cover it, and each clip was fetched into a Blob and published through {@link registerResidentUrl}
+ * so the `<video>` would play from memory rather than re-request on Stake's CDN headers (see the note
+ * on `resident` in staticUrl.ts for why the HTTP cache is not trusted here).
  *
- * What it costs is splash time, and honestly: the blocking payload goes ~27 MB → ~66 MB, so a cold
- * load is ~2.4x longer on the wire. `PreloadOptions.timeoutMs` was re-derived for that and must be
- * re-derived again if this list grows — a cap that sits inside the realistic load time is worse than
- * no cap at all.
+ * It cannot work on Stake. The page serves the game under `Content-Security-Policy: default-src
+ * 'self'` and never sets `media-src`, and CSP does not treat `blob:` as same-origin: every object URL
+ * handed to a `<video>` is refused outright. So the preload paid 38.7 MB of splash time on every cold
+ * load, the metadata probe that guarded the bytes failed for all four clips, they were revoked, and
+ * the modal fell back to the plain same-origin URL and streamed them anyway — the CDN request the
+ * blob existed to avoid, on top of a splash that had already downloaded them once.
  *
- * Preloaded as blobs published through {@link registerResidentUrl}, like the DOM images and unlike the
- * audio: `staticUrl()` then hands the modal a `blob:` URL, so the `<video>` plays from memory with no
- * request of its own. Warming the HTTP cache instead would leave that request to be made and re-served
- * on Stake's CDN headers — see the note on {@link resident} for the measurement that settled it.
+ * (Blob IMAGES are unaffected and stay as they are — that CSP sets `img-src` explicitly. Only media
+ * falls through to `default-src`.)
  *
- * The modal still mounts ONE `<video>` at a time, keyed on the page. That is no longer about bytes
- * (they are all in memory by then) but about decoders: four live `<video>` elements is four times the
- * decode pipeline for three clips nobody is looking at.
+ * So the clips stream, one page at a time, as they did before that attempt. The cost is real and
+ * known: the guide opens 400 ms after the splash clears, so on a cold slow link its first page can
+ * buffer in front of the player. Buying that back means giving the `<video>` a same-origin URL backed
+ * by bytes this tab already holds, which under this CSP means a service worker — not another blob.
+ *
+ * The modal mounts ONE `<video>` at a time, keyed on the page: both to keep three unwatched clips off
+ * the wire and because four live elements is four times the decode pipeline.
  */
 export const QUICK_GUIDE_VIDEO_PATHS: readonly string[] = [
 	'img/quick_guide/quick_guide_video_1.mp4',
@@ -488,61 +493,6 @@ async function fetchDecodeAndPublish(url: string): Promise<void> {
 }
 
 /**
- * Fetch a video into memory and publish it as an object URL, so the `<video>` that plays it later
- * reads from this tab rather than from the network. The image path's reasoning applies unchanged (see
- * {@link fetchDecodeAndPublish} and the note on `resident` in staticUrl.ts) — warming the URL alone
- * would leave Stake's CDN free to serve the real reference off the wire.
- *
- * Metadata is awaited before publishing, which is this path's equivalent of the images' `decode()`: it
- * proves the container parses, so a truncated body can never become the URL the guide plays from. It
- * is NOT a decode of the footage, and deliberately so — nothing here should build a decode pipeline
- * for four clips that may never be looked at.
- *
- * Shares the image fetch limiter: the cap is about how many fetches are in flight at once, not about
- * what kind, and these are the four largest files in the manifest.
- */
-async function preloadVideo(url: string): Promise<void> {
-	return withImageFetchSlot(async () => {
-		let objectUrl: string | undefined;
-		try {
-			const response = await fetch(url, { credentials: 'same-origin' });
-			if (!response.ok) throw new Error(`HTTP ${response.status}`);
-			objectUrl = URL.createObjectURL(await response.blob());
-			await probeVideoMetadata(objectUrl);
-			registerResidentUrl(url, objectUrl);
-		} catch (error) {
-			// The bytes are unusable, so give them back rather than holding them for the session.
-			if (objectUrl) URL.revokeObjectURL(objectUrl);
-			if (report.failed.length < 100) {
-				report.failed.push({ url, reason: String((error as Error)?.message ?? error) });
-			}
-		}
-	});
-}
-
-/**
- * Resolve once a throwaway `<video>` has read the metadata out of `objectUrl`, reject if it cannot.
- * `preload="metadata"` keeps this to the container header; the element is dropped straight after, so
- * no decoder is left alive.
- */
-function probeVideoMetadata(objectUrl: string): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const probe = document.createElement('video');
-		probe.preload = 'metadata';
-		probe.muted = true;
-		const done = (settle: () => void) => {
-			probe.onloadedmetadata = null;
-			probe.onerror = null;
-			probe.removeAttribute('src');
-			settle();
-		};
-		probe.onloadedmetadata = () => done(resolve);
-		probe.onerror = () => done(() => reject(new Error('video metadata failed to parse')));
-		probe.src = objectUrl;
-	});
-}
-
-/**
  * Pull a file into the HTTP cache. Used for audio (whose players fetch it themselves later) and for
  * the opposite orientation's spine pages. The body must be READ, not just the headers awaited, or the
  * response is abandoned part-way and never lands in the cache.
@@ -599,7 +549,6 @@ function coveredUrls(): Set<string> {
 			...DOM_IMAGE_PATHS,
 			...WIN_POPUP_IMAGE_PATHS,
 			...PIXI_TEXTURE_PATHS,
-			...QUICK_GUIDE_VIDEO_PATHS,
 			...AUDIO_PATHS,
 		].map((path) => staticUrl(path)),
 		...spineDefFiles(
@@ -686,14 +635,13 @@ export type PreloadOptions = {
 	 * The 120 s cap of the day sat *inside* that range, so every player below ~3 Mbps got a part-loaded
 	 * game and blamed the preload.
 	 *
-	 * The blocking set is now ~66 MB: the quick guide's four clips joined it and they are 38.7 MB of
-	 * the total (see QUICK_GUIDE_VIDEO_PATHS). Scaling those measurements by the 2.43x payload gives
-	 * ~263 s at 3.0 Mbps and ~355 s at 1.8 Mbps, and the 300 s cap this replaces sat inside THAT range
-	 * in turn. 600 s restores the ~1.7x margin over the slow case that 300 s used to hold over 146 s.
+	 * The blocking set is ~27 MB again. It briefly ran to ~66 MB when the quick guide's four clips
+	 * joined it, and this cap went to 600 s to hold its margin over the ~355 s that 1.8 Mbps implied at
+	 * that size; those clips are out again (see QUICK_GUIDE_VIDEO_PATHS — Stake's CSP made the whole
+	 * exercise pointless), so the derivation returns to the measurements above: ~1.7x over the 146 s
+	 * slow case, i.e. 300 s.
 	 *
-	 * Re-derive this if the payload changes materially; do not just nudge it. And note what the number
-	 * implies: on a genuinely slow link the splash is now minutes long, which is the price of the guide
-	 * playing instantly. If that trade ever looks wrong, the lever is the manifest, not this cap.
+	 * Re-derive this if the payload changes materially; do not just nudge it.
 	 */
 	timeoutMs?: number;
 };
@@ -723,7 +671,7 @@ export function preloadWinPopupAssets(): Promise<void> {
  */
 export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
-	const { timeoutMs = 600_000 } = options;
+	const { timeoutMs = 300_000 } = options;
 
 	const tasks: (() => Promise<unknown>)[] = [
 		...DOM_IMAGE_PATHS.map((path) => () => preloadImage(staticUrl(path))),
@@ -732,10 +680,9 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		...PIXI_TEXTURE_PATHS.map((path) => () => Assets.load(staticUrl(path))),
 		...spineAssetTasks(),
 		() => preloadFonts(),
-		// The quick guide opens 400 ms after this resolves, so its clips are on the blocking path —
-		// see QUICK_GUIDE_VIDEO_PATHS for what that costs and why the trade is worth making.
-		...QUICK_GUIDE_VIDEO_PATHS.map((path) => () => preloadVideo(staticUrl(path))),
 		// Audio is deliberately absent — see AUDIO_PATHS. It is warmed after reveal instead.
+		// So are the quick guide's clips, which stream a page at a time — see QUICK_GUIDE_VIDEO_PATHS
+		// for the CSP that rules out preloading them into memory at all.
 	];
 
 	// Counted for the timeout warning and for {@link getPreloadReport} — the splash itself shows no
@@ -828,11 +775,15 @@ export function watchForUnpreloadedAssets(): void {
 	// the preload — i.e. before this observer starts — so a hit here means a face nobody declared.
 	const watched = ['img/', 'sound/', 'spine/', 'fonts/'].map((dir) => staticUrl(dir));
 	const reported = new Set<string>();
-	// Warmed after reveal on purpose (see preloadPostRevealAssets). Without this the black box flags a
-	// perfectly healthy session — the opposite orientation alone is a few hundred KB of honest traffic
-	// right after the splash — and an alarm that always fires tells you nothing.
+	// Fetched after reveal on purpose — warmed by `preloadPostRevealAssets`, or (the guide's clips)
+	// left to stream when they are reached. Without this the black box flags a perfectly healthy
+	// session — the opposite orientation alone is a few hundred KB of honest traffic right after the
+	// splash — and an alarm that always fires tells you nothing.
 	const byDesign = new Set([
 		...AUDIO_PATHS.map((path) => staticUrl(path)),
+		// Streamed on demand, one page at a time — see QUICK_GUIDE_VIDEO_PATHS for why they are not in
+		// the manifest. They sit under `img/`, so without this every guide open reads as a manifest gap.
+		...QUICK_GUIDE_VIDEO_PATHS.map((path) => staticUrl(path)),
 		...otherOrientationBackgroundFiles().map((path) => new URL(path, window.location.href).href),
 	]);
 
@@ -856,11 +807,10 @@ export function watchForUnpreloadedAssets(): void {
 				});
 			}
 
-			// `byDesign` is checked here too, not just in the report above: it covers what is warmed AFTER
-			// reveal, which is honest traffic rather than a manifest gap. (The quick-guide clips used to be
-			// listed there and no longer are — they are in the manifest now, so `covered` silences them,
-			// and a guide clip that DOES show up here is a real failure: it means the preload never
-			// published its blob and the player is watching it stream.)
+			// `byDesign` is checked here too, not just in the report above: the audio it covers is also in
+			// the manifest (so `covered` already silences it), but the quick-guide videos deliberately are
+			// not — and telling the developer to add 38.7 MB of video to the blocking preload is the exact
+			// opposite of what should happen.
 			if (import.meta.env.DEV && !covered.has(url) && !byDesign.has(url)) {
 				console.warn(
 					`[plinko] asset loaded on demand (add it to the manifest in lib/preloadAssets.ts): ${url}`,

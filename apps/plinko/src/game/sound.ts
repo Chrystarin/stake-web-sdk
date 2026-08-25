@@ -174,6 +174,14 @@ export function resumePlinkoAudio(): void {
 	// Already live — do nothing at all. This is the common case (these listeners fire on every tap and
 	// every resize frame of a rotation), so it has to stay free.
 	if (ctx.state === 'running') return;
+	// Nothing has EVER been interacted with, so the autoplay policy is guaranteed to refuse this —
+	// and Chrome writes "The AudioContext was not allowed to start" to the console for every refusal.
+	// The non-gesture listeners below (`resize` above all: a devtools drag or a mobile address bar
+	// sliding fires it by the hundred) would otherwise turn that into hundreds of console lines
+	// before the player has so much as tapped. `hasBeenActive` is sticky and per-window, which is the
+	// same activation `resume()` itself tests, so this skips exactly the calls that cannot succeed:
+	// once the first gesture lands it reads true for the rest of the session and this gate is inert.
+	if (!hasBeenInteractedWith()) return;
 	// Let Howler resume it first where it can: that path also clears its own suspend bookkeeping and
 	// emits `resume` to every Howl, which a bare `ctx.resume()` would leave inconsistent.
 	try {
@@ -189,6 +197,19 @@ export function resumePlinkoAudio(): void {
 		.catch(() => {
 			// Still gesture-locked — the next interaction will try again.
 		});
+}
+
+/**
+ * Whether this window has had a user gesture at some point (sticky activation).
+ *
+ * Engines without `navigator.userActivation` report `true`: this exists to skip calls that provably
+ * cannot work, and on a browser that cannot tell us, the honest answer is to try as before.
+ */
+function hasBeenInteractedWith(): boolean {
+	if (typeof navigator === 'undefined') return false;
+	const activation = (navigator as unknown as { userActivation?: { hasBeenActive?: boolean } })
+		.userActivation;
+	return typeof activation?.hasBeenActive === 'boolean' ? activation.hasBeenActive : true;
 }
 
 /**
