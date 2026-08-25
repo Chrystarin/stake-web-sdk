@@ -3,7 +3,10 @@
 
 	import { frameImagePoint, SKULL_GOLD_PILE } from '../lib/frameArt';
 	import { stateGame } from '../game/stateGame.svelte';
-	import { releaseBonusEndBalanceHold } from '../game/gameOrchestrator';
+	import {
+		endInBonusFreeSpinCoinStream,
+		releaseBonusEndBalanceHold,
+	} from '../game/gameOrchestrator';
 	import { eventEmitter } from '../game/eventEmitter';
 	import { CoinFountainRenderer, type FountainPoint } from '../lib/spine/CoinFountainRenderer';
 
@@ -12,9 +15,17 @@
 	let ready = false;
 	let glowHideTimer: ReturnType<typeof setTimeout> | undefined;
 	let sparkleHideTimer: ReturnType<typeof setTimeout> | undefined;
-	// Pending "+<win>" float timers — the float is shown a beat after launch (≈ when coins reach the
-	// balance coin). Tracked so they can be cleared on unmount.
+	// Pending one-shot beats scheduled off a launch — the "+<win>" float (≈ when the coins reach the
+	// balance coin) and the free-spin stream's release + end. Tracked so they can be cleared on unmount.
 	const floatTimers = new Set<ReturnType<typeof setTimeout>>();
+	/** Run `fn` `delayMs` from now, tracked so unmount can cancel it. */
+	function schedule(delayMs: number, fn: () => void) {
+		const timer = setTimeout(() => {
+			floatTimers.delete(timer);
+			fn();
+		}, delayMs);
+		floatTimers.add(timer);
+	}
 	// Approx travel time before coins start merging into the balance coin (matches the renderer's
 	// startAt + duration for the earliest coins); the float appears then, so it reads "on merge".
 	const COIN_MERGE_DELAY_MS = 1400;
@@ -111,6 +122,18 @@
 		playMergeSfx();
 	}
 
+	/**
+	 * Where every coin stream comes from: the gold coin pile at the pirate skull's MOUTH (baked into the
+	 * game-area frame art). Falls back to the frame centre, then the viewport, so a burst always has
+	 * somewhere to come from.
+	 */
+	function burstOrigin(): FountainPoint {
+		return (
+			frameImagePoint(SKULL_GOLD_PILE.x, SKULL_GOLD_PILE.y) ??
+			rectCenter('.game-area-frame') ?? { x: window.innerWidth / 2, y: window.innerHeight * 0.4 }
+		);
+	}
+
 	// Only the post-bonus collect holds a balance: its treasure screen pins the displayed balance at the
 	// pre-win value at full cover, so the number climbs with these coins instead of already being at its
 	// new total when the screen lifts. `releasesBalance` marks that burst; the hold is handed to its
@@ -121,12 +144,7 @@
 			if (releasesBalance) releaseBonusEndBalanceHold();
 			return;
 		}
-		// Origin: the gold coin pile at the pirate skull's MOUTH (baked into the game-area frame art).
-		// Fall back to the frame centre, then the viewport, so a burst always has somewhere to come from.
-		const from =
-			frameImagePoint(SKULL_GOLD_PILE.x, SKULL_GOLD_PILE.y) ??
-			rectCenter('.game-area-frame') ??
-			(() => ({ x: window.innerWidth / 2, y: window.innerHeight * 0.4 }))();
+		const from = burstOrigin();
 		const to = rectCenter('[data-coin-fly-target="balance"]');
 		// No balance coin on screen (shouldn't happen) — nothing to collect into.
 		if (!to) {
@@ -173,12 +191,10 @@
 		// Float a "+<win>" text down from the balance coin around when these coins start merging into it.
 		if (winAmount && winAmount > 0) {
 			const amount = winAmount;
-			const timer = setTimeout(() => {
-				floatTimers.delete(timer);
+			schedule(COIN_MERGE_DELAY_MS, () => {
 				stateGame.balanceWinFloatAmount = amount;
 				stateGame.balanceWinFloatTick++;
-			}, COIN_MERGE_DELAY_MS);
-			floatTimers.add(timer);
+			});
 		}
 	}
 
@@ -192,6 +208,9 @@
 			if (sparkleHideTimer) clearTimeout(sparkleHideTimer);
 			floatTimers.forEach((t) => clearTimeout(t));
 			floatTimers.clear();
+			// Going away mid-stream — drop the screen-hold now rather than leaving the bonus round waiting
+			// out its backstop for coins that no longer exist.
+			endInBonusFreeSpinCoinStream();
 			stateGame.balanceGlowActive = false;
 			stateGame.balanceSparkleActive = false;
 			renderer?.destroy();
@@ -234,6 +253,79 @@
 		if (tick !== lastBonusEndTick) {
 			lastBonusEndTick = tick;
 			launchBurst(BONUS_END_COIN_COUNT, stateGame.bonusEndCoinBurstAmount, true);
+		}
+	});
+
+	// A free spin that triggered MID-BONUS: its wheel has just closed, so throw a stream out of the
+	// skull's mouth toward the HUD's Win field — the field its `stake × M` went into.
+	//
+	// Unlike the two collects above, this one DISSOLVES on approach instead of merging (`fadeOut`) and
+	// drives none of the BALANCE-side feedback: no coin pulse, no glow/sparkle, no per-coin flip sfx.
+	// Nothing is being paid into the balance here — the credit is a bonus-round subtotal, and the balance
+	// only sees it at the end-of-round collect. What the coins DO carry is the Win field's own beat: the
+	// value was pinned at its pre-credit figure when the wheel landed (`applyFreeSpinWinOnLand`), and as
+	// the first coins dissolve into the field it floats a "+<credit>" and counts up to the new total.
+	//
+	// PACING is tighter than the collects' (which are tuned for ~40 coins pouring into the balance): the
+	// level-up card and the end-of-round screen both queue behind this stream
+	// (`isFreeSpinWheelOwningScreen`), so every extra beat here is a beat the next celebration waits.
+	// `onFreeSpinRouletteFinished` bumps `inBonusFreeSpinCoinBurstTick` (see rouletteFlow).
+	const FREE_SPIN_COIN_STAGGER_MS = 420;
+	const FREE_SPIN_COIN_FLIGHT_MS = 1000;
+	// When the first coins have reached the field (a coin is fully faded by 0.9 of its flight).
+	const FREE_SPIN_COIN_ARRIVE_MS = 1000;
+	// When the LAST one has: the last launch (stagger + its jitter) plus a full flight, rounded up.
+	const FREE_SPIN_COIN_STREAM_MS = 1900;
+
+	/** Float the "+<credit>" out of the Win field and hand its held value to the count-up. */
+	function releaseWinFieldCredit(amount: number) {
+		if (amount > 0) {
+			stateGame.winFieldFloatAmount = amount;
+			stateGame.winFieldFloatTick++;
+		}
+		if (stateGame.winFieldHold !== null) stateGame.winFieldReleaseTick++;
+	}
+
+	function launchFreeSpinWinFade() {
+		const amount = stateGame.inBonusFreeSpinCoinBurstAmount;
+		const multiplier = stateGame.inBonusFreeSpinCoinBurstMultiplier;
+		const to = renderer && ready ? rectCenter('[data-coin-fly-target="win"]') : undefined;
+		// Nothing to throw the coins at (renderer not up, no Win field on screen): still settle the field
+		// and let whatever is queued behind the stream go, rather than pinning the value on a burst that
+		// is never coming.
+		if (!renderer || !ready || !to) {
+			releaseWinFieldCredit(amount);
+			endInBonusFreeSpinCoinStream();
+			return;
+		}
+		// ONE COIN PER MULTIPLE WON: 1X throws a single coin, 20X throws twenty. A sub-1X segment paid
+		// less than a whole coin, so it throws one coin shrunk to the fraction it paid (0.5X → a visibly
+		// smaller coin) — the floor keeps it readable rather than a speck.
+		const count = Math.max(1, Math.round(multiplier));
+		const sizeScale = multiplier > 0 && multiplier < 1 ? Math.max(0.55, multiplier) : 1;
+		// Bed keyed to the COIN COUNT, not the ball tier `playSpawnSfx` reads: a 1X throwing one coin
+		// under the long multi-ball shuffle would be all sound and no coins.
+		playSound(count <= 3 ? 'coinShuffleSingle' : 'coinShuffleMulti');
+		renderer.burst({
+			from: burstOrigin(),
+			to,
+			count,
+			sizeScale,
+			fadeOut: true,
+			staggerMs: FREE_SPIN_COIN_STAGGER_MS,
+			durationMs: FREE_SPIN_COIN_FLIGHT_MS,
+		});
+		schedule(FREE_SPIN_COIN_ARRIVE_MS, () => releaseWinFieldCredit(amount));
+		// Coins are gone — release the screen for the level-up card / end-of-round screen behind them.
+		schedule(FREE_SPIN_COIN_STREAM_MS, endInBonusFreeSpinCoinStream);
+	}
+
+	let lastFreeSpinWinTick = stateGame.inBonusFreeSpinCoinBurstTick;
+	$effect(() => {
+		const tick = stateGame.inBonusFreeSpinCoinBurstTick;
+		if (tick !== lastFreeSpinWinTick) {
+			lastFreeSpinWinTick = tick;
+			launchFreeSpinWinFade();
 		}
 	});
 </script>

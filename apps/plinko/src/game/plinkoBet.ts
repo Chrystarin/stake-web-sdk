@@ -266,6 +266,18 @@ export function plinkoDisplayBalance(): number {
 	);
 }
 
+/**
+ * Round win to DISPLAY in the HUD's Win field — the twin of {@link plinkoDisplayBalance}. An in-bonus
+ * free spin credits its `stake × M` the moment its wheel lands, so the displayed figure is held back
+ * and then counted up as that credit's coins reach the field:
+ *  - `winFieldCountUpValue` — mid count-up, the animating figure (Game.svelte drives it).
+ *  - `winFieldHold` — before the count-up, the pinned pre-credit value.
+ * `winAmount` itself stays authoritative throughout; never read this for anything but display.
+ */
+export function plinkoDisplayWinAmount(): number {
+	return stateGame.winFieldCountUpValue ?? stateGame.winFieldHold ?? stateGame.winAmount;
+}
+
 export function canAffordPlinkoWager(): boolean {
 	const wager = plinkoWagerAmount();
 	// A free feature-trigger bet has wager 0 — still affordable.

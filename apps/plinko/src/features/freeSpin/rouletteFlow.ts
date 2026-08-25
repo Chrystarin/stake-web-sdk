@@ -6,6 +6,7 @@ import { meterController, stateGame } from '../../game/stateGame.svelte';
 import { notifyRouletteClosed, triggerRoulette } from '../../game/meterFlow';
 import {
 	addSettledWinAmount,
+	beginInBonusFreeSpinCoinStream,
 	recordFreeSpinWinHistory,
 	releaseInBonusSpinMeterHold,
 	settleBonusRoundWhenFinished,
@@ -67,6 +68,18 @@ export function applyFreeSpinWinOnLand(wheelSegmentLabel?: string) {
 		const credit = plinkoStakePerBall() * multiplier;
 		if (credit > 0) {
 			stateGame.inBonusFreeSpinCreditTotal += credit;
+			// PIN THE DISPLAYED WIN at its pre-credit figure, BEFORE the add below. The field counts up to
+			// the new total as the coins reach it (CoinFountain releases; Game.svelte drives), instead of
+			// jumping the moment the wheel lands. A hold already up (a second wheel inside one round, a
+			// ball landing behind this one) is left alone: the earlier, lower figure is the one to count
+			// from, and the release counts up to whatever `winAmount` has reached by then.
+			if (stateGame.winFieldHold === null) stateGame.winFieldHold = stateGame.winAmount;
+			// Armed for the coin stream thrown once this wheel closes (see `onFreeSpinRouletteFinished`);
+			// firing it here would launch the coins under the wheel's own scrim. The amount + multiplier
+			// stay set for the stream to read — only the arming flag is consumed.
+			stateGame.inBonusFreeSpinCoinBurstAmount = credit;
+			stateGame.inBonusFreeSpinCoinBurstMultiplier = multiplier;
+			stateGame.inBonusFreeSpinCoinBurstArmed = true;
 			// → bonusSessionWinAmount + HUD (getCombinedRoundWinAmount). Additive: sums with the bonus
 			// balls to the book `finalWin`, which reconciles the exact total at settlement.
 			addSettledWinAmount(credit);
@@ -125,6 +138,25 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 
 	if (!stateGame.authoritativeMeterFlow && queuedRoulette) {
 		triggerRoulette(queuedRoulette);
+	}
+
+	// The wheel has faded out and the game is back in view — throw the in-bonus free spin's coins out of
+	// the skull's mouth toward the Win field. They FADE OUT short of it rather than merging, and the held
+	// Win value counts up to meet them. The arming flag is consumed here so a later wheel that credits
+	// nothing (a BONUS segment, a 0X) can't fire on the previous one's amount.
+	//
+	// ⚠️ `beginInBonusFreeSpinCoinStream` BEFORE `releaseInBonusSpinMeterHold` below: releasing drops
+	// `spinMeterHoldFull`, and if nothing else were holding the screen in that gap a level-up card could
+	// reveal on the frame between the wheel closing and the coins launching.
+	const coinStreamArmed = stateGame.inBonusFreeSpinCoinBurstArmed;
+	stateGame.inBonusFreeSpinCoinBurstArmed = false;
+	if (coinStreamArmed && stateGame.bonusRoundActive) {
+		beginInBonusFreeSpinCoinStream();
+		stateGame.inBonusFreeSpinCoinBurstTick++;
+	} else if (coinStreamArmed && stateGame.winFieldHold !== null) {
+		// The bonus round ended out from under this wheel, so no coins are coming to release the field.
+		// Settle it here rather than leaving the value pinned until the next bet clears it.
+		stateGame.winFieldReleaseTick++;
 	}
 
 	// THE WIN IS ALLOCATED — now the completed bar can empty. It was pinned FULL for this wheel's whole

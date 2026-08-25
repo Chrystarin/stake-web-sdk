@@ -504,6 +504,10 @@ export const playBet = async (bet: Bet) => {
 	if (!isRapidSingleBallMode()) {
 		stateGame.winAmount = 0;
 	}
+	// Any in-bonus free-spin display hold dies with the round that set it — a pin left on would show the
+	// new drop's Win field stuck at the old round's figure.
+	stateGame.winFieldHold = null;
+	stateGame.winFieldCountUpValue = null;
 	stateGame.deferWinPopupForFreeSpin = false;
 	// Per-round feature flags MUST reset each bet, otherwise `syncSpinMeterAfterBet` /
 	// `syncBonusMeterAfterBet` keep treating every later bet as "feature consumed" and wipe the

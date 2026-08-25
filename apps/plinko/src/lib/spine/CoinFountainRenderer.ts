@@ -32,6 +32,22 @@ export type CoinBurstOptions = {
 	 * drifts out of it on a slow frame. Order doesn't matter (sorted internally).
 	 */
 	leads?: CoinBurstLead[];
+	/**
+	 * Dissolve on approach instead of landing: the coins follow the same path but fade to nothing
+	 * short of `to`, and never shrink into it. For a stream that only POINTS at its destination —
+	 * the in-bonus free spin's coins toward the Win field, whose value the wheel already credited —
+	 * rather than one delivering a credit that lands there. `onArrive`/`leads` are meaningless with
+	 * it (nothing arrives to see), so callers leave them off.
+	 */
+	fadeOut?: boolean;
+	/** Multiplier on every coin's drawn size. Below 1 for a burst that paid less than a whole coin —
+	 * the free-spin wheel's 0.5X throws one visibly smaller coin rather than half a coin. */
+	sizeScale?: number;
+	/** How long the launches are spread over (ms, whole burst) and how long one coin's flight takes
+	 * (ms, ± ~43%). The defaults are the collect's leisurely pacing, tuned for ~40 coins pouring into
+	 * the balance; a short flourish that another beat is queued behind passes something tighter. */
+	staggerMs?: number;
+	durationMs?: number;
 	/** Fired each time a coin reaches the destination (throttled by the caller if needed). */
 	onArrive?: () => void;
 	/** Fired once when the last coin of this burst has landed and none remain in flight. */
@@ -64,6 +80,8 @@ type FlyingCoin = {
 	sizePx: number;
 	/** extra flip speed multiplier for variety. */
 	spinRate: number;
+	/** Fade out short of the destination rather than landing in it (see CoinBurstOptions.fadeOut). */
+	fadeOut: boolean;
 	arrived: boolean;
 	/** Landing warnings for this coin, sorted EARLIEST first (descending `ms`). Shared, read-only. */
 	leads: CoinBurstLead[];
@@ -205,7 +223,9 @@ export class CoinFountainRenderer {
 		// popout the raw 16.5 floor binds and the coins fly in at 2.3× their proportional size.
 		const s = uiScale();
 		const viewMin = Math.min(this.app.renderer.width, this.app.renderer.height) || 400;
-		const baseSize = Math.max(16.5 * s, Math.min(34.5 * s, viewMin * 0.0315));
+		const baseSize =
+			Math.max(16.5 * s, Math.min(34.5 * s, viewMin * 0.0315)) *
+			Math.max(0.2, Math.min(2, options.sizeScale ?? 1));
 
 		// Sorted once here, earliest warning first, so each coin only needs a cursor into it.
 		const leads = [...(options.leads ?? [])].sort((a, b) => b.ms - a.ms);
@@ -272,6 +292,10 @@ export class CoinFountainRenderer {
 			y: p0.y + (p3.y - p0.y) * 0.66 + perpY * bow * 0.55,
 		};
 
+		// Jitter is proportional to the pacing, so a tightened burst stays as loose (relatively) as the
+		// default one rather than turning into a clump with a long random tail.
+		const stagger = options.staggerMs ?? 850;
+		const flight = options.durationMs ?? 1500;
 		this.coins.push({
 			spine,
 			skel,
@@ -280,14 +304,15 @@ export class CoinFountainRenderer {
 			c2,
 			p3,
 			// Stream the launches across the burst; slight jitter avoids a mechanical cadence.
-			startAt: (index / count) * 850 + rand() * 130,
+			startAt: (index / count) * stagger + rand() * stagger * 0.153,
 			// Travel time from the skull mouth into the balance coin — leisurely so the collect reads
 			// clearly rather than snapping across the screen.
-			duration: 1500 + rand() * 650,
+			duration: flight + rand() * flight * 0.433,
 			elapsed: 0,
 			sizePx: baseSize * (0.78 + rand() * 0.5),
 			// Flip speed multiplier (the coin_act animation is a 1s flip loop; >1 spins faster).
 			spinRate: 1.7 + rand() * 1.6,
+			fadeOut: options.fadeOut === true,
 			arrived: false,
 			leads,
 			leadsFired: 0,
@@ -333,9 +358,10 @@ export class CoinFountainRenderer {
 			const eased = easeInOutCubic(t);
 			cubicBezier(coin.p0, coin.c1, coin.c2, coin.p3, eased, this.scratch);
 
-			// Pop the coin up to size at launch, then shrink as it drops into the balance coin.
+			// Pop the coin up to size at launch, then shrink as it drops into the balance coin. A fading
+			// coin keeps its size — it dissolves in mid-air, so there is nothing for it to shrink into.
 			const popIn = Math.min(1, t / 0.12);
-			const shrink = t > 0.82 ? lerp(1, 0.35, (t - 0.82) / 0.18) : 1;
+			const shrink = coin.fadeOut ? 1 : t > 0.82 ? lerp(1, 0.35, (t - 0.82) / 0.18) : 1;
 			const size = coin.sizePx * popIn * shrink;
 			const scale = size / coin.skel.contentHeight;
 
@@ -344,7 +370,15 @@ export class CoinFountainRenderer {
 				this.scratch.x - coin.skel.centerX * scale,
 				this.scratch.y - coin.skel.centerY * scale,
 			);
-			coin.spine.alpha = t < 0.08 ? t / 0.08 : t > 0.9 ? lerp(1, 0.1, (t - 0.9) / 0.1) : 1;
+			// Spawn fade-in, then either the small dip as it merges (landing coins) or a full dissolve
+			// that finishes well short of the destination (fading coins — gone by 0.9 of the way).
+			let alpha = t < 0.08 ? t / 0.08 : 1;
+			if (coin.fadeOut) {
+				if (t > 0.55) alpha = clamp01(lerp(1, 0, (t - 0.55) / 0.35));
+			} else if (t > 0.9) {
+				alpha = lerp(1, 0.1, (t - 0.9) / 0.1);
+			}
+			coin.spine.alpha = alpha;
 			coin.spine.update((dt / 1000) * coin.spinRate);
 		}
 

@@ -325,6 +325,60 @@
 	animation: coin-fly-target-bump 260ms ease-out;
 }
 
+/* Positioning context for the Win field's "+<credit>" float. The field itself is `overflow: hidden`
+   (its plaque art has to clip), so the float can't live inside it. A flex box that shrink-to-fits the
+   plaque: it becomes the row's flex item in the field's place and reserves exactly the same width, so
+   wrapping the field changes nothing about the row. */
+.bp-win-bet-wrap {
+	position: relative;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+/* "+<credit>" that rises out of the Win plaque when an in-bonus free spin's coins fade into it (the
+   value underneath counts up to the new total on the same beat). Deliberately the same motion and
+   timing as BalanceCard's `.balance-win-float` — the two beats read as one language. */
+.bp-win-field-float {
+	position: absolute;
+	/* Just clear of the plaque's top edge, centred on it. */
+	bottom: 100%;
+	left: 50%;
+	z-index: 3;
+	white-space: nowrap;
+	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	font-weight: 700;
+	/* px bounds in --ui-px so the float keeps its proportion to the plaque it rises out of — the same
+	   clamp the balance float uses. */
+	font-size: clamp(calc(12 * var(--ui-px)), 1.25vw, calc(20 * var(--ui-px)));
+	color: #ffffff;
+	text-shadow: 0 0.14vw 0.3vw rgba(0, 0, 0, 0.8);
+	pointer-events: none;
+	opacity: 0;
+	transform: translate(-50%, 0.2vw);
+	animation: bp-win-field-float-rise 1.35s ease-out forwards;
+}
+
+/* Mirrors `balance-win-float-rise` (BalanceCard) — same 18/68/100% beats, same 1.35s. */
+@keyframes bp-win-field-float-rise {
+	0% {
+		opacity: 0;
+		transform: translate(-50%, 0.2vw);
+	}
+	18% {
+		opacity: 1;
+		transform: translate(-50%, -0.9vw);
+	}
+	68% {
+		opacity: 1;
+		transform: translate(-50%, -2.6vw);
+	}
+	100% {
+		opacity: 0;
+		transform: translate(-50%, -4vw);
+	}
+}
+
 /* Win bet — a read-only display field on the left (label over the total-wager value). Borrows the
    same plaque frame + typography as the stat fields, but has no steppers, so the label/value block
    spans the full width and centres. Its vertical rhythm mirrors .bp-field--bet-controls (same top/
@@ -2088,9 +2142,11 @@
 	}
 }
 
-/* Placed by the parent flex row's space-between now (was absolute left/right). */
+/* Placed by the parent flex row's space-between now (was absolute left/right). `relative` ONLY so the
+   "+<credit>" float can anchor to this box — like the right corner, that makes no difference to a flex
+   item's own placement. */
 .mobile-corner-info--left {
-	position: static;
+	position: relative;
 }
 
 /* `relative` ONLY so the "+win" float below can anchor to this box (the float is absolute, so it stays
@@ -2179,6 +2235,28 @@
 		opacity: 0;
 		transform: translateY(-2.6em);
 	}
+}
+
+/* Mobile twin of `.bp-win-field-float` — the "+<credit>" rising out of the Win corner as an in-bonus
+   free spin's coins fade into it. Anchored to `.mobile-corner-info--left`, which is `position: static`
+   by default, so it needs its own relative context (see below). */
+.mobile-win-field-float {
+	position: absolute;
+	/* Just clear of the corner row, rising from there — same offset as the balance float opposite. */
+	bottom: 118%;
+	left: 0;
+	z-index: 3;
+	white-space: nowrap;
+	font-family: 'Poppins', 'Instrument Sans', sans-serif;
+	font-weight: 700;
+	font-size: clamp(12px, 3.1vw, 18px);
+	color: #ffffff;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+	pointer-events: none;
+	opacity: 0;
+	/* Travel is expressed in `em` so it scales with the font clamp above. */
+	transform: translateY(0.15em);
+	animation: mobile-balance-win-float-rise 1.35s ease-out forwards;
 }
 
 .mobile-corner-info .mobile-balance-wallet {

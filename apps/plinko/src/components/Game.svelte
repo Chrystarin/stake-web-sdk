@@ -267,6 +267,50 @@
 		if (balanceCountUpRaf) cancelAnimationFrame(balanceCountUpRaf);
 	});
 
+	// Win-field count-up driver — the same two beats as the balance one above, for the HUD's Win value.
+	// An in-bonus free spin credits its `stake × M` the instant its wheel lands, so the DISPLAYED figure
+	// is pinned there (`winFieldHold`, set in applyFreeSpinWinOnLand) and CoinFountain bumps
+	// `winFieldReleaseTick` as that credit's coins dissolve into the field. Counted from the pin up to
+	// whatever `winAmount` reads at release — any ball that landed behind the wheel is folded into the
+	// same count-up rather than popping into the field while it was held.
+	let winFieldCountUpRaf = 0;
+	let lastWinFieldReleaseTick = stateGame.winFieldReleaseTick;
+	$effect(() => {
+		const tick = stateGame.winFieldReleaseTick;
+		untrack(() => {
+			if (tick === lastWinFieldReleaseTick) return;
+			lastWinFieldReleaseTick = tick;
+			const from = stateGame.winFieldHold ?? stateGame.winAmount;
+			const to = stateGame.winAmount;
+			stateGame.winFieldHold = null; // hand the display over to the count-up value
+			if (winFieldCountUpRaf) cancelAnimationFrame(winFieldCountUpRaf);
+			if (Math.abs(to - from) < 0.005) {
+				stateGame.winFieldCountUpValue = null; // nothing to count — just release
+				return;
+			}
+			stateGame.winFieldCountUpValue = from;
+			const t0 = performance.now();
+			const dur = WIN_TIMING.balanceCountUp;
+			const step = (now: number) => {
+				const p = Math.min(1, (now - t0) / dur);
+				const eased = 1 - Math.pow(1 - p, 2.2);
+				// Whole cents on the intermediate frames, same as the balance count-up: the Win label prints
+				// up to 4 decimals, and an unrounded frame value churns all four of them every frame.
+				stateGame.winFieldCountUpValue = Math.round((from + (to - from) * eased) * 100) / 100;
+				if (p < 1) {
+					winFieldCountUpRaf = requestAnimationFrame(step);
+				} else {
+					winFieldCountUpRaf = 0;
+					stateGame.winFieldCountUpValue = null; // done → display falls back to `winAmount`
+				}
+			};
+			winFieldCountUpRaf = requestAnimationFrame(step);
+		});
+	});
+	$effect(() => () => {
+		if (winFieldCountUpRaf) cancelAnimationFrame(winFieldCountUpRaf);
+	});
+
 	// Leaving the 1-ball tier clears any lingering win sparkles (and cancels their fade timers) so a
 	// stale one can't reappear when the tier is re-selected.
 	$effect(() => {

@@ -27,6 +27,7 @@
 		canAffordPlinkoWager,
 		isPlinkoHighBet,
 		plinkoDisplayBalance,
+		plinkoDisplayWinAmount,
 		plinkoMaxStakePerBall,
 		plinkoMinStakePerBall,
 		plinkoStakePerBallOptions,
@@ -107,8 +108,9 @@
 	$effect(() => {
 		if (!autoPanelOpen) hoveredAutoRounds = null;
 	});
-	/** Settlement currency win from the last round — not recalculated from current stake. */
-	const displayWinAmount = $derived(stateGame.winAmount);
+	/** Settlement currency win from the last round — not recalculated from current stake. Held back /
+	 * counted up while an in-bonus free spin's coins fly at the field — see plinkoDisplayWinAmount. */
+	const displayWinAmount = $derived(plinkoDisplayWinAmount());
 	// Held-back / counting-up display balance (rapid shadow, multi-ball win hold, or authoritative) —
 	// see plinkoDisplayBalance. NOT for affordability (that uses plinkoSpendableBalance).
 	const displayBalance = $derived(plinkoDisplayBalance());
@@ -1145,10 +1147,22 @@
 		</div>
 
 		<div class="mobile-bottom-corners">
-			<div class="mobile-corner-info mobile-corner-info--left">
+			<!-- Doubles as the in-bonus free-spin coin target: its wheel's coins stream toward this box and
+			     fade out short of it (located via data-coin-fly-target — see CoinFountain). -->
+			<div class="mobile-corner-info mobile-corner-info--left" data-coin-fly-target="win">
 				<img src={staticUrl('img/coin-ico.webp')} alt="" aria-hidden="true" />
 				<span class="mobile-corner-label">{context.i18nDerived.t('Win')}:</span>
 				<span class="mobile-corner-value">{formatWin(displayWinAmount)}</span>
+				<!-- "+<credit>" rising out of the Win field as an in-bonus free spin's coins fade into it,
+				     while the value under it counts up to the new total. Same one-shot pattern as the
+				     balance float on the right: keyed on the tick so a re-mount restarts the animation. -->
+				{#if stateGame.winFieldFloatTick > 0}
+					{#key stateGame.winFieldFloatTick}
+						<span class="mobile-win-field-float" aria-hidden="true">
+							+{formatWin(stateGame.winFieldFloatAmount)}
+						</span>
+					{/key}
+				{/if}
 			</div>
 			<div class="mobile-corner-info mobile-corner-info--right">
 				<span class="mobile-corner-value">{formatBalance(displayBalance)}</span>
@@ -1228,12 +1242,31 @@
 						     0 when a new round starts (blanked at bet time). No steppers — display only. Shown
 						     in both normal and bonus rounds so the desktop bonus HUD keeps the normal-mode
 						     layout (only the bottom total-bet overlay is dropped during bonus). -->
-						<div class="bp-field bp-field--win-bet" aria-label="Round win">
-							{@render bettingFieldFrame()}
-							<span class="bp-field-label">{winFieldLabel}</span>
-							<span class="bp-select-display bp-win-bet-value" aria-live="polite">
-								{formatWin(displayWinAmount)}
-							</span>
+						<!-- The "+<credit>" float lives in this wrapper, NOT in the field: `.bp-field--win-bet`
+						     is `overflow: hidden` (its plaque art has to clip), so a float inside it would be
+						     cut off the moment it rose. The wrapper shrink-to-fits the plaque, so it changes
+						     no layout — see `.bp-win-bet-wrap`. -->
+						<div class="bp-win-bet-wrap">
+							<div
+								class="bp-field bp-field--win-bet"
+								aria-label="Round win"
+								data-coin-fly-target="win"
+							>
+								{@render bettingFieldFrame()}
+								<span class="bp-field-label">{winFieldLabel}</span>
+								<span class="bp-select-display bp-win-bet-value" aria-live="polite">
+									{formatWin(displayWinAmount)}
+								</span>
+							</div>
+							<!-- Rises out of the plaque as an in-bonus free spin's coins fade into it, while the
+							     value counts up to the new total. Twin of BalanceCard's `.balance-win-float`. -->
+							{#if stateGame.winFieldFloatTick > 0}
+								{#key stateGame.winFieldFloatTick}
+									<span class="bp-win-field-float" aria-hidden="true">
+										+{formatWin(stateGame.winFieldFloatAmount)}
+									</span>
+								{/key}
+							{/if}
 						</div>
 					</div>
 

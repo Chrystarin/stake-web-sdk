@@ -236,6 +236,33 @@ export const stateGame = $state({
 	 * into its count-up. */
 	bonusEndCoinBurstTick: 0,
 	bonusEndCoinBurstAmount: 0,
+	/** In-bonus free spin: bumped once its wheel has closed so CoinFountain throws a coin stream out of
+	 * the skull's mouth toward the HUD's Win field. That stream FADES OUT short of the field instead of
+	 * merging into it, and the Win value counts up to meet it (see `winFieldHold` below).
+	 * `…Amount` is the wheel's credit (the "+<win>" the field floats), `…Multiplier` its landed segment
+	 * — which sets how many coins fly: one per multiple won, so 1X throws a single coin and 20X throws
+	 * twenty, and a sub-1X segment throws one shrunken coin. `…Armed` is raised when the wheel LANDS and
+	 * consumed when it CLOSES, which is when the stream actually goes (see rouletteFlow). */
+	inBonusFreeSpinCoinBurstTick: 0,
+	inBonusFreeSpinCoinBurstAmount: 0,
+	inBonusFreeSpinCoinBurstMultiplier: 0,
+	inBonusFreeSpinCoinBurstArmed: false,
+	/** True from the moment that stream is committed until its last coin has faded. The bonus round's
+	 * two other full-screen beats — the level-up card and the end-of-round treasure screen — hold behind
+	 * it (`isFreeSpinWheelOwningScreen`), so the coins are never cut off by the next celebration. */
+	inBonusFreeSpinCoinStreamActive: false,
+	/** The HUD's Win field, held + counted up exactly the way the balance is (see `balanceWinHold`): an
+	 * in-bonus free spin credits its `stake × M` the instant its wheel lands, so the DISPLAYED value is
+	 * pinned at the pre-credit figure (`winFieldHold`) while the coins fly, then `winFieldReleaseTick`
+	 * hands it to a count-up (`winFieldCountUpValue`) as they dissolve into it. `null` = show the real
+	 * `winAmount`. Display-only — `winAmount` stays authoritative throughout. */
+	winFieldHold: null as number | null,
+	winFieldReleaseTick: 0,
+	winFieldCountUpValue: null as number | null,
+	/** "+<credit>" that slides up out of the Win field on that same beat — the Win-field twin of
+	 * `balanceWinFloatTick` / `balanceWinFloatAmount` (GameHud renders both layouts' copies). */
+	winFieldFloatTick: 0,
+	winFieldFloatAmount: 0,
 	/** Bumped when coins merge into the balance coin to float a "+<win>" text down from it (BalanceCard).
 	 * `balanceWinFloatAmount` is the win amount to show. */
 	balanceWinFloatTick: 0,

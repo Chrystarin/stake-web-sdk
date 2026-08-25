@@ -9,6 +9,7 @@ import {
 import { bonusMeterRenderedProgress } from '../features/bonus/bonusMeterVisual';
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import {
+	beginInBonusFreeSpinCoinStream,
 	fireBonusEndCoinCollect,
 	isBetControlsLocked,
 	isDropBatchPending,
@@ -221,6 +222,7 @@ export function installPlinkoDevDebug() {
 		plinkoTestCaptainsJackpot?: (...args: WinCelebrationTestArgs) => void;
 		plinkoTestRapidSparkle?: (amount?: number, multiplier?: number, count?: number) => void;
 		plinkoTestBonusEndCollect?: (amount?: number) => void;
+		plinkoTestFreeSpinWinCoins?: (multiplier?: number, amount?: number) => void;
 		plinkoSetSpinMeter?: (
 			value: number,
 			max?: number,
@@ -292,6 +294,23 @@ export function installPlinkoDevDebug() {
 		stateGame.balanceWinHold = stateBet.balanceAmount;
 		stateBet.balanceAmount += amount;
 		fireBonusEndCoinCollect();
+	};
+
+	// Dev-only: fire the in-bonus free-spin coin stream — the coins that pour out of the skull's mouth
+	// toward the HUD's Win field and FADE OUT short of it once an in-bonus free-spin wheel has closed —
+	// without having to fill the spin meter inside a bonus round. `multiplier` is the wheel's landed
+	// segment and sets the COIN COUNT (one per multiple won), so `plinkoTestFreeSpinWinCoins(1)` throws a
+	// single coin, `(20)` throws twenty and `(0.5)` throws one shrunken coin; `amount` is the credit the
+	// Win field floats and counts up by.
+	w.plinkoTestFreeSpinWinCoins = (multiplier = 5, amount = 12.34) => {
+		stateGame.inBonusFreeSpinCoinBurstMultiplier = multiplier;
+		stateGame.inBonusFreeSpinCoinBurstAmount = amount;
+		// Mirror the real flow: the credit is already in the Win total when the coins go, and only the
+		// DISPLAY is held back — which is what the coins then release into a count-up.
+		stateGame.winFieldHold = stateGame.winAmount;
+		stateGame.winAmount += amount;
+		beginInBonusFreeSpinCoinStream();
+		stateGame.inBonusFreeSpinCoinBurstTick++;
 	};
 
 	// Dev-only: pin the Free Spin meter (the "Free Spin" wheel + fill bar in GameHud) to an exact

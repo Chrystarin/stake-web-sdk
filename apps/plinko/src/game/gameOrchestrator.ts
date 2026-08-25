@@ -1690,16 +1690,61 @@ export function snapshotInBonusSpinBank(): { banked: number; draining: boolean }
 
 /**
  * True while an in-bonus free spin owns the screen — from the completed bar, through the wheel being
- * committed but not yet drawn, to the wheel itself. The bonus round must not end, and a level-up card
- * must not reveal, inside this window.
+ * committed but not yet drawn, to the wheel itself, and on through the coin stream its win throws at
+ * the Win field once the wheel has gone. The bonus round must not end, and a level-up card must not
+ * reveal, inside this window: the coins are the last beat of the free spin, so the card queues behind
+ * them the same way it queues behind the wheel.
  */
 function isFreeSpinWheelOwningScreen(): boolean {
 	return (
 		stateGame.freeSpinRouletteOpen ||
 		bonusFreeSpinOpenPending ||
 		stateGame.spinMeterHoldFull ||
+		stateGame.inBonusFreeSpinCoinStreamActive ||
 		(stateGame.rouletteFlowInProgress && stateGame.activeRouletteSource === 'spin')
 	);
+}
+
+/**
+ * The in-bonus free spin's coin stream has been committed (its wheel just closed) — hold the screen for
+ * it. CoinFountain calls {@link endInBonusFreeSpinCoinStream} when the last coin has faded; the backstop
+ * below covers the case where it never can (renderer not ready, no Win field on screen, unmounted), so a
+ * dropped stream can only shorten the flourish, never strand the round behind a flag nothing clears.
+ * Generation-stamped so a second wheel's stream can't be cut short by the previous one's backstop.
+ */
+let inBonusFreeSpinCoinStreamGeneration = 0;
+const IN_BONUS_FREE_SPIN_COIN_STREAM_BACKSTOP_MS = 6000;
+
+export function beginInBonusFreeSpinCoinStream(): void {
+	stateGame.inBonusFreeSpinCoinStreamActive = true;
+	const generation = ++inBonusFreeSpinCoinStreamGeneration;
+	setTimeout(() => {
+		if (generation === inBonusFreeSpinCoinStreamGeneration) endInBonusFreeSpinCoinStream();
+	}, IN_BONUS_FREE_SPIN_COIN_STREAM_BACKSTOP_MS);
+}
+
+/**
+ * The stream is done — hand the screen back to everything that was queued behind it.
+ *
+ * ⚠️ RESTART THE BANK DRAIN. Its step bails (without rescheduling) whenever the free spin owns the
+ * screen, on the contract that the next `releaseInBonusSpinMeterHold` restarts it once the wheel is
+ * done — and this stream is now part of that window, long enough for the drain's first step to land
+ * inside it. Without this the banked centre pockets are stranded and the bar sits behind the book for
+ * the rest of the round. Idempotent: the pin is already down by here, and a drain already ticking is a
+ * no-op.
+ *
+ * Then re-invoke the settler for the round the stream was holding back: a free spin that fired on the
+ * round's last balls leaves the bonus finished but unsettled — `onFreeSpinRouletteFinished` called the
+ * settler while this flag was up and it bailed, so nothing else will end the round. (A restarted drain
+ * makes the settler bail again on its drain guard; that drain's own tail then re-invokes it.)
+ */
+export function endInBonusFreeSpinCoinStream(): void {
+	if (!stateGame.inBonusFreeSpinCoinStreamActive) return;
+	stateGame.inBonusFreeSpinCoinStreamActive = false;
+	if (stateGame.bonusRoundActive) releaseInBonusSpinMeterHold();
+	if (stateGame.bonusRoundActive && stateGame.bonusBallsRemaining <= 0) {
+		void settleBonusRoundWhenFinished();
+	}
 }
 
 /**
@@ -1841,6 +1886,9 @@ export async function settleBonusRoundWhenFinished() {
 	if (stateGame.bonusRoundSettlementInProgress) return;
 	// A level-up is mid-reveal (bar filling out / held full): its balls land when the reward does.
 	if (bonusLevelUpRevealInProgress) return;
+	// A free spin's coins are still streaming into the Win field. Ending here would slide the treasure
+	// screen over them; `endInBonusFreeSpinCoinStream` re-invokes this the moment they have faded.
+	if (stateGame.inBonusFreeSpinCoinStreamActive) return;
 	// The round already ended and its total-win screen is up. The bonus state is only torn down when that
 	// screen covers the view, so `bonusRoundActive` is still true meanwhile — without this guard a late
 	// re-entry (e.g. a trailing `onBallLanded`) would fall through and re-run the end branch.
@@ -1955,6 +2003,15 @@ export function resetBonusRoundVisualState() {
 	stateGame.pendingBonusFreeSpinPayload = undefined;
 	stateGame.bonusSessionWinAmount = 0;
 	stateGame.inBonusFreeSpinCreditTotal = 0;
+	// Defensive: a wheel that landed but never closed would otherwise leave its coin stream armed to
+	// fire on the next bonus round's first wheel, and a stream cut short by the round ending would leave
+	// the screen-hold flag up for its whole backstop.
+	stateGame.inBonusFreeSpinCoinBurstArmed = false;
+	stateGame.inBonusFreeSpinCoinStreamActive = false;
+	// Same for the Win field's display pin — by the treasure screen the field belongs to the round total,
+	// not to a free spin's count-up.
+	stateGame.winFieldHold = null;
+	stateGame.winFieldCountUpValue = null;
 	stateGame.authoritativeBonusOutcomes = [];
 	stateGame.authoritativeBonusOutcomeIndex = 0;
 	stateGame.authoritativeBonusLevelQueue = [];
