@@ -293,6 +293,12 @@ let autoBetTimer: ReturnType<typeof setTimeout> | null = null;
  * (`endAutoBetForBonusRound`) while `playAutoRounds` is still parked in `waitForAutoBetRoundIdle`.
  */
 let autoBetRunGeneration = 0;
+/**
+ * A bonus-triggered run end whose "Autobet Finished" toast has NOT been shown yet — see
+ * `finishAutoBet` and `flushPendingAutoBetFinishToast`. The run is already over the moment this is
+ * raised; only the notification waits.
+ */
+let autoBetFinishToastPendingForBonus = false;
 const AUTO_BET_INTER_ROUND_DELAY_MS = 200;
 const AUTO_BET_ROUND_START_TIMEOUT_MS = 5000;
 const AUTO_BET_ROUND_IDLE_TIMEOUT_MS = 120_000;
@@ -992,6 +998,11 @@ export function awardBonusBalls(count: number) {
 		// them — a buy-bonus (which raises `bonusRouletteOpen` directly) and a resume that skips straight
 		// to `startAuthoritativeBonusRound`. No-op when the run is already over.
 		endAutoBetForBonusRound();
+		// The congratulations screen is down and its message is popping in (this runs from the wheel's
+		// `onResultReady`) — release the "Autobet Finished" toast a bonus trigger held back, here rather
+		// than over the wheel that preceded it. Inside this `bonusRoundActive` guard on purpose: the
+		// level-up awards that also come through here are mid-round, long past any run.
+		flushPendingAutoBetFinishToast();
 		stateGame.bonusAwardedThisRound = true;
 		stateGame.baseRoundDropWinAmount = stateGame.pendingDropWinAmount;
 		stateGame.bonusRoundActive = true;
@@ -2497,6 +2508,9 @@ export function startAutoBet(onBet: () => void): boolean {
 	stateGame.autoPlayStarted = true;
 	stateGame.autoPlayStopping = false;
 	stateGame.autoPlayPausedByFreeSpin = false;
+	// Drop any toast still held from an earlier bonus stop: a run starting is proof the player is past
+	// that bonus, and firing its "Autobet Finished" now would report THIS run as over on its first beat.
+	autoBetFinishToastPendingForBonus = false;
 	const selected = stateGame.autoRoundsLeft <= 0 ? 99999 : stateGame.autoRoundsLeft;
 	stateGame.autoRoundsDisplay = selected;
 	showToast('Autobet Started');
@@ -2527,10 +2541,11 @@ export function startAutoBet(onBet: () => void): boolean {
  */
 export function endAutoBetForBonusRound(): void {
 	if (!stateGame.autoPlayStarted) return;
-	// Already winding down from a deliberate Stop press. The run places no further wagers either way and
-	// both endings show the same toast, so there is nothing to add here — leave the exit to the loop,
-	// which owns it.
-	if (stateGame.autoPlayStopping) return;
+	// ALSO ends a run already winding down from a deliberate Stop press, rather than leaving that one to
+	// the loop. The wagers stop either way, but the endings are no longer interchangeable: the loop's
+	// exit is parked behind the whole bonus, so it would fire its "Autobet Finished" once the free balls
+	// are spent — the very placement this ending exists to avoid — while ending here hands the toast to
+	// the entry congratulations screen with the rest of them.
 	finishAutoBet('bonusTriggered');
 }
 
@@ -2633,12 +2648,36 @@ function finishAutoBet(
 		stateGame.isSubmitting = false;
 		stateGame.dropRoundActive = false;
 	}
+	// A BONUS STOP HOLDS ITS TOAST BACK. The run ends here, but the player's eyes are on the bonus
+	// arriving — the wheel screen slides down within a beat of this call and spins — and a notification
+	// about the run they were watching a moment ago is noise on top of it. `flushPendingAutoBetFinishToast`
+	// releases it on the entry congratulations screen instead, where the drops just won are the subject
+	// and "so that's why the run stopped" reads as the caption to it.
+	if (reason === 'bonusTriggered') {
+		autoBetFinishToastPendingForBonus = true;
+		return;
+	}
+	autoBetFinishToastPendingForBonus = false;
 	// One toast slot, and only the balance earns its own wording: "Autobet Finished" tells a player whose
 	// funds ran out nothing about why it stopped with rounds still on the counter. Every other ending —
-	// ran its course, stopped by hand, ended by a bonus — reads as the same event to the player and says
-	// so. A bonus stop needs no explaining here: the wheel arriving on the very next beat is the
-	// explanation, and `reason` still separates it from the rest for the soft-lock guard above.
+	// ran its course, stopped by hand — reads as the same event to the player and says so.
 	showToast(reason === 'insufficientBalance' ? 'Insufficient Balance' : 'Autobet Finished');
+}
+
+/**
+ * Show the "Autobet Finished" toast a bonus trigger held back (`finishAutoBet`), on the beat the ENTRY
+ * congratulations screen reveals its message.
+ *
+ * Called from `awardBonusBalls`, which is the bonus's single entry point: for the wheel path it runs
+ * from the congratulations screen's `onResultReady` — fired once that screen fully covers the view, as
+ * the "you won N drops" message pops in — and for the paths with no wheel in front of them (buy-bonus,
+ * resume) it runs as the round opens, which is the earliest honest moment those have. Fires at most
+ * once per held toast; a run that ends any other way never arms it.
+ */
+function flushPendingAutoBetFinishToast(): void {
+	if (!autoBetFinishToastPendingForBonus) return;
+	autoBetFinishToastPendingForBonus = false;
+	showToast('Autobet Finished');
 }
 
 export function onMainPlayClick(onRegularBet: () => void) {
