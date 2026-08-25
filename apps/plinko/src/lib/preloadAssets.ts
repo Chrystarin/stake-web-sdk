@@ -311,6 +311,8 @@ const AUDIO_PATHS: readonly string[] = [
 	'sound/bonus_level_up.mp3',
 	// Held on loop under the post-bonus treasure screen (EnableSound).
 	'sound/post_bonus_clinking_coins.mpeg',
+	// Congratulations-screen fanfare, both screens (EnableSound).
+	'sound/bonus_congratulations.mp3',
 
 	// Looping music (EnableMusic).
 	'sound/background_music.m4a',

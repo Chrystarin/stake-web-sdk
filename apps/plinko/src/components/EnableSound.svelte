@@ -39,6 +39,8 @@
 		bonusLevelUp: staticUrl('sound/bonus_level_up.mp3'),
 		// Post-bonus treasure screen coin bed — held on loop, see the `loop` option below.
 		postBonusCoins: staticUrl('sound/post_bonus_clinking_coins.mpeg'),
+		// Congratulations-screen fanfare, both screens (leading silence trimmed via sprite below).
+		bonusCongratulations: staticUrl('sound/bonus_congratulations.mp3'),
 	};
 
 	// Per-sound load options (default: full file at volume 1). The coin-shuffle bed is sliced into two
@@ -75,6 +77,14 @@
 		// rather than guessed from that unusual extension — same as the bonus music track. Mixed under
 		// the music it plays over: it is a texture behind the message, not a cue.
 		postBonusCoins: { loop: true, volume: 0.55, format: ['mp3'] },
+		// Fired the instant the message starts popping in, so it has to open ON the sound — the file
+		// carries 270ms of silence first (envelope-measured: nothing above 2% of peak until then), which
+		// would have landed the fanfare a fifth of a second behind the type. The window opens 20ms early
+		// so the attack isn't clipped, and runs to 5.0s to keep the whole tail: the last audible frame is
+		// at ~4.87s and the file ends at 5.38s. Re-measure the onset if the clip is ever re-delivered.
+		// Mixed down a little — it plays over the music, and on the bonus-end screen over the coin bed
+		// too, and at full level it swamped both.
+		bonusCongratulations: { sprite: [250, 4750], volume: 0.8 },
 	};
 
 	onMount(() => {

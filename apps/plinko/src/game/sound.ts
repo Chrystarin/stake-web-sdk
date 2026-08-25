@@ -37,7 +37,12 @@ export type SoundEffectName =
 	// Post-bonus (treasure) congratulations screen: a coin-clink bed held on LOOP from the moment the
 	// message finishes popping in until the screen slides away. Started/stopped by
 	// `startPlinkoSoundLoop` / `stopPlinkoSoundLoop`, never by `playPlinkoSound`. See BonusRoulette.
-	| 'postBonusCoins';
+	| 'postBonusCoins'
+	// BOTH congratulations screens: a fanfare fired on the beat the message starts popping in, so it
+	// rides the animation rather than trailing it. Sprited past its leading silence (see EnableSound).
+	// On the bonus-end screen it overlaps `postBonusCoins`, which starts a pop later and sits under it.
+	// See BonusRoulette.
+	| 'bonusCongratulations';
 
 /** A [startMs, durationMs] slice of the source file to play instead of the whole thing. */
 export type SoundSprite = [startMs: number, durationMs: number];

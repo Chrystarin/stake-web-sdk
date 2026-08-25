@@ -796,6 +796,17 @@
 	function revealAnnouncementContent() {
 		awaitingResultAtCover = false;
 		announcementTextVisible = true;
+		// Fanfare, on BOTH screens, fired on the SAME beat the message starts popping in — no delay. This
+		// line sits against `announcementTextVisible = true` on purpose: the cue IS the type starting to
+		// animate, so nothing should be able to drift the two apart. The clip is sprited to open on its
+		// first transient (see EnableSound), so it sounds on that frame rather than 270ms of silence
+		// later.
+		// ⚠️ It overlaps the closing-door slam, and that is the trade being taken, not an oversight. The
+		// slam fires 240ms before this point and its sprite runs 2.26s, so the fanfare lands over the
+		// loud part of it (~77% of the slam's peak, envelope-measured). Queueing behind the slam instead
+		// is what leaves the type animating in silence — this was tried at the slam's end (1.3s of dead
+		// air after the message settled) and at 1s short of it (0.3s), before landing here.
+		eventEmitter.broadcast({ type: 'soundOnce', name: 'bonusCongratulations' });
 		emitResultReady();
 		props.onCovered?.();
 		// Held off so the message finishes animating before the shower starts — same offset from the
