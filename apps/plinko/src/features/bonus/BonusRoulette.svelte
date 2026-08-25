@@ -79,7 +79,7 @@
 		},
 		portrait: {
 			label: { scale: 1.2, offsetX: 0, offsetY: 0 },
-			wheel: { scale: 1.1, offsetX: 0, offsetY: -0.2 },
+			wheel: { scale: 1.1, offsetX: 0, offsetY: -0.3 },
 		},
 	};
 
