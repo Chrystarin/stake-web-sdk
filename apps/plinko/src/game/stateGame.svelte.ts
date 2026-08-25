@@ -237,8 +237,9 @@ export const stateGame = $state({
 	bonusEndCoinBurstTick: 0,
 	bonusEndCoinBurstAmount: 0,
 	/** In-bonus free spin: bumped once its wheel has closed so CoinFountain throws a coin stream out of
-	 * the skull's mouth toward the HUD's Win field. That stream FADES OUT short of the field instead of
-	 * merging into it, and the Win value counts up to meet it (see `winFieldHold` below).
+	 * the skull's mouth toward the HUD's Win readout, with the Win value counting up to meet it (see
+	 * `winFieldHold` below). Portrait MERGES the coins into the Win coin icon; landscape has no coin
+	 * there, so its stream fades out short of the plaque instead.
 	 * `…Amount` is the wheel's credit (the "+<win>" the field floats), `…Multiplier` its landed segment
 	 * — which sets how many coins fly: one per multiple won, so 1X throws a single coin and 20X throws
 	 * twenty, and a sub-1X segment throws one shrunken coin. `…Armed` is raised when the wheel LANDS and

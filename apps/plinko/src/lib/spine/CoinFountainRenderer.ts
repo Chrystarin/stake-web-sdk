@@ -34,10 +34,10 @@ export type CoinBurstOptions = {
 	leads?: CoinBurstLead[];
 	/**
 	 * Dissolve on approach instead of landing: the coins follow the same path but fade to nothing
-	 * short of `to`, and never shrink into it. For a stream that only POINTS at its destination —
-	 * the in-bonus free spin's coins toward the Win field, whose value the wheel already credited —
-	 * rather than one delivering a credit that lands there. `onArrive`/`leads` are meaningless with
-	 * it (nothing arrives to see), so callers leave them off.
+	 * short of `to`, and never shrink into it. For a destination there is nothing to land IN — the
+	 * landscape HUD's Win plaque, which the in-bonus free spin's coins can only point at (portrait
+	 * prints a coin beside the value, so there they merge normally). `onArrive`/`leads` never fire
+	 * with it, since nothing arrives.
 	 */
 	fadeOut?: boolean;
 	/** Multiplier on every coin's drawn size. Below 1 for a burst that paid less than a whole coin —

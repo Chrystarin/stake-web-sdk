@@ -2165,6 +2165,25 @@
 	transform: translateY(3%);
 }
 
+/* The Win coin pops as an in-bonus free spin's coins merge into it — the same beat the balance wallet
+   gets, but it needs its own keyframes: the shared `coin-fly-target-bump` animates `transform` outright,
+   which would drop the translateY(3%) above and jog the icon down for the bump's length. */
+.mobile-corner-info--left img.coin-fly-target--bump {
+	animation: mobile-win-coin-bump 260ms ease-out;
+}
+
+@keyframes mobile-win-coin-bump {
+	0% {
+		transform: translateY(3%) scale(1);
+	}
+	35% {
+		transform: translateY(3%) scale(1.12);
+	}
+	100% {
+		transform: translateY(3%) scale(1);
+	}
+}
+
 .mobile-corner-label {
 	// Matched to the bet-panel value size (`.mobile-top-card-value`) so Win/Balance read at the same
 	// scale as the top-row fields rather than towering over them.

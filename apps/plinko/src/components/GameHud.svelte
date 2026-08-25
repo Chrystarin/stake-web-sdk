@@ -1147,14 +1147,22 @@
 		</div>
 
 		<div class="mobile-bottom-corners">
-			<!-- Doubles as the in-bonus free-spin coin target: its wheel's coins stream toward this box and
-			     fade out short of it (located via data-coin-fly-target — see CoinFountain). -->
-			<div class="mobile-corner-info mobile-corner-info--left" data-coin-fly-target="win">
-				<img src={staticUrl('img/coin-ico.webp')} alt="" aria-hidden="true" />
+			<div class="mobile-corner-info mobile-corner-info--left">
+				<!-- Portrait's Win readout carries a coin, so an in-bonus free spin's coins have something to
+				     land IN: they MERGE into this icon (and pop it) the way a collect merges into the balance
+				     coin. Landscape's Win plaque has no coin, so its stream fades out short of the field
+				     instead — CoinFountain picks the behaviour off which of the two targets is in the DOM. -->
+				<img
+					class="coin-fly-target"
+					data-coin-fly-target="win-coin"
+					src={staticUrl('img/coin-ico.webp')}
+					alt=""
+					aria-hidden="true"
+				/>
 				<span class="mobile-corner-label">{context.i18nDerived.t('Win')}:</span>
 				<span class="mobile-corner-value">{formatWin(displayWinAmount)}</span>
-				<!-- "+<credit>" rising out of the Win field as an in-bonus free spin's coins fade into it,
-				     while the value under it counts up to the new total. Same one-shot pattern as the
+				<!-- "+<credit>" rising out of the Win readout as an in-bonus free spin's coins merge into the
+				     icon, while the value under it counts up to the new total. Same one-shot pattern as the
 				     balance float on the right: keyed on the tick so a re-mount restarts the animation. -->
 				{#if stateGame.winFieldFloatTick > 0}
 					{#key stateGame.winFieldFloatTick}

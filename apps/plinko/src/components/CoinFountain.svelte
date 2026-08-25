@@ -64,6 +64,13 @@
 		playSound('coinFlip', 0.94 + Math.random() * 0.12);
 	}
 
+	// The three coin destinations, by their `data-coin-fly-target` marker. `win-coin` exists only in the
+	// PORTRAIT HUD (its Win readout carries a coin icon) and `win` only in landscape (a plaque, no coin),
+	// so which one the document holds is also which behaviour the free-spin stream should play.
+	const BALANCE_TARGET = '[data-coin-fly-target="balance"]';
+	const WIN_COIN_TARGET = '[data-coin-fly-target="win-coin"]';
+	const WIN_FIELD_TARGET = '[data-coin-fly-target="win"]';
+
 	/** Centre of the first visible element matching `selector`, in client (screen) px. */
 	function rectCenter(selector: string): FountainPoint | undefined {
 		const els = document.querySelectorAll<HTMLElement>(selector);
@@ -76,13 +83,13 @@
 		return undefined;
 	}
 
-	/** Pulse the balance coin as coins land (throttled so a stream of arrivals doesn't thrash it). */
+	/** Pulse a coin target as coins land in it (throttled so a stream of arrivals doesn't thrash it). */
 	let lastPulseAt = 0;
-	function pulseBalanceCoin() {
+	function pulseCoinTarget(selector: string) {
 		const now = performance.now();
 		if (now - lastPulseAt < 90) return;
 		lastPulseAt = now;
-		const coin = document.querySelector<HTMLElement>('[data-coin-fly-target="balance"]');
+		const coin = document.querySelector<HTMLElement>(selector);
 		if (!coin) return;
 		coin.classList.remove('coin-fly-target--bump');
 		// Reflow so re-adding the class restarts the animation even on back-to-back arrivals.
@@ -116,7 +123,7 @@
 		scheduleSparkleOff();
 	}
 	function onCoinMerge() {
-		pulseBalanceCoin();
+		pulseCoinTarget(BALANCE_TARGET);
 		showGlow();
 		showSparkle();
 		playMergeSfx();
@@ -145,7 +152,7 @@
 			return;
 		}
 		const from = burstOrigin();
-		const to = rectCenter('[data-coin-fly-target="balance"]');
+		const to = rectCenter(BALANCE_TARGET);
 		// No balance coin on screen (shouldn't happen) — nothing to collect into.
 		if (!to) {
 			if (releasesBalance) releaseBonusEndBalanceHold();
@@ -257,14 +264,21 @@
 	});
 
 	// A free spin that triggered MID-BONUS: its wheel has just closed, so throw a stream out of the
-	// skull's mouth toward the HUD's Win field — the field its `stake × M` went into.
+	// skull's mouth toward the HUD's Win readout — where its `stake × M` went.
 	//
-	// Unlike the two collects above, this one DISSOLVES on approach instead of merging (`fadeOut`) and
-	// drives none of the BALANCE-side feedback: no coin pulse, no glow/sparkle, no per-coin flip sfx.
-	// Nothing is being paid into the balance here — the credit is a bonus-round subtotal, and the balance
-	// only sees it at the end-of-round collect. What the coins DO carry is the Win field's own beat: the
-	// value was pinned at its pre-credit figure when the wheel landed (`applyFreeSpinWinOnLand`), and as
-	// the first coins dissolve into the field it floats a "+<credit>" and counts up to the new total.
+	// HOW IT ARRIVES DEPENDS ON THE LAYOUT, because the two HUDs give it different things to arrive at.
+	// PORTRAIT prints a coin icon beside the Win value, so the stream MERGES into it — coins shrink in
+	// and pop it, exactly like a collect merging into the balance coin. LANDSCAPE has only the Win
+	// plaque, nothing to merge with, so its stream DISSOLVES on approach (`fadeOut`) rather than piling
+	// into the side of a text field. Read off the DOM (only the portrait HUD renders the coin target)
+	// instead of re-deriving the breakpoint here.
+	//
+	// Either way it drives none of the BALANCE-side feedback: no glow, no sparkle, no "+win" under the
+	// wallet. Nothing is being paid into the balance here — the credit is a bonus-round subtotal, and
+	// the balance only sees it at the end-of-round collect. What the coins DO carry is the Win field's
+	// own beat: the value was pinned at its pre-credit figure when the wheel landed
+	// (`applyFreeSpinWinOnLand`), and as the coins reach it the field floats a "+<credit>" and counts up
+	// to the new total.
 	//
 	// PACING is tighter than the collects' (which are tuned for ~40 coins pouring into the balance): the
 	// level-up card and the end-of-round screen both queue behind this stream
@@ -272,10 +286,11 @@
 	// `onFreeSpinRouletteFinished` bumps `inBonusFreeSpinCoinBurstTick` (see rouletteFlow).
 	const FREE_SPIN_COIN_STAGGER_MS = 420;
 	const FREE_SPIN_COIN_FLIGHT_MS = 1000;
-	// When the first coins have reached the field (a coin is fully faded by 0.9 of its flight).
+	// When the first FADING coins have reached the field (a coin is fully faded by 0.9 of its flight).
+	// The merging stream doesn't need this — it releases on a real arrival.
 	const FREE_SPIN_COIN_ARRIVE_MS = 1000;
 	// When the LAST one has: the last launch (stagger + its jitter) plus a full flight, rounded up.
-	const FREE_SPIN_COIN_STREAM_MS = 1900;
+	const FREE_SPIN_COIN_STREAM_MS = 2000;
 
 	/** Float the "+<credit>" out of the Win field and hand its held value to the count-up. */
 	function releaseWinFieldCredit(amount: number) {
@@ -286,15 +301,26 @@
 		if (stateGame.winFieldHold !== null) stateGame.winFieldReleaseTick++;
 	}
 
-	function launchFreeSpinWinFade() {
+	function launchFreeSpinWinCoins() {
 		const amount = stateGame.inBonusFreeSpinCoinBurstAmount;
 		const multiplier = stateGame.inBonusFreeSpinCoinBurstMultiplier;
-		const to = renderer && ready ? rectCenter('[data-coin-fly-target="win"]') : undefined;
-		// Nothing to throw the coins at (renderer not up, no Win field on screen): still settle the field
-		// and let whatever is queued behind the stream go, rather than pinning the value on a burst that
-		// is never coming.
-		if (!renderer || !ready || !to) {
+		// The float + count-up fire once per stream, off whichever comes first: a coin actually landing
+		// (portrait) or the beat the fading ones reach the field (landscape). The stream's end backstops
+		// both.
+		let released = false;
+		const releaseOnce = () => {
+			if (released) return;
+			released = true;
 			releaseWinFieldCredit(amount);
+		};
+		const live = Boolean(renderer) && ready;
+		const mergeInto = live ? rectCenter(WIN_COIN_TARGET) : undefined;
+		const to = mergeInto ?? (live ? rectCenter(WIN_FIELD_TARGET) : undefined);
+		// Nothing to throw the coins at (renderer not up, no Win readout on screen): still settle the
+		// field and let whatever is queued behind the stream go, rather than pinning the value on a burst
+		// that is never coming.
+		if (!renderer || !to) {
+			releaseOnce();
 			endInBonusFreeSpinCoinStream();
 			return;
 		}
@@ -311,13 +337,26 @@
 			to,
 			count,
 			sizeScale,
-			fadeOut: true,
+			fadeOut: !mergeInto,
 			staggerMs: FREE_SPIN_COIN_STAGGER_MS,
 			durationMs: FREE_SPIN_COIN_FLIGHT_MS,
+			// Merging coins land IN the icon: each one clicks and pops it, and the FIRST to get there is
+			// what releases the field — truer than a timer, which has to guess the flight. A fading stream
+			// has no arrivals at all, so it rides the timer below instead.
+			onArrive: mergeInto
+				? () => {
+						pulseCoinTarget(WIN_COIN_TARGET);
+						playMergeSfx();
+						releaseOnce();
+					}
+				: undefined,
 		});
-		schedule(FREE_SPIN_COIN_ARRIVE_MS, () => releaseWinFieldCredit(amount));
+		if (!mergeInto) schedule(FREE_SPIN_COIN_ARRIVE_MS, releaseOnce);
 		// Coins are gone — release the screen for the level-up card / end-of-round screen behind them.
-		schedule(FREE_SPIN_COIN_STREAM_MS, endInBonusFreeSpinCoinStream);
+		schedule(FREE_SPIN_COIN_STREAM_MS, () => {
+			releaseOnce();
+			endInBonusFreeSpinCoinStream();
+		});
 	}
 
 	let lastFreeSpinWinTick = stateGame.inBonusFreeSpinCoinBurstTick;
@@ -325,7 +364,7 @@
 		const tick = stateGame.inBonusFreeSpinCoinBurstTick;
 		if (tick !== lastFreeSpinWinTick) {
 			lastFreeSpinWinTick = tick;
-			launchFreeSpinWinFade();
+			launchFreeSpinWinCoins();
 		}
 	});
 </script>

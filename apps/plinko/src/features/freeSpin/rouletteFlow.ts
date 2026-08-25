@@ -141,9 +141,10 @@ export async function onFreeSpinRouletteFinished(wheelSegmentLabel?: string) {
 	}
 
 	// The wheel has faded out and the game is back in view — throw the in-bonus free spin's coins out of
-	// the skull's mouth toward the Win field. They FADE OUT short of it rather than merging, and the held
-	// Win value counts up to meet them. The arming flag is consumed here so a later wheel that credits
-	// nothing (a BONUS segment, a 0X) can't fire on the previous one's amount.
+	// the skull's mouth toward the Win readout (merging into its coin in portrait, fading out short of
+	// the plaque in landscape — see CoinFountain), with the held Win value counting up to meet them. The
+	// arming flag is consumed here so a later wheel that credits nothing (a BONUS segment, a 0X) can't
+	// fire on the previous one's amount.
 	//
 	// ⚠️ `beginInBonusFreeSpinCoinStream` BEFORE `releaseInBonusSpinMeterHold` below: releasing drops
 	// `spinMeterHoldFull`, and if nothing else were holding the screen in that gap a level-up card could

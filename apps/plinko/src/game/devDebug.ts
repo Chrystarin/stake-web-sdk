@@ -297,8 +297,9 @@ export function installPlinkoDevDebug() {
 	};
 
 	// Dev-only: fire the in-bonus free-spin coin stream — the coins that pour out of the skull's mouth
-	// toward the HUD's Win field and FADE OUT short of it once an in-bonus free-spin wheel has closed —
-	// without having to fill the spin meter inside a bonus round. `multiplier` is the wheel's landed
+	// toward the HUD's Win readout once an in-bonus free-spin wheel has closed (merging into the coin in
+	// portrait, fading out short of the plaque in landscape) — without having to fill the spin meter
+	// inside a bonus round. `multiplier` is the wheel's landed
 	// segment and sets the COIN COUNT (one per multiple won), so `plinkoTestFreeSpinWinCoins(1)` throws a
 	// single coin, `(20)` throws twenty and `(0.5)` throws one shrunken coin; `amount` is the credit the
 	// Win field floats and counts up by.
