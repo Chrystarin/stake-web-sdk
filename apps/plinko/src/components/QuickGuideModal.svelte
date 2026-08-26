@@ -3,7 +3,11 @@
 
 	import { getContext } from '../game/context';
 	import { stateGame } from '../game/stateGame.svelte';
-	import { QUICK_GUIDE_VIDEO_PATHS } from '../lib/preloadAssets';
+	import {
+		fillQuickGuideVideoBuffer,
+		getQuickGuideVideo,
+		releaseQuickGuideVideos,
+	} from '../lib/preloadAssets';
 	import { staticUrl } from '../lib/staticUrl';
 
 	const context = getContext();
@@ -52,6 +56,7 @@
 
 	let pageIndex = $state(0);
 	let modalEl = $state<HTMLElement | undefined>(undefined);
+	let videoWell = $state<HTMLElement | undefined>(undefined);
 
 	const page = $derived(PAGES[pageIndex]);
 	const isFirstPage = $derived(pageIndex === 0);
@@ -93,11 +98,14 @@
 		return () => clearTimeout(timer);
 	});
 
-	/** Every open starts at page 1 — reopening from the menu shouldn't resume mid-walkthrough. */
+	/**
+	 * Every open starts at page 1 — reopening from the menu shouldn't resume mid-walkthrough. The clips
+	 * are not touched here: the well's own effect parks them when the markup goes (see below), and this
+	 * running first is what lets that effect open on page 1 without having to read `pageIndex`.
+	 */
 	$effect(() => {
 		if (stateGame.quickGuideOpen) return;
 		pageIndex = 0;
-		resetVideoSlots();
 	});
 
 	function click() {
@@ -128,101 +136,114 @@
 	}
 
 	/**
-	 * ── THE VIDEO CROSS-FADE ─────────────────────────────────────────────────────────────────────
-	 * The well runs TWO <video> elements stacked on top of each other and dissolves between them,
-	 * rather than re-keying a single one on the page.
+	 * ── THE VIDEO WELL ───────────────────────────────────────────────────────────────────────────
+	 * The four clips are NOT created here, and the well is empty in the markup. They are created and
+	 * warmed behind the intro splash (`getQuickGuideVideo` in preloadAssets.ts) and this well ADOPTS
+	 * them: `appendChild` MOVES a node, and a moved `<video>` keeps everything it had — its buffer, its
+	 * `readyState`, its decoded frame.
 	 *
-	 * A keyed element flickered, and the cause is decode rather than bytes: tearing the element down
-	 * and standing a new one up with a fresh `src` leaves a hole of one to several frames in which
-	 * the incoming clip has nothing to paint, and the well behind it is `#000` — so every page turn
-	 * flashed black. Preloading does not help; the data was already resident, it is the decode
-	 * pipeline that starts from nothing each time.
+	 * That is aimed at a DECODE hole rather than a download one, which is the part worth remembering.
+	 * Standing up a `<video>` and handing it a `src` leaves a gap of one to several frames in which it
+	 * has nothing to paint, and this well is `#000` behind it — so the guide opened on a black
+	 * rectangle and every page turn flashed one, however warm the bytes were. (It used to run two
+	 * elements and wait on `loadeddata` before starting each dissolve, which hid the flash on page
+	 * turns but could do nothing about the one on open, since there was no earlier element to hold.) An
+	 * element that already holds a frame has no gap to hide, in either case — so the wait, its timeout
+	 * and the slot bookkeeping are all gone with it.
 	 *
-	 * So the outgoing clip is left on screen, untouched and still playing, until the incoming one has
-	 * a frame of its own to show — `loadeddata` is what says so, and only then does the swap start.
-	 * The fade is never racing a decoder. Two elements is the fewest a dissolve can be done with, and
-	 * they exist only while the guide is open.
+	 * All four live here at once, one visible at a time, and only the visible one is PLAYING. Four idle
+	 * decode pipelines is what mounting all four would otherwise cost; pausing is what buys it back,
+	 * and a paused element keeps showing its current frame, so nothing goes black to save the work.
 	 */
-	const VIDEO_SLOTS = [0, 1] as const;
 
 	/**
-	 * Safety net on the wait above. `loadeddata` from a `blob:` source that is already resident is
-	 * effectively immediate, but a decoder that never reports would leave the guide stuck on the
-	 * previous page's clip — far worse than the flash this replaces. Past this, swap regardless and
-	 * let the fade look however it looks.
+	 * Marks the clip in front. Added here rather than baked into the element by the preload: this is
+	 * the modal's styling contract and preloadAssets.ts owns only the media. Same reason `qg-video-el`
+	 * is applied on adoption — and why both are `:global` in the stylesheet, since an element built in
+	 * JS never gets Svelte's scoping attribute.
 	 */
-	const VIDEO_READY_TIMEOUT_MS = 500;
+	const ON_CLASS = 'qg-video-el--on';
 
 	/**
-	 * The clip in each slot, and which slot is in front. `null` is a slot that has never been used:
-	 * the second one stays empty until the first page turn, so simply opening the guide still stands
-	 * up one decoder rather than two.
+	 * How long the dissolve takes, in ms. Mirrors `--qg-video-fade` in the stylesheet — keep the two in
+	 * step. JS reads it for exactly one reason: the outgoing clip is held at full opacity for the
+	 * length of the fade (see the note on `.qg-video-el`), so it cannot be paused until that is over
+	 * without visibly freezing underneath the incoming one.
 	 */
-	let slotVideos = $state<(number | null)[]>([PAGES[0].video, null]);
-	let activeSlot = $state(0);
+	const VIDEO_FADE_MS = 260;
 
-	/** The slot whose `loadeddata` we are waiting on, or null when the well is settled. */
-	let pendingSlot: number | null = null;
-	let readyTimer: ReturnType<typeof setTimeout> | undefined;
+	/** The clip in front, or undefined before the first one is shown. Plain `let` — nothing renders
+	    off it, and an effect that tracked it would re-run itself every page turn. */
+	let shownVideo: number | undefined;
+	let pauseTimer: ReturnType<typeof setTimeout> | undefined;
 
-	function cancelPendingVideo() {
-		clearTimeout(readyTimer);
-		readyTimer = undefined;
-		pendingSlot = null;
-	}
+	/** Bring `video` to the front, dissolving off whatever is already there. */
+	function showVideo(video: number) {
+		const incoming = getQuickGuideVideo(video);
+		if (!incoming) return;
+		clearTimeout(pauseTimer);
+		pauseTimer = undefined;
 
-	function resetVideoSlots() {
-		cancelPendingVideo();
-		slotVideos = [PAGES[0].video, null];
-		activeSlot = 0;
+		const previous = shownVideo;
+		shownVideo = video;
+		incoming.classList.add(ON_CLASS);
+		/* Muted and playsinline, so no gesture is required; a rejection here is a browser refusing
+		   anyway, and there is nothing useful left to do about it. */
+		void incoming.play().catch(() => undefined);
+		/* This clip's body and the next page's — one page ahead of the player, so the clip on screen
+		   never shares the connection with three it is not showing. See fillQuickGuideVideoBuffer. */
+		fillQuickGuideVideoBuffer(video);
+		fillQuickGuideVideoBuffer(video + 1);
+
+		if (previous === undefined || previous === video) return;
+		const outgoing = getQuickGuideVideo(previous);
+		if (!outgoing) return;
+		outgoing.classList.remove(ON_CLASS);
+		pauseTimer = setTimeout(() => {
+			outgoing.pause();
+			outgoing.currentTime = 0;
+		}, VIDEO_FADE_MS);
 	}
 
 	/**
-	 * Bring `slot` to the front, which is what actually starts the dissolve.
+	 * Adopt the warmed clips for as long as the guide is open, and hand them back when it closes so
+	 * they keep their buffers for a reopen from the menu instead of going down with the markup.
 	 *
-	 * Gated on `pendingSlot` rather than run unconditionally, because BOTH elements report
-	 * `loadeddata` and a timer can outlive the turn that armed it. Without the guard the slot already
-	 * on screen would hand itself the front the moment its own clip finished loading.
+	 * Keyed on the well alone. Page turns call {@link showVideo} directly (as the old cross-fade did)
+	 * rather than being driven from here, because an effect that read `pageIndex` would re-run this
+	 * whole adoption on every turn. Opening on page 1 needs no read either — the reset effect above
+	 * has already put `pageIndex` back to 0 by the time the markup exists.
 	 */
-	function showSlot(slot: number) {
-		if (pendingSlot !== slot) return;
-		cancelPendingVideo();
-		activeSlot = slot;
-	}
-
-	/** Point the idle slot at `video` and hand it the front once it has a frame to show. */
-	function crossfadeTo(video: number) {
-		/* Paged back onto the clip that is already showing, mid-fade. Whatever the idle slot is
-		   loading is now the wrong answer — drop the wait, or it takes the front when it lands. */
-		if (slotVideos[activeSlot] === video) {
-			cancelPendingVideo();
-			return;
+	$effect(() => {
+		const well = videoWell;
+		if (!well) return;
+		for (const { video } of PAGES) {
+			const el = getQuickGuideVideo(video);
+			if (!el) continue;
+			el.classList.add('qg-video-el');
+			well.appendChild(el);
 		}
-		const idle = activeSlot === 0 ? 1 : 0;
-		pendingSlot = idle;
-		/* The idle slot still holds this clip from an earlier turn and never stopped playing, so it
-		   has a frame up already and there is nothing to wait for. Re-assigning the same `src` would
-		   not reload it either, so no second `loadeddata` would ever arrive to release the fade. */
-		if (slotVideos[idle] === video) {
-			showSlot(idle);
-			return;
-		}
-		slotVideos[idle] = video;
-		clearTimeout(readyTimer);
-		readyTimer = setTimeout(() => showSlot(idle), VIDEO_READY_TIMEOUT_MS);
-	}
+		showVideo(PAGES[0].video);
+		return () => {
+			clearTimeout(pauseTimer);
+			pauseTimer = undefined;
+			shownVideo = undefined;
+			for (const { video } of PAGES) getQuickGuideVideo(video)?.classList.remove(ON_CLASS);
+			releaseQuickGuideVideos();
+		};
+	});
 
 	function goBack() {
 		if (isFirstPage) return;
 		pageIndex -= 1;
-		crossfadeTo(PAGES[pageIndex].video);
+		showVideo(PAGES[pageIndex].video);
 		click();
 	}
 
 	function goNext() {
 		if (isLastPage) return;
 		pageIndex += 1;
-		crossfadeTo(PAGES[pageIndex].video);
+		showVideo(PAGES[pageIndex].video);
 		click();
 	}
 
@@ -285,35 +306,11 @@
 			<button type="button" class="qg-close" aria-label="Close" onclick={close}>X</button>
 
 			<div class="qg-inner">
-				<div class="qg-video">
-					<!-- The clips are NOT preloaded — each streams when its page is reached, so on a cold
-					     slow link the first one can buffer in front of the player. Preloading them into
-					     memory was tried and cannot work under Stake's CSP; see QUICK_GUIDE_VIDEO_PATHS
-					     before reaching for it again.
-
-					     Two elements, never four: the well dissolves from one clip into the next and a
-					     dissolve needs both of them alive at once, but mounting all four would stand up four
-					     decode pipelines for three clips nobody is looking at. The second slot stands up
-					     empty and stays that way until the first page turn — see the cross-fade note in the
-					     script for why this is a pair of fixed slots rather than one element keyed on the
-					     page. -->
-					{#each VIDEO_SLOTS as slot (slot)}
-						{@const clip = slotVideos[slot]}
-						<video
-							class="qg-video-el"
-							class:qg-video-el--on={slot === activeSlot}
-							src={clip === null ? undefined : staticUrl(QUICK_GUIDE_VIDEO_PATHS[clip])}
-							autoplay
-							loop
-							muted
-							playsinline
-							preload="auto"
-							disablepictureinpicture
-							tabindex="-1"
-							onloadeddata={() => showSlot(slot)}
-						></video>
-					{/each}
-				</div>
+				<!-- Deliberately empty. The four clips are created and warmed behind the intro splash and
+				     MOVED in here when the guide opens — see the video-well note in the script for why the
+				     element has to be the same one, and QUICK_GUIDE_VIDEO_PATHS for why the bytes cannot
+				     simply be preloaded and handed to a fresh `<video>` under Stake's CSP. -->
+				<div class="qg-video" bind:this={videoWell}></div>
 
 				<h3 class="qg-title">{page.title}</h3>
 
@@ -708,7 +705,7 @@
 	}
 
 	/*
-	 * Both clips sit here, stacked, one visible at a time.
+	 * All four clips sit here, stacked, one visible at a time (and only that one playing).
 	 *
 	 * The incoming clip fades UP over the outgoing one, which is held at full opacity for exactly as
 	 * long as the fade lasts and only then dropped. Fading both at once — the obvious way — does not
@@ -717,10 +714,14 @@
 	 * exists to remove. Holding the outgoing clip instead means it is covered by a fully opaque one at
 	 * the instant it goes, so there is no frame in which anything behind either of them is visible.
 	 *
-	 * `z-index` is what makes "over" true in both directions: DOM order alone would always paint slot
-	 * 1 above slot 0, and the dissolve has to work whichever way the player is paging.
+	 * `z-index` is what makes "over" true in both directions: DOM order alone would always paint the
+	 * later clip above the earlier one, and the dissolve has to work whichever way the player is paging.
+	 *
+	 * `:global` because these elements are built in JS by the preload and adopted here (see the
+	 * video-well note in the script), so they never carry Svelte's scoping attribute. Both rules are
+	 * still nested under `.qg-video`, which is scoped — nothing outside this well can match them.
 	 */
-	.qg-video-el {
+	.qg-video :global(.qg-video-el) {
 		position: absolute;
 		inset: 0;
 		z-index: 0;
@@ -735,7 +736,7 @@
 		transition: opacity 0s linear var(--qg-video-fade);
 	}
 
-	.qg-video-el--on {
+	.qg-video :global(.qg-video-el--on) {
 		z-index: 1;
 		opacity: 1;
 		transition: opacity var(--qg-video-fade) ease;

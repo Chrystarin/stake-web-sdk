@@ -163,7 +163,8 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 
 	// ── Quick guide — both frames, the logo that hangs over them and the plate behind the nav
 	//    buttons. All of it is on screen the instant the splash clears, so all of it has to be in
-	//    memory by then; its four video loops deliberately are NOT (see QUICK_GUIDE_VIDEO_PATHS).
+	//    memory by then. Its four video loops are warmed too, but as ELEMENTS rather than as bytes
+	//    and only as far as a first frame — see QUICK_GUIDE_VIDEO_PATHS.
 	//    BOTH frames, not just this orientation's: which one is showing is a media query, so a device
 	//    rotated mid-guide swaps the art with no fetch behind it. 24 KB + 112 KB buys that outright.
 	'img/quick_guide/quick_guide_container_wide.webp',
@@ -218,34 +219,40 @@ const WIN_POPUP_IMAGE_PATHS: readonly string[] = [
 /**
  * The quick guide's four looping clips (`QuickGuideModal.svelte`), in page order.
  *
- * ⚠️ NOT PRELOADED — deliberately, and not for the reason you would guess. They are declared here
- * only so the drift alarm at the bottom of this file can recognise them (`byDesign`) and so the modal
- * has one list to index. Do not move them into the manifest without reading all of this.
+ * They are warmed as ELEMENTS, not as bytes: the splash creates the four `<video>`s itself
+ * ({@link getQuickGuideVideo}) and the modal ADOPTS them. That distinction is the whole of this note,
+ * because warming the bytes is the obvious approach, it was shipped, and it cannot work here.
  *
- * They ARE the most expensive thing the game could put on the blocking path: 38.7 MB against ~27 MB
- * for the whole of the rest of it, i.e. a cold load ~2.4x longer on the wire. That was tried. The
- * clips were re-cut at 960x540 and 4–10 s to afford it, the splash cap was re-derived to 600 s to
- * cover it, and each clip was fetched into a Blob and published through {@link registerResidentUrl}
- * so the `<video>` would play from memory rather than re-request on Stake's CDN headers (see the note
- * on `resident` in staticUrl.ts for why the HTTP cache is not trusted here).
- *
- * It cannot work on Stake. The page serves the game under `Content-Security-Policy: default-src
- * 'self'` and never sets `media-src`, and CSP does not treat `blob:` as same-origin: every object URL
- * handed to a `<video>` is refused outright. So the preload paid 38.7 MB of splash time on every cold
- * load, the metadata probe that guarded the bytes failed for all four clips, they were revoked, and
- * the modal fell back to the plain same-origin URL and streamed them anyway — the CDN request the
- * blob existed to avoid, on top of a splash that had already downloaded them once.
+ * ⚠️ Do NOT reach for a Blob + {@link registerResidentUrl}, the way every image in this module is
+ * warmed. That was tried. The clips were re-cut at 960x540 and 4–10 s to afford the 38.7 MB, the
+ * splash cap was re-derived to 600 s to cover it, and each clip was fetched into a Blob and published
+ * as an object URL so the `<video>` would play from memory. It cannot work on Stake: the page serves
+ * the game under `Content-Security-Policy: default-src 'self'` and never sets `media-src`, and CSP
+ * does not treat `blob:` as same-origin — every object URL handed to a `<video>` is refused outright.
+ * So the preload paid 38.7 MB of splash time on every cold load, the metadata probe that guarded the
+ * bytes failed for all four clips, they were revoked, and the modal fell back to the plain same-origin
+ * URL and streamed them anyway: the CDN request the blob existed to avoid, on top of a splash that had
+ * already downloaded them once.
  *
  * (Blob IMAGES are unaffected and stay as they are — that CSP sets `img-src` explicitly. Only media
  * falls through to `default-src`.)
  *
- * So the clips stream, one page at a time, as they did before that attempt. The cost is real and
- * known: the guide opens 400 ms after the splash clears, so on a cold slow link its first page can
- * buffer in front of the player. Buying that back means giving the `<video>` a same-origin URL backed
- * by bytes this tab already holds, which under this CSP means a service worker — not another blob.
+ * ⚠️ Nor is a plain `fetch` into the HTTP cache ({@link preloadFile}, which is how audio is warmed) an
+ * answer for these. Audio degrades to a stream; a `<video>` that misses is a black rectangle in the
+ * middle of the guide, and the note on `resident` in staticUrl.ts is a measurement of these exact CDN
+ * headers refusing that reuse.
  *
- * The modal mounts ONE `<video>` at a time, keyed on the page: both to keep three unwatched clips off
- * the wire and because four live elements is four times the decode pipeline.
+ * What is left is what the old note here said would take a service worker — give the `<video>` a
+ * same-origin URL backed by bytes this tab already holds. It takes no such thing, because the bytes
+ * never have to move between elements at all. `appendChild` MOVES a node, and a moved `<video>` keeps
+ * everything it had: its buffer, its `readyState`, its decoded frame. So the element that loads behind
+ * the splash is the element that plays in the well. Nothing for CSP to refuse, nothing for the CDN to
+ * answer twice, no cache to trust.
+ *
+ * The splash blocks on a FIRST FRAME per clip and not on the bodies. What it is buying is a decode,
+ * not a download (see the video-well note in QuickGuideModal.svelte), and all four files are faststart
+ * — `moov` inside the first 70 KB — so four first frames is ~0.5 MB against 38.7 MB. The bodies are
+ * pulled after reveal, one clip ahead of the player ({@link fillQuickGuideVideoBuffer}).
  */
 export const QUICK_GUIDE_VIDEO_PATHS: readonly string[] = [
 	'img/quick_guide/quick_guide_video_1.mp4',
@@ -253,6 +260,188 @@ export const QUICK_GUIDE_VIDEO_PATHS: readonly string[] = [
 	'img/quick_guide/quick_guide_video_3.mp4',
 	'img/quick_guide/quick_guide_video_4.mp4',
 ];
+
+/**
+ * Where the warmed clips sit while the guide is closed: a 1x1, fully transparent, click-through box
+ * pinned behind the page.
+ *
+ * IN the document rather than detached, deliberately. A detached `<video>` is entitled to load and in
+ * Chrome it does, but nothing obliges a UA to run the DECODE pipeline for an element that is in no
+ * document — and bytes without a decoded frame buy nothing here, because the hole being closed is the
+ * decode one. Rendered-but-invisible is the state a first frame is actually guaranteed in.
+ *
+ * Not `display: none`, for the same reason: that takes the element out of layout entirely, which is
+ * precisely the case a UA is free to skip work for.
+ */
+let quickGuideStage: HTMLElement | undefined;
+
+function getQuickGuideStage(): HTMLElement {
+	if (quickGuideStage?.isConnected) return quickGuideStage;
+	const stage = document.createElement('div');
+	stage.setAttribute('aria-hidden', 'true');
+	stage.style.cssText =
+		'position:fixed;top:0;left:0;width:1px;height:1px;overflow:hidden;' +
+		'opacity:0;pointer-events:none;z-index:-1;';
+	document.body.appendChild(stage);
+	quickGuideStage = stage;
+	return stage;
+}
+
+/** The warmed clip elements, indexed as {@link QUICK_GUIDE_VIDEO_PATHS}. Retained for the session. */
+const quickGuideVideos: (HTMLVideoElement | undefined)[] = [];
+
+/**
+ * The `<video>` for clip `index`, created and started on first ask.
+ *
+ * Lazy rather than preload-only because the guide is reachable from the menu for the whole session: a
+ * player who opens it after a capped-out splash still has to get a video, even if it is the cold
+ * stream all of this exists to avoid. One code path, degrading to the old behaviour.
+ *
+ * `muted` is set before anything else — an unmuted `<video>` cannot autoplay without a gesture, and
+ * the guide opens on a timer.
+ */
+export function getQuickGuideVideo(index: number): HTMLVideoElement | undefined {
+	if (typeof document === 'undefined') return undefined;
+	if (index < 0 || index >= QUICK_GUIDE_VIDEO_PATHS.length) return undefined;
+	const existing = quickGuideVideos[index];
+	if (existing) return existing;
+	const el = document.createElement('video');
+	el.muted = true;
+	el.defaultMuted = true;
+	el.loop = true;
+	el.playsInline = true;
+	el.disablePictureInPicture = true;
+	el.tabIndex = -1;
+	el.setAttribute('aria-hidden', 'true');
+	// `metadata` rather than `auto`: the splash needs a first frame and nothing more, and `auto` would
+	// put all 38.7 MB on the wire alongside the ~27 MB the splash is genuinely blocked on — the cold-
+	// load regression that got these clips thrown off the blocking path in the first place. The bodies
+	// come after reveal instead, through `fillQuickGuideVideoBuffer`.
+	el.preload = 'metadata';
+	// The plain same-origin URL, never a `blob:` — see the CSP note on QUICK_GUIDE_VIDEO_PATHS.
+	el.src = staticUrl(QUICK_GUIDE_VIDEO_PATHS[index]);
+	getQuickGuideStage().appendChild(el);
+	quickGuideVideos[index] = el;
+	return el;
+}
+
+/**
+ * How far into a clip to seek to force a decoded frame out of a `preload="metadata"` load, in seconds.
+ *
+ * `loadedmetadata` only promises duration and dimensions (`readyState` 1). Most browsers go on to
+ * decode a first frame to paint as the default poster, so `loadeddata` usually follows on its own —
+ * but nothing in the spec requires it, and "usually" is not what the guide can be built on. A SEEK
+ * cannot be served without decoding the frame it lands on, so it is the guarantee.
+ *
+ * Non-zero because a seek to the position the element already sits at may legitimately be treated as a
+ * no-op. One millisecond into a 4–10 s loop is not a visible difference in where the clip starts.
+ */
+const VIDEO_FIRST_FRAME_SEEK_S = 0.001;
+
+/**
+ * How long to wait for one clip's first frame before giving up on it and letting the splash carry on
+ * without it.
+ *
+ * The global {@link PreloadOptions.timeoutMs} is NOT cover for this. It caps the whole pass at 300 s
+ * and firing it reveals the game part-loaded — so a warm that can hang has to cap itself long before
+ * that, or four `<video>`s become the one thing able to hold the splash for five minutes.
+ *
+ * And hanging is a real case, not a hypothetical: `preload` is a HINT, and iOS suppresses it outright
+ * on a cellular connection. There `loadedmetadata` never arrives, so neither does the seek that would
+ * force the frame, so nothing resolves. Every other route to a first frame goes through the same
+ * event, so there is nothing cleverer to do than stop waiting.
+ *
+ * 20 s against a first frame of ~100 KB: on the 1.8 Mbps floor these preload timings were measured at,
+ * sharing the link ten ways with the rest of the manifest, that is ~4.4 s of transfer. The margin is
+ * for queueing, not for transfer. Giving up does not cancel anything either — the element keeps
+ * loading, and on a link that was merely slow it is usually ready well before the guide is opened.
+ */
+const VIDEO_FRAME_WARM_TIMEOUT_MS = 20_000;
+
+/**
+ * Resolve once clip `index` has a frame it can paint (`readyState` >= HAVE_CURRENT_DATA). This — and
+ * NOT the rest of the clip — is what the splash blocks on; the bodies are `fillQuickGuideVideoBuffer`.
+ *
+ * Always resolves. A clip that errors is recorded and left alone: the guide then streams it on open,
+ * which is what every clip did before any of this existed.
+ */
+function warmQuickGuideVideoFrame(index: number): Promise<void> {
+	const el = getQuickGuideVideo(index);
+	if (!el) return Promise.resolve();
+	if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return Promise.resolve();
+	// Already dead before the splash asked (the element can predate this call — see getQuickGuideVideo).
+	// A failed media element fires `error` once and never again, so waiting on it would hang to the cap.
+	if (el.error) return Promise.resolve();
+	return new Promise<void>((resolve) => {
+		// Declared ahead of `settle` so the arrow form can close over it. An arrow and not a hoisted
+		// `function`, because TypeScript drops the narrowing that proved `el` is defined across one.
+		let giveUp: number | undefined;
+		const settle = () => {
+			window.clearTimeout(giveUp);
+			el.removeEventListener('loadeddata', settle);
+			el.removeEventListener('seeked', settle);
+			el.removeEventListener('loadedmetadata', onMetadata);
+			el.removeEventListener('error', onError);
+			resolve();
+		};
+		const onMetadata = () => {
+			if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+				settle();
+				return;
+			}
+			try {
+				el.currentTime = VIDEO_FIRST_FRAME_SEEK_S;
+			} catch {
+				// An element that cannot even be seeked has nothing more to give the splash.
+				settle();
+			}
+		};
+		const onError = () => {
+			if (report.failed.length < 100) {
+				report.failed.push({ url: el.src, reason: `media error ${el.error?.code ?? 'unknown'}` });
+			}
+			settle();
+		};
+		el.addEventListener('loadeddata', settle);
+		el.addEventListener('seeked', settle);
+		el.addEventListener('loadedmetadata', onMetadata);
+		el.addEventListener('error', onError);
+		giveUp = window.setTimeout(settle, VIDEO_FRAME_WARM_TIMEOUT_MS);
+	});
+}
+
+/**
+ * Let clip `index` finish downloading. Flipping `preload` to `auto` is the only lever that leaves what
+ * the element already holds alone — `load()` would reset the element and re-open the very decode hole
+ * the warm exists to close.
+ *
+ * Called ONE clip at a time (the first at reveal, then a page ahead of the player) rather than for all
+ * four at once: at 7.5–15 MB for 4–10 s these sit well above real-time bitrate on a slow link, so four
+ * parallel downloads would leave the clip actually on screen with a quarter of the connection.
+ *
+ * Best-effort. A UA that declines to resume buffering on a `preload` change just streams the clip when
+ * it plays — the old behaviour, and still with a warm first frame in front of it.
+ */
+export function fillQuickGuideVideoBuffer(index: number): void {
+	const el = getQuickGuideVideo(index);
+	if (el) el.preload = 'auto';
+}
+
+/**
+ * Take the clips back off-screen when the guide closes, paused and rewound. Parked, NOT destroyed:
+ * reopening from the menu then costs nothing, because the buffers and the decoded frames are still
+ * sitting in the same elements.
+ */
+export function releaseQuickGuideVideos(): void {
+	if (typeof document === 'undefined') return;
+	const stage = getQuickGuideStage();
+	for (const el of quickGuideVideos) {
+		if (!el) continue;
+		el.pause();
+		el.currentTime = 0;
+		stage.appendChild(el);
+	}
+}
 
 /**
  * Images Pixi draws, loaded through `Assets` under the SAME key their consumer uses (the resolved
@@ -550,6 +739,7 @@ function coveredUrls(): Set<string> {
 			...WIN_POPUP_IMAGE_PATHS,
 			...PIXI_TEXTURE_PATHS,
 			...AUDIO_PATHS,
+			...QUICK_GUIDE_VIDEO_PATHS,
 		].map((path) => staticUrl(path)),
 		...spineDefFiles(
 			isPortraitGameLayout() ? getBackgroundPortraitAsset() : getBackgroundLandscapeAsset(),
@@ -635,11 +825,11 @@ export type PreloadOptions = {
 	 * The 120 s cap of the day sat *inside* that range, so every player below ~3 Mbps got a part-loaded
 	 * game and blamed the preload.
 	 *
-	 * The blocking set is ~27 MB again. It briefly ran to ~66 MB when the quick guide's four clips
-	 * joined it, and this cap went to 600 s to hold its margin over the ~355 s that 1.8 Mbps implied at
-	 * that size; those clips are out again (see QUICK_GUIDE_VIDEO_PATHS — Stake's CSP made the whole
-	 * exercise pointless), so the derivation returns to the measurements above: ~1.7x over the 146 s
-	 * slow case, i.e. 300 s.
+	 * The blocking set is ~27 MB. It briefly ran to ~66 MB when the quick guide's four clips joined it
+	 * whole, and this cap went to 600 s to hold its margin over the ~355 s that 1.8 Mbps implied at that
+	 * size; the clips are back on it, but only a first frame each (~0.5 MB — see
+	 * QUICK_GUIDE_VIDEO_PATHS), which is inside the noise. So the derivation still stands on the
+	 * measurements above: ~1.7x over the 146 s slow case, i.e. 300 s.
 	 *
 	 * Re-derive this if the payload changes materially; do not just nudge it.
 	 */
@@ -680,9 +870,13 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		...PIXI_TEXTURE_PATHS.map((path) => () => Assets.load(staticUrl(path))),
 		...spineAssetTasks(),
 		() => preloadFonts(),
-		// Audio is deliberately absent — see AUDIO_PATHS. It is warmed after reveal instead.
-		// So are the quick guide's clips, which stream a page at a time — see QUICK_GUIDE_VIDEO_PATHS
-		// for the CSP that rules out preloading them into memory at all.
+		// The quick guide's four clips — a first frame each, not the bodies. The guide slides in 400 ms
+		// after this splash clears (SPLASH_HANDOVER_MS in QuickGuideModal.svelte), far too soon for a
+		// cold `<video>` to have anything but black to paint. ~0.5 MB for all four; see
+		// QUICK_GUIDE_VIDEO_PATHS for why it is elements rather than bytes, and why only a frame.
+		...QUICK_GUIDE_VIDEO_PATHS.map((_, index) => () => warmQuickGuideVideoFrame(index)),
+		// Audio is deliberately absent — see AUDIO_PATHS. It is warmed after reveal instead, as are the
+		// clip BODIES above (fillQuickGuideVideoBuffer).
 	];
 
 	// Counted for the timeout warning and for {@link getPreloadReport} — the splash itself shows no
@@ -723,17 +917,23 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 }
 
 /**
- * Fire-and-forget warm-up for the things that deliberately sit OUTSIDE the blocking manifest: all
- * audio ({@link AUDIO_PATHS}) and the opposite orientation's background files. Call after the splash
- * has gone.
+ * Fire-and-forget warm-up for the things that deliberately sit OUTSIDE the blocking manifest: the
+ * quick guide's first clip body, all audio ({@link AUDIO_PATHS}) and the opposite orientation's
+ * background files. Call after the splash has gone.
  *
- * The two are NOT equally urgent, so they are not warmed together. Audio starts immediately — a player
- * can reach a sound within a second of the reveal. The opposite orientation is ~15 MB that only
- * matters if the device is rotated, so it waits for idle rather than competing with the audio (and
- * with whatever the player is doing) over a slow link.
+ * These are NOT equally urgent, so they are not warmed together. The guide's first clip goes first: it
+ * is on screen 400 ms from now, where a sound is merely reachable. Audio starts immediately after — a
+ * player can trigger one within a second of the reveal. The opposite orientation is ~15 MB that only
+ * matters if the device is rotated, so it waits for idle rather than competing with either (and with
+ * whatever the player is doing) over a slow link.
  */
 export function preloadPostRevealAssets(): Promise<void> {
 	if (typeof window === 'undefined') return Promise.resolve();
+
+	// Ahead of the audio, and not on idle: the guide is 400 ms behind this call and its first page is
+	// the one thing the player is about to look at. Only the FIRST clip — the other three are pulled a
+	// page ahead of the player by the modal, so they never compete with the one on screen.
+	fillQuickGuideVideoBuffer(0);
 
 	const warmOtherOrientation = () => {
 		void Promise.allSettled(otherOrientationBackgroundFiles().map(preloadFile));
@@ -775,14 +975,15 @@ export function watchForUnpreloadedAssets(): void {
 	// the preload — i.e. before this observer starts — so a hit here means a face nobody declared.
 	const watched = ['img/', 'sound/', 'spine/', 'fonts/'].map((dir) => staticUrl(dir));
 	const reported = new Set<string>();
-	// Fetched after reveal on purpose — warmed by `preloadPostRevealAssets`, or (the guide's clips)
-	// left to stream when they are reached. Without this the black box flags a perfectly healthy
+	// Fetched after reveal on purpose — warmed by `preloadPostRevealAssets`, the guide's clip bodies
+	// included. Without this the black box flags a perfectly healthy
 	// session — the opposite orientation alone is a few hundred KB of honest traffic right after the
 	// splash — and an alarm that always fires tells you nothing.
 	const byDesign = new Set([
 		...AUDIO_PATHS.map((path) => staticUrl(path)),
-		// Streamed on demand, one page at a time — see QUICK_GUIDE_VIDEO_PATHS for why they are not in
-		// the manifest. They sit under `img/`, so without this every guide open reads as a manifest gap.
+		// Only a first frame of each is on the blocking path; the bodies stream in afterwards, a page
+		// ahead of the player (see QUICK_GUIDE_VIDEO_PATHS). They sit under `img/`, so without this a
+		// perfectly healthy guide reads as a manifest gap.
 		...QUICK_GUIDE_VIDEO_PATHS.map((path) => staticUrl(path)),
 		...otherOrientationBackgroundFiles().map((path) => new URL(path, window.location.href).href),
 	]);
@@ -807,10 +1008,10 @@ export function watchForUnpreloadedAssets(): void {
 				});
 			}
 
-			// `byDesign` is checked here too, not just in the report above: the audio it covers is also in
-			// the manifest (so `covered` already silences it), but the quick-guide videos deliberately are
-			// not — and telling the developer to add 38.7 MB of video to the blocking preload is the exact
-			// opposite of what should happen.
+			// `byDesign` is checked here too, not just in the report above. Everything it covers is in the
+			// manifest, so `covered` already silences all of it — but the two are different claims:
+			// `covered` says the module knows about the file, `byDesign` says a fetch for it AFTER reveal
+			// is the intended behaviour rather than a gap. The clip bodies are both, on purpose.
 			if (import.meta.env.DEV && !covered.has(url) && !byDesign.has(url)) {
 				console.warn(
 					`[plinko] asset loaded on demand (add it to the manifest in lib/preloadAssets.ts): ${url}`,
