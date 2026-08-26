@@ -1057,6 +1057,12 @@ export function playOneBonusBall() {
 }
 
 let bonusHoldDropTimer: ReturnType<typeof setInterval> | null = null;
+/**
+ * Period the live hold-stream interval was armed with. Fast Game can be toggled DURING a bonus now
+ * (see `fastToggleLocked` in GameHud), and a `setInterval` keeps whatever period it was created with —
+ * so without this the balls would change speed under a stream still ticking to the old rhythm.
+ */
+let bonusHoldDropTimerIntervalMs = 0;
 /** Pending "is this press actually a hold?" window — see `startBonusBallHoldDrop`. */
 let bonusHoldActivationTimer: ReturnType<typeof setTimeout> | null = null;
 /** In-flight stagger timers for a densified tick (see `streamBonusBallsForTick`). */
@@ -1172,6 +1178,7 @@ function beginBonusBallHoldStream(): void {
 	if (bonusHoldDropTimer !== null) return;
 	// The round can end inside the activation window (that first ball may have been the last one).
 	if (!stateGame.bonusRoundActive) return;
+	bonusHoldDropTimerIntervalMs = bonusHoldDropIntervalMs();
 	bonusHoldDropTimer = setInterval(() => {
 		// Bonus fully played out — nothing left to stream, so don't leave a timer idling behind a
 		// hold the player may never "release" (e.g. the button went `disabled` under their finger).
@@ -1180,7 +1187,20 @@ function beginBonusBallHoldStream(): void {
 			return;
 		}
 		if (canDropBonusBallNow()) streamBonusBallsForTick();
-	}, bonusHoldDropIntervalMs());
+		// Fast Game may have been toggled since this timer was armed — re-arm it on the new cadence.
+		// Done AFTER the tick's own balls are away so the swap can never eat a drop, and never through
+		// `stopBonusBallHoldDrop` (that would also kill this tick's staggered balls and end the hold).
+		retuneBonusBallHoldStream();
+	}, bonusHoldDropTimerIntervalMs);
+}
+
+/** Swap a live hold stream onto the current Fast Game cadence, keeping the hold itself running. */
+function retuneBonusBallHoldStream(): void {
+	if (bonusHoldDropTimer === null) return;
+	if (bonusHoldDropIntervalMs() === bonusHoldDropTimerIntervalMs) return;
+	clearInterval(bonusHoldDropTimer);
+	bonusHoldDropTimer = null;
+	beginBonusBallHoldStream();
 }
 
 /** Idempotent — every path that can end a hold calls this, and several can fire for one release. */

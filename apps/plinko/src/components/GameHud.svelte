@@ -150,6 +150,27 @@
 	});
 	const wagerControlsLocked = $derived(controlsLocked || oneBallDropInFlight);
 	/**
+	 * Fast Game is a pure PRESENTATION preference — it scales the board's sim speed (and the free-ball
+	 * stream's cadence with it) and touches nothing about the wager, the book or settlement. So it has
+	 * no business sharing the wager controls' lock, and the bonus feature is exactly where a player
+	 * reaches for it: a bought ladder streams hundreds of free balls, and the speed must be switchable
+	 * — BOTH ways — while they are falling, not just between rounds. `pendingBuyBonusMode` covers the gap
+	 * between activating the buy and `bonusRoundActive` flipping, so the toggle can't blink out under the
+	 * player's finger mid-purchase.
+	 *
+	 * Everything the toggle drives already follows it live: `animationSpeed` reaches the engine through
+	 * PlinkoBoard's `$effect`, and a held free-ball stream re-arms its own interval on the new cadence
+	 * (see `retuneBonusBallHoldStream`).
+	 *
+	 * Replay keeps the lock — deterministic playback owns its pacing and takes no player input — and the
+	 * `!autoPlayStarted` exemption stays as on every other control, so the toggle is live during an
+	 * Autobet run exactly as before.
+	 */
+	const bonusFeatureActive = $derived(stateGame.bonusRoundActive || !!stateGame.pendingBuyBonusMode);
+	const fastToggleLocked = $derived(
+		bonusFeatureActive && !isReplayMode() ? false : controlsLocked && !props.autoPlayStarted,
+	);
+	/**
 	 * Arming Autobet is a WAGER-CONFIG action, not a play action: picking a count both arms AND starts the
 	 * run, and `startAutoBet` refuses to start while any ball is still in flight. So the count menu must be
 	 * unavailable under exactly that same precondition — "the menu is offered ⟺ a run can actually start".
@@ -1031,7 +1052,7 @@
 				type="button"
 				class="mobile-icon-btn mobile-icon-btn--fast"
 				class:mobile-icon-btn--fast-on={stateGame.fastGameEnabled}
-				disabled={controlsLocked && !props.autoPlayStarted}
+				disabled={fastToggleLocked}
 				aria-pressed={stateGame.fastGameEnabled}
 				aria-label="Fast game"
 				onclick={() => {
@@ -1396,7 +1417,7 @@
 								type="button"
 								class="bp-fast-btn"
 								class:bp-fast-btn--on={stateGame.fastGameEnabled}
-								disabled={controlsLocked && !props.autoPlayStarted}
+								disabled={fastToggleLocked}
 								aria-pressed={stateGame.fastGameEnabled}
 								aria-label="Fast game"
 								onclick={() => {
