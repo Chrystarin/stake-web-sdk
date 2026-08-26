@@ -226,7 +226,12 @@
 		click();
 	}
 
-	/** Arrow keys page the guide; Escape closes it, like every other modal in the game. */
+	/**
+	 * Arrow keys page the guide; Escape closes it, like every other modal in the game.
+	 *
+	 * ArrowRight follows the right-hand button rather than merely paging: on the last page that button
+	 * is DONE, so the key that has been pressing it all the way through closes the guide too.
+	 */
 	function onKeydown(event: KeyboardEvent) {
 		if (!stateGame.quickGuideOpen) return;
 		if (event.key === 'Escape') {
@@ -234,7 +239,8 @@
 		} else if (event.key === 'ArrowLeft') {
 			goBack();
 		} else if (event.key === 'ArrowRight') {
-			goNext();
+			if (isLastPage) close();
+			else goNext();
 		} else {
 			return;
 		}
@@ -340,10 +346,9 @@
 						style:background-image="url({staticUrl(
 							'img/quick_guide/quick_guide_button_container.webp',
 						)})"
-						disabled={isLastPage}
-						onclick={goNext}
+						onclick={isLastPage ? close : goNext}
 					>
-						<span class="qg-nav-label">NEXT</span>
+						<span class="qg-nav-label">{isLastPage ? 'DONE' : 'NEXT'}</span>
 					</button>
 				</div>
 			</div>
@@ -891,8 +896,9 @@
 	}
 
 	/*
-	 * Page 1 has no Back and page 4 no Next. Both ends stay in the layout rather than being hidden, so
-	 * the counter stays centred and the row does not jump on the first and last pages.
+	 * Page 1 has no Back. Only the left end is ever dead: the right-hand button turns into DONE on the
+	 * last page and closes the guide, so it stays live all the way through. The dead end stays in the
+	 * layout rather than being hidden, so the counter stays centred and the row does not jump.
 	 *
 	 * Only the LABEL fades. The plate is the frame's own woodwork — it reads as part of the panel, and
 	 * dimming it punches a translucent hole in the bottom band where the button was. Fading the words
