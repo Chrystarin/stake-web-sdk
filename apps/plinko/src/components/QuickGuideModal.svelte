@@ -742,8 +742,13 @@
 		transition: opacity var(--qg-video-fade) ease;
 	}
 
+	/* Margin-top is the video/title gap — .qg-video carries no margin-bottom, so this is the only
+	   flow spacing between them. ⚠️ Landscape's `--qg-title-y: -4` nudges the title back up toward the
+	   video afterward (transforms move the painted box, not the flow), so the gap actually on screen
+	   there is smaller than this number reads — widen `--qg-title-y` instead of this if it still needs
+	   to open up further; the margin controls flow spacing, that knob controls the visual result. */
 	.qg-title {
-		margin: calc(2cqw * var(--qg-type)) 0 0;
+		margin: calc(3cqw * var(--qg-type)) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 600;
 		font-size: calc(2.9cqw * var(--qg-type) * var(--qg-title-scale));
@@ -759,13 +764,11 @@
 	/* Same face and colour as the title, a step down in size — the panel reads as one block of type,
 	   not as a heading over a differently-styled paragraph.
 
-	   ⚠️ Uppercased, like the title and the note, which is what the delivered design asks for — but
-	   caps run ~15% wider per character than the sentence case this held before, so the same copy at
-	   the same measure takes more lines. `--qg-copy-w` and the video well were both re-derived for
-	   that: read the note on them before changing either, because a wrap costs the well ~4% of the
-	   panel's width and the well is where every extra row in this column is paid for. The strings
-	   themselves stay sentence case in the script above — the caps are presentation, so the copy can
-	   be read (and translated) as the sentences it is. */
+	   Sentence case, where the title is still uppercased: the copy is set as written in the script
+	   above, not shouted at the player. It was uppercased for a stretch — `--qg-copy-w` and the video
+	   well were both narrowed to pay for the extra ~15%-per-character width that cost most pages a
+	   line — so reverting to sentence case only leaves slack under those numbers, it does not risk a
+	   new wrap. Left as-is rather than re-widening the well to reclaim that slack. */
 	.qg-content {
 		max-width: var(--qg-copy-w);
 		margin: calc(1.2cqw * var(--qg-type)) 0 0;
@@ -776,14 +779,14 @@
 		transform: translate(calc(var(--qg-copy-x) * 1cqw), calc(var(--qg-copy-y) * 1cqw));
 		letter-spacing: 0.01em;
 		text-align: center;
-		text-transform: uppercase;
 		color: #d4d0c4;
 		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
 	}
 
 	/* The "(Note: … only available with 10, 20 or 50 balls per drop)" line. Smaller and dimmer than
 	   the copy above it, because it qualifies that copy rather than continuing it — a player who is
-	   dropping 10+ balls never needs to read it. */
+	   dropping 10+ balls never needs to read it. Sentence case now too, same reasoning as `.qg-content`
+	   above it. */
 	.qg-note {
 		max-width: var(--qg-copy-w);
 		margin: calc(1cqw * var(--qg-type)) 0 0;
@@ -794,7 +797,6 @@
 		transform: translate(calc(var(--qg-note-x) * 1cqw), calc(var(--qg-note-y) * 1cqw));
 		letter-spacing: 0.01em;
 		text-align: center;
-		text-transform: uppercase;
 		color: #a8a293;
 		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
 	}
