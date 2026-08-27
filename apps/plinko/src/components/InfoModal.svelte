@@ -542,7 +542,7 @@
 
 							<h3 class="info-section-title">Bonus Round</h3>
 							<p>
-								Balls that strike the <strong>3 gold coin pegs</strong> fill the Bonus meter above the
+								Balls that strike the <strong class="info-gold-highlight">3 gold coins</strong> fill the Bonus meter above the
 								board. Fill it during a drop and a wheel awards a batch of free balls. They drop at your
 								current Bet per Ball and cost you nothing.
 							</p>
@@ -742,7 +742,7 @@
 								)}, or lands on BONUS and starts a Bonus round.
 							</li>
 							<li>
-								<strong>Bonus Round.</strong> Balls striking the 3 gold coin pegs fill the Bonus meter
+								<strong>Bonus Round.</strong> Balls striking the 3 gold coins fill the Bonus meter
 								above the board ({#each featureTiers as row, index (row.balls)}{index > 0
 										? ' / '
 										: ''}{row.bonusHits}{/each} hits at
@@ -1070,6 +1070,11 @@
 	}
 	.info-modal-body strong {
 		color: #fff;
+	}
+	/* Same gold as the bonus-level-up gradient's brightest stop, so it reads as "coin gold" rather
+	   than an arbitrary yellow. */
+	.info-modal-body strong.info-gold-highlight {
+		color: #f5b936;
 	}
 	.info-formula {
 		padding: calc(10 * var(--ui-px)) calc(12 * var(--ui-px));
