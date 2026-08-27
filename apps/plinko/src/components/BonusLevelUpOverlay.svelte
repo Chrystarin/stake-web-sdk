@@ -1,10 +1,22 @@
 <script lang="ts">
+	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
+
 	import { eventEmitter } from '../game/eventEmitter';
 	import { stateGame } from '../game/stateGame.svelte';
 	import { isPortraitGameLayout } from '../lib/format';
 	import { staticUrl } from '../lib/staticUrl';
 
-	const portrait = isPortraitGameLayout();
+	/**
+	 * Match Game/Background/Result: this overlay is fixed and lives outside `.game-root`, so it can't
+	 * inherit the layout class. Read it off the live viewport instead of sampling once at mount, so a
+	 * rotation or a window resize re-picks the layout — landscape sizing while the viewport is wide,
+	 * portrait sizing the moment it's taller than it is wide.
+	 */
+	const portrait = $derived.by(() => {
+		innerWidth.current;
+		innerHeight.current;
+		return isPortraitGameLayout();
+	});
 
 	// Fire the level-up chime on the rising edge of the overlay opening, so the sound lands the
 	// moment the card pops. The sprite window (see EnableSound) trims the file's leading silence so
@@ -98,7 +110,9 @@
 		background-repeat: no-repeat;
 		background-size: contain;
 		box-sizing: border-box;
-		transform: scale(1.25);
+		/* Overall size of the whole card (art + type together). Portrait overrides it below. */
+		--card-scale: 1.25;
+		transform: scale(var(--card-scale));
 		transform-origin: center center;
 
 		/* ═══ TUNING KNOBS ═══════════════════════════════════════════════════════════════════════════
@@ -137,6 +151,10 @@
 	}
 	.bonus-level-up-overlay--portrait .bonus-level-up-card {
 		width: min(92vw, 760px);
+		/* Portrait runs the card 20% larger than landscape (1.25 x 1.2). The artwork is mostly glow —
+		   the plaque is only the middle ~66% of it — so the extra width bleeds off-screen as glow rather
+		   than cropping the plaque. */
+		--card-scale: 1.5;
 	}
 
 	/* Each line is centred on its plaque by pinning the line box's own centre to a share of the art
