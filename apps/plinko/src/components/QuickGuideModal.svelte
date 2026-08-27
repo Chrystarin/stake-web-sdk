@@ -14,8 +14,13 @@
 
 	type QuickGuidePage = {
 		title: string;
-		content: string;
-		/** Parenthetical caveat under the copy. Omitted on the pages that carry no restriction. */
+		/**
+		 * The body copy, ONE ENTRY PER LINE ON SCREEN. The breaks are the copy's own — each line is a
+		 * beat, and they are set as written rather than left to reflow into a block (see `.qg-content`
+		 * for how they are rendered, and `--qg-copy-w` for the measure that keeps each one unwrapped).
+		 */
+		content: readonly string[];
+		/** Italic caveat under the copy. Omitted on the pages that carry no restriction. */
 		note?: string;
 		/** Index into QUICK_GUIDE_VIDEO_PATHS — the loop that plays in the frame above the copy. */
 		video: number;
@@ -24,29 +29,37 @@
 	const PAGES: readonly QuickGuidePage[] = [
 		{
 			title: 'DROP & WIN',
-			content:
-				'Choose how many balls to drop and set your bet, then press Play. Each ball pays the multiplier of the pocket it lands in.',
-			note: '(Note: Spin pockets and Golden pegs are only available with 10, 20 or 50 balls per drop.)',
+			content: [
+				'Choose your balls. Set your bet. Hit Play!',
+				'Watch them drop! Each ball wins the multiplier it lands on.',
+			],
+			note: 'Drop 10, 20, or 50 balls to activate Spin Pockets and Golden Pegs',
 			video: 0,
 		},
 		{
 			title: 'FREE SPIN MULTIPLIER',
-			content:
-				'Balls that land in the center SPIN (0×) slot fill the Free Spin meter. When it fills, a wheel gives you an extra multiplier on your bet per ball amount.',
-			note: '(Note: Only available with 10, 20 or 50 balls per drop.)',
+			content: [
+				'Land balls in the center SPIN (0) pocket to fill the Free Spin metre.',
+				'Fill the metre to spin the Free Spin Wheel and unlock an extra multiplier on your bet per ball!',
+			],
+			note: 'Available with 10, 20, or 50-ball drops only',
 			video: 1,
 		},
 		{
 			title: 'BONUS PLAY FEATURE',
-			content:
-				'Balls that hit the 3 gold pegs fill the Bonus meter. When it fills, a wheel awards free balls and a chance to trigger multiple bonus levels.',
-			note: '(Note: Only available with 10, 20 or 50 balls per drop.)',
+			content: [
+				'Hit the 3 Gold Pegs to fill the Bonus metre.',
+				'Fill it to spin the Bonus Wheel for Free Balls and the chance to unlock more bonus levels!',
+			],
+			note: 'Available with 10, 20, or 50-ball drops only',
 			video: 2,
 		},
 		{
 			title: 'LEVEL BONUSES',
-			content:
-				'During Free Play, hitting the golden coin pegs fills the bonus meter. Each time it fills, a new bonus level unlocks and gives more free balls.',
+			content: [
+				'Hit Gold Pegs during Free Play to fill the Bonus metre.',
+				'Fill it to unlock the next bonus level and win more Free Balls!',
+			],
 			video: 3,
 		},
 	];
@@ -314,7 +327,13 @@
 
 				<h3 class="qg-title">{page.title}</h3>
 
-				<p class="qg-content">{page.content}</p>
+				<!-- One <span> a line, not one <p> a line: the lines are one paragraph that happens to
+				     carry its own breaks, so they share a line-height and nothing sits between them. -->
+				<p class="qg-content">
+					{#each page.content as line}
+						<span class="qg-content-line">{line}</span>
+					{/each}
+				</p>
 
 				{#if page.note}
 					<p class="qg-note">{page.note}</p>
@@ -520,16 +539,23 @@
 		 * comfortable at, and the reason this is a knob rather than the default: the frame got wider to
 		 * hold a wider VIDEO, and the copy under it should not be dragged along.
 		 *
-		 * 68cqw is 594px at 1280x720, ~80 characters to the line. It is also load-bearing in two ways
-		 * worth knowing before narrowing it: the longest page's copy fits in two lines only above
-		 * ~66cqw, and the longest note sets to 550px, so under ~64cqw that wraps too. Either wrap costs
-		 * the video well ~4% of the panel's width, because the well is where every extra row in this
-		 * column is paid for.
+		 * 84cqw is 734px at 1280x720. It is NOT a measure chosen for prose — the copy carries its own
+		 * line breaks now (see `content` in the script), so what this number has to do is fit the
+		 * longest authored LINE, and that is page 2's "Fill the metre to spin the Free Spin Wheel…" at
+		 * 82cqw. Below ~83cqw that line wraps and the page runs three rows deep; there is no slack
+		 * under the copy for a third row — see the clearance arithmetic on `--qg-note-y`.
 		 *
-		 * Portrait restates it at 100%: at a 352px panel the frame is already narrower than the measure
-		 * is, and capping it there would only starve it.
+		 * 92cqw is the ceiling (the interior, less `--qg-pad-x` at each side), so this leaves ~10cqw
+		 * spare — enough for a re-worded line to grow ~12% before it wraps, and the cap is what keeps
+		 * the copy off the frame's wood if one grows past that.
+		 *
+		 * Every page is two rows here, and every note one, which is what the vertical design assumes.
+		 *
+		 * Portrait restates it at 100%: at a 352px panel the frame is already narrower than the longest
+		 * line is, so the lines there wrap inside their authored breaks and capping it would only
+		 * starve them further.
 		 */
-		--qg-copy-w: 68cqw;
+		--qg-copy-w: 84cqw;
 
 		/*
 		 * ── THE TUNING LAYER ─────────────────────────────────────────────────────────────────────
@@ -578,7 +604,17 @@
 		--qg-copy-y: -4;
 		--qg-note-scale: 1;
 		--qg-note-x: 0;
-		--qg-note-y: -3;
+		/*
+		 * -3.55, not the -3 the rest of this block's neatness would suggest, and the 0.55 is measured
+		 * rather than eyeballed: it is exactly what the note grew by when it went from 1.5cqw/1.3 to
+		 * the copy's 1.85cqw/1.35 (2.4975 - 1.95 = 0.5475cqw a line).
+		 *
+		 * It has to come back off somewhere. The note's last line lands ~0.04cqw under the page
+		 * counter's line box as it is — the two boxes touch, and only the note's half-leading keeps the
+		 * glyphs apart — so there was never room to simply let it grow downward. Shifting it up by what
+		 * it gained puts its bottom back exactly where the smaller note's was.
+		 */
+		--qg-note-y: -3.55;
 		--qg-nav-x: 0;
 		--qg-nav-y: -3;
 		--qg-btn-scale: 1;
@@ -628,10 +664,9 @@
 	 * → ← ↑ ↓). Whatever the subsets do not cover falls through to the next face in the stack, so that
 	 * face has to be a deliberate one: Instrument Sans is the game's own UI grotesque and does carry
 	 * them, which keeps a stray glyph a sibling of the words around it instead of whatever the device's
-	 * default sans happens to be. The copy on this page is plain Latin as it stands — the × in
-	 * "SPIN (0×)" is U+00D7, inside the latin subset's own U+0000-00FF range — so the fallback is
-	 * insurance here rather than load-bearing. It was load-bearing when these pages were arrow-led, and
-	 * would be again the moment a page reaches past Latin.
+	 * default sans happens to be. The copy on these pages is plain ASCII as it stands, so the fallback
+	 * is insurance here rather than load-bearing. It was load-bearing when these pages were arrow-led,
+	 * and would be again the moment a page reaches past Latin.
 	 */
 	.qg-inner {
 		position: absolute;
@@ -783,21 +818,47 @@
 		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
 	}
 
-	/* The "(Note: … only available with 10, 20 or 50 balls per drop)" line. Smaller and dimmer than
-	   the copy above it, because it qualifies that copy rather than continuing it — a player who is
-	   dropping 10+ balls never needs to read it. Sentence case now too, same reasoning as `.qg-content`
-	   above it. */
+	/*
+	 * One line of the copy, broken where the copy breaks it rather than where the box runs out.
+	 *
+	 * A block rather than a `<br>` between inline runs, because a break has to be able to STOP being
+	 * one: in landscape every line is set inside `--qg-copy-w` and the breaks are the only ones there
+	 * are, but portrait sets the same lines at a third of the measure, where the longer ones wrap
+	 * again. A block wraps into as many rows as it needs and the authored break still lands after the
+	 * last of them; a `<br>` would only add a break to whatever the reflow already did.
+	 *
+	 * Nothing else here: no margin, no line-height of its own. The lines share `.qg-content`'s
+	 * leading, so a two-line page reads as one paragraph with a break in it and not as two.
+	 */
+	.qg-content-line {
+		display: block;
+	}
+
+	/* The "only available with 10, 20, or 50 balls" caveat. Set at the copy's own size, weight and
+	   colour — italic is the ONLY thing separating the two, which is what marks it as a qualifier
+	   rather than as a second paragraph. It used to be smaller and dimmer as well; that read as a
+	   footnote the eye skipped, and these lines carry a real restriction on the feature above them.
+
+	   ⚠️ Faux italic, deliberately: `+layout.svelte` installs Noto Sans as Google's variable LATIN
+	   subsets, which carry the 100..900 weight axis and no italic cut, so the browser obliques it. That
+	   is fine for one short line and would not be for a paragraph — if this ever spreads, install the
+	   italic subsets rather than letting the synthesis spread with it.
+
+	   ⚠️ The size change costs the column 0.5475cqw a line, and the wide frame has nothing to give:
+	   `--qg-note-y` is where that is paid back, and `--qg-copy-w` is what keeps the copy above it to
+	   two lines. Both are load-bearing for this size — read them before changing it again. */
 	.qg-note {
 		max-width: var(--qg-copy-w);
 		margin: calc(1cqw * var(--qg-type)) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 400;
-		font-size: calc(1.5cqw * var(--qg-type) * var(--qg-note-scale));
-		line-height: 1.3;
+		font-style: italic;
+		font-size: calc(1.85cqw * var(--qg-type) * var(--qg-note-scale));
+		line-height: 1.35;
 		transform: translate(calc(var(--qg-note-x) * 1cqw), calc(var(--qg-note-y) * 1cqw));
 		letter-spacing: 0.01em;
 		text-align: center;
-		color: #a8a293;
+		color: #d4d0c4;
 		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
 	}
 
