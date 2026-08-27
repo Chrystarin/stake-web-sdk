@@ -136,8 +136,10 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/free_bonus_roulette_v2/wheel_values.webp',
 	'img/free_bonus_roulette_v2/wheel_base.webp',
 	'img/free_bonus_roulette_v2/wheel_segment_highlight.webp',
+	// The landscape "FREE BALLS" banner; portrait uses `bonus-roulette-label.webp` below.
+	'img/free_bonus_roulette_v2/free_balls_title.webp',
 
-	// ── Roulette backdrops + label ───────────────────────────────────────────────────────────────
+	// ── Roulette backdrops + portrait label ─────────────────────────────────────────────────────
 	'img/bonus-roulette-background.webp',
 	'img/bonus-roulette-background-mobile.webp',
 	'img/bonus-roulette-label.webp',

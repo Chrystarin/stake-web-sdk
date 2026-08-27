@@ -45,8 +45,10 @@
 
 	const props: Props = $props();
 
-	/** Shared wheel diameter from viewport; label/wheel derive from this. */
-	const LABEL_HEIGHT_TO_WIDTH = 594 / 1280;
+	/** Shared wheel diameter from viewport; label/wheel derive from this. The two banner exports are
+	 * NOT the same shape, so the ratio is picked per orientation alongside the art (see `labelSrc`). */
+	const PORTRAIT_LABEL_HEIGHT_TO_WIDTH = 594 / 1280;
+	const LANDSCAPE_LABEL_HEIGHT_TO_WIDTH = 618 / 1400;
 	/** Per the bonus art, the "FREE BALLS" banner is wider than the wheel — it's the widest element and
 	 * therefore drives the horizontal budget (the wheel = label / LABEL_TO_WHEEL). */
 	const LABEL_TO_WHEEL = 1.1;
@@ -74,8 +76,8 @@
 	// will crop — lower the scale or nudge with the offsets.
 	const BONUS_ROULETTE_TUNING = {
 		landscape: {
-			label: { scale: 1.7, offsetX: 0, offsetY: -0.075 },
-			wheel: { scale: 1.8, offsetX: 0, offsetY: 0.3 },
+			label: { scale: 2.05, offsetX: 0, offsetY: -0.125 },
+			wheel: { scale: 2.05, offsetX: 0, offsetY: 0.57 },
 		},
 		portrait: {
 			label: { scale: 1.2, offsetX: 0, offsetY: 0 },
@@ -432,6 +434,15 @@
 
 	// Resolve the orientation-specific tuning knobs (see BONUS_ROULETTE_TUNING above).
 	const tuning = portrait ? BONUS_ROULETTE_TUNING.portrait : BONUS_ROULETTE_TUNING.landscape;
+
+	// Two different "FREE BALLS" banner exports: portrait keeps the original art, landscape uses the
+	// v2 one. They differ in aspect, so the height ratio must travel with the source.
+	const labelSrc = portrait
+		? staticUrl('img/bonus-roulette-label.webp')
+		: staticUrl('img/free_bonus_roulette_v2/free_balls_title.webp');
+	const labelHeightToWidth = portrait
+		? PORTRAIT_LABEL_HEIGHT_TO_WIDTH
+		: LANDSCAPE_LABEL_HEIGHT_TO_WIDTH;
 	const LABEL_SCALE = tuning.label.scale;
 	const LABEL_OFFSET_X = tuning.label.offsetX;
 	const LABEL_OFFSET_Y = tuning.label.offsetY;
@@ -456,7 +467,7 @@
 		const maxLabelWidth = Math.min(labelVwCap, rect.width);
 		const wheelFromWidth = maxLabelWidth / LABEL_TO_WHEEL;
 		// Column height = label height + gap + wheel, all expressed as multiples of the wheel diameter.
-		const columnToWheel = LABEL_TO_WHEEL * LABEL_HEIGHT_TO_WIDTH + LABEL_GAP_TO_WHEEL + 1;
+		const columnToWheel = LABEL_TO_WHEEL * labelHeightToWidth + LABEL_GAP_TO_WHEEL + 1;
 		const wheelFromHeight = Math.max(0, rect.height) / columnToWheel;
 		rouletteSizePx = Math.max(0, Math.floor(Math.min(wheelFromWidth, wheelFromHeight)));
 	}
@@ -994,7 +1005,7 @@
 					style:--label-scale={LABEL_SCALE}
 					style:--label-offset-x={labelOffsetXPx}
 					style:--label-offset-y={labelOffsetYPx}
-					src={staticUrl('img/bonus-roulette-label.webp')}
+					src={labelSrc}
 					alt="Free balls"
 				/>
 				<div class="bonus-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>

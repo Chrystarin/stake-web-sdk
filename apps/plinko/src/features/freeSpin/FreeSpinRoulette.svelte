@@ -48,7 +48,7 @@
 		},
 		portrait: {
 			label: { scale: 2, offsetX: 0, offsetY: 0.2 },
-			wheel: { scale: 1.35, offsetX: 0, offsetY: 0.2 },
+			wheel: { scale: 1.35, offsetX: 0, offsetY: -0.2 },
 		},
 	};
 
