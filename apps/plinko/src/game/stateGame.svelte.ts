@@ -66,6 +66,13 @@ export const stateGame = $state({
 	defaultStakePerBall: 0,
 	coefficients: [] as number[],
 	fastGameEnabled: false,
+	/**
+	 * DEV-ONLY speed override, as a multiple of NORMAL play (1 = normal, 2 = what the Fast Game toggle
+	 * gives, 0.25 = quarter speed). Set from the console with `window.plinkoSetSpeed()`; while it is
+	 * non-null it supersedes `fastGameEnabled` everywhere `plinkoSimSpeed()` is read. null = off, i.e.
+	 * the toggle decides.
+	 */
+	debugSpeedMultiplier: null as number | null,
 	animationEnabled: true,
 	isAnimating: false,
 	isSubmitting: false,
@@ -372,9 +379,44 @@ export function isBonusMeterFull(): boolean {
 	return stateGame.bonusMeterValue >= safeMax;
 }
 
+/**
+ * The engine `animationSpeed` the board should be running at RIGHT NOW — the single source of truth
+ * for ball speed. Normally the Fast Game toggle picks one of the two `SIM_SPEED` values; a dev-console
+ * override (`window.plinkoSetSpeed`) replaces both with an arbitrary multiple of normal speed.
+ * Everything else paced off ball speed (the spawn spread inside a drop, the held free-ball cadence)
+ * divides `SIM_SPEED.normal` by this, so a speed set here carries through the whole drop rather than
+ * just the fall itself.
+ */
+export function plinkoSimSpeed(): number {
+	const override = stateGame.debugSpeedMultiplier;
+	if (override != null && Number.isFinite(override) && override > 0) {
+		return SIM_SPEED.normal * override;
+	}
+	return stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal;
+}
+
+/**
+ * How far a slowed board is allowed to stretch the PACING between balls (the spawn spread inside a
+ * drop, the held free-ball cadence) — not the fall itself, which is unbounded.
+ *
+ * These are proportional to `SIM_SPEED.normal / plinkoSimSpeed()`, which is right for the toggle's 2x
+ * but runs away under a deep dev slow-down: at 0.005x a ten-ball drop would spread its spawns over
+ * six minutes, so the board would sit empty while you waited for something to watch. Capped, the
+ * balls still arrive promptly and each one falls as slowly as asked.
+ */
+const MAX_SPAWN_PACING_STRETCH = 3;
+
+/**
+ * Multiplier on the gaps BETWEEN ball spawns for the current sim speed — below 1 when the board is
+ * running fast (so a quick round isn't dominated by the 1-2s spacing), above 1 when it is slowed.
+ */
+export function plinkoSpawnPacingScale(): number {
+	return Math.min(MAX_SPAWN_PACING_STRETCH, SIM_SPEED.normal / plinkoSimSpeed());
+}
+
 export const stateGameDerived = {
 	get simSpeed(): number {
-		return stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal;
+		return plinkoSimSpeed();
 	},
 	get minMsBetweenBallSpawns(): number {
 		return MIN_MS_BETWEEN_BALL_SPAWNS;

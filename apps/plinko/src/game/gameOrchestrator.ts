@@ -13,7 +13,6 @@ import {
 	FREE_SPIN_SEGMENTS,
 	IN_BONUS_SPIN_BANK_DRAIN_BUDGET_MS,
 	IN_BONUS_SPIN_BANK_RESET_READ_MS,
-	SIM_SPEED,
 	bonusLevelBalls,
 	bonusLevelupPegs,
 } from '../game-logic/constants';
@@ -22,7 +21,13 @@ import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-lo
 import { boardMultiplierAtIndex, resolveOutcomeMultiplier } from '../game-logic/boardMultipliers';
 import { formatCoefficientLabel, formatHistoryDate, formatHistoryMultiplier } from '../lib/format';
 import { meterController } from './stateGame.svelte';
-import { stateGame, stateGameDerived, type HistoryChip, type HistoryEntry } from './stateGame.svelte';
+import {
+	plinkoSpawnPacingScale,
+	stateGame,
+	stateGameDerived,
+	type HistoryChip,
+	type HistoryEntry,
+} from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
 import { traceBonusMeterWrite } from './plinkoMeterTrace';
 import { stateXstateDerived } from './stateXstate';
@@ -1068,10 +1073,9 @@ let bonusHoldActivationTimer: ReturnType<typeof setTimeout> | null = null;
 /** In-flight stagger timers for a densified tick (see `streamBonusBallsForTick`). */
 const bonusStreamStaggerTimers = new Set<ReturnType<typeof setTimeout>>();
 
-/** Cadence of a held free-ball stream, compressed in Fast Game like the board's own spawn spread. */
+/** Cadence of a held free-ball stream, compressed with the sim speed like the board's own spawn spread. */
 function bonusHoldDropIntervalMs(): number {
-	const speedUp = stateGame.fastGameEnabled ? SIM_SPEED.normal / SIM_SPEED.fast : 1;
-	return Math.round(BONUS_HOLD_DROP_INTERVAL_MS * speedUp);
+	return Math.round(BONUS_HOLD_DROP_INTERVAL_MS * plinkoSpawnPacingScale());
 }
 
 /**

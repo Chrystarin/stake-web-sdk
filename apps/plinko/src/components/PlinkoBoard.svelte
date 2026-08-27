@@ -17,7 +17,7 @@
 	import { frameImagePoint, SKULL_MOUTH_CAVITY, SKULL_MOUTH_CAVITY_HALF_W } from '../lib/frameArt';
 	import config from '../game/config';
 	import { pocketPitchForMultiplier } from '../game/sound';
-	import { stateGame } from '../game/stateGame.svelte';
+	import { plinkoSimSpeed, plinkoSpawnPacingScale, stateGame } from '../game/stateGame.svelte';
 	import type { PlinkoBallOutcome } from '../game/typesBookEvent';
 
 	type Props = {
@@ -188,7 +188,14 @@
 		plinkoDrop: ({ outcomes, fastMode }) => {
 			if (!engine) return;
 			syncEngineScene();
-			engine.animationSpeed = fastMode ? SIM_SPEED.fast : SIM_SPEED.normal;
+			// `fastMode` is what the ROUND was submitted with; a dev speed override outranks it (and the
+			// toggle), so a drop keeps whatever `plinkoSetSpeed` last asked for.
+			engine.animationSpeed =
+				stateGame.debugSpeedMultiplier != null
+					? plinkoSimSpeed()
+					: fastMode
+						? SIM_SPEED.fast
+						: SIM_SPEED.normal;
 			spawnOutcomes(outcomes);
 		},
 		bonusBallDrop: ({ stake }) => {
@@ -265,8 +272,9 @@
 		const maxSec = (ballsPerDrop / 10) * 2;
 		// Fast Game mode: balls also fall ~3.4× faster, so compress the spawn spread by the same
 		// factor — otherwise the 1–2s spacing between spawns dominates the round and fast mode barely
-		// ends sooner. Keyed off SIM_SPEED so it tracks the multiplier automatically.
-		const spawnSpread = stateGame.fastGameEnabled ? SIM_SPEED.normal / SIM_SPEED.fast : 1;
+		// ends sooner. Keyed off the live sim speed, so it tracks the toggle AND a dev speed override
+		// (whose slow end is capped there, or a deep slow-down would spread the spawns over minutes).
+		const spawnSpread = plinkoSpawnPacingScale();
 		const totalMs = (minSec + Math.random() * (maxSec - minSec)) * 1000 * spawnSpread;
 		const delays = n <= 1 ? [0] : Array.from({ length: n }, (_, i) => (i / (n - 1)) * totalMs);
 		const targetIndices = outcomes.map((o) => o.rateIndex);

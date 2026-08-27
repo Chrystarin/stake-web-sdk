@@ -5,7 +5,7 @@
 
 	import { stateBet, stateUrlDerived } from 'state-shared';
 
-	import { coefficientsForTier, SIM_SPEED } from '../game-logic/constants';
+	import { coefficientsForTier } from '../game-logic/constants';
 	import config from '../game/config';
 
 	import { hasActiveRoundToResume } from '../game/plinkoActiveRound';
@@ -56,7 +56,12 @@
 		syncBallPerDropTier,
 	} from '../game/meterFlow';
 
-	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
+	import {
+		plinkoSimSpeed,
+		stateGame,
+		stateGameDerived,
+		type InfoModalTab,
+	} from '../game/stateGame.svelte';
 	import { stateXstate, stateXstateDerived } from '../game/stateXstate';
 
 	import { BonusLevel, BonusMeter, BonusRoulette } from '../features/bonus';
@@ -905,7 +910,7 @@
 						coefficients={boardCoefficients}
 						rows={stateGame.rowCount}
 						animationEnabled={stateGame.animationEnabled}
-						animationSpeed={stateGame.fastGameEnabled ? SIM_SPEED.fast : SIM_SPEED.normal}
+						animationSpeed={plinkoSimSpeed()}
 						{onBallDropped}
 						onCoinPegHit={handleCoinPegHit}
 					/>

@@ -6,6 +6,7 @@ import {
 	WIN_TIMING,
 	type WinTier,
 } from '../lib/winCelebration';
+import { SIM_SPEED } from '../game-logic/constants';
 import { bonusMeterRenderedProgress } from '../features/bonus/bonusMeterVisual';
 import { buildPlinkoPlayPayloadPreview } from './plinkoPlayDebug';
 import {
@@ -21,7 +22,7 @@ import {
 import { forceUnlockBettingControls } from './meterFlow';
 import { plinkoActiveModeMaxWin, plinkoStakePerBall } from './plinkoBet';
 import { setRgsSessionSpinMeter } from './plinkoSessionMeters';
-import { meterController, stateGame } from './stateGame.svelte';
+import { meterController, plinkoSimSpeed, stateGame } from './stateGame.svelte';
 
 export type PlinkoLockDebugSnapshot = {
 	controlsLocked: boolean;
@@ -209,6 +210,62 @@ function showTestWinCelebration(tier: WinTier, opts: WinCelebrationTestOptions =
 	}, 60);
 }
 
+/**
+ * Bounds on the console speed override. The low end is a sanity rail rather than a taste call — the
+ * engine's whole speed model is scaled proportionally (see `slowMotionScale`), so 0.001x really is a
+ * thousand times slower than normal, which is minutes per row. Below that a drop stops being
+ * observable at all and just looks frozen.
+ */
+const DEBUG_SPEED_MIN = 0.001;
+const DEBUG_SPEED_MAX = 20;
+
+export type PlinkoSpeedDebugSnapshot = {
+	/** The override in force, as a multiple of normal play. null = off (the Fast Game toggle decides). */
+	debugSpeedMultiplier: number | null;
+	fastGameEnabled: boolean;
+	/** Engine `animationSpeed` the board is running at right now. */
+	simSpeed: number;
+	/** ...the same thing as a multiple of normal play, override or not. */
+	effectiveMultiplier: number;
+};
+
+function plinkoSpeedSnapshot(): PlinkoSpeedDebugSnapshot {
+	const simSpeed = plinkoSimSpeed();
+	return {
+		debugSpeedMultiplier: stateGame.debugSpeedMultiplier,
+		fastGameEnabled: stateGame.fastGameEnabled,
+		simSpeed: Number(simSpeed.toFixed(4)),
+		effectiveMultiplier: Number((simSpeed / SIM_SPEED.normal).toFixed(4)),
+	};
+}
+
+/**
+ * Set (or clear) the ball-speed override. `multiplier` is a multiple of NORMAL play: 1 = normal,
+ * 2 = exactly what the Fast Game toggle gives, 0.25 = quarter speed. Omitted / null / 'reset' hands
+ * control back to the toggle.
+ */
+function setPlinkoDebugSpeed(multiplier?: number | null | 'reset'): PlinkoSpeedDebugSnapshot {
+	if (multiplier == null || multiplier === 'reset') {
+		stateGame.debugSpeedMultiplier = null;
+		return plinkoSpeedSnapshot();
+	}
+	const requested = Number(multiplier);
+	if (!Number.isFinite(requested) || requested <= 0) {
+		console.warn(
+			`[plinko] plinkoSetSpeed: want a positive multiplier (or nothing, to reset) — got ${String(multiplier)}`,
+		);
+		return plinkoSpeedSnapshot();
+	}
+	const clamped = Math.min(DEBUG_SPEED_MAX, Math.max(DEBUG_SPEED_MIN, requested));
+	if (clamped !== requested) {
+		console.warn(
+			`[plinko] plinkoSetSpeed: clamped ${requested}x to ${clamped}x (range ${DEBUG_SPEED_MIN}-${DEBUG_SPEED_MAX}).`,
+		);
+	}
+	stateGame.debugSpeedMultiplier = clamped;
+	return plinkoSpeedSnapshot();
+}
+
 /** Dev-only: expose lock diagnostics on `window.plinkoDebugLocks()` / `window.plinkoForceUnlock()`. */
 export function installPlinkoDevDebug() {
 	const w = window as Window & {
@@ -227,6 +284,8 @@ export function installPlinkoDevDebug() {
 			value: number,
 			max?: number,
 		) => { spinMeterValue: number; spinMeterMax: number; spinMeterProgress: number };
+		plinkoSetSpeed?: (multiplier?: number | null | 'reset') => PlinkoSpeedDebugSnapshot;
+		plinkoSpeed?: () => PlinkoSpeedDebugSnapshot;
 	};
 
 	w.plinkoPlayMeta = buildPlinkoPlayPayloadPreview;
@@ -334,4 +393,13 @@ export function installPlinkoDevDebug() {
 			spinMeterProgress: meterController.spinMeterProgress(),
 		};
 	};
+
+	// Dev-only: drive the speed the balls fall at, as a multiple of NORMAL play — `plinkoSetSpeed(0.2)`
+	// to crawl through a single bounce, `plinkoSetSpeed(6)` to blow through a deep bonus round. It
+	// outranks the Fast Game toggle (which is just the multiplier 2) until cleared with
+	// `plinkoSetSpeed()`. Everything paced off ball speed follows it live — the fall itself, the spawn
+	// spread inside a multi-ball drop, and the held free-ball stream's cadence — including on balls
+	// already in the air. `plinkoSpeed()` reads back what is in force without changing it.
+	w.plinkoSetSpeed = setPlinkoDebugSpeed;
+	w.plinkoSpeed = plinkoSpeedSnapshot;
 }
