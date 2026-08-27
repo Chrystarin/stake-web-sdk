@@ -608,8 +608,10 @@ export class PlinkoEngine {
   private static readonly ENTRY_WANDER_DECAY_ROWS_MIN = 6;
   private static readonly ENTRY_WANDER_DECAY_ROWS_MAX = 9;
 
-  /** Lateral jitter on the entry offset, in peg spacings, so wide entries aren't rail-straight. */
-  private static readonly ENTRY_WANDER_JITTER_RATIO = 0.12;
+  /** Lateral jitter on the entry offset, in peg spacings, so wide entries aren't rail-straight.
+   * Raised from 0.12: at 0.12 the entry lanes quantised visibly onto whole peg columns and the
+   * top-row bounces lined up on the same few pegs drop after drop. */
+  private static readonly ENTRY_WANDER_JITTER_RATIO = 0.26;
 
   /**
    * How much of the way from the launch bias toward the first row's lane the peg-field entry point
@@ -742,7 +744,7 @@ export class PlinkoEngine {
 
   /**
    * `pegSpacing` (px) reference that sets the peg-bounce height. The bounce arc peak is
-   * `bounceAmplitude / BOUNCE_REFERENCE_SPACING` of a row gap — 18/30 = 0.60 — and that ratio holds
+   * `bounceAmplitude / BOUNCE_REFERENCE_SPACING` of a row gap — 20/30 = 0.67 — and that ratio holds
    * at every viewport. LOWER this to bounce higher, raise it to bounce lower.
    *
    * The ceiling worth respecting: the ball's TOP at the peak is `peak * 1.14 + ballRadius` (the 1.14
@@ -1117,7 +1119,7 @@ export class PlinkoEngine {
     maxSpeed: 0.047,
     minSpeed: 0.0012,
     // Peg-hop height. The arc peak is `bounceAmplitude / BOUNCE_REFERENCE_SPACING` of a row gap, so
-    // 14/30 = 0.47 of a gap — about 18.3px against a 39.2px desktop row.
+    // 20/30 = 0.67 of a gap — about 26px against a 39.2px desktop row.
     //
     // Was 26, which put the peak at 0.87 of a gap. Adding the ball's own radius, the top of the ball
     // reached 48px above the peg it had just hit while the row above sits only 39.2px up: at the top
@@ -1126,11 +1128,12 @@ export class PlinkoEngine {
     //
     // 16 was the ceiling under a strict "never overlap the row above" rule: the ball's highest pixel
     // is `peak * 1.14 + ballRadius` (`bounceHeightMultiplier` tops out at 1.14), and 16 lands that
-    // about level with the peg row above. 18 pushes roughly 1px past it on the tallest hops a ball
-    // can produce — about a fifth of a peg radius, and balls draw OVER pegs (`ballsGraphics` is the
-    // last layer), so it reads as the ball passing in front of the upper peg rather than clipping
-    // into it. 26, for contrast, overlapped by 14px and that is what looked wrong.
-    bounceAmplitude: 18,
+    // about level with the peg row above. 18 pushed roughly 1px past it on the tallest hops; 20
+    // reaches ~5px past — a quarter of a row gap short of the old 26, and balls draw OVER pegs
+    // (`ballsGraphics` is the last layer), so the tallest hops read as the ball passing in front of
+    // the upper peg rather than clipping into it. Raised 18 -> 20 for a springier bounce on
+    // request; 26 remains the measured "too tall".
+    bounceAmplitude: 20,
     bounceFrequency: 0.05,
     horizontalDrift: 0.4,
     slotAnimationDuration: 600,
@@ -2603,11 +2606,19 @@ export class PlinkoEngine {
     if (maxColumns <= 0) return { offsets, columns: 0 };
 
     // Wide launches (|dir| 2) favour the outer pegs, shallow ones (|dir| 1) the shoulder pegs — and
-    // sometimes still the middle, so the old centre entry stays part of the mix rather than vanishing.
+    // sometimes still the middle, so the old centre entry stays part of the mix rather than
+    // vanishing. Shallow throws also reach the outer pegs some of the time now: with the middle
+    // over-weighted, half a burst's first bounces stacked on the same two centre pegs.
     const roll = nextRandom();
     const columns = Math.min(
       maxColumns,
-      Math.abs(spawnDirection) === 2 ? (roll < 0.55 ? 2 : 1) : roll < 0.6 ? 1 : 0,
+      Math.abs(spawnDirection) === 2
+        ? (roll < 0.55 ? 2 : 1)
+        : roll < 0.5
+          ? 1
+          : roll < 0.75
+            ? 2
+            : 0,
     );
     if (columns <= 0) return { offsets, columns: 0 };
 
@@ -2667,6 +2678,24 @@ export class PlinkoEngine {
     return this.clusterSpanByRow.get(row) ?? null;
   }
 
+  /**
+   * Full horizontal extent of the coin cluster (art edges) across EVERY featured row. Detours are
+   * measured against this, not against each row's own span: the bottom coin's row is narrower than
+   * the pair's, so a per-row flank there sat directly under a top coin — inside the V-shaped
+   * channel between the top coins and the bottom one, where a passing ball reads as though it were
+   * about to hit a coin. Clearing the whole extent keeps the detour outside that channel top to
+   * bottom.
+   */
+  private getFeaturedClusterExtent(): { minX: number; maxX: number } | null {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const span of this.clusterSpanByRow.values()) {
+      if (span.minX < minX) minX = span.minX;
+      if (span.maxX > maxX) maxX = span.maxX;
+    }
+    return Number.isFinite(minX) ? { minX, maxX } : null;
+  }
+
   private galtonLaneThreatensFeaturedCluster(row: number, laneX: number): boolean {
     const span = this.getFeaturedClusterSpan(row);
     if (!span) return false;
@@ -2678,19 +2707,21 @@ export class PlinkoEngine {
     return laneX >= span.minX - buffer && laneX <= span.maxX + buffer;
   }
 
-  /** Regular peg immediately beside the bonus cluster on the given side (not in the gap). */
-  private pickFlankBouncePeg(row: number, side: -1 | 1): Peg | null {
-    const span = this.getFeaturedClusterSpan(row);
-    if (!span) return null;
+  /**
+   * Regular peg beside the bonus cluster on the given side, clear of the cluster's FULL extent
+   * (see `getFeaturedClusterExtent` — a per-row flank could sit inside the inner channel).
+   * `outwardIndex` 0 is the innermost clear peg; 1 is one column further out — the flank jitter
+   * that stops every routed ball from tracing the identical column past the coins.
+   */
+  private pickFlankBouncePeg(row: number, side: -1 | 1, outwardIndex = 0): Peg | null {
+    const extent = this.getFeaturedClusterExtent();
+    if (!extent || !this.rowHasFeaturedPeg(row)) return null;
     const regular = this.regularPegsByRow.get(row) ?? [];
-    if (side < 0) {
-      const candidates = regular.filter((peg) => peg.cx < span.minX);
-      if (!candidates.length) return null;
-      return candidates.reduce((best, peg) => (peg.cx > best.cx ? peg : best));
-    }
-    const candidates = regular.filter((peg) => peg.cx > span.maxX);
+    const candidates = regular
+      .filter((peg) => (side < 0 ? peg.cx < extent.minX : peg.cx > extent.maxX))
+      .sort((a, b) => (side < 0 ? b.cx - a.cx : a.cx - b.cx));
     if (!candidates.length) return null;
-    return candidates.reduce((best, peg) => (peg.cx < best.cx ? peg : best));
+    return candidates[Math.min(outwardIndex, candidates.length - 1)];
   }
 
   private isInsideFeaturedClusterGap(row: number, x: number): boolean {
@@ -2706,6 +2737,7 @@ export class PlinkoEngine {
   private planSmoothFeaturedAvoidance(
     galtonLane: number[],
     targetSlotX: number,
+    flankRoll = 0,
   ): { offsets: number[]; flankPegByRow: Map<number, Peg> } {
     const offsets = new Array<number>(this.rows).fill(0);
     const flankPegByRow = new Map<number, Peg>();
@@ -2715,13 +2747,36 @@ export class PlinkoEngine {
     }
     if (!featuredRows.length) return { offsets, flankPegByRow };
 
-    const needsAvoidance = featuredRows.some((row) =>
-      this.galtonLaneThreatensFeaturedCluster(row, galtonLane[row] ?? targetSlotX),
-    );
-    if (!needsAvoidance) return { offsets, flankPegByRow };
-
     const firstFeatured = featuredRows[0];
     const lastFeatured = featuredRows[featuredRows.length - 1];
+
+    // The cluster is one REGION, not a set of independent coin rows, and its interior is not a
+    // corridor: the only thing allowed through it is the designated bottom-coin ball, vertically,
+    // via the top gap (that ball never reaches this planner). So the trigger tests the whole
+    // vertical band the coins occupy — including the coin-free row between them — against the
+    // cluster's full horizontal extent, and additionally refuses a SIDE CHANGE across the band:
+    // a lane that enters the band left of the cluster and leaves it on the right never lands a
+    // row point inside the extent, but the segments between its rows sweep straight through the
+    // interior — the "crosses between the coins to the other side" arc. Both cases route around
+    // one flank instead.
+    const extent = this.getFeaturedClusterExtent();
+    const clusterMinX = extent?.minX ?? Infinity;
+    const clusterMaxX = extent?.maxX ?? -Infinity;
+    let needsAvoidance = false;
+    let sawLeftFlank = false;
+    let sawRightFlank = false;
+    for (let row = firstFeatured; row <= lastFeatured; row++) {
+      const x = galtonLane[row] ?? targetSlotX;
+      const buffer = Math.max(this.pegSpacingXForRow(row) * 0.36, this.ballRadius);
+      if (x >= clusterMinX - buffer && x <= clusterMaxX + buffer) {
+        needsAvoidance = true;
+        break;
+      }
+      if (x < clusterMinX) sawLeftFlank = true;
+      else sawRightFlank = true;
+    }
+    if (sawLeftFlank && sawRightFlank) needsAvoidance = true;
+    if (!needsAvoidance) return { offsets, flankPegByRow };
     const rampRows = Math.min(5, Math.max(3, firstFeatured));
     const easeInStart = Math.max(0, firstFeatured - rampRows);
     // Ease back out over EVERY remaining row rather than a fixed few. Coming off the flank the lane
@@ -2737,13 +2792,18 @@ export class PlinkoEngine {
     // inside `rampRows` and reads as a sideways slide.
     const approachX = galtonLane[easeInStart] ?? targetSlotX;
 
+    // Flank jitter: some balls take the innermost clear column, some the one beyond it, so the
+    // routed traffic past the coins spreads over two columns per side instead of tracing one
+    // identical line — the "balls lining up beside the cluster" look.
+    const outwardIndex = flankRoll < 0.6 ? 0 : 1;
+
     let chosenSide: -1 | 1 = 1;
     let bestScore = -Infinity;
     for (const side of [-1, 1] as const) {
       let score = 0;
       let valid = true;
       for (const row of featuredRows) {
-        const flank = this.pickFlankBouncePeg(row, side);
+        const flank = this.pickFlankBouncePeg(row, side, outwardIndex);
         if (!flank) {
           valid = false;
           break;
@@ -2760,7 +2820,7 @@ export class PlinkoEngine {
 
     const targetLaneByRow = new Map<number, number>();
     for (const row of featuredRows) {
-      const flank = this.pickFlankBouncePeg(row, chosenSide);
+      const flank = this.pickFlankBouncePeg(row, chosenSide, outwardIndex);
       if (!flank) continue;
       flankPegByRow.set(row, flank);
       targetLaneByRow.set(row, flank.x);
@@ -2805,7 +2865,11 @@ export class PlinkoEngine {
    * below. This avoids the ball flinging sideways to "tag" the bonus peg and snapping
    * straight back; the approach and departure both look like a natural fall.
    */
-  private planSmoothFeaturedApproach(galtonLane: number[], featuredTarget: Peg): number[] {
+  private planSmoothFeaturedApproach(
+    galtonLane: number[],
+    featuredTarget: Peg,
+    exitSide: 1 | -1,
+  ): number[] {
     const offsets = new Array<number>(this.rows).fill(0);
     const targetRow = featuredTarget.row;
     if (targetRow < 0 || targetRow >= this.rows) return offsets;
@@ -2825,9 +2889,19 @@ export class PlinkoEngine {
       }
     }
 
+    // The exit stays pinned (weight 1) until the ball is BELOW the whole cluster, then eases to
+    // its slot — easing out straight from the target row let a ball that struck the top-left coin
+    // head for a far-right slot by cutting across the interior, over the bottom coin. Crossing
+    // the board under the coins is fine; through them is not. For the bottom coin (no featured
+    // rows below) this holds nothing extra.
+    let holdToRow = targetRow;
+    for (let row = targetRow + 1; row < this.rows; row++) {
+      if (this.rowHasFeaturedPeg(row)) holdToRow = row;
+    }
+
     const rampRows = Math.min(5, Math.max(3, holdFromRow));
     const easeInStart = Math.max(0, holdFromRow - rampRows);
-    const easeOutEnd = Math.min(this.rows - 1, targetRow + rampRows);
+    const easeOutEnd = Math.min(this.rows - 1, holdToRow + rampRows);
 
     for (let row = 0; row < this.rows; row++) {
       let weight = 0;
@@ -2835,14 +2909,26 @@ export class PlinkoEngine {
         weight = 0;
       } else if (row < holdFromRow) {
         weight = this.smoothstep((row - easeInStart) / Math.max(1, holdFromRow - easeInStart));
-      } else if (row <= targetRow) {
+      } else if (row <= holdToRow) {
         weight = 1;
       } else if (row <= easeOutEnd) {
-        weight = 1 - this.smoothstep((row - targetRow) / Math.max(1, easeOutEnd - targetRow));
+        weight = 1 - this.smoothstep((row - holdToRow) / Math.max(1, easeOutEnd - holdToRow));
       }
       if (weight <= 0) continue;
       const galtonX = galtonLane[row] ?? featuredTarget.cx;
-      offsets[row] = (featuredTarget.cx - galtonX) * weight;
+      // Approach rows aim at the coin. Exit rows walk AWAY from it, half a lane per row (a
+      // natural Galton run off the hit, capped at one lane out and held there until the blend
+      // takes over). Anchoring the exit on the coin's own column kept the lane inside the coin's
+      // disc for the first stretch below the hit, so the departure arc dipped the ball back onto
+      // the coin's face and the hold re-seated it there — the "hits the coin twice and sticks"
+      // look. For a top coin `exitSide` is outward, so the walk also keeps the exit clear of the
+      // cluster's interior.
+      const anchorX =
+        row <= targetRow
+          ? featuredTarget.cx
+          : featuredTarget.cx +
+            exitSide * Math.min(row - targetRow, 2) * this.pegSpacingXForRow(row) * 0.5;
+      offsets[row] = (anchorX - galtonX) * weight;
     }
 
     return offsets;
@@ -3113,6 +3199,19 @@ export class PlinkoEngine {
     const featuredTarget = pathOptions?.hitBonusPeg
       ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
       : null;
+    // Which side the ball leaves its coin on. A top coin always bounces its ball OUTWARD, away
+    // from the cluster; the bottom coin sits on the centroid, so its ball leaves on a seeded
+    // coin-flip. The draw only runs for bottom-coin balls, leaving every other ball's
+    // deterministic random stream untouched.
+    const featuredExitSide: 1 | -1 = !featuredTarget
+      ? 1
+      : Math.abs(featuredTarget.cx - this.featuredCentroidX) > this.ballRadius
+        ? featuredTarget.cx > this.featuredCentroidX
+          ? 1
+          : -1
+        : nextRandom() < 0.5
+          ? -1
+          : 1;
     const avoidFeaturedPegs = pathOptions?.deterministic === true && pathOptions?.hitBonusPeg !== true;
     const steerToFeatured = pathOptions?.hitBonusPeg === true && featuredTarget != null;
     const galtonLane = this.buildGaltonLane(turns, centerX);
@@ -3125,6 +3224,10 @@ export class PlinkoEngine {
         ? entryShape.offsets
         : this.dampEntryWanderNearFeatured(galtonLane, entryShape.offsets);
 
+    // One flank-jitter draw per ball, taken OUTSIDE buildLane so the governor's fallback rebuilds
+    // reuse it instead of consuming fresh randomness per attempt.
+    const flankRoll = nextRandom();
+
     // The coin-peg planners run on the SHAPED lane, not the raw Galton one, so they see where the
     // ball will actually be — otherwise a wandering lane could stroll into a coin the avoidance plan
     // believed was nowhere near it.
@@ -3135,11 +3238,11 @@ export class PlinkoEngine {
       let offsets: number[];
       let flanks: Map<number, Peg>;
       if (avoidFeaturedPegs) {
-        const avoidancePlan = this.planSmoothFeaturedAvoidance(shaped, targetX);
+        const avoidancePlan = this.planSmoothFeaturedAvoidance(shaped, targetX, flankRoll);
         offsets = avoidancePlan.offsets;
         flanks = avoidancePlan.flankPegByRow;
       } else if (steerToFeatured && featuredTarget) {
-        offsets = this.planSmoothFeaturedApproach(shaped, featuredTarget);
+        offsets = this.planSmoothFeaturedApproach(shaped, featuredTarget, featuredExitSide);
         flanks = new Map<number, Peg>();
       } else {
         offsets = new Array<number>(this.rows).fill(0);
@@ -3320,8 +3423,16 @@ export class PlinkoEngine {
     // positions (already clamped clear of the coins). See `coinPassSides` on Ball.
     const coinPassSides: Record<string, 1 | -1> = {};
     for (const coin of this.featuredPegs) {
-      const rowPoint = path.find((p) => p.row === coin.row);
-      if (rowPoint) coinPassSides[coin.key] = rowPoint.x >= coin.cx ? 1 : -1;
+      const rowIndex = path.findIndex((p) => p.row === coin.row);
+      if (rowIndex < 0) continue;
+      // A row point sitting ON the coin is the designated hit — its side is the EXIT side, which
+      // the next row's point (the planned walk off the coin) carries. The post-hit glide reads
+      // this side to usher the ball out instead of holding it on the coin.
+      let refX = path[rowIndex].x;
+      if (Math.abs(refX - coin.cx) < 0.001 && rowIndex + 1 < path.length) {
+        refX = path[rowIndex + 1].x;
+      }
+      coinPassSides[coin.key] = refX >= coin.cx ? 1 : -1;
     }
     for (const blocker of this.coinGapBlockers) {
       const rowPoint = path.find((p) => p.row === blocker.row);
@@ -3779,7 +3890,15 @@ export class PlinkoEngine {
         // the ball in is bled off so it eases past instead of grinding the rim. The gap blockers
         // take the same treatment — an impulse off an invisible body read as the ball bouncing off
         // thin air between the coins.
-        const credits = pegCoin != null && this.coinPegCredits(ball, pegCoin);
+        // The paying hold lasts only until the hit is DELIVERED — meter credited and the ricochet
+        // kicked. After that the coin owes this ball nothing, and keeping the on-surface hold just
+        // re-seated the ball on the coin's face every time the departure arc dipped back into the
+        // disc: the "lands on the coin a second time and sticks" look. Once delivered, the coin is
+        // treated like any body the ball may not touch — the one-sided glide below, whose frozen
+        // side is the planned EXIT side, ushers it out instead of catching it again.
+        const hitDelivered =
+          ball.bonusPegEmitted && pegCoin != null && ball.coinKickPegKey === pegCoin.key;
+        const credits = pegCoin != null && this.coinPegCredits(ball, pegCoin) && !hitDelivered;
         if (!credits) {
           // One-sided lateral clamp, anchored to the PLAN.
           //
@@ -3838,12 +3957,24 @@ export class PlinkoEngine {
         if (isNewContact) {
           ball.coinKickPegKey = peg.key;
           ball.coinKickTime = currentTime;
-          // Leave on the side the ball actually landed on. Steering by its TRAVEL direction instead
-          // (as this first did) sends a ball that landed on one shoulder while moving the other way
-          // up and OVER the coin.
+          // The ricochet leaves on the PLANNED exit side — the same side the lane below the coin
+          // walks off toward — so the kick and the path pull together instead of fighting. (It
+          // encodes "outward" for a top coin and the seeded coin-flip for the bottom one.) The
+          // landed-side reading is only the fallback for a ball with no planned side: it is
+          // residual-velocity noise on a dead-centre arrival, and half the time it threw the
+          // ricochet against the lane — the ball swung out and was hauled straight back.
           const nx0 = dist > 0.0001 ? dx / dist : 0;
-          ball.coinKickSide =
-            Math.abs(nx0) > 0.15 ? (Math.sign(nx0) as 1 | -1) : ball.velocityX < 0 ? -1 : 1;
+          const plannedExit = ball.coinPassSides[peg.key];
+          if (plannedExit != null) {
+            ball.coinKickSide = plannedExit;
+          } else {
+            ball.coinKickSide =
+              Math.abs(nx0) > 0.15 ? (Math.sign(nx0) as 1 | -1) : ball.velocityX < 0 ? -1 : 1;
+            const outward = peg.cx - this.featuredCentroidX;
+            if (Math.abs(outward) > ballRadius) {
+              ball.coinKickSide = outward > 0 ? 1 : -1;
+            }
+          }
           let nx = nx0;
           let ny = dist > 0.0001 ? dy / dist : -1;
           nx += ball.coinKickSide * PlinkoEngine.COIN_KICK_SIDE_BIAS;
