@@ -8,6 +8,7 @@ probability each value implies.
 | [bonus-mode.md](bonus-mode.md) | How bonus mode works end to end — entry paths, the level ladder, free balls, the in-bonus free spin, exit and settlement. |
 | [bonus-values.md](bonus-values.md) | Every defined value and derived probability, per mode. The tables here are the shipped configuration. |
 | [unified-levelup-proposal.md](unified-levelup-proposal.md) | Why the level-up ladder is shared by all 7 feature modes and the per-mode coin-peg probability is the RTP lever — the investigation, the rejected alternatives, and the verification still outstanding. |
+| [debug-console.md](debug-console.md) | Every `window.plinko*` console hook — ball speed, win celebrations, meters, the soft-lock snapshot, the bonus-meter write tracer. |
 
 ## Where the numbers actually live
 
