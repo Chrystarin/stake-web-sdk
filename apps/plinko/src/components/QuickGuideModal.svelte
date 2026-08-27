@@ -33,14 +33,14 @@
 				'Choose your balls. Set your bet. Hit Play!',
 				'Watch them drop! Each ball wins the multiplier it lands on.',
 			],
-			note: 'Drop 10, 20, or 50 balls to activate Spin Pockets and Golden Pegs',
+			note: 'Drop 10, 20, or 50 balls to activate Spin Pockets and Gold Coins',
 			video: 0,
 		},
 		{
 			title: 'FREE SPIN MULTIPLIER',
 			content: [
-				'Land balls in the center SPIN (0) pocket to fill the Free Spin metre.',
-				'Fill the metre to spin the Free Spin Wheel and unlock an extra multiplier on your bet per ball!',
+				'Land balls in the center SPIN (0) pocket to fill the Free Spin meter.',
+				'Fill the meter to spin the Free Spin Wheel for an extra multiplier or a chance to trigger the Bonus Round!',
 			],
 			note: 'Available with 10, 20, or 50-ball drops only',
 			video: 1,
@@ -48,7 +48,7 @@
 		{
 			title: 'BONUS PLAY FEATURE',
 			content: [
-				'Hit the 3 Gold Pegs to fill the Bonus metre.',
+				'Hit a Gold Coin to fill the Bonus Meter.',
 				'Fill it to spin the Bonus Wheel for Free Balls and the chance to unlock more bonus levels!',
 			],
 			note: 'Available with 10, 20, or 50-ball drops only',
@@ -57,7 +57,7 @@
 		{
 			title: 'LEVEL BONUSES',
 			content: [
-				'Hit Gold Pegs during Free Play to fill the Bonus metre.',
+				'Hit Gold Coins during Bonus Round to fill the Bonus meter.',
 				'Fill it to unlock the next bonus level and win more Free Balls!',
 			],
 			video: 3,
@@ -539,15 +539,18 @@
 		 * comfortable at, and the reason this is a knob rather than the default: the frame got wider to
 		 * hold a wider VIDEO, and the copy under it should not be dragged along.
 		 *
-		 * 84cqw is 734px at 1280x720. It is NOT a measure chosen for prose — the copy carries its own
-		 * line breaks now (see `content` in the script), so what this number has to do is fit the
-		 * longest authored LINE, and that is page 2's "Fill the metre to spin the Free Spin Wheel…" at
-		 * 82cqw. Below ~83cqw that line wraps and the page runs three rows deep; there is no slack
-		 * under the copy for a third row — see the clearance arithmetic on `--qg-note-y`.
+		 * It is NOT a measure chosen for prose — the copy carries its own line breaks now (see
+		 * `content` in the script), so what this number has to do is fit the longest authored LINE,
+		 * and that is page 2's "Fill the meter to spin the Free Spin Wheel for an extra multiplier or
+		 * a chance to trigger the Bonus Round!" at ~92.2cqw measured against the real Noto Sans font —
+		 * past even the 92cqw ceiling (the interior, less `--qg-pad-x` at each side), so the ceiling
+		 * alone cannot fit it; `--qg-copy-scale` below is what closes the last ~6px. Below that this
+		 * line wraps and the page runs three rows deep; there is no slack under the copy for a third
+		 * row — see the clearance arithmetic on `--qg-note-y`.
 		 *
-		 * 92cqw is the ceiling (the interior, less `--qg-pad-x` at each side), so this leaves ~10cqw
-		 * spare — enough for a re-worded line to grow ~12% before it wraps, and the cap is what keeps
-		 * the copy off the frame's wood if one grows past that.
+		 * 92cqw IS the ceiling, so there is no spare left under it any more — a line longer than
+		 * today's will need `--qg-copy-scale` taken down further, or the frame's `--qg-pad-x` eaten
+		 * into, since this knob is already maxed.
 		 *
 		 * Every page is two rows here, and every note one, which is what the vertical design assumes.
 		 *
@@ -555,7 +558,7 @@
 		 * line is, so the lines there wrap inside their authored breaks and capping it would only
 		 * starve them further.
 		 */
-		--qg-copy-w: 84cqw;
+		--qg-copy-w: 92cqw;
 
 		/*
 		 * ── THE TUNING LAYER ─────────────────────────────────────────────────────────────────────
@@ -599,7 +602,12 @@
 		--qg-title-scale: 1;
 		--qg-title-x: 0;
 		--qg-title-y: -4;
-		--qg-copy-scale: 1;
+		/* 0.98, not the neutral 1: `--qg-copy-w` above is already at its 92cqw ceiling and page 2's
+		   longest line still measures ~6px past it at full size (against the real Noto Sans font, at
+		   1280x720) — a 2% reduction is what buys back that last sliver, invisibly, without eating into
+		   `--qg-pad-x` and the frame-band clearance it protects. Applies to every page's body copy, not
+		   just page 2's, since this is the shared knob — harmless, the other lines all have slack. */
+		--qg-copy-scale: 0.98;
 		--qg-copy-x: 0;
 		--qg-copy-y: -4;
 		--qg-note-scale: 1;
