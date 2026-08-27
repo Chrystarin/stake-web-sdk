@@ -132,6 +132,27 @@ export class FreeSpinMeterEngine {
    * size and position on screen it had at 0. Change one, change all four.
    */
   private readonly artBleedByViewportWidth = 0.06;
+  /**
+   * Where the shine's PAINTED pill sits inside the mesh quad `getBounds` reports, as fractions of
+   * that quad.
+   *
+   * The rig draws the flipbook onto one full-bleed quad (852.371 x 123.731 authored units) but the
+   * frames themselves are 248 x 36 sprites whose gold pill only occupies x 3..244 and y 7..29 —
+   * hard-edged, identical across all 45 frames, and confirmed against the union of every frame's
+   * alpha in `free_spin_meter_bar_highlight/skeleton.webp`. So the quad overstates the art by 1.2%
+   * on the left, 1.6% on the right and 19.4% top and bottom, and anything fitted to the quad lands
+   * short. Spine cannot tell us this — mesh bounds are geometry, and the padding is alpha — hence
+   * measured constants.
+   *
+   * ⚠️ Re-measure if the bar highlight is re-exported: a re-crop that changes the frame padding
+   * changes these four numbers, and nothing at runtime will notice.
+   */
+  private readonly barHighlightArtInset = {
+    left: 3 / 248,
+    top: 7 / 36,
+    width: (244 - 3) / 248,
+    height: (29 - 7) / 36
+  };
   private frameTicker?: (ticker: { deltaMS: number }) => void;
   /** Both halves of the meter-full effect (see `loadFullEffect`) — iterated per frame, so built once. */
   private fullEffect: FullEffectLayer[] = [];
@@ -314,30 +335,42 @@ export class FreeSpinMeterEngine {
    * Place both halves of the meter-full effect. Called from `resizeToHost`, which owns every other
    * placement in this scene.
    *
-   * ONE SHARED SCALE. The two skeletons come out of the same editor scene (see
-   * `freeSpinMeterFullAssets`), so scaling them together is what preserves the sizes they were drawn
-   * at RELATIVE to each other — the ring ends up ~1.4x the helm because that is how it was authored,
-   * not because a constant here says so. The basis is the bar highlight's own box measured against
-   * the fill bar it sweeps over.
+   * THE SHINE IS FITTED BY ITS PAINTED PILL, NOT BY ITS BOX. `getBounds` measures the mesh QUAD,
+   * and the quad is padded — see `barHighlightArtInset`. Fitting the quad to the fill rect
+   * therefore parked the pill INSIDE the bar, and because the bar's own left cap is the first thing
+   * the eye lands on, the ~1.2% of unlit fill it left there read as a gap down the left end every
+   * time the meter completed. Anchoring the pill instead makes the shine cover the fill rect
+   * exactly, which is what it was drawn to do.
    *
-   * TWO ANCHORS, though, rather than one scene transform. The authored scene and the engine's
-   * hand-tuned wheel placement (`wheelOffsetXByBaseWidth`) agree to within ~1% of the bar's width,
-   * which is nothing on the soft cyan halo but shows on the crisp ring expanding out of it — that
-   * has to be exactly concentric with the helm, so it is pinned to the sprite instead of inheriting
-   * the drift.
+   * The wheel glow keeps the QUAD-derived scale it always had. Its layers' proportions are
+   * internal (the ring is ~1.4x the helm because that is how it was authored) and its clearance
+   * from the canvas edge is what `artBleedByViewportWidth` was solved against, so the bar's
+   * correction deliberately does not travel to it.
+   *
+   * TWO ANCHORS, rather than one scene transform. The authored scene and the engine's hand-tuned
+   * wheel placement (`wheelOffsetXByBaseWidth`) agree to within ~1% of the bar's width, which is
+   * nothing on the soft cyan halo but shows on the crisp ring expanding out of it — that has to be
+   * exactly concentric with the helm, so it is pinned to the sprite instead of inheriting the drift.
    */
   private layoutFullEffect(wheelCenterXPx: number, wheelCenterYPx: number): void {
     const bar = this.barHighlight;
     if (!bar) return;
+    // Quad-derived, and used ONLY by the wheel glow below — see the note above.
     const scale = this.meterNativeWidth / bar.size.x;
 
-    // The shine is anchored to the FILL RECT: its box's left edge on the fill's left edge, its
-    // centre line on the fill's. The art is ~1.7x the bar's height, so the glow spills onto the
-    // plaque above and below the bar — that spill is the effect, not a misfit.
-    bar.spine.scale.set(scale);
+    // Map the pill's box onto the fill rect: same left edge, same top edge, same width, same
+    // height. x and y are scaled independently because the pill is ~9% squatter than the fill rect
+    // in relative terms; splitting them is what removes the bleed at BOTH ends and above/below,
+    // and 9% of a cap radius is invisible on art this soft.
+    const inset = this.barHighlightArtInset;
+    const barScaleX = this.meterNativeWidth / (bar.size.x * inset.width);
+    const barScaleY = this.meterNativeHeight / (bar.size.y * inset.height);
+    bar.spine.scale.set(barScaleX, barScaleY);
+    // World space is already y-down here (see `FullEffectLayer`), so `offset.y` is the art's TOP
+    // and the inset is added, not subtracted.
     bar.spine.position.set(
-      this.meterOffsetXPx - bar.offset.x * scale,
-      this.meterOffsetYPx + this.meterNativeHeight / 2 - (bar.offset.y + bar.size.y / 2) * scale
+      this.meterOffsetXPx - (bar.offset.x + bar.size.x * inset.left) * barScaleX,
+      this.meterOffsetYPx - (bar.offset.y + bar.size.y * inset.top) * barScaleY
     );
 
     const wheel = this.wheelGlow;
