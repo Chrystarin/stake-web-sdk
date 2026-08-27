@@ -765,10 +765,10 @@
 
 	/** How long the headline/reward "pop" reveal takes to fully finish — the reward's
 	 * `animation-delay` (0.12s) plus its `bonus-announcement-pop` duration (`--congrats-pop-duration`,
-	 * 0.58s). Coins are held off until this elapses so the message finishes animating before the shower
+	 * 0.63s). Coins are held off until this elapses so the message finishes animating before the shower
 	 * starts; it also clears the shine burst's own entrance (0.4s delay + 0.28s grow = 0.68s). ⚠️ Keep in
 	 * sync with the CSS below. */
-	const ANNOUNCEMENT_TEXT_POP_MS = 700;
+	const ANNOUNCEMENT_TEXT_POP_MS = 750;
 
 	/**
 	 * Hand the result to the game — this is what starts BONUS MODE (`awardBonusBalls` → `bonusRoundActive`,
@@ -1322,9 +1322,10 @@
 		align-items: center;
 		justify-content: center;
 		color: #f4d36d;
-		/* Headline / reward / win-value pop length — see `bonus-announcement-pop` below, and keep it in
-		   sync with ANNOUNCEMENT_TEXT_POP_MS in the script. */
-		--congrats-pop-duration: 0.58s;
+		/* Headline / reward pop length — see `bonus-announcement-pop` below, and keep it in sync with
+		   ANNOUNCEMENT_TEXT_POP_MS in the script. The win value (`congrats-value-pop`) is intentionally NOT
+		   on this var — it keeps its own fixed, non-bouncy duration. */
+		--congrats-pop-duration: 0.63s;
 	}
 	.bonus-announcement-coins {
 		position: absolute;
@@ -1441,7 +1442,7 @@
 		   flashed frame. */
 		will-change: opacity, transform;
 		/* The 0.4s delay is not a beat for its own sake: it is exactly where the headline tops out its
-		   overshoot (70% of --congrats-pop-duration), so the burst reads as the impact of the title
+		   overshoot (63% of --congrats-pop-duration), so the burst reads as the impact of the title
 		   landing rather than as a second, separate entrance. */
 		transition:
 			opacity 0.28s linear 0.4s,
@@ -1543,26 +1544,31 @@
 	.bonus-announcement--text-visible .bonus-announcement-reward {
 		animation: bonus-announcement-pop var(--congrats-pop-duration) linear 0.12s forwards;
 	}
-	/* ⚠️ Shape and timing function are BOTH load-bearing, and they came off the reference clip rather
-	   than off a feel-good easing curve. Frame-stepping it: the headline's width grows by a CONSTANT
-	   ~72px/frame for 12 frames (i.e. dead linear, not eased), tops out ~10% over its final size, then
-	   falls back to 1 over 6 more frames — with no dip below it on the way. That is why the animation
-	   runs `linear` and the whole shape lives in the keyframes. The old version rode
-	   `cubic-bezier(0.34, 1.56, 0.64, 1)` over a 1.12 → 0.94 → 1 keyframe set, which added a second,
-	   springier bounce the reference does not have. Keep `--congrats-pop-duration` in sync with
-	   ANNOUNCEMENT_TEXT_POP_MS above. */
+	/* ⚠️ Shape and timing function are BOTH load-bearing, and they came off the reference clip (frame-
+	   stepped at its native 30fps, headline width measured in px) rather than off a feel-good easing
+	   curve. It is THREE distinct linear ramps, not one smooth curve — a real spring overshoots past its
+	   target, recoils PAST it the other way, then springs back, and each leg times out at a constant
+	   px/frame rate: growing at ~292px/frame up to a 110% overshoot at 400ms (63%), recoiling at
+	   ~167px/frame down to an 83% UNDERSHOOT at 567ms (90% — smaller than its 100% resting size, not just
+	   short of it), then snapping back at ~262px/frame to settle at 1 by 630ms. That constant-rate-per-leg
+	   shape is why the animation runs `linear` with the whole curve living in the keyframes rather than in
+	   a single eased transition (no cubic-bezier reproduces two overshoots past opposite sides of the
+	   target). Keep `--congrats-pop-duration` in sync with ANNOUNCEMENT_TEXT_POP_MS above. */
 	@keyframes bonus-announcement-pop {
 		0% {
 			transform: scale(0);
 			opacity: 0;
 		}
-		/* Up to full opacity within the first two frames — the reference's headline is already solid at
+		/* Up to full opacity within the first few frames — the reference's headline is already solid at
 		   its smallest, so this is a scale-up, not a fade-up. */
-		10% {
+		8% {
 			opacity: 1;
 		}
-		70% {
+		63% {
 			transform: scale(1.1);
+		}
+		90% {
+			transform: scale(0.83);
 		}
 		100% {
 			transform: scale(1);
@@ -1868,7 +1874,11 @@
 
 	/* The win value in the AustereBlackCapsSSK face: white glyphs with a golden-brown outline, a black
 	   drop shadow and a warm yellow glow (per the reference). Two overlaid spans — a stroke layer that
-	   carries the outline + glow + shadow, and a white fill on top. Pops in just after the headline/reward. */
+	   carries the outline + glow + shadow, and a white fill on top. Pops in just after the headline/reward.
+	   ⚠️ Deliberately does NOT share `bonus-announcement-pop` — that keyframe set carries the
+	   headline/reward's overshoot-undershoot-settle bounce, and the win value is meant to stay a plain
+	   grow-to-size with no bounce at all (see `congrats-value-pop` below), so it gets its own keyframes and
+	   its own fixed duration instead of `--congrats-pop-duration`. */
 	.congrats-value {
 		position: relative;
 		z-index: 2;
@@ -1888,7 +1898,25 @@
 		transform: scale(0);
 	}
 	.congrats-value--in {
-		animation: bonus-announcement-pop var(--congrats-pop-duration) linear 0.24s forwards;
+		animation: congrats-value-pop 0.58s ease-out 0.24s forwards;
+	}
+	/* The win value's own pop — a plain grow-to-size, no overshoot/undershoot. `ease-out` decelerates into
+	   the final scale instead of arriving at a constant rate, which is what reads as a "grow" rather than a
+	   mechanical linear scale-up. Kept as its own keyframes (rather than re-pointing at the shared
+	   `bonus-announcement-pop`, which carries the headline/reward's bounce) so the win value's animation
+	   never drifts if that one is retuned again. */
+	@keyframes congrats-value-pop {
+		0% {
+			transform: scale(0);
+			opacity: 0;
+		}
+		10% {
+			opacity: 1;
+		}
+		100% {
+			transform: scale(1);
+			opacity: 1;
+		}
 	}
 	.congrats-value-stroke,
 	.congrats-value-fill {
