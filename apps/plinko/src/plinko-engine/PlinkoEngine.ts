@@ -8,7 +8,7 @@ import {
 } from '@esotericsoftware/spine-pixi-v8';
 import { BOARD_LABELS } from '../game-logic/boardMultipliers';
 import { slotColorForMultiplier } from '../game-logic/slotColors';
-import { formatCoefficientLabel, isMobile } from '../lib/format';
+import { formatCoefficientLabel } from '../lib/format';
 import { getGlowNumbersAsset } from '../lib/spine/glowNumbersAsset';
 import { loadSpineAsset } from '../lib/spine/spineAssetCache';
 import { readSkeletonData } from '../lib/spine/spineSkeletonData';
@@ -105,9 +105,47 @@ interface Ball {
   driftMultiplier: number;
   bounceDurationMultiplier: number;
   laneOffsetX: number;
+  /**
+   * Correction on the in-hop slowdown that keeps a row-spanning arc from costing descent speed.
+   * Re-solved at every contact by `fitHopToRow`; 1 until the ball's first bounce.
+   */
+  hopSlowdownScale: number;
   /** Visual-only separation from other balls (no velocity impulse). */
   collisionOffsetX: number;
   collisionOffsetY: number;
+  /**
+   * The BASE path x this step — the lane position before any of the offsets (velocity, drift,
+   * wobble, ball-to-ball push) are added. Fallback side anchor for the coin keep-out when a body
+   * appears that `coinPassSides` has no entry for (a board rebuilt mid-flight).
+   */
+  laneBaseX: number;
+  /**
+   * Which side of each coin body this ball's PLAN passes on, keyed by the body's `key`, decided
+   * once at path build. The plan's row position at a coin's row is already clamped clear of it, so
+   * the side is known before the ball is even spawned — and holding it for the whole flight is
+   * what makes crossing a coin geometrically impossible. Anything read live (the ball's own
+   * position, even the interpolated lane) can flip sides mid-encounter — the rows ABOVE a coin's
+   * are not clamped, so the lane's diagonal into the coin row may cross the coin's centreline
+   * inside its disc — and every side flip turned the keep-out into an escort through the coin.
+   */
+  coinPassSides: Record<string, 1 | -1>;
+  /**
+   * Ricochet off a coin: a displacement from the path, and the velocity still feeding it.
+   *
+   * Its own channel rather than `velocityX`/`collisionOffsetX` because it needs to reach much
+   * further than either is allowed to — `velocityX` is capped at 0.28 of a lane and the collision
+   * offset at 0.26, while clearing a coin takes most of a lane. Everything here is a visual offset
+   * from the path, so the ball still arrives in the same slot.
+   */
+  coinKickX: number;
+  coinKickY: number;
+  coinKickVX: number;
+  coinKickVY: number;
+  /** Which coin last kicked this ball, and when — so the impulse fires on contact, not every step. */
+  coinKickPegKey: string;
+  coinKickTime: number;
+  /** Which side of that coin it left on. It is not allowed back across to the other one. */
+  coinKickSide: 1 | -1;
 }
 
 interface PathPoint {
@@ -131,8 +169,15 @@ interface Peg {
    */
   cx: number;
   cy: number;
-  /** Contact radius at `cx`/`cy` — the peg radius normally, the coin's drawn radius for coin pegs. */
+  /** Contact radius at `cx`/`cy` — the peg radius normally, 82% of the coin art for coin pegs. */
   hitRadius: number;
+  /**
+   * The radius the ball is not allowed inside — the peg body normally, the coin's full DRAWN radius
+   * for a coin wearing the art. Distinct from `hitRadius`, which is deliberately held to 82% of the
+   * art so a graze doesn't count as a hit: that makes it the wrong number for "is the ball inside
+   * this thing", and using it there let the ball sit 3.3px into every coin it passed.
+   */
+  solidRadius: number;
   row: number;
   col: number;
   bounceEffect: number;
@@ -174,9 +219,11 @@ export class PlinkoEngine {
 		this.onCoinPegHit = options.onCoinPegHit;
 		this.onPegBounce = options.onPegBounce;
 		this.resolveSpawnAnchor = options.resolveSpawnAnchor;
-		if (isMobile()) {
-			this.pyramidConfig.bounceAmplitude = 12;
-		}
+		// Mobile used to knock `bounceAmplitude` down to 12 here because the desktop 26 was far too
+		// tall for a phone. 12 is now the shared default (it was too tall on desktop as well — see
+		// `pyramidConfig`), so the override said exactly what the default already says. The bounce is
+		// measured in row gaps via `bounceScale`, so one number is correct at every viewport and the
+		// UA no longer needs a say in it.
 	}
 
 	async init(): Promise<void> {
@@ -350,8 +397,27 @@ export class PlinkoEngine {
   /** Centroid of the featured (coin) pegs — coin sprites are pulled toward it (visual only). */
   private featuredCentroidX = 0;
   private featuredCentroidY = 0;
-  /** How far each coin SPRITE is pulled toward the cluster centroid (0 = on its peg, 1 = at center). */
-  private static readonly COIN_CLUSTER_PULL = 0.25;
+  /**
+   * How far each coin is pulled toward the cluster centroid (0 = on its peg, 1 = at centre).
+   *
+   * This is the root of everything that made the cluster misbehave. At 0.25 it squeezed the row-3
+   * pair from their natural 29.8px apart down to 22.4px, and with a 9.8px exclusion each that left a
+   * 2.8px slot between them — 0.46 of a ball diameter. A ball could not pass without touching both
+   * sides at once, so it was funnelled, wedged and slid down onto the third coin sitting directly
+   * beneath the slot. No collision tuning fixes a corridor narrower than the thing moving through it;
+   * several rounds of trying (gap blockers, multi-pass separation) each traded one artifact for
+   * another.
+   *
+   *   pull   separation   slot      in ball diameters
+   *   0.25   22.4px       2.8px     0.46   <- a trap
+   *   0.15   25.4px       5.8px     0.94
+   *   0.10   26.8px       7.3px     1.19   <- a ball fits through cleanly
+   *   0.00   29.8px      10.3px     1.67
+   *
+   * 0.10 keeps the coins visibly grouped while leaving a slot a ball can actually take. Raising it
+   * back tightens the cluster and brings the squeeze with it.
+   */
+  private static readonly COIN_CLUSTER_PULL = 0.1;
   /** Coin diameter as a fraction of the lane spacing — scales the coins with the board at any viewport. */
   private static readonly COIN_SIZE_FACTOR = 0.9;
   /**
@@ -384,6 +450,27 @@ export class PlinkoEngine {
   private readonly pegsByRow = new Map<number, Peg[]>();
   /** The featured (coin) pegs themselves — three of them, laid out every draw pass. */
   private readonly featuredPegs: Peg[] = [];
+  /**
+   * Invisible bodies that close the slot between two coins of a row. They collide and nothing else:
+   * no art, no glow, no chime, no meter, never a bounce target.
+   *
+   * Sized to just close the corridor rather than to match a coin. A coin-sized blocker was tried and
+   * overlapped each coin by 8.4px, so a ball shoved off the blocker landed inside a coin; this one
+   * overlaps by 0.5px, small enough that the single deepest-body separation stays correct.
+   *
+   * The lane already steers balls around the cluster, but the lane is only the base position — the
+   * drift, wobble and bounce impulse riding on top of it are what put balls back in the slot.
+   */
+  private readonly coinGapBlockers: {
+    cx: number;
+    cy: number;
+    solidRadius: number;
+    key: string;
+    row: number;
+    minCx: number;
+    maxCx: number;
+  }[] = [];
+
   private featuredPegKeys = new Set<string>();
   /** Per-row regular (non-featured) pegs — precomputed so the bounce hot path avoids `.filter` allocations. */
   private readonly regularPegsByRow = new Map<number, Peg[]>();
@@ -447,6 +534,21 @@ export class PlinkoEngine {
   private static readonly MAX_STEPS_PER_FRAME = 6;
   /** Sub-step remainder carried between rendered frames so the pacing stays exact. */
   private frameStepCarryMs = 0;
+  /**
+   * The simulation's OWN clock, advanced by exactly FIXED_STEP_MS per physics sub-step.
+   *
+   * Everything time-shaped in a drop — the peg-hop arc, the bounce cooldown, peg glow, slot bounces,
+   * the coin chime dedupe — is timestamped from this rather than from `Date.now()`. The two are not
+   * interchangeable: the path advances in whole fixed steps, so on any frame the sim can't fully
+   * catch up (a GC pause, a slow device, `MAX_STEPS_PER_FRAME` capping a long hitch at 100ms) the
+   * wall clock runs ahead of the simulated one and never gives the time back. A hop timed off the
+   * wall clock would then be declared finished while the ball was still mid-row: the arc collapses,
+   * the ball snaps flat onto the path and slides into the next peg without ever hopping — the
+   * "phasing through a peg" case, and it shows up exactly on the devices least able to absorb it.
+   * Tied to the step count instead, an arc always spans the path distance it was cut to, however
+   * badly the frames are landing.
+   */
+  private simClockMs = 0;
   /** Smoothed cost of a rendered frame, used to shed effect work when the device is struggling. */
   private smoothedFrameMs = 1000 / 60;
   /** Below ~45fps: halve the effect-layer redraw rate and drop the balls' inner highlights. */
@@ -565,6 +667,17 @@ export class PlinkoEngine {
   /** Emergence finishes once the ball has fallen this many of its own radii clear of the mouth. */
   private static readonly EMERGE_FALL_RADII = 2.4;
   private frameTick = 0;
+  /**
+   * Set when a peg was struck during this frame's physics steps, cleared once it has been drawn.
+   *
+   * The effect layers are thinned to every 2nd or 3rd frame under load (`effectInterval`), which is
+   * the right trade for glow DECAY — nobody reads a fade at that resolution. It is the wrong trade
+   * for the frame a peg is first lit: that one is the hit cue, and delaying it by up to two frames
+   * (~33ms at 60fps, ~80ms on a struggling device) is felt directly as the peg reacting late, on
+   * exactly the devices and the multi-ball bursts where it is already worst. Lighting up is never
+   * skipped; only the fade afterwards is.
+   */
+  private pegContactPending = false;
   private slotLabelFontSize = 14;
   private slotLabelLetterSpacingPx = 0;
   private slotLabelStrokeWidth = 1;
@@ -629,8 +742,17 @@ export class PlinkoEngine {
 
   /**
    * `pegSpacing` (px) reference that sets the peg-bounce height. The bounce arc peak is
-   * `bounceAmplitude / BOUNCE_REFERENCE_SPACING` of a row gap (~0.33 of a gap on desktop),
-   * constant across viewports. LOWER this to bounce higher, raise it to bounce lower.
+   * `bounceAmplitude / BOUNCE_REFERENCE_SPACING` of a row gap — 18/30 = 0.60 — and that ratio holds
+   * at every viewport. LOWER this to bounce higher, raise it to bounce lower.
+   *
+   * The ceiling worth respecting: the ball's TOP at the peak is `peak * 1.14 + ballRadius` (the 1.14
+   * is the per-ball `bounceHeightMultiplier`), and once that passes `pegSpacing - pegRadius` the ball
+   * visibly bounces back up into the row it just came from. On a desktop board that caps the peak at
+   * about 0.62 of a gap; 0.40 sits comfortably under it.
+   *
+   * Prefer changing `bounceAmplitude` for height alone — this constant is the denominator for the
+   * hop's lateral drift, wobble and impulse too, so moving it retunes the whole bounce, not just how
+   * high it goes.
    */
   private static readonly BOUNCE_REFERENCE_SPACING = 30;
 
@@ -651,6 +773,83 @@ export class PlinkoEngine {
   private static readonly NORMAL_ANIMATION_SPEED = 0.7;
   /** Floor on the speed-compressed bounce duration so a fast-mode hop stays long enough to read. */
   private static readonly MIN_FAST_BOUNCE_MS = 90;
+  /**
+   * Ceiling on a row-fitted hop (`fitHopToRow`). Only reachable under a heavy slow-motion
+   * dev override, where a row can take seconds; it stops one arc from stretching past the point
+   * where the sine still reads as a bounce.
+   */
+  private static readonly MAX_HOP_MS = 1400;
+
+  /**
+   * Coin ricochet (see `coinKickX` on Ball). Departure speed is a fraction of the coin's own contact
+   * reach, so it scales with the board; the velocity decay sets how far the ball actually gets, and
+   * the offset decay eases it back onto its lane afterwards. The side bias is what turns a
+   * straight-up normal into a sideways departure.
+   *
+   * 0.3 is the first value that gets the ball completely OFF the coin. Measured as the number of
+   * steps the non-penetration constraint still has to fire after contact — every one of those is a
+   * step spent being projected back onto the coin's surface, which is the slide:
+   *
+   *   kick   0     0.135   0.2   0.25   0.3   0.4
+   *   normal 19    9       6     2      0     0
+   *   fast   8     6       2     0      0     0
+   *
+   * It throws the ball ~20px sideways and ~23px up at the peak, against a 40px lane and a 39px row
+   * — a firm ricochet that still lands inside its own lane. 0.4 also reads as clean but flings it a
+   * full lane, which starts to look like the ball was hit by something rather than that it bounced.
+   */
+  private static readonly COIN_KICK_SPEED = 0.3;
+  private static readonly COIN_KICK_VELOCITY_DECAY = 0.86;
+  private static readonly COIN_KICK_OFFSET_DECAY = 0.94;
+  private static readonly COIN_KICK_SIDE_BIAS = 0.9;
+  /**
+   * How long before the SAME coin may kick the same ball again. Long enough that a ball held against
+   * a coin for a few steps is kicked once rather than accelerated every step, short enough that a
+   * ball which genuinely comes back to it is answered again.
+   */
+  private static readonly COIN_KICK_RECONTACT_MS = 260;
+  /**
+   * Extra room, in ball radii, that a lane routed AROUND the coin cluster leaves beyond the coins'
+   * drawn edge. Without it the detour rides the cluster's outline and clips a coin on the way past.
+   */
+  private static readonly COIN_CLUSTER_LANE_MARGIN = 0.6;
+  /**
+   * How wide the slot between two coins must be, in ball radii, before it counts as a real route and
+   * is left open rather than plugged. At the current cluster the slot is 1.19 ball diameters, so it
+   * is plugged for every ball except the one whose coin sits below it.
+   */
+  private static readonly COIN_GAP_PASSABLE_BALLS = 2;
+  /**
+   * Extra standoff, in ball radii, that a ball carrying NO coin credit keeps from every coin.
+   *
+   * The RGS decides which balls hit a coin (`hitBonusPeg`); everyone else's lane is routed clear of
+   * the cluster — but the offsets riding on the lane (bounce impulse, wobble, ball-to-ball push) can
+   * still drift a ball onto a coin's rim, where it used to take the same ricochet as a paying hit.
+   * The pad holds those balls a visible hair off the art, so the closest a non-paying ball can come
+   * is a near miss. Credit balls keep the exact geometry: their coin is a real contact, and the one
+   * routed down the slot between the row-3 pair needs the corridor's full 1.19-ball width.
+   */
+  private static readonly COIN_AVOID_PAD_BALLS = 0.35;
+  /**
+   * How much of its own position a ball KEEPS when a peg contact settles it toward the contact
+   * point. 0 would teleport it onto the peg; 1 would leave it untouched. 0.75 is a nudge.
+   */
+  private static readonly PEG_SETTLE_KEEP = 0.75;
+  /**
+   * How far past true ball-to-peg contact the DEADLINE bounce may still fire, as a multiple of
+   * `ballRadius + hitRadius`. Constant in pixels, which is the point: the reach it caps used to be
+   * half a lane, and lanes widen toward the bottom of the board, so bounces fired further off-column
+   * the lower the ball got. Swept live across 8-ball samples:
+   *
+   *   cap        missed bounces   mean offset (bottom rows)   worst offset
+   *   uncapped   3 / 96           3.1px, climbing to 4.4      8.5px
+   *   1.00x      23 / 96          1.9px                       6.4px
+   *   1.35x      2 / 48           2.2px, flat                 5.2px
+   *
+   * 1.0 is geometrically pure and silences a quarter of the pegs; 1.35 keeps them all and still
+   * holds the worst case to about the touching distance.
+   */
+  private static readonly DEADLINE_REACH_SLACK = 1.35;
 
   /**
    * How many times faster than NORMAL play the sim is running (1 in normal, ~3.4 in Fast Game mode
@@ -917,7 +1116,21 @@ export class PlinkoEngine {
     gravityEffect: 0.00102,
     maxSpeed: 0.047,
     minSpeed: 0.0012,
-    bounceAmplitude: 26,
+    // Peg-hop height. The arc peak is `bounceAmplitude / BOUNCE_REFERENCE_SPACING` of a row gap, so
+    // 14/30 = 0.47 of a gap — about 18.3px against a 39.2px desktop row.
+    //
+    // Was 26, which put the peak at 0.87 of a gap. Adding the ball's own radius, the top of the ball
+    // reached 48px above the peg it had just hit while the row above sits only 39.2px up: at the top
+    // of every hop the ball overlapped the previous peg row by ~14px, which is what read as the
+    // bounce being too tall.
+    //
+    // 16 was the ceiling under a strict "never overlap the row above" rule: the ball's highest pixel
+    // is `peak * 1.14 + ballRadius` (`bounceHeightMultiplier` tops out at 1.14), and 16 lands that
+    // about level with the peg row above. 18 pushes roughly 1px past it on the tallest hops a ball
+    // can produce — about a fifth of a peg radius, and balls draw OVER pegs (`ballsGraphics` is the
+    // last layer), so it reads as the ball passing in front of the upper peg rather than clipping
+    // into it. 26, for contrast, overlapped by 14px and that is what looked wrong.
+    bounceAmplitude: 18,
     bounceFrequency: 0.05,
     horizontalDrift: 0.4,
     slotAnimationDuration: 600,
@@ -1819,6 +2032,7 @@ export class PlinkoEngine {
           cx: pegX,
           cy: rowY,
           hitRadius: this.pegRadius,
+          solidRadius: this.pegRadius,
           row,
           col,
           bounceEffect: 0,
@@ -1849,6 +2063,7 @@ export class PlinkoEngine {
     this.featuredRowsSet.clear();
     this.clusterSpanByRow.clear();
     this.featuredPegs.length = 0;
+    this.coinGapBlockers.length = 0;
     // Peg coordinates and radius have just been recomputed, so the cached idle bodies are stale.
     this.pegStaticDirty = true;
 
@@ -1862,6 +2077,7 @@ export class PlinkoEngine {
       peg.cx = peg.x;
       peg.cy = peg.y;
       peg.hitRadius = pegRadius;
+      peg.solidRadius = pegRadius;
       if (peg.isFeatured) {
         this.featuredPegs.push(peg);
         this.featuredRowsSet.add(peg.row);
@@ -1890,6 +2106,39 @@ export class PlinkoEngine {
       // The coin art is far wider than a peg body, so it needs the matching contact disc — otherwise
       // the ball only ever "touches" a peg-sized dot at the middle of a much larger coin.
       peg.hitRadius = Math.max(pegRadius, coinRadius * PlinkoEngine.COIN_HIT_RADIUS_FACTOR);
+      // The ball may not be drawn inside the ART, which is the full coin — a fifth wider than the
+      // 82% contact disc above.
+      peg.solidRadius = Math.max(pegRadius, coinRadius);
+    }
+
+    // Close the slot between neighbouring coins of a row, sized to the corridor that is actually
+    // there — just enough that a ball centre cannot fit down the middle.
+    const coinsByRow = new Map<number, Peg[]>();
+    for (const peg of this.featuredPegs) {
+      const list = coinsByRow.get(peg.row);
+      if (list) list.push(peg);
+      else coinsByRow.set(peg.row, [peg]);
+    }
+    for (const [gapRow, rowCoins] of coinsByRow) {
+      if (rowCoins.length < 2) continue;
+      rowCoins.sort((a, b) => a.cx - b.cx);
+      for (let i = 1; i < rowCoins.length; i++) {
+        const left = rowCoins[i - 1];
+        const right = rowCoins[i];
+        const halfCorridor =
+          (right.cx - left.cx - (left.solidRadius + right.solidRadius) - this.ballRadius * 2) / 2;
+        // Already wide enough for a ball to pass cleanly: leave it as a real route.
+        if (halfCorridor > this.ballRadius * PlinkoEngine.COIN_GAP_PASSABLE_BALLS) continue;
+        this.coinGapBlockers.push({
+          cx: (left.cx + right.cx) / 2,
+          cy: (left.cy + right.cy) / 2,
+          solidRadius: Math.max(0.1, halfCorridor - this.ballRadius + 0.5),
+          key: `gap:${gapRow}:${i}`,
+          row: gapRow,
+          minCx: left.cx,
+          maxCx: right.cx,
+        });
+      }
     }
 
     for (const [row, rowPegs] of this.pegsByRow) {
@@ -1931,16 +2180,167 @@ export class PlinkoEngine {
    * approach to the row-5 coin passes right between the row-3 pair — and for a wide band of starting
    * lanes it passed straight through one of them.
    */
-  private clampLaneClearOfCoins(row: number, laneX: number, allow: Peg | null): number {
+  private clampLaneClearOfCoins(
+    row: number,
+    laneX: number,
+    allow: Peg | null,
+    headingX?: number,
+  ): number {
     let x = laneX;
+    /** Whether a coin moved the lane, so the peg-column snap at the end knows to run. */
+    let movedForCoin = false;
+
+    // Clear the whole CLUSTER, not each coin on its own.
+    //
+    // The row-3 pair sits 22.4px apart with a 9.8px exclusion each, so the corridor between them is
+    // 2.8px wide — for a ball 6.1px across. Per-coin clearance is satisfied at the midpoint, so this
+    // clamp was free to drop a lane straight down that slot, where the ball is pinned by one coin,
+    // shoved into the other, and pinned again: the shake. And the row-5 coin sits at exactly the gap
+    // centre, so anything that does thread it falls straight onto a third coin.
+    //
+    // `planSmoothFeaturedAvoidance` already routes around the cluster on one flank, but this runs
+    // last and was undoing it. Skipped when the ball is MEANT to hit a coin in this row (`allow`),
+    // which is the one case that has business being in there.
+    // Deliberately this row only.
+    //
+    // A coin's exclusion disc does reach ~0.76 of a row above and below its own, so extending this
+    // to the neighbouring rows looks right on paper — and measured far worse on a live drop: lane
+    // detours of 45px on a 6.1px ball, and contact with a coin going from 4 frames to 17. Forcing
+    // three consecutive rows out to the cluster's edge and then releasing the fourth zigzags the
+    // lane, and the ball is thrown across the board between rows. The per-row clamp plus the
+    // in-flight separation is the combination that measured best.
+    const clusterSpan = this.getFeaturedClusterSpan(row);
+    const allowInRow = allow != null && allow.row === row;
+    // The ball whose designated coin sits BELOW this row, inside this row's span, goes THROUGH the
+    // row — the gap between this row's coins is the only way onto its coin, and it is meant to be
+    // there. Without this the cluster detour below shoved exactly that ball out to a flank, and it
+    // reached the bottom coin by cutting back across sideways instead of dropping through the gap.
+    const allowBelowInSpan =
+      allow != null &&
+      allow.row > row &&
+      clusterSpan != null &&
+      allow.cx > clusterSpan.minX &&
+      allow.cx < clusterSpan.maxX;
+    if (clusterSpan && !allowInRow && !allowBelowInSpan) {
+      // Plus a margin, or the lane is parked exactly on the cluster's edge and every ball routed
+      // past it grazes a coin on the way by (measured: 10 of 10 balls touching). The detour should
+      // clear the coins, not trace them.
+      const margin = this.ballRadius * PlinkoEngine.COIN_CLUSTER_LANE_MARGIN;
+      const left = clusterSpan.minX - this.ballRadius - margin;
+      const right = clusterSpan.maxX + this.ballRadius + margin;
+      if (x > left && x < right) {
+        const preferRight =
+          headingX == null ? x - left >= right - x : headingX >= (left + right) / 2;
+        x = preferRight ? right : left;
+        movedForCoin = true;
+      }
+    }
+
+    // The gap BETWEEN two coins of a row is not a route, and this holds even for a ball that is
+    // meant to hit a coin in this row — `allowInRow` above waives the cluster detour for those, and
+    // that waiver was leaving the slot wide open to exactly the balls most likely to be aimed near
+    // it. A ball headed for one of the top coins should reach it from the outside.
+    //
+    // The single exception is the ball whose designated coin sits BELOW the gap: the lower coin is
+    // directly under the slot, so threading it is the only way in, and that ball is supposed to be
+    // there. Everyone else goes round.
+    const rowCoins = this.featuredPegs
+      .filter((p) => p.row === row)
+      .sort((a, b) => a.cx - b.cx);
+    for (let i = 1; i < rowCoins.length; i++) {
+      const left = rowCoins[i - 1];
+      const right = rowCoins[i];
+      if (x <= left.cx || x >= right.cx) continue;
+      // One exception, matching the one the in-flight plug makes (`coinGapBlockers`): the ball whose
+      // coin sits BELOW this slot is routed through it, because that is the only way in and it is
+      // meant to be there. Keeping the two rules in agreement matters — with the lane steering that
+      // ball around the cluster while the plug let it through, it spent the approach being pulled
+      // two ways, which is the "acts weird near the coins" behaviour.
+      const targetIsBelowThisGap =
+        allow != null && allow.row > row && allow.cx > left.cx && allow.cx < right.cx;
+      if (targetIsBelowThisGap) continue;
+      const margin = this.ballRadius * PlinkoEngine.COIN_CLUSTER_LANE_MARGIN;
+      const outLeft = left.cx - left.solidRadius - this.ballRadius - margin;
+      const outRight = right.cx + right.solidRadius + this.ballRadius + margin;
+      // Leave on the side it is heading for, so the detour is the shorter one and the ball is not
+      // sent back across the board — same reasoning as the per-coin clamp below.
+      const goRight =
+        headingX == null ? x - left.cx >= right.cx - x : headingX >= (left.cx + right.cx) / 2;
+      x = goRight ? outRight : outLeft;
+      movedForCoin = true;
+    }
+
     for (let i = 0; i < this.featuredPegs.length; i++) {
       const peg = this.featuredPegs[i];
       if (peg.row !== row || peg === allow) continue;
-      const clearance = peg.hitRadius + this.ballRadius;
+      // Clear the coin's DRAWN edge, not its 82% contact disc: a lane planned to just clear
+      // `hitRadius` still put the ball 3.3px inside the visible coin, which is the near-miss that
+      // looks like a hit and plays no sound.
+      const clearance = peg.solidRadius + this.ballRadius;
       const dx = x - peg.cx;
       if (Math.abs(dx) >= clearance) continue;
-      x = dx >= 0 ? peg.cx + clearance : peg.cx - clearance;
+      // Detour on the side the lane is HEADING, not merely the nearer one.
+      //
+      // Nearest-side is what put a ball on a coin's right shoulder while its lane was bound for a
+      // peg on the left. Contact then says one thing and the path says the opposite: the ball is
+      // deflected right, the lane hauls it left, and it spends 7-10 frames being scraped across the
+      // coin's face between the two. Approaching on the side it is already going to leave on turns
+      // the same contact into a clean touch-and-go (measured: 0 frames of contact at every landing
+      // offset, against 7-10 the other way). Costs up to ~20px more lane detour in the cases where
+      // the two disagree, which is inside what this clamp was already free to move.
+      const side =
+        headingX == null ? (dx >= 0 ? 1 : -1) : headingX >= peg.cx ? 1 : -1;
+      x = peg.cx + side * clearance;
+      movedForCoin = true;
     }
+
+    // Land the detour ON a peg, not in the space beside the coin.
+    //
+    // Everything above places the lane at a distance set by the COIN's size, and a coin is not the
+    // same width as a lane — so the lane ends up parked between the coin and the next real peg. On
+    // the lower coin's row that lands it at 130.3 with the nearest peg at 135.4: 5.13px away against
+    // a 5.07px touching reach, so the ball bounced from just past contact every single time. It is
+    // the worst offset on the board (4.98px measured, where every other row is under 3px) and it is
+    // entirely self-inflicted by this clamp.
+    //
+    // Snapping to the nearest peg column that still clears every coin costs a little more detour and
+    // puts the ball on something real.
+    //
+    // Applies to EVERY row carrying a coin, not only rows this clamp happened to move. Gating it on
+    // the clamp firing barely helped (4.98px -> 4.72px) because on a coin row the lane is usually
+    // placed by `planSmoothFeaturedAvoidance` routing around the cluster, which lands wherever the
+    // flank happens to be rather than on a peg column — so the clamp never ran and the snap never
+    // got its turn. Skipped when the ball is meant to HIT a coin in this row: its lane belongs on
+    // the coin, not on the peg next to it.
+    // ...and not for the gap-threading ball either: its lane belongs mid-corridor, and the nearest
+    // "clear" column is a flank peg two lanes out — snapping there is the detour all over again.
+    const targetsCoinInThisRow = allow != null && allow.row === row;
+    if ((movedForCoin || this.rowHasFeaturedPeg(row)) && !targetsCoinInThisRow && !allowBelowInSpan) {
+      const regular = this.regularPegsByRow.get(row);
+      if (regular?.length) {
+        let bestX: number | null = null;
+        let bestDist = Infinity;
+        for (const candidate of regular) {
+          let clearsCoins = true;
+          for (let i = 0; i < this.featuredPegs.length; i++) {
+            const coin = this.featuredPegs[i];
+            if (coin.row !== row || coin === allow) continue;
+            if (Math.abs(candidate.cx - coin.cx) < coin.solidRadius + this.ballRadius) {
+              clearsCoins = false;
+              break;
+            }
+          }
+          if (!clearsCoins) continue;
+          const dist = Math.abs(candidate.cx - x);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestX = candidate.cx;
+          }
+        }
+        if (bestX != null) x = bestX;
+      }
+    }
+
     return x;
   }
 
@@ -1951,7 +2351,8 @@ export class PlinkoEngine {
       if (peg.row !== row) continue;
       const dx = x - peg.cx;
       const dy = y - peg.cy;
-      const reach = peg.hitRadius + this.ballRadius;
+      // Overlapping the coin ART counts as touching it — same reason as `clampLaneClearOfCoins`.
+      const reach = peg.solidRadius + this.ballRadius;
       if (dx * dx + dy * dy <= reach * reach) return peg;
     }
     return null;
@@ -2123,7 +2524,34 @@ export class PlinkoEngine {
     const lastRow = this.rows - 1;
     if (lastRow < 1) return offsets;
 
-    const residual = targetX - (lane[lastRow] ?? targetX);
+    // Converge onto the PEG COLUMN nearest the slot, not onto the slot centre itself.
+    //
+    // There are 17 pegs across the last row and 15 slots, so slot centres do not line up with peg
+    // columns — driving the lane all the way to `targetX` by the last peg row parks it in the GAP
+    // between two pegs. Measured on a live drop: every ball that lost its final bounce was 7.2-7.4px
+    // from the nearest row-11 peg against a 7.46px half-lane, i.e. dead centre of the gap with
+    // correctly nothing to hit, and 3 of 7 balls ended their last bounce on row 10 instead of 11.
+    // That reads both as the ball passing straight through the last peg and as the bounce dying out
+    // toward the bottom of the board.
+    //
+    // The leftover lateral travel is covered by the final path segment (last peg -> slot), which is
+    // ~2.3 rows long and carries no peg of its own, so the slot the ball lands in is untouched.
+    const lastRowPegs = this.pegsByRow.get(lastRow);
+    let convergeX = targetX;
+    if (lastRowPegs?.length) {
+      let bestX = lastRowPegs[0].cx;
+      let bestDist = Infinity;
+      for (const peg of lastRowPegs) {
+        const dist = Math.abs(peg.cx - targetX);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestX = peg.cx;
+        }
+      }
+      convergeX = bestX;
+    }
+
+    const residual = convergeX - (lane[lastRow] ?? convergeX);
     if (!residual) return offsets;
 
     const startRow = Math.max(0, lastRow - PlinkoEngine.TARGET_CONVERGE_ROWS);
@@ -2382,17 +2810,32 @@ export class PlinkoEngine {
     const targetRow = featuredTarget.row;
     if (targetRow < 0 || targetRow >= this.rows) return offsets;
 
-    const rampRows = Math.min(5, Math.max(3, targetRow));
-    const easeInStart = Math.max(0, targetRow - rampRows);
+    // A coin that sits under the GAP of a higher coin row (the bottom coin, under the row-3 pair)
+    // is reached THROUGH that gap: the lane must already be dead on the target's column when it
+    // crosses the pair, then run straight down onto the coin. So the ramp finishes at the gap row
+    // rather than at the target row, and the rows between hold weight 1 — the visible result is
+    // the ball threading the slot between the top coins and dropping onto the bottom one. For a
+    // top-row coin no higher row qualifies and this reduces to the original ramp exactly.
+    let holdFromRow = targetRow;
+    for (let row = 0; row < targetRow; row++) {
+      const span = this.getFeaturedClusterSpan(row);
+      if (span && featuredTarget.cx > span.minX && featuredTarget.cx < span.maxX) {
+        holdFromRow = row;
+        break;
+      }
+    }
+
+    const rampRows = Math.min(5, Math.max(3, holdFromRow));
+    const easeInStart = Math.max(0, holdFromRow - rampRows);
     const easeOutEnd = Math.min(this.rows - 1, targetRow + rampRows);
 
     for (let row = 0; row < this.rows; row++) {
       let weight = 0;
       if (row < easeInStart) {
         weight = 0;
-      } else if (row < targetRow) {
-        weight = this.smoothstep((row - easeInStart) / Math.max(1, targetRow - easeInStart));
-      } else if (row === targetRow) {
+      } else if (row < holdFromRow) {
+        weight = this.smoothstep((row - easeInStart) / Math.max(1, holdFromRow - easeInStart));
+      } else if (row <= targetRow) {
         weight = 1;
       } else if (row <= easeOutEnd) {
         weight = 1 - this.smoothstep((row - targetRow) / Math.max(1, easeOutEnd - targetRow));
@@ -2560,6 +3003,25 @@ export class PlinkoEngine {
     const targetSlot = this.slots[targetIndex];
     const targetX = targetSlot.centerX;
 
+    // A pocket whose centre sits directly under a bottom-row peg cannot take a straight vertical
+    // finish. Only the SPIN pocket qualifies: its centre is the board centre, which is exactly the
+    // middle peg's column on the 17-peg bottom row (every other pocket centre lands 0.5+ lanes from
+    // the nearest column). `planTargetConvergence` parks the lane on that very peg, and the landing
+    // point used to be the pocket centre — the same column — so the last bounce got `travelDir 0`
+    // and the ball fell VERTICALLY off the crown, straight through the peg's body, into the pocket.
+    // The fix is the landing point alone: it moves half a lane to one side, which turns the last
+    // bounce into a shoulder hit that deflects the ball past the peg — the arc holds it above the
+    // crown while the lane easing carries it off the column, so the descent clears the body. The
+    // pocket mouth is ~2 lanes wide, so a half-lane entry point is still comfortably inside it.
+    const lastRowIndex = this.rows - 1;
+    let finishGuardPeg: Peg | null = null;
+    for (const peg of this.pegsByRow.get(lastRowIndex) ?? []) {
+      if (Math.abs(peg.cx - targetX) < peg.solidRadius + this.ballRadius) {
+        finishGuardPeg = peg;
+        break;
+      }
+    }
+
     // Turn split from the slot's ACTUAL x, not a proportional index mapping. The pockets are neither
     // evenly spaced (the centre one is 1.95× wide) nor confined to the walk's reach — 12 rows of
     // half-spacing steps only span ±6 spacings, while the outer slot centres sit at ±7.69 — so the
@@ -2633,6 +3095,21 @@ export class PlinkoEngine {
       ),
     );
 
+    // Where the ball actually comes to rest. Identical to the pocket centre except over a guard
+    // peg, where it sits half a lane to one side — mid-gap between the guard peg and its
+    // neighbour, clear of both, still well inside the pocket mouth. The side draw only runs for
+    // guarded pockets, so every other ball's deterministic random stream is untouched.
+    let landingX = targetX;
+    if (finishGuardPeg) {
+      const side = nextRandom() < 0.5 ? -1 : 1;
+      const halfLane = this.pegSpacingXForRow(lastRowIndex) / 2;
+      const halfMouth = Math.max(0, targetSlot.width / 2 - this.ballRadius * 1.4);
+      const clearance = finishGuardPeg.solidRadius + this.ballRadius * 1.15;
+      // The mouth cap wins over the clearance floor: coming to rest inside the PAID pocket is the
+      // one thing the landing may never trade away.
+      landingX = finishGuardPeg.cx + side * Math.min(halfMouth, Math.max(clearance, halfLane));
+    }
+
     const featuredTarget = pathOptions?.hitBonusPeg
       ? this.pickFeaturedPegForPath(pathOptions.pathSeed)
       : null;
@@ -2677,13 +3154,21 @@ export class PlinkoEngine {
       return {
         // Last word on the lane: whatever the plans and the convergence ramp worked out, the ball
         // may not be routed through a coin it is not meant to hit.
-        lane: coinLane.map((laneX, row) =>
-          this.clampLaneClearOfCoins(
+        lane: coinLane.map((laneX, row) => {
+          // Where this lane goes NEXT, so a coin detour is taken on the side the ball is already
+          // leaving toward rather than merely the nearer one — see `clampLaneClearOfCoins`.
+          const nextRow = row + 1;
+          const headingX =
+            nextRow < coinLane.length
+              ? (coinLane[nextRow] ?? targetX) + (converge[nextRow] ?? 0)
+              : landingX;
+          return this.clampLaneClearOfCoins(
             row,
             this.clampLaneToRow(row, laneX + (converge[row] ?? 0), targetX),
             featuredTarget,
-          ),
-        ),
+            headingX,
+          );
+        }),
         flanks,
       };
     };
@@ -2772,7 +3257,7 @@ export class PlinkoEngine {
           ? featuredTarget.cx
           : row + 1 < this.rows
             ? (shapedLane[row + 1] ?? targetX)
-            : targetX;
+            : landingX;
       const pegX = closestPeg?.cx ?? pathX;
       const travelDir =
         bounceIntensity > 0 ? this.resolveTravelDir(pegX, nextLookaheadX, targetX) : 0;
@@ -2788,7 +3273,7 @@ export class PlinkoEngine {
     }
 
     path.push({
-      x: targetX,
+      x: landingX,
       y: targetSlot.y + this.slotHeight / 2,
       row: this.rows,
       closestPeg: null,
@@ -2831,6 +3316,18 @@ export class PlinkoEngine {
       dropOptions?.pathSeed != null ? dropOptions.pathSeed * 7919 + targetIndex : undefined;
     const traits = this.createBallVariationTraits(traitSeed);
 
+    // Freeze which side of every coin body this ball passes on, read off the plan's own row
+    // positions (already clamped clear of the coins). See `coinPassSides` on Ball.
+    const coinPassSides: Record<string, 1 | -1> = {};
+    for (const coin of this.featuredPegs) {
+      const rowPoint = path.find((p) => p.row === coin.row);
+      if (rowPoint) coinPassSides[coin.key] = rowPoint.x >= coin.cx ? 1 : -1;
+    }
+    for (const blocker of this.coinGapBlockers) {
+      const rowPoint = path.find((p) => p.row === blocker.row);
+      if (rowPoint) coinPassSides[blocker.key] = rowPoint.x >= blocker.cx ? 1 : -1;
+    }
+
     const ball: Ball = {
       id: this.nextBallId++,
       x: path[0].x,
@@ -2856,6 +3353,7 @@ export class PlinkoEngine {
       isInBounce: false,
       bounceStartTime: 0,
       bounceDuration: this.pyramidConfig.bounceDuration,
+      hopSlowdownScale: 1,
       bounceTravelDir: 0,
       currentSegmentIndex: 0,
       velocityX: 0,
@@ -2876,6 +3374,15 @@ export class PlinkoEngine {
       bounceCarryY: 0,
       collisionOffsetX: 0,
       collisionOffsetY: 0,
+      laneBaseX: path[0].x,
+      coinPassSides,
+      coinKickX: 0,
+      coinKickY: 0,
+      coinKickVX: 0,
+      coinKickVY: 0,
+      coinKickPegKey: '',
+      coinKickTime: Number.NEGATIVE_INFINITY,
+      coinKickSide: 1,
       ...traits,
     };
 
@@ -2922,9 +3429,9 @@ export class PlinkoEngine {
     } else {
       this.hiddenStepCarryMs = elapsedMs - steps * PlinkoEngine.FIXED_STEP_MS;
     }
-    const now = Date.now();
     for (let i = 0; i < steps && this.isAnimating; i++) {
-      this.stepPhysics(now - (steps - 1 - i) * PlinkoEngine.FIXED_STEP_MS);
+      this.simClockMs += PlinkoEngine.FIXED_STEP_MS;
+      this.stepPhysics(this.simClockMs);
       this.retireFinishedBalls();
     }
   }
@@ -2958,15 +3465,15 @@ export class PlinkoEngine {
     );
     if (steps === 0) return;
 
-    const frameTime = Date.now();
     for (let i = 0; i < steps && this.isAnimating; i++) {
-      // Bounce arcs, peg glows and slot bounces are all wall-clock timed, so each sub-step gets its
-      // own instant. Handing four sub-steps of one throttled frame the same `now` would desync the
-      // hops from the path advance they belong to — the ball would slide between pegs.
-      this.stepPhysics(frameTime - (steps - 1 - i) * PlinkoEngine.FIXED_STEP_MS);
+      // Each sub-step gets its own instant on the SIM clock: bounce arcs, peg glows and slot
+      // bounces are all timestamped from it, so handing several sub-steps of one throttled frame
+      // the same instant would desync the hops from the path advance they belong to.
+      this.simClockMs += PlinkoEngine.FIXED_STEP_MS;
+      this.stepPhysics(this.simClockMs);
     }
 
-    this.drawFrame(frameTime);
+    this.drawFrame(this.simClockMs);
     this.retireFinishedBalls();
   }
 
@@ -3030,8 +3537,44 @@ export class PlinkoEngine {
         if (segmentIndex < pathLength - 1) {
           const pointA = ball.path[segmentIndex];
           const pointB = ball.path[segmentIndex + 1];
-          const laneT = this.easeSmoothstep(segmentFraction);
-          const fallT = this.easeInQuad(segmentFraction);
+          // Finish the sideways move by the time the ball meets the peg's CROWN, not its centre.
+          //
+          // Contact happens where the crown is — about 0.86 of the way down a segment — but the lane
+          // transition was still only ~94.5% complete there, so the ball bounced a systematic 0.8px
+          // SHORT of the peg column, always on the trailing side. Unlike the random terms
+          // (`velocityX`, `laneOffsetX`) this one is a bias in a fixed direction, so it reads as the
+          // ball never quite landing on the peg. Compressing the transition into the part of the
+          // segment that ends at the crown puts the ball on the peg's column at the moment it
+          // arrives, and holds it there for the short remainder.
+          const crownFraction = Math.max(
+            0.5,
+            1 - (this.pegRadius * 0.92) / Math.max(1, this.pegSpacing)
+          );
+          const laneT = this.easeSmoothstep(Math.min(1, segmentFraction / crownFraction));
+          // Vertical easing is chosen PER SEGMENT, and this is the single biggest thing separating
+          // the descent from a real one.
+          //
+          // `easeInQuad` restarts at zero on every segment, so the ball's fall rate is reset to a
+          // standstill at every peg row and has to build again. Sampled off a live drop, the
+          // per-frame fall through one peg read:
+          //
+          //   ... 2.07  2.22  2.36  2.50 | 0.49  0.24 | 0.45  0.66  0.86 ...
+          //
+          // — accelerating cleanly, then collapsing to a fiftieth of its speed and starting over.
+          // The incoming velocity is simply discarded at the boundary. Twelve of those on the way
+          // down is the shake, and no amount of tuning the bounce hides it, because it is the BASE
+          // path stuttering underneath the bounce.
+          //
+          // On a segment the ball hops across, the arc already supplies the vertical curve — a
+          // linear base plus a sine arc is, to within the shape of the arc, projectile motion, and
+          // its velocity is continuous across the boundary (the only jump is the arc reversing,
+          // which is exactly what a bounce is). Segments with no hop under them — the entry fall
+          // from the skull and the long final drop into the slot — keep `easeInQuad`, because there
+          // the ball genuinely is in free fall and should accelerate.
+          const segDeltaY = Math.abs(pointB.y - pointA.y);
+          const hopsThisSegment =
+            pointA.bounceIntensity > 0 && segDeltaY <= this.pegSpacing * 1.5;
+          const fallT = hopsThisSegment ? segmentFraction : this.easeInQuad(segmentFraction);
           baseX = pointA.x + (pointB.x - pointA.x) * laneT;
           baseY = pointA.y + (pointB.y - pointA.y) * fallT;
         } else {
@@ -3039,6 +3582,7 @@ export class PlinkoEngine {
           baseX = lastPoint.x;
           baseY = lastPoint.y;
         }
+        ball.laneBaseX = baseX;
 
         if (ball.isInBounce) {
           const bounceElapsed = currentTime - ball.bounceStartTime;
@@ -3052,8 +3596,9 @@ export class PlinkoEngine {
               baseX +
               ball.velocityX * this.pyramidConfig.laneCentering +
               ball.laneOffsetX +
-              ball.collisionOffsetX;
-            ball.y = baseY + ball.velocityY + ball.collisionOffsetY;
+              ball.collisionOffsetX +
+              ball.coinKickX;
+            ball.y = baseY + ball.velocityY + ball.collisionOffsetY + ball.coinKickY;
           } else {
             // Whatever height the previous hop still had when this one cut it short is added on and
             // faded out across this arc, so the handover is seamless (see `bounceCarryY`).
@@ -3082,16 +3627,18 @@ export class PlinkoEngine {
               directedDrift +
               wobble +
               ball.laneOffsetX +
-              ball.collisionOffsetX;
-            ball.y = baseY + ball.velocityY - arcHeight + ball.collisionOffsetY;
+              ball.collisionOffsetX +
+              ball.coinKickX;
+            ball.y = baseY + ball.velocityY - arcHeight + ball.collisionOffsetY + ball.coinKickY;
           }
         } else {
           ball.x =
             baseX +
             ball.velocityX * this.pyramidConfig.laneCentering +
             ball.laneOffsetX +
-            ball.collisionOffsetX;
-          ball.y = baseY + ball.velocityY + ball.collisionOffsetY;
+            ball.collisionOffsetX +
+            ball.coinKickX;
+          ball.y = baseY + ball.velocityY + ball.collisionOffsetY + ball.coinKickY;
         }
 
         // Emerging from the skull: driven by distance fallen clear of the mouth rather than by a
@@ -3130,6 +3677,216 @@ export class PlinkoEngine {
     }
 
     this.resolveBallCollisions();
+    // Last thing in the step, after ball-ball separation has had its say — that writes positions
+    // directly and could otherwise shove a ball into a coin behind this constraint's back.
+    this.separateBallsFromCoins(currentTime);
+  }
+
+  /**
+   * Hard guarantee that no ball is ever drawn inside a coin.
+   *
+   * Everything above this positions the ball by ADDING offsets to a path, and that path runs through
+   * the peg rows — `path[i].y` is the row's centre line, so the ball's centre is meant to pass
+   * through each peg. For a regular peg that is fine and is what the board has always looked like:
+   * the body is 5.7px against a 9.3px ball, so the ball simply covers it. A coin is 18.1px — nearly
+   * twice the ball's radius — so the same motion draws the ball fully SWALLOWED by the coin, and
+   * then sliding back out the other side. That is the pass-through, and no amount of tuning the
+   * bounce fixes it, because the bounce only decides when to add an arc, not where the surface is.
+   *
+   * So state the constraint directly instead: a ball's centre may never be nearer a coin's centre
+   * than `solidRadius + ballRadius`. Any ball inside is pushed back out along the contact normal,
+   * which is also what makes it ride over the coin's shoulder rather than through it — the "slides
+   * off the coin" read. Applies to coins only, deliberately: extending it to regular pegs would lift
+   * the ball off every peg centre on the board and change the whole descent.
+   *
+   * Only three coins exist, and the row test rejects almost every pair immediately.
+   */
+  private separateBallsFromCoins(currentTime: number): void {
+    if (!this.featuredPegs.length) return;
+    const ballRadius = this.ballRadius;
+    for (let b = 0; b < this.balls.length; b++) {
+      const ball = this.balls[b];
+      if (!ball.isDropping || ball.scale <= 0) continue;
+
+      // Resolve against ONE coin per step — the one the ball is deepest into.
+      //
+      // Pushing it out of every coin in sequence is what made it shake: clearing the left coin drove
+      // it into the right one, whose push drove it back, and the rendered position was whichever
+      // contradiction the loop ended on. With the cluster no longer squeezed (COIN_CLUSTER_PULL),
+      // the coins do not overlap each other and one contact per step is both stable and sufficient.
+      // The one ball allowed down a slot is the one whose coin sits BELOW it — that is the only way
+      // in, and it is supposed to be there. Everyone else meets the plug.
+      const target = this.designatedCoinPeg(ball);
+      // A ball with no coin credit gets the coins padded out a little (see COIN_AVOID_PAD_BALLS),
+      // so its closest approach is a visible near miss rather than a rim kiss. Credit balls keep
+      // the true surface — their designated coin is a real contact, and the ball threading the
+      // slot between the row-3 pair needs the corridor at its full width.
+      const avoidPad = ball.creditBonusPegHit
+        ? 0
+        : ballRadius * PlinkoEngine.COIN_AVOID_PAD_BALLS;
+      let peg: { cx: number; cy: number; solidRadius: number; key: string } | null = null;
+      let pegCoin: Peg | null = null;
+      let pegPad = 0;
+      let dx = 0;
+      let dy = 0;
+      let deepest = 0;
+      const bodies = this.featuredPegs.length + this.coinGapBlockers.length;
+      for (let p = 0; p < bodies; p++) {
+        let candidate: { cx: number; cy: number; solidRadius: number; key: string };
+        let candidateCoin: Peg | null = null;
+        let candidatePad = 0;
+        if (p < this.featuredPegs.length) {
+          candidateCoin = this.featuredPegs[p];
+          candidate = candidateCoin;
+          candidatePad = avoidPad;
+        } else {
+          const blocker = this.coinGapBlockers[p - this.featuredPegs.length];
+          if (
+            ball.creditBonusPegHit &&
+            target &&
+            target.row > blocker.row &&
+            target.cx > blocker.minCx &&
+            target.cx < blocker.maxCx
+          ) {
+            continue;
+          }
+          candidate = blocker;
+        }
+        const cdx = ball.x - candidate.cx;
+        const cdy = ball.y - candidate.cy;
+        const reach = candidate.solidRadius + ballRadius + candidatePad;
+        const overlap = reach - Math.hypot(cdx, cdy);
+        if (overlap > deepest) {
+          deepest = overlap;
+          peg = candidate;
+          pegCoin = candidateCoin;
+          pegPad = candidatePad;
+          dx = cdx;
+          dy = cdy;
+        }
+      }
+
+      if (peg) {
+        const minDist = peg.solidRadius + ballRadius + pegPad;
+        const dist = Math.hypot(dx, dy);
+
+        // A contact that cannot pay is not a hit — it is a near miss to be steered wider.
+        //
+        // The kick below used to fire for EVERY ball touching a coin, so a ball the RGS never
+        // meant to hit one still visibly ricocheted off it, which reads as a bonus hit that then
+        // pays nothing. Those balls now GLIDE: the overlap is resolved sideways only (the descent
+        // is untouched), on the side the ball is already on, and the lateral pressure that pushed
+        // the ball in is bled off so it eases past instead of grinding the rim. The gap blockers
+        // take the same treatment — an impulse off an invisible body read as the ball bouncing off
+        // thin air between the coins.
+        const credits = pegCoin != null && this.coinPegCredits(ball, pegCoin);
+        if (!credits) {
+          // One-sided lateral clamp, anchored to the PLAN.
+          //
+          // Every earlier cut of this branch anchored the keep-out to something read live — the
+          // side the ball touched on, the rim under it, the interpolated lane. All of those can
+          // change sides mid-encounter (the rows above a coin are not clamped, so the lane's
+          // diagonal into the coin row can cross the coin's centreline inside its disc), and every
+          // side flip turned the keep-out into an escort through the coin: fast sideways, phasing,
+          // rim-sliding. `coinPassSides` was frozen at path build from the plan's own clamped row
+          // position, so it cannot flip — the clamp is monotone for the whole flight, and crossing
+          // a coin is geometrically impossible. The offsets riding on the lane (bounce impulse,
+          // wobble, burst push) are absorbed at the boundary instead of carrying the ball onto the
+          // coin, and the descent is untouched — no rim-following, no riding over the crown — so a
+          // close pass reads as the ball declining to swerve into the coin, not as a contact.
+          const passSide = ball.coinPassSides[peg.key];
+          const laneDx = ball.laneBaseX - peg.cx;
+          const side: 1 | -1 =
+            passSide ??
+            (Math.abs(laneDx) > 0.0001
+              ? (Math.sign(laneDx) as 1 | -1)
+              : ball.coinKickPegKey === peg.key
+                ? ball.coinKickSide
+                : ball.velocityX < 0
+                  ? -1
+                  : 1);
+          ball.coinKickPegKey = peg.key;
+          ball.coinKickTime = currentTime;
+          ball.coinKickSide = side;
+          // Where the (padded) disc's edge is at the ball's CURRENT height, on the lane's side.
+          // `overlap > 0` guarantees |dy| < minDist, so the root is real.
+          const lateral = Math.sqrt(Math.max(0, minDist * minDist - dy * dy));
+          const boundary = peg.cx + side * lateral;
+          const desiredX = side > 0 ? Math.max(ball.x, boundary) : Math.min(ball.x, boundary);
+          // Backstop only. The clamp moves WITH the lane rather than against it, so the normal
+          // correction is the offsets' overshoot — a couple of px. The cap exists for the one
+          // transient that can ask for more (the lane's mid-segment diagonal clipping a coin's
+          // shoulder), spreading that correction over a few frames instead of one.
+          const maxGlidePush = ballRadius * 0.9;
+          const pushDelta = desiredX - ball.x;
+          ball.x +=
+            Math.abs(pushDelta) <= maxGlidePush
+              ? pushDelta
+              : Math.sign(pushDelta) * maxGlidePush;
+          if (Math.sign(ball.velocityX) === -side) ball.velocityX *= 0.7;
+          if (Math.sign(ball.collisionOffsetX) === -side) ball.collisionOffsetX *= 0.7;
+          continue;
+        }
+
+        // Fire the ricochet on the step the ball first reaches this coin. It lives here, not in
+        // `checkForBounce`, because that only ever resolves a coin as the bounce peg for the ONE
+        // ball designated to cash it. Only that designated hit reaches this point now — everyone
+        // else took the glide above — so the ricochet is exclusively the paying contact's cue.
+        const isNewContact =
+          ball.coinKickPegKey !== peg.key ||
+          currentTime - ball.coinKickTime > PlinkoEngine.COIN_KICK_RECONTACT_MS;
+        if (isNewContact) {
+          ball.coinKickPegKey = peg.key;
+          ball.coinKickTime = currentTime;
+          // Leave on the side the ball actually landed on. Steering by its TRAVEL direction instead
+          // (as this first did) sends a ball that landed on one shoulder while moving the other way
+          // up and OVER the coin.
+          const nx0 = dist > 0.0001 ? dx / dist : 0;
+          ball.coinKickSide =
+            Math.abs(nx0) > 0.15 ? (Math.sign(nx0) as 1 | -1) : ball.velocityX < 0 ? -1 : 1;
+          let nx = nx0;
+          let ny = dist > 0.0001 ? dy / dist : -1;
+          nx += ball.coinKickSide * PlinkoEngine.COIN_KICK_SIDE_BIAS;
+          const biased = Math.hypot(nx, ny) || 1;
+          const speed = minDist * PlinkoEngine.COIN_KICK_SPEED;
+          ball.coinKickVX = (nx / biased) * speed;
+          ball.coinKickVY = (ny / biased) * speed;
+        }
+
+        // Hold the ball on the side it bounced off until it is clear of the coin.
+        //
+        // The impulse alone cannot win this: the ball's LANE is what carries it across. A ball that
+        // lands on one shoulder and is heading for a peg on the other side has a path aimed straight
+        // through the coin, so it gets dragged over the crown while the separation below keeps
+        // re-seating it on whichever face is nearest — over the top, toward the middle, down the far
+        // side. That is the slide, and it is a property of the path, not of the impulse.
+        //
+        // Refusing the crossing turns the same motion into the right one: the ball stays on its own
+        // shoulder and the separation walks it down that face and off the edge, which is what a ball
+        // landing off-centre on something round actually does.
+        const held =
+          ball.coinKickPegKey === peg.key
+            ? ball.coinKickSide > 0
+              ? Math.max(ball.x, peg.cx)
+              : Math.min(ball.x, peg.cx)
+            : ball.x;
+        const hdx = held - peg.cx;
+        const hDist = Math.hypot(hdx, dy);
+        if (hDist < 0.0001) {
+          // Dead centre: no normal to push along, so lift straight up — the ball arrived falling.
+          ball.x = held;
+          ball.y = peg.cy - minDist;
+          continue;
+        }
+        const scale = minDist / hDist;
+        // Correction is applied to the position only, deliberately. Banking it into `coinKickX` so
+        // it would ease out instead of ending abruptly was tried and measured WORSE on a live drop
+        // (worst single-frame reversal 3.3px -> 5.2px, on a ball 6.1px across): the banked push
+        // compounds with the ricochet velocity already feeding that offset, so it overshoots.
+        ball.x = peg.cx + hdx * scale;
+        ball.y = peg.cy + dy * scale;
+      }
+    }
   }
 
   /**
@@ -3146,11 +3903,15 @@ export class PlinkoEngine {
     const verySlowFrame = this.smoothedFrameMs > PlinkoEngine.VERY_SLOW_FRAME_MS;
     const heavyLoad = this.balls.length >= 8 || slowFrame;
     const effectInterval = verySlowFrame ? 3 : heavyLoad ? 2 : 1;
-    if (this.frameTick % effectInterval === 0) {
+    // A frame that lit a peg always draws: the thinning may cost a fade its smoothness, never a hit
+    // its timing. The sound already fires on the contact step, so a skipped frame here is precisely
+    // what put the glow behind the thunk.
+    if (this.frameTick % effectInterval === 0 || this.pegContactPending) {
       if (this.hasActiveSlotVisuals()) {
         this.drawAllSlotsPixi(currentTime);
       }
       this.drawActivePegs(currentTime);
+      this.pegContactPending = false;
     }
     this.drawBallsPixi(slowFrame);
   }
@@ -3315,7 +4076,14 @@ export class PlinkoEngine {
     const slow = this.slowMotionScale;
     let baseSpeed = this.pyramidConfig.normalSpeed * this.animationSpeed;
     baseSpeed += this.pyramidConfig.gravityEffect * (ball.currentPoint + 0.5) * slow;
-    const inBounceSpeed = this.pyramidConfig.bounceSlowdown * (0.5 + 0.5 * this.elementScale) * slow;
+    // `hopSlowdownScale` re-fits the slowdown to a hop that now spans a whole row instead of ~70% of
+    // one, so the row still takes exactly as long as it does today (see `fitHopToRow`). It is 1 for
+    // a ball that has not bounced yet, which leaves the entry fall on the untouched model.
+    const inBounceSpeed =
+      this.pyramidConfig.bounceSlowdown *
+      (0.5 + 0.5 * this.elementScale) *
+      slow *
+      ball.hopSlowdownScale;
 
     if (ball.isInBounce) {
       const bounceElapsed = currentTime - ball.bounceStartTime;
@@ -3369,6 +4137,15 @@ export class PlinkoEngine {
     } else {
       ball.velocityX = 0;
     }
+
+    // Coin ricochet: integrate the departure velocity, bleed it off, then ease the displacement
+    // itself back onto the lane so the ball is flying its own line again well before the slot.
+    ball.coinKickX += ball.coinKickVX * slow;
+    ball.coinKickY += ball.coinKickVY * slow;
+    ball.coinKickVX *= this.slowDecay(PlinkoEngine.COIN_KICK_VELOCITY_DECAY);
+    ball.coinKickVY *= this.slowDecay(PlinkoEngine.COIN_KICK_VELOCITY_DECAY);
+    ball.coinKickX *= this.slowDecay(PlinkoEngine.COIN_KICK_OFFSET_DECAY);
+    ball.coinKickY *= this.slowDecay(PlinkoEngine.COIN_KICK_OFFSET_DECAY);
 
     ball.collisionOffsetX *= this.slowDecay(0.91);
     ball.collisionOffsetY *= this.slowDecay(0.91);
@@ -3455,6 +4232,22 @@ export class PlinkoEngine {
     bouncePeg: Peg,
     travelDir: -1 | 0 | 1,
   ): { x: number; y: number } {
+    // A coin is WIDER than the ball (18.1px of art against a 9.3px ball), so its contact point is
+    // the tangent where the ball comes to rest ON the coin — `solidRadius + ballRadius` out from the
+    // centre, on the circle. Using the peg formula here put the ball's centre 13.7px inside an
+    // 18.1px coin, i.e. buried past its middle: the "ball sinks into the coin and slides off" read.
+    // Regular pegs keep the original numbers exactly — the body is smaller than the ball, so the
+    // ball covering it is correct and is how the whole board already looks.
+    if (this.isCoinBody(bouncePeg)) {
+      const rest = bouncePeg.solidRadius + this.ballRadius;
+      // ~24 deg off vertical for a directional hit: still the coin's upper shoulder, and unlike the
+      // peg formula it stays ON the rest circle instead of cutting across the inside of it.
+      const angle = travelDir * 0.42;
+      return {
+        x: bouncePeg.cx + Math.sin(angle) * rest,
+        y: bouncePeg.cy - Math.cos(angle) * rest,
+      };
+    }
     const crownY = bouncePeg.cy - bouncePeg.hitRadius * 0.92;
     if (travelDir === 0) {
       return { x: bouncePeg.cx, y: crownY };
@@ -3464,6 +4257,16 @@ export class PlinkoEngine {
       x: bouncePeg.cx + travelDir * crownXOffset,
       y: crownY,
     };
+  }
+
+  /**
+   * True when this peg is a coin wearing the art, so it collides as a disc bigger than the ball
+   * rather than as a peg body smaller than it. `indexFeaturedPegs` only raises `solidRadius` above
+   * the peg radius when the coin texture actually loaded, so this is also the "art is there" test —
+   * a coin that fell back to a plain peg body collides as a plain peg, which is what it draws as.
+   */
+  private isCoinBody(peg: Peg): boolean {
+    return peg.solidRadius > this.pegRadius;
   }
 
   private inferBounceTravelDir(
@@ -3535,6 +4338,9 @@ export class PlinkoEngine {
       peg.bounceEffect = Math.max(peg.bounceEffect, intensity);
       peg.bounceTime = currentTime;
       peg.isTouched = true;
+      // Also reached from the path-index credit in `stepPhysics`, which never runs the bounce test —
+      // so the force-draw is claimed here too rather than only at the contact site.
+      this.pegContactPending = true;
     }
 
     // What the dedupe is for: ONE coin reported twice, by the physical bounce and by the
@@ -3602,6 +4408,83 @@ export class PlinkoEngine {
     );
   }
 
+  /**
+   * Stretch this ball's next hop to span exactly one peg row, at no cost in descent speed.
+   *
+   * The old duration was a flat 240ms (`bounceDuration`), set with no reference to how long a row
+   * actually takes. On the 12-row board a row runs ~277ms in normal play and ~118ms in Fast Game,
+   * against a hop of 240ms and 90ms — so the arc always finished SHORT and the ball free-fell the
+   * remainder of the row: about 20% of it normally, and fully 35% of it in Fast Game. Because
+   * `baseY` eases in with `easeInQuad`, that leftover stretch is also the fastest part of the row.
+   * Every hop therefore ended by dropping the ball into the next peg at maximum speed with no arc
+   * left under it, which is both the "doesn't land on the peg" look and what made the old
+   * point-sampled crown test miss (75% of pegs in Fast Game — see `checkForBounce`).
+   *
+   * Two numbers come back, and the second is what keeps this free:
+   *
+   * `durationMs` — how long the row ACTUALLY takes today, hop plus the free-fall that follows it,
+   * computed from the same speed model in `updateBallPhysics` that moves the ball. The arc is cut
+   * to that, so it comes down on the next peg instead of in mid-air.
+   *
+   * `slowdownScale` — the correction that stops the longer arc from slowing the drop down. The ball
+   * is held at `bounceSlowdown` for the first 30% of a hop and recovers to `baseSpeed` over the
+   * rest, so a hop's mean speed is `0.65*inBounce + 0.35*base`. Simply lengthening the hop would
+   * apply that slow phase to ground the ball used to cover at full speed, costing ~5% of the drop
+   * normally and ~23% in Fast Game. Scaling the in-hop floor so the row still covers `rowSpan` in
+   * `durationMs` gives those milliseconds straight back: the descent keeps precisely the cadence it
+   * has today, and only the shape of the speed WITHIN a row changes — from slow-then-sprint to an
+   * even glide, which is itself the smoother read.
+   *
+   * Because it all comes off the live model, this follows Fast Game, the `plinkoSetSpeed` dev
+   * override, the gravity ramp down the board and the row count on its own — no second set of
+   * numbers to keep in sync and no per-speed special-casing.
+   */
+  private fitHopToRow(ball: Ball): { durationMs: number; slowdownScale: number } {
+    const legacyMs = Math.max(
+      PlinkoEngine.MIN_FAST_BOUNCE_MS,
+      (this.pyramidConfig.bounceDuration * ball.bounceDurationMultiplier) / this.simSpeedFactor
+    );
+    const pathLen = ball.path.length;
+    const slow = this.slowMotionScale;
+    const baseSpeed =
+      this.pyramidConfig.normalSpeed * this.animationSpeed +
+      this.pyramidConfig.gravityEffect * (ball.currentPoint + 0.5) * slow;
+    const inBounceSpeed =
+      this.pyramidConfig.bounceSlowdown * (0.5 + 0.5 * this.elementScale) * slow;
+    const meanSpeed = 0.65 * inBounceSpeed + 0.35 * baseSpeed;
+    if (pathLen < 2 || !(meanSpeed > 0) || !(baseSpeed > 0)) {
+      return { durationMs: legacyMs, slowdownScale: 1 };
+    }
+
+    // One path segment is one row gap everywhere the ball bounces — only the entry fall and the drop
+    // into the slot are longer, and neither of those carries a hop.
+    const rowSpan = 1 / (pathLen - 1);
+    // What today's hop covers of the row, and how long the ball then free-falls to finish it.
+    const hopSpan = (legacyMs / PlinkoEngine.FIXED_STEP_MS) * meanSpeed;
+    const coastMs = Math.max(0, ((rowSpan - hopSpan) / baseSpeed) * PlinkoEngine.FIXED_STEP_MS);
+    const rowMs = legacyMs + coastMs;
+    if (!Number.isFinite(rowMs) || rowMs <= 0) {
+      return { durationMs: legacyMs, slowdownScale: 1 };
+    }
+
+    // Mean speed the stretched hop must hold to clear the row in the same time, and the floor scale
+    // that produces it. Capped at `baseSpeed` — once a row is too short to afford any slowdown at
+    // all, the honest answer is to hold cruise speed through the hop rather than to speed the ball
+    // UP on contact.
+    const requiredMean = (rowSpan * PlinkoEngine.FIXED_STEP_MS) / rowMs;
+    const requiredFloor = (requiredMean - 0.35 * baseSpeed) / 0.65;
+    const scale = Math.min(baseSpeed, Math.max(0, requiredFloor)) / inBounceSpeed;
+
+    // `rowMs` is returned as-is. `bounceDurationMultiplier` already shaped it through `legacyMs`,
+    // and re-applying it here would stretch the arc back off the row it was just fitted to —
+    // per-ball duration variation is fundamentally at odds with landing on a peg, which is why that
+    // character now lives in the hop's height and drift instead.
+    return {
+      durationMs: Math.max(PlinkoEngine.MIN_FAST_BOUNCE_MS, Math.min(PlinkoEngine.MAX_HOP_MS, rowMs)),
+      slowdownScale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+    };
+  }
+
   private checkForBounce(ball: Ball, currentTime: number): void {
     const pathLength = ball.path.length;
     const segmentProgress = ball.currentPoint * (pathLength - 1);
@@ -3649,39 +4532,115 @@ export class PlinkoEngine {
       const contact = this.getDirectionalPegContact(bouncePeg, travelDir);
       const contactX = contact.x;
       const contactY = contact.y;
-      const dx = ball.x - contactX;
-      const dy = ball.y - contactY;
-      const distanceSq = dx * dx + dy * dy;
+
+      // --- Swept contact ---------------------------------------------------------------------
+      // This used to sample the ball's position at the END of the step only, against a crown band
+      // ~1.33 peg-radii tall — about 6.7px on a desktop board. A step near the bottom of a segment
+      // falls 6-7px in normal play and ~16px in Fast Game: as tall as the band or taller. The ball
+      // therefore stepped clean OVER the crown on a good share of pegs and the test never saw the
+      // contact at all. Those rows fell through to the deadline below, which fires anywhere down to
+      // half a row past the peg — so the ball visibly passed THROUGH the peg and then hopped off
+      // nothing beneath it, with the thunk and the glow arriving just as late. Whether any given
+      // peg was missed came down to where the fixed-step boundaries happened to land, which is
+      // exactly why it was intermittent rather than consistent.
+      //
+      // So test the segment the ball SWEPT this step instead of the point it ended at, and evaluate
+      // the contact at the instant it crosses the crown line. A tunnelling miss is not possible
+      // from here: any step that ends below the crown began above it and is caught. The cost is one
+      // subtract and one divide on pegs that already passed the altitude gate above — nothing is
+      // allocated, and no extra pegs are visited.
+      const stepFallY = ball.y - ball.prevY;
+      const crossT =
+        stepFallY > 1e-4 ? Math.max(0, Math.min(1, (contactY - ball.prevY) / stepFallY)) : 1;
+      // Where the ball actually was when it reached crown height, rather than wherever the rest of
+      // the step carried it afterwards.
+      const sweptX = ball.prevX + (ball.x - ball.prevX) * crossT;
+      const sweptTopY = Math.min(ball.prevY, ball.y);
+      const sweptBottomY = Math.max(ball.prevY, ball.y);
+      const descendingOntoPeg = ball.y >= ball.prevY - 0.5;
+      let crossedCrown: boolean;
+      if (this.isCoinBody(bouncePeg)) {
+        // A coin is held on its own surface by `separateBallsFromCoins`, so "touching it" is the
+        // whole test — and it has to be, because the ball can no longer reach the crown band at all
+        // (the band tops out 18.6px above the centre; the ball is stopped 27.5px out). Contact is
+        // therefore: resting on the coin, on its upper half, on the way down.
+        //
+        // The margin is a hair rather than a step's fall. A fall-sized one sounds prudent against a
+        // fast arrival but it inflates the disc in EVERY direction, so a ball passing 30px to the
+        // side of a coin — not touching it, never going to — registered a hit off it. Nothing is
+        // lost by tightening it: the constraint runs every step and the forbidden disc is 54.9px
+        // across, so no step this engine can take is capable of jumping over it, and a ball that
+        // does touch is placed at exactly `rest` by the constraint before this ever reads it.
+        const rest = bouncePeg.solidRadius + this.ballRadius;
+        const cdx = ball.x - bouncePeg.cx;
+        const cdy = ball.y - bouncePeg.cy;
+        const reach = rest + 0.5;
+        crossedCrown =
+          descendingOntoPeg && cdy <= 0 && cdx * cdx + cdy * cdy <= reach * reach;
+      } else {
+        // The same crown band as before — it just has to be TOUCHED by the step now, not landed in.
+        const crownTopY = bouncePeg.cy - bouncePeg.hitRadius * 1.25;
+        const crownBottomY = bouncePeg.cy - bouncePeg.hitRadius * 0.08;
+        crossedCrown = descendingOntoPeg && sweptBottomY >= crownTopY && sweptTopY <= crownBottomY;
+      }
+
+      // Reach is measured at the crossing instant, where the vertical gap to the crown is zero by
+      // construction — so this is purely "did the ball pass over this peg's face", with none of the
+      // end-of-step drift that used to leak into it.
+      const dx = sweptX - contactX;
+      const distanceSq = dx * dx;
       // Widened by however much this peg draws bigger than a peg body (zero for regular pegs), so a
       // coin is caught across its whole face instead of only at a peg-sized dot in its centre.
       const interactionRadius =
         this.ballRadius * 0.95 + Math.max(0, bouncePeg.hitRadius - this.pegRadius);
       const interactionRadiusSq = interactionRadius * interactionRadius;
       const rowWasCrossed = segmentProgress >= i - 0.02;
-      const descendingOntoPeg = ball.y >= ball.prevY - 0.5;
-      const approachingFromTop =
-        ball.y <= bouncePeg.cy - bouncePeg.hitRadius * 0.08 && descendingOntoPeg;
       // Featured rows keep a slightly wider catch so a ball routed around the cluster still bounces
       // off the flank peg instead of drifting through the row untouched — but no wider than that.
       // The old 0.52 let a ball more than half a lane away claim a bounce, and since a fallback hit
       // yanks the ball onto the contact point, that read as a bounce off empty board beside the coins.
-      const columnTolerance =
+      const laneTolerance =
         !ball.creditBonusPegHit && this.rowHasFeaturedPeg(pathPoint.row)
           ? this.pegSpacingXForRow(pathPoint.row) * 0.4
           : this.pegSpacingXForRow(pathPoint.row) * 0.32;
-      const nearPegColumn = Math.abs(ball.x - bouncePeg.cx) <= columnTolerance;
-      const inCrownZone =
-        ball.y <= bouncePeg.cy &&
-        ball.y >= bouncePeg.cy - bouncePeg.hitRadius * 1.25;
-      const shouldUseFallback =
-        rowWasCrossed && nearPegColumn && inCrownZone && approachingFromTop;
+      // ...and no wider than the ball is actually TOUCHING, either. Being a fraction of the lane,
+      // that tolerance grows as the rows widen (0.65 -> 0.75 width scale, so 38px of lane at the top
+      // against 44px at the bottom) while the ball and peg stay the same size — so the lower the ball
+      // got, the further off a peg it could be and still claim a solid hit, complete with the settle
+      // yank onto the crown. On the bottom row the plain tolerance is 14.1px against a real touching
+      // reach of 14.06px, and the featured-row 0.4 exceeds it from the middle of the board down.
+      // Solving the contact circle at crown height caps it at genuine overlap: a peg cannot be hit
+      // from further away than the ball can reach it, at any row width. Coins keep their wider catch
+      // for free, since their `hitRadius` is in the reach.
+      const crownDrop = bouncePeg.hitRadius * 0.92;
+      const touchReach = this.ballRadius + bouncePeg.hitRadius;
+      const overlapTolerance = Math.sqrt(Math.max(0, touchReach * touchReach - crownDrop * crownDrop));
+      const columnTolerance = Math.min(laneTolerance, overlapTolerance);
+      const nearPegColumn = Math.abs(sweptX - bouncePeg.cx) <= columnTolerance;
+      const shouldUseFallback = rowWasCrossed && nearPegColumn;
 
-      // The pretty path: a real crown contact, off cooldown, not already mid-arc. Only decides
-      // whether this row bounces EARLY — failing it no longer means the row is skipped.
+      // A hop now spans exactly one row (see `fitHopToRow`), so the ball reaches the next
+      // crown as its arc bottoms out. Floating point can still leave `isInBounce` set for the step
+      // the crossing lands on; refusing the contact there would push a perfectly good hit back onto
+      // the deadline and re-introduce the very lateness this is fixing. The last sixth of a spent
+      // hop may hand the ball on — `bouncedRows` and the cooldown still prevent a double-bounce.
+      const hopSpent =
+        !ball.isInBounce || currentTime - ball.bounceStartTime >= ball.bounceDuration * 0.82;
+
+      // For a coin, `crossedCrown` is already a full 2D test against the disc the ball is resting
+      // on, so the column tests below it are not a second opinion — they are a peg-sized reach
+      // (18.1px at best) applied to a body the ball can legitimately touch 27.5px from the centre
+      // of, and all they can do is throw away real contacts. Regular pegs keep both.
+      const withinPegReach =
+        this.isCoinBody(bouncePeg) || distanceSq < interactionRadiusSq || shouldUseFallback;
+
+      // The pretty path: a real swept crown contact, off cooldown, with the previous hop spent.
+      // Only decides whether this row bounces EARLY — failing it no longer means the row is skipped.
       const naturalContact =
-        !ball.isInBounce &&
+        hopSpent &&
+        crossedCrown &&
         currentTime - ball.lastBounceTime > bounceCooldown &&
-        ((distanceSq < interactionRadiusSq && approachingFromTop && inCrownZone) || shouldUseFallback);
+        withinPegReach;
 
       // The deadline: the ball has arrived at this row's peg line and has run out of road. The lower
       // bound stops a row that somehow slipped far past from yanking the ball back up to it — better
@@ -3695,15 +4654,32 @@ export class PlinkoEngine {
       // where nothing is drawn — a bounce off an invisible peg. A peg only owns the half-lane around
       // its own column (plus whatever it draws wider than a peg body, so a coin still owns its
       // face). Outside that the row is simply left unbounced: a missing thunk beats a phantom one.
-      const deadlineColumnReach =
+      //
+      // Capped near what the ball can actually REACH, for the same reason `columnTolerance` above is.
+      // Half a lane is not a peg's property, it is the board's, and lanes widen toward the bottom
+      // (0.65 -> 0.75 width scale) while the ball and peg stay the same size — so this let a bounce
+      // fire further and further off-column the lower the ball got, which is exactly the "offset to
+      // the side, worse further down" it produced. Measured on a live drop: bounces landing up to
+      // 8.5px off a peg the ball can only touch within 5.1px, i.e. off empty board, with the mean
+      // offset climbing steadily through the bottom rows.
+      //
+      // The slack is load-bearing and was measured, not guessed. At an exact touch cap the deadline
+      // stops firing on a QUARTER of the planned rows (23 of 96 across 8 balls) — a peg that goes
+      // silent is worse than one hit slightly wide. See DEADLINE_REACH_SLACK.
+      const deadlineColumnReach = Math.min(
         this.pegSpacingXForRow(pathPoint.row) * 0.5 +
-        Math.max(0, bouncePeg.hitRadius - this.pegRadius);
+          Math.max(0, bouncePeg.hitRadius - this.pegRadius),
+        (this.ballRadius + bouncePeg.hitRadius) * PlinkoEngine.DEADLINE_REACH_SLACK,
+      );
       const reachedPegLine =
         belowPegLine >= -bouncePeg.hitRadius * 0.15 &&
         belowPegLine <= deadlineDepth &&
         Math.abs(ball.x - bouncePeg.cx) <= deadlineColumnReach;
 
       if (naturalContact || reachedPegLine) {
+        // Whatever the effect thinning would otherwise have decided, this frame draws (see
+        // `pegContactPending`) — the glow has to land on the same frame as the thunk.
+        this.pegContactPending = true;
         if (this.isFeaturedPeg(bouncePeg)) {
           // Coin contacts go through one emitter so the chime can't double-fire with the
           // path-index credit below, and can't go silent when that credit lands first. The coin's
@@ -3728,34 +4704,64 @@ export class PlinkoEngine {
         ball.bounceCarryY = this.liveBounceArcHeight(ball, currentTime);
         ball.isInBounce = true;
         ball.bounceStartTime = currentTime;
-        // Scale the hop with the sim speed so it spans ~one row at any speed: compressed in fast mode
-        // (bounce on nearly every peg, like normal mode, instead of one long arc across several),
-        // stretched under a slowed-down dev override so the arc crawls with the ball rather than
-        // snapping through at full speed. Floored at MIN_FAST_BOUNCE_MS so a fast arc stays long
-        // enough to read. Normal mode (simSpeedFactor 1) keeps the full 240 ms duration.
-        ball.bounceDuration = Math.max(
-          PlinkoEngine.MIN_FAST_BOUNCE_MS,
-          (this.pyramidConfig.bounceDuration *
-            ball.bounceDurationMultiplier *
-            (0.85 + Math.random() * 0.3)) /
-            this.simSpeedFactor
-        );
+        // Cut the hop to the time this ball will actually take to reach the NEXT peg row, so the arc
+        // lands on a peg instead of finishing in mid-air. See `fitHopToRow` — it derives
+        // the span from the same speed model that advances the ball, so it tracks fast mode, the
+        // slow-motion dev override, the gravity ramp and the row count with no separate tuning.
+        //
+        // Deliberately deterministic where the old duration carried a +/-15% random jitter: with a
+        // fixed 240ms hop against a ~272ms row the arc always finished early and the ball free-fell
+        // the rest of the way in, and the jitter made how MUCH of the row it free-fell different on
+        // every hop. That is the "sometimes it looks wrong" — the hop has to span the row for the
+        // ball to meet the peg, so the per-ball character lives in the hop's HEIGHT and drift
+        // (`bounceHeightMultiplier`, `driftMultiplier`) rather than in its length.
+        const hopFit = this.fitHopToRow(ball);
+        ball.bounceDuration = hopFit.durationMs;
+        ball.hopSlowdownScale = hopFit.slowdownScale;
         ball.bounceTravelDir = travelDir;
         // Settle onto the contact point, but never teleport: a wide fallback catch could otherwise
         // slide the ball most of a lane sideways in one frame, which reads as the ball snapping to a
         // peg it was never near. Correcting by at most the peg's own size keeps close bounces exact
         // (their correction is far smaller than the cap) and turns far ones into a visible nudge.
-        const settledX = contactX + (ball.x - contactX) * 0.15;
-        const maxSettle = bouncePeg.hitRadius * 1.1;
-        const settleDelta = settledX - ball.x;
-        ball.x =
-          Math.abs(settleDelta) <= maxSettle
-            ? settledX
-            : ball.x + Math.sign(settleDelta) * maxSettle;
-        // Same cap vertically. A deadline contact can register a little below the crown, and lifting
-        // the ball all the way back up to it would read as a hop backwards up the board.
-        const liftY = ball.y - contactY;
-        if (liftY > 0 && liftY <= bouncePeg.hitRadius) ball.y = contactY;
+        // Settle from where the ball CROSSED the crown, not from wherever the remainder of the step
+        // carried it — on a swept contact those differ by most of a step near the bottom of a
+        // segment, and settling from the later point is what used to nudge the ball off the peg it
+        // had just hit.
+        // Coins are positioned by `separateBallsFromCoins`, which holds the ball exactly on the
+        // coin's surface every step. Settling it toward a nominal shoulder point on top of that is
+        // two rules fighting over the same pixel — and since a coin's `hitRadius` allows a 16.4px
+        // correction, the loser is a visible sideways snap. Leave the constraint to place it.
+        if (!this.isCoinBody(bouncePeg)) {
+          const settleFromX = naturalContact ? sweptX : ball.x;
+          // Keep most of where the ball actually was. This used to close 85% of the gap to the
+          // nominal contact point in a single frame — the horizontal twin of the vertical stall
+          // above, and worth up to 3.5px on a 6.1px ball. The swept test lands the ball close to
+          // the peg to begin with, so a nudge is all that was ever needed; the lateral response to
+          // a bounce belongs to `velocityX` below, which is a velocity rather than a teleport.
+          const settledX = contactX + (settleFromX - contactX) * PlinkoEngine.PEG_SETTLE_KEEP;
+          const maxSettle = bouncePeg.hitRadius * 1.1;
+          const settleDelta = settledX - ball.x;
+          ball.x =
+            Math.abs(settleDelta) <= maxSettle
+              ? settledX
+              : ball.x + Math.sign(settleDelta) * maxSettle;
+        }
+        // NOTHING snaps the ball's height here, deliberately.
+        //
+        // This used to lift the ball onto the crown (`ball.y = contactY`) so it visibly touched the
+        // peg. It does — but a bounce is a change of VELOCITY, and writing a position on top of one
+        // fights the motion. Sampled off a live drop, the ball's per-frame fall through a peg read:
+        //
+        //   ... 1.93  2.07  2.22  2.36  2.50 | 0.49  0.24 | 0.45  0.66 ... -2.16 (arc)
+        //
+        // — accelerating cleanly, then almost STOPPING for two frames, then falling again, and only
+        // then reversing. The stall is this lift cancelling most of the frame's fall. Three changes
+        // of direction where a bounce has one, on every peg on the board, is the shake.
+        //
+        // Without it the ball can render up to one step's fall below the crown on the contact frame,
+        // which on a peg smaller than the ball is not visible — the ball covers it either way. The
+        // arc's own opening velocity (`-A*PI/duration`) is what lifts it away, and that is a single
+        // clean reversal. The ricochet for coins lives in `separateBallsFromCoins`, not here.
 
         const impulseScale =
           this.pyramidConfig.bounceImpulseMin +
@@ -3766,8 +4772,13 @@ export class PlinkoEngine {
 
         ball.bouncedRows.add(pathPoint.row);
         ball.lastBounceTime = currentTime;
+        // Same re-fit as the in-hop floor above, or this kick-down would kill the speed the hop
+        // duration was just solved to preserve.
         ball.currentSpeed =
-          this.pyramidConfig.bounceSlowdown * (0.3 + Math.random() * 0.4) * this.slowMotionScale;
+          this.pyramidConfig.bounceSlowdown *
+          (0.3 + Math.random() * 0.4) *
+          this.slowMotionScale *
+          ball.hopSlowdownScale;
         break;
       }
     }
@@ -3779,14 +4790,15 @@ export class PlinkoEngine {
    *
    * This used to scan the slots for the tile `ball.x` was inside at the landing instant. `ball.x` is
    * not the path position: it is the lane plus every visual displacement the ball is carrying —
-   * `velocityX * laneCentering`, the per-ball `laneOffsetX`, the ball-ball `collisionOffsetX`, and,
-   * while the last peg hop is still running, that hop's directed drift and wobble. Every one of those
-   * is a displacement FROM the lane, so the ball is still paid its own pocket, but they stack: far
-   * enough to land inside the NEIGHBOURING tile, so the wrong pocket bounces, and — because the
-   * outermost tiles end exactly at the slot strip's edge, with nothing beyond them to catch an
-   * outward offset — far enough to match no tile at all, which is a landing that bounces nothing
-   * anywhere. Both failures grow with the distance from centre and with the number of balls in the
-   * air, which is why they read as "the outer pockets don't react" rather than as an occasional miss.
+   * `velocityX * laneCentering`, the per-ball `laneOffsetX`, the ball-ball `collisionOffsetX`, a live
+   * coin ricochet (`coinKickX`, which is allowed most of a lane), and, while the last peg hop is
+   * still running, that hop's directed drift and wobble. Every one of those is a displacement FROM
+   * the lane, so the ball is still paid its own pocket, but they stack: far enough to land inside the
+   * NEIGHBOURING tile, so the wrong pocket bounces, and — because the outermost tiles end exactly at
+   * the slot strip's edge, with nothing beyond them to catch an outward offset — far enough to match
+   * no tile at all, which is a landing that bounces nothing anywhere. Both failures grow with the
+   * distance from centre and with the number of balls in the air, which is why they read as "the
+   * outer pockets don't react" rather than as an occasional miss.
    *
    * The ball has known its pocket since `dropBall`, so ask it instead of measuring.
    */
@@ -4224,7 +5236,8 @@ export class PlinkoEngine {
   }
 
   private drawStaticPyramid(): void {
-    const now = Date.now();
+    // Same clock the effects were stamped with, or every glow's age would be nonsense here.
+    const now = this.simClockMs;
     this.pegGraphics.clear();
     this.pegGraphicsHasContent = false;
     this.pegStaticDirty = true;
@@ -4303,6 +5316,135 @@ export class PlinkoEngine {
     this.hiddenStepCarryMs = 0;
     this.smoothedFrameMs = PlinkoEngine.FIXED_STEP_MS;
     this.drawStaticPyramid();
+  }
+
+  /**
+   * Live ball + coin geometry for `window.plinkoDebugBoard()` (DEV only, wired in PlinkoBoard).
+   *
+   * Everything this board is judged on is motion, and a screenshot costs about a second — far too
+   * coarse to tell a bounce from a slide, or to measure how close a ball ran to a coin. Sampling
+   * this on an interval gives the trajectory as numbers instead.
+   */
+  /**
+   * Fire the landing bounce on every pocket at once (or on one, by index) and report what each one
+   * is wired to. There is no way to make a ball land in all fifteen pockets, and the outer ones are
+   * hit so rarely in organic play that "does that pocket react?" is otherwise unanswerable — so ask
+   * the pockets directly. Returns the bone each pocket drives on the glow spine, so a pocket that
+   * stays still can be told apart from a pocket whose spine bone is missing.
+   */
+  debugBouncePockets(index?: number): {
+    glowSpineActive: boolean;
+    bounceHeightPx: number;
+    durationMs: number;
+    pockets: { index: number; label: string; centerX: number; glowBone: boolean }[];
+  } {
+    const targets = index == null ? this.slots.map((_, i) => i) : [index];
+    for (const i of targets) {
+      const slot = this.slots[i];
+      if (!slot) continue;
+      slot.animationActive = true;
+      slot.animationTime = this.simClockMs;
+    }
+    // With a drop in flight the ticker already owns the sim clock and draws this for free. Idle, the
+    // ticker is parked — and would park itself again immediately, since it retires on an empty ball
+    // list — so drive the frames from here instead. The pump reads a wall-clock offset PAST
+    // `simClockMs` rather than advancing it: the sim clock only ever moves in whole physics steps,
+    // and a dev peek must not be the thing that moves it. It hands back the moment a real drop
+    // starts, which is also the moment the ticker takes the job over.
+    if (!this.isAnimating) {
+      const startedAt = performance.now();
+      const stampedAt = this.simClockMs;
+      const pump = (): void => {
+        if (this.isAnimating || !this.hasActiveSlotVisuals()) return;
+        this.drawAllSlotsPixi(stampedAt + (performance.now() - startedAt));
+        this.renderFrame();
+        requestAnimationFrame(pump);
+      };
+      requestAnimationFrame(pump);
+    }
+    return {
+      glowSpineActive: this.glowSpineActive,
+      bounceHeightPx: +this.slotBounceHeight.toFixed(2),
+      durationMs: this.pyramidConfig.slotAnimationDuration,
+      pockets: this.slots.map((slot, i) => ({
+        index: i,
+        label: slot.labelText || String(formatCoefficientLabel(slot.coefficient)),
+        centerX: +slot.centerX.toFixed(2),
+        glowBone: !!this.glowBoneBySlotIndex[i],
+      })),
+    };
+  }
+
+  debugBoardSnapshot(): {
+    ballRadius: number;
+    pegRadius: number;
+    pegSpacing: number;
+    laneX: number;
+    pegs: { row: number; cx: number; cy: number }[];
+    coins: { key: string; cx: number; cy: number; solidRadius: number; hitRadius: number }[];
+    balls: {
+      id: number;
+      x: number;
+      y: number;
+      inBounce: boolean;
+      row: number;
+      /** Overlap into each coin's art, px. Anything above 0 is a ball drawn inside a coin. */
+      worstCoinOverlap: number;
+      /** Distance to the nearest coin's surface, px. 0 means it is resting on one. */
+      nearestCoinGap: number;
+      /** Peg rows that have registered a bounce so far. Compare against `plannedBounceRows`. */
+      bouncedRows: number;
+      /** Rows this ball's PATH ever intended to bounce on — the ceiling `bouncedRows` can reach. */
+      plannedBounceRows: number;
+      /** Live height of the bounce arc, px. This IS the bounce the player sees, not an inference. */
+      arcHeight: number;
+      /** Highest peg row this ball has bounced on, so a skipped LAST row is visible. */
+      lastBouncedRow: number;
+    }[];
+  } {
+    const coins = this.featuredPegs.map((p) => ({
+      key: p.key,
+      cx: +p.cx.toFixed(2),
+      cy: +p.cy.toFixed(2),
+      solidRadius: +p.solidRadius.toFixed(2),
+      hitRadius: +p.hitRadius.toFixed(2),
+    }));
+    const balls = this.balls
+      .filter((b) => b.isDropping && b.scale > 0)
+      .map((b) => {
+        let worst = -Infinity;
+        for (const p of this.featuredPegs) {
+          const gap = Math.hypot(b.x - p.cx, b.y - p.cy) - (p.solidRadius + this.ballRadius);
+          if (-gap > worst) worst = -gap;
+        }
+        return {
+          id: b.id,
+          x: +b.x.toFixed(2),
+          y: +b.y.toFixed(2),
+          inBounce: b.isInBounce,
+          row: b.currentSegmentIndex - 2,
+          worstCoinOverlap: +Math.max(0, worst).toFixed(2),
+          nearestCoinGap: +Math.max(0, -worst).toFixed(2),
+          bouncedRows: b.bouncedRows.size,
+          plannedBounceRows: b.path.filter((p) => p.row >= 0 && p.bounceIntensity > 0).length,
+          arcHeight: +this.liveBounceArcHeight(b, this.simClockMs).toFixed(2),
+          lastBouncedRow: b.bouncedRows.size ? Math.max(...b.bouncedRows) : -1,
+        };
+      });
+    return {
+      ballRadius: +this.ballRadius.toFixed(2),
+      pegRadius: +this.pegRadius.toFixed(2),
+      pegSpacing: +this.pegSpacing.toFixed(2),
+      laneX: +this.pegSpacingXForRow(4).toFixed(2),
+      coins,
+      balls,
+      // Static for a given layout — fetch once and reuse, rather than per sample.
+      pegs: this.pegs.map((p) => ({
+        row: p.row,
+        cx: +p.cx.toFixed(2),
+        cy: +p.cy.toFixed(2),
+      })),
+    };
   }
 
   get activeBallsCount(): number {

@@ -16,6 +16,7 @@ than logging, so the console prints the state they left behind.
 | Locks / diagnostics | [`devDebug.ts`](../src/game/devDebug.ts), [`plinkoMeterTrace.ts`](../src/game/plinkoMeterTrace.ts) |
 | Bet payload | [`plinkoPlayDebug.ts`](../src/game/plinkoPlayDebug.ts) |
 | Preload black box | [`preloadAssets.ts`](../src/lib/preloadAssets.ts) |
+| Board geometry / pocket bounce | [`PlinkoBoard.svelte`](../src/components/PlinkoBoard.svelte) |
 
 ## Ball speed
 
@@ -198,3 +199,52 @@ The in-app browser cannot run this game, so anything you are checking here you a
 anything that has to agree with the math — outcomes, meter maxima, level ladders, ball awards — the book
 library is the reference, not the screen. See [README.md](README.md) for where each number actually
 lives.
+
+## Pocket bounce
+
+```js
+plinkoBouncePockets()     // fire the landing bounce on all 15 pockets at once
+plinkoBouncePockets(3)    // just pocket 3 (the left 5x)
+```
+
+**DEV only.** No ball can be made to land in every pocket, and the outer ones come up rarely enough
+in organic play that "does that pocket react?" is not answerable by playing — so ask the pockets
+directly. Works with the board idle; it drives its own frames when no drop is in flight.
+
+Returns the wiring alongside the trigger, which is what tells a dead pocket apart from a dead
+*bounce*:
+
+| Field | Means |
+| --- | --- |
+| `glowSpineActive` | The glow spine is driving the pockets (it needs a 15-pocket board). False means the flat slot sprites are, and the bounce moves those instead. |
+| `glowBone` | This pocket has its bone on the spine. `false` on any pocket is an asset/name mismatch — that pocket's card can never move. |
+| `bounceHeightPx` | Peak travel of the arc at the current viewport. |
+
+Every pocket moving here but only some moving in play means the trigger is picking the wrong pocket,
+not that the pocket is broken — see `triggerSlotAnimation`, which keys off the ball's own
+`targetIndex` for exactly that reason.
+
+## Board geometry (ball vs coin)
+
+```js
+plinkoDebugBoard()
+```
+
+**DEV only.** Live ball and coin positions, plus the two numbers that matter for coin contact:
+`worstCoinOverlap` (px the ball is drawn *inside* a coin — must always be 0) and `nearestCoinGap`
+(0 means resting on a coin's surface). Sample it on an interval to get a drop's trajectory as
+numbers:
+
+```js
+const S = [];
+const id = setInterval(() => {
+  const s = plinkoDebugBoard();
+  if (s.balls.length) S.push({ t: performance.now(), b: s.balls.map(b => ({ ...b })) });
+}, 8);
+// ... run some drops, then clearInterval(id) and read S
+```
+
+Ball motion is what this board is judged on and a screenshot costs about a second, which is far too
+coarse to tell a bounce from a slide or to measure how close a ball ran to a coin. Sample at 8ms,
+not 16ms — a 60fps render repeats each position twice, and dedupe on changed `x`/`y` to recover the
+real frames.

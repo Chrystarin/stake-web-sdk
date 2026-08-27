@@ -133,6 +133,21 @@
 					},
 				});
 				engine = eng;
+				// DEV-only: `window.plinkoDebugBoard()` returns live ball and coin geometry, so a
+				// drop can be sampled numerically. Ball motion is the thing this board is judged on
+				// and a screenshot has ~1s of latency, which is far too coarse to tell a bounce from
+				// a slide — see docs/debug-console.md.
+				// `window.plinkoBouncePockets()` fires the landing bounce on every pocket at once (pass
+				// an index for one). No ball can be made to land in all fifteen, and the outer pockets
+				// come up so rarely that "does that one react?" cannot be answered by playing.
+				if (import.meta.env.DEV && typeof window !== 'undefined') {
+					const w = window as unknown as {
+						plinkoDebugBoard?: () => unknown;
+						plinkoBouncePockets?: (index?: number) => unknown;
+					};
+					w.plinkoDebugBoard = () => eng?.debugBoardSnapshot();
+					w.plinkoBouncePockets = (index?: number) => eng?.debugBouncePockets(index);
+				}
 				await bootstrapEngine(eng);
 				if (disposed) return;
 				// Signal readiness so replay/resume can start playback now the board can spawn balls.
