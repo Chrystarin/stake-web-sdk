@@ -605,16 +605,14 @@
 		--qg-note-scale: 1;
 		--qg-note-x: 0;
 		/*
-		 * -3.55, not the -3 the rest of this block's neatness would suggest, and the 0.55 is measured
-		 * rather than eyeballed: it is exactly what the note grew by when it went from 1.5cqw/1.3 to
-		 * the copy's 1.85cqw/1.35 (2.4975 - 1.95 = 0.5475cqw a line).
-		 *
-		 * It has to come back off somewhere. The note's last line lands ~0.04cqw under the page
-		 * counter's line box as it is — the two boxes touch, and only the note's half-leading keeps the
-		 * glyphs apart — so there was never room to simply let it grow downward. Shifting it up by what
-		 * it gained puts its bottom back exactly where the smaller note's was.
+		 * ⚠️ Load-bearing, and there is no slack under it: the note's last line lands ~0.04cqw under
+		 * the page counter's line box, so the two boxes touch and only the note's half-leading keeps
+		 * the glyphs apart. Anything that makes the note taller — a larger size, a looser line-height,
+		 * a second line — has to be lifted back out of here by exactly what it gained, or it lands in
+		 * the counter. (It ran at the copy's 1.85cqw/1.35 for a stretch, which cost 0.5475cqw a line
+		 * and needed -3.55 here to stay clear of it.)
 		 */
-		--qg-note-y: -3.55;
+		--qg-note-y: -3;
 		--qg-nav-x: 0;
 		--qg-nav-y: -3;
 		--qg-btn-scale: 1;
@@ -834,31 +832,32 @@
 		display: block;
 	}
 
-	/* The "only available with 10, 20, or 50 balls" caveat. Set at the copy's own size, weight and
-	   colour — italic is the ONLY thing separating the two, which is what marks it as a qualifier
-	   rather than as a second paragraph. It used to be smaller and dimmer as well; that read as a
-	   footnote the eye skipped, and these lines carry a real restriction on the feature above them.
+	/* The "only available with 10, 20, or 50 balls" caveat. It qualifies the copy above it rather than
+	   continuing it — a player who is dropping 10+ balls never needs to read it — so it is set a step
+	   down in size, a shade down in colour, and in italic. Weight and face stay the copy's: it reads
+	   as the same voice speaking as an aside, not as a different one.
 
-	   ⚠️ Faux italic, deliberately: `+layout.svelte` installs Noto Sans as Google's variable LATIN
-	   subsets, which carry the 100..900 weight axis and no italic cut, so the browser obliques it. That
-	   is fine for one short line and would not be for a paragraph — if this ever spreads, install the
-	   italic subsets rather than letting the synthesis spread with it.
+	   #bfbbb0 is the copy's own #d4d0c4 at 90% — a deliberate 10%, dark enough to place the line below
+	   the copy in the reading order and light enough that it never reads as disabled text. It was
+	   #a8a293 for a stretch, which was far enough down to look like a footnote the eye could skip, and
+	   these lines carry a real restriction on the feature above them.
 
-	   ⚠️ The size change costs the column 0.5475cqw a line, and the wide frame has nothing to give:
-	   `--qg-note-y` is where that is paid back, and `--qg-copy-w` is what keeps the copy above it to
-	   two lines. Both are load-bearing for this size — read them before changing it again. */
+	   ⚠️ The italic is SYNTHESISED: `+layout.svelte` installs Noto Sans as Google's variable latin
+	   subsets, which carry the 100..900 weight axis and no italic cut, so the browser obliques the
+	   upright face. That is fine for one short line and would not be for a paragraph — if this ever
+	   spreads, install the italic subsets rather than letting the synthesis spread with it. */
 	.qg-note {
 		max-width: var(--qg-copy-w);
 		margin: calc(1cqw * var(--qg-type)) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 400;
 		font-style: italic;
-		font-size: calc(1.85cqw * var(--qg-type) * var(--qg-note-scale));
-		line-height: 1.35;
+		font-size: calc(1.5cqw * var(--qg-type) * var(--qg-note-scale));
+		line-height: 1.3;
 		transform: translate(calc(var(--qg-note-x) * 1cqw), calc(var(--qg-note-y) * 1cqw));
 		letter-spacing: 0.01em;
 		text-align: center;
-		color: #d4d0c4;
+		color: #bfbbb0;
 		text-shadow: 0 0.2cqw 0.5cqw rgba(0, 0, 0, 0.85);
 	}
 
