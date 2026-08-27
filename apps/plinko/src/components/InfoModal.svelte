@@ -687,6 +687,15 @@
 								<li><strong>Sound.</strong> Toggles game sound on or off.</li>
 								<li><strong>Music.</strong> Toggles game music on or off.</li>
 							</ul>
+							<h3 class="info-section-title">Legal Notice</h3>
+							<p>
+								Malfunction voids all wins and plays. A consistent internet connection is required. In
+								the event of a disconnection, reload the game to finish any uncompleted rounds. The
+								expected return is calculated over many plays. The game display is not representative
+								of any physical device and is for illustrative purposes only. Winnings are settled
+								according to the amount received from the Remote Game Server and not from events
+								within the web browser. TM and © 2026 Stake Engine.
+							</p>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
 						<div class="howto-pill-bar">
@@ -773,16 +782,6 @@
 						<p>
 							For what every button and menu entry does, see
 							<strong>Game Rules</strong>.
-						</p>
-
-						<h3 class="info-section-title">Legal Notice</h3>
-						<p>
-							Malfunction voids all wins and plays. A consistent internet connection is required. In
-							the event of a disconnection, reload the game to finish any uncompleted rounds. The
-							expected return is calculated over many plays. The game display is not representative
-							of any physical device and is for illustrative purposes only. Winnings are settled
-							according to the amount received from the Remote Game Server and not from events
-							within the web browser. TM and © 2026 Stake Engine.
 						</p>
 					{:else}
 						<div class="info-history-pane">
