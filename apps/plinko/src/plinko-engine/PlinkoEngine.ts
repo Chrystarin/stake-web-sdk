@@ -3147,7 +3147,7 @@ export class PlinkoEngine {
     const heavyLoad = this.balls.length >= 8 || slowFrame;
     const effectInterval = verySlowFrame ? 3 : heavyLoad ? 2 : 1;
     if (this.frameTick % effectInterval === 0) {
-      if (this.hasActiveSlotVisuals(currentTime)) {
+      if (this.hasActiveSlotVisuals()) {
         this.drawAllSlotsPixi(currentTime);
       }
       this.drawActivePegs(currentTime);
@@ -3180,10 +3180,20 @@ export class PlinkoEngine {
     }
   }
 
-  private hasActiveSlotVisuals(currentTime: number): boolean {
+  /**
+   * Whether a pocket still needs drawing. Keyed on the flag alone, NOT on the animation still being
+   * inside its duration.
+   *
+   * `resolveSlotAnimationOffset` is what retires a finished bounce — it clears `animationActive` and
+   * zeroes the offset — and it only runs from `drawAllSlotsPixi`, which only runs when this returns
+   * true. Gating on `elapsed < slotAnimationDuration` therefore switched the draw off one frame
+   * BEFORE the frame that settles the pocket: the tile kept whatever offset the last in-window frame
+   * left on it and stayed flagged active until something else redrew the board. Returning true while
+   * the flag is set costs exactly one more slot pass per landing and puts the pocket back at rest.
+   */
+  private hasActiveSlotVisuals(): boolean {
     for (let i = 0; i < this.slots.length; i++) {
-      const slot = this.slots[i];
-      if (slot.animationActive && currentTime - slot.animationTime < this.pyramidConfig.slotAnimationDuration) return true;
+      if (this.slots[i].animationActive) return true;
     }
     return false;
   }
@@ -3763,21 +3773,29 @@ export class PlinkoEngine {
     }
   }
 
+  /**
+   * Bounce the pocket the ball is PAID at — `ball.targetIndex`, the same index that goes out on
+   * `onBallDropped` — rather than re-deriving it from where the ball happens to be.
+   *
+   * This used to scan the slots for the tile `ball.x` was inside at the landing instant. `ball.x` is
+   * not the path position: it is the lane plus every visual displacement the ball is carrying —
+   * `velocityX * laneCentering`, the per-ball `laneOffsetX`, the ball-ball `collisionOffsetX`, and,
+   * while the last peg hop is still running, that hop's directed drift and wobble. Every one of those
+   * is a displacement FROM the lane, so the ball is still paid its own pocket, but they stack: far
+   * enough to land inside the NEIGHBOURING tile, so the wrong pocket bounces, and — because the
+   * outermost tiles end exactly at the slot strip's edge, with nothing beyond them to catch an
+   * outward offset — far enough to match no tile at all, which is a landing that bounces nothing
+   * anywhere. Both failures grow with the distance from centre and with the number of balls in the
+   * air, which is why they read as "the outer pockets don't react" rather than as an occasional miss.
+   *
+   * The ball has known its pocket since `dropBall`, so ask it instead of measuring.
+   */
   private triggerSlotAnimation(ball: Ball, currentTime: number): void {
-    let closestSlot: Slot | null = null;
-    let minDistance = Infinity;
-    this.slots.forEach((slot) => {
-      const distance = Math.abs(ball.x - slot.centerX);
-      if (distance < minDistance && distance < slot.width / 2) {
-        minDistance = distance;
-        closestSlot = slot;
-      }
-    });
-    if (closestSlot) {
-      closestSlot.animationActive = true;
-      closestSlot.animationTime = currentTime;
-      ball.slotAnimationStart = currentTime;
-    }
+    const slot = this.slots[ball.targetIndex];
+    if (!slot) return;
+    slot.animationActive = true;
+    slot.animationTime = currentTime;
+    ball.slotAnimationStart = currentTime;
   }
 
   /** True when this featured peg wears the coin art (so it draws no classic peg body of its own). */
@@ -4088,11 +4106,16 @@ export class PlinkoEngine {
         if (bone) bone.pose.y = -slot.animationOffset / this.glowScale;
       }
 
-      let textScale = 1.1;
+      // The landing pulse is a 15% pop MULTIPLIED onto the resting scale, not a scale of its own.
+      // Written as a bare `1 + 0.15 * ...` it replaced the 1.1 rest value outright, so the label
+      // snapped 9% smaller on the frame a pocket was struck and 9% larger again on the frame the
+      // bounce retired — two pops the pulse never asked for, bracketing the one it did.
+      const restScale = 1.1;
+      let textScale = restScale;
       if (slot.animationActive) {
         const elapsed = currentTime - slot.animationTime;
-        const progress = elapsed / this.pyramidConfig.slotAnimationDuration;
-        textScale = 1 + 0.15 * Math.sin(progress * Math.PI * 4) * (1 - progress);
+        const progress = Math.min(1, elapsed / this.pyramidConfig.slotAnimationDuration);
+        textScale = restScale * (1 + 0.15 * Math.sin(progress * Math.PI * 4) * (1 - progress));
       }
 
       const label = this.slotLabels[idx];
