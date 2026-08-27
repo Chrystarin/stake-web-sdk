@@ -246,6 +246,7 @@
 	{ "name": "cloud2", "bone": "cloud5", "attachment": "cloud2" },
 	{ "name": "moon", "bone": "root", "attachment": "moon" },
 	{ "name": "ocean", "bone": "root", "attachment": "oceanAnim/" },
+	{ "name": "ship", "bone": "ship", "attachment": "ship" },
 	{ "name": "cloud1", "bone": "cloud7", "attachment": "cloud1" },
 	{ "name": "cloud7", "bone": "cloud17", "attachment": "cloud1" },
 	{ "name": "cloud5", "bone": "cloud11", "attachment": "cloud5" },
@@ -277,8 +278,7 @@
 	{ "name": "lamp1", "bone": "lamp1", "attachment": "lamp1" },
 	{ "name": "lamp2", "bone": "lamp2", "attachment": "lamp1" },
 	{ "name": "light", "bone": "light", "attachment": "light" },
-	{ "name": "light2", "bone": "light2", "attachment": "light" },
-	{ "name": "ship", "bone": "ship", "attachment": "ship" }
+	{ "name": "light2", "bone": "light2", "attachment": "light" }
 ],
 "skins": [
 	{
