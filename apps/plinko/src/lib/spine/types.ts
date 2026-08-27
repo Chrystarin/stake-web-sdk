@@ -67,6 +67,22 @@ export type SpineOverlayDef = {
 	 */
 	behindBase?: boolean;
 	/**
+	 * Guarantee this overlay always covers the whole viewport, for a full-frame effect (the rain) that
+	 * must never leave a bare strip at an edge.
+	 *
+	 * The scene is width-filled and bottom-anchored, so on any viewport TALLER than the aspect the
+	 * scene was authored for its top edge sits below the viewport top — and an overlay riding the base
+	 * fit transform stops there with it. With this set, the layer's authored bounds are scaled up
+	 * (uniformly, only if they fall short) until they span the viewport, and the placement is then
+	 * nudged the minimum needed to pull every short edge back onto the viewport edge. At the aspect the
+	 * layer was authored for both scales agree and nothing moves, so this costs nothing where the
+	 * scene already covers.
+	 *
+	 * Relies on the skeleton's AUTHORED bounds (`skeleton.data`), so the layer's art must actually fill
+	 * that box — true of a rain/snow field, not of a layer with one small motif in a large frame.
+	 */
+	coverViewport?: boolean;
+	/**
 	 * Draw this overlay INSIDE the base skeleton's own draw order, at the named base slot's position,
 	 * rather than as a whole layer above (`behindBase: false`) or below (`behindBase: true`) the base
 	 * spine. Use it when a layer has to land BETWEEN base-scene elements — e.g. the ship must paint over

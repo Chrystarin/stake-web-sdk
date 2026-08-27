@@ -27,10 +27,10 @@ export const spineAliases = (asset: Pick<SpineLoadable, 'id'>): SpineAliases => 
  * on a repeat call, which used to fire on every renderer remount — and, now that the intro loader
  * preloads the same bundles the renderers mount, would fire for EVERY spine in the game.
  *
- * Keyed by src (not a bare "seen" set) because one alias legitimately maps to different files across
- * orientations: `bonus_rain` is `spine/landscape_rain/skeleton.*` in landscape and
- * `spine/portrait_rain/portrait.*` in portrait. A src change must re-register or a rotation would keep
- * serving the previous orientation's skeleton.
+ * Keyed by src (not a bare "seen" set) so that an alias which legitimately points at different files in
+ * different situations still re-registers instead of being skipped as already-seen — otherwise the
+ * resolver would keep serving whichever file was registered first. (`bonus_rain` was exactly that until
+ * both orientations moved onto the one tiled rain skeleton.)
  */
 const registeredSrc = new Map<string, string>();
 

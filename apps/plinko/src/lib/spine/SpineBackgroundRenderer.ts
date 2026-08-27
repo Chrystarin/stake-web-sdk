@@ -42,6 +42,50 @@ import type {
 	SpineOverlayDef,
 } from './types';
 
+/**
+ * Placement for a `coverViewport` overlay: the scene placement it would otherwise get, grown and
+ * shifted by the least amount that still spans the viewport.
+ *
+ * The layer's own authored box (`skeleton.data`, in unscaled skeleton units — the loader does not
+ * apply `skeletonScale` to it, see `updateWorldBounds`) is mapped to screen the way Pixi draws the
+ * spine: world x runs with the layer's x scale, world y runs UP so a world point lands at
+ * `y − worldY × scale`. Scale is raised only if the box can't span an axis, then the box is slid back
+ * over any viewport edge it left bare — so where the scene already covers, this is a no-op.
+ */
+const coverViewportTransform = (
+	def: SpineOverlayDef,
+	spine: Spine,
+	placed: FitTransform,
+	width: number,
+	height: number,
+): FitTransform => {
+	const skeletonScale = def.skeletonScale ?? 1;
+	const data = spine.skeleton.data;
+	const boxWidth = data.width * skeletonScale;
+	const boxHeight = data.height * skeletonScale;
+	// A skeleton saved without authored bounds gives us nothing to fit; leave it on the scene transform.
+	if (!(boxWidth > 0) || !(boxHeight > 0)) return placed;
+
+	const scale = Math.max(placed.scale, width / boxWidth, height / boxHeight);
+	const left = data.x * skeletonScale * scale;
+	const top = -(data.y + data.height) * skeletonScale * scale;
+	// Both spans are ≥ the viewport after the scale above, so each min is ≤ 0 and the clamp is a no-op
+	// whenever the edge is already covered.
+	const clamp = (value: number, min: number) => Math.min(Math.max(value, min), 0);
+
+	return {
+		scale,
+		// Mirrored layers are drawn with a negated x scale, so the authored box's LEFT edge lands on the
+		// right of the anchor — clamp the edge that actually shows up on the left.
+		x: def.mirror
+			? clamp(placed.x - left - boxWidth * scale, width - boxWidth * scale) +
+				left +
+				boxWidth * scale
+			: clamp(placed.x + left, width - boxWidth * scale) - left,
+		y: clamp(placed.y + top, height - boxHeight * scale) - top,
+	};
+};
+
 /** Smoothstep, so the flicker ramps ease in and out instead of hitting a linear kink at each end. */
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
 
@@ -1194,7 +1238,17 @@ export class SpineBackgroundRenderer {
 			// `offsetYScene` is in base-scene units (× base.scale) so it tracks the scene/water across
 			// aspect ratios; `offsetYVh` is a viewport-height fraction (drifts with aspect). Both supported.
 			const offsetY = (def.offsetYVh ?? 0) * height + (def.offsetYScene ?? 0) * base.scale;
-			const scale = base.scale * (def.scaleMul ?? 1);
+			let scale = base.scale * (def.scaleMul ?? 1);
+			let x = base.x + offsetX;
+			let y = base.y + offsetY;
+
+			// Full-frame layers (the rain) must not stop where the scene's top edge does — see
+			// `SpineOverlayDef.coverViewport`. Done here rather than in the def because it depends on the
+			// viewport, and after the offsets so a nudge still moves the layer wherever it has slack.
+			if (def.coverViewport) {
+				({ scale, x, y } = coverViewportTransform(def, spine, { scale, x, y }, width, height));
+			}
+
 			// Mirroring reflects about the skeleton ROOT (world x=0) — `base.x` is exactly where world x=0
 			// lands, so negating scale.x reflects there with no extra term. `scaleMul` likewise scales the
 			// content about world x=0 (the position anchor), so an asset authored near centre barely shifts.
@@ -1204,8 +1258,6 @@ export class SpineBackgroundRenderer {
 			// threw the mirrored layer ~144px too far left at a 1600px viewport. Any residual is dialled
 			// in per-overlay via `offsetXVw`.
 			const scaleX = def.mirror ? -scale : scale;
-			const x = base.x + offsetX;
-			const y = base.y + offsetY;
 
 			// Anchored overlays hang off a base slot, so `spine.position/scale` are relative to that slot's
 			// bone rather than the stage. Re-express the same world placement in the wrapper's space.

@@ -16,7 +16,7 @@ import type { SpineImageOverlayDef, SpineOverlayDef } from './types';
  *  - splash×2 (spine, inside the base scene, over the ship)  — `getBonusSplashOverlay`
  *  - tornado×2 (spine, above the scene: a big one right, a smaller one left) — `getBonusTornadoOverlay`
  *  - cloud (spine, drifting storm clouds on top)             — `getBonusCloudOverlay`
- *  - rain  (spine, on top — landscape/portrait specific)     — `getBonusRainOverlay`
+ *  - rain  (spine, on top — viewport-covering, both orientations) — `getBonusRainOverlay`
  *
  * The ship and splashes are anchored into the BASE skeleton's draw order (`baseSlot`) rather than
  * layered under the base spine as a whole: they have to paint over the sea plane while the waterfall,
@@ -28,8 +28,8 @@ const CLOUD_BASE = 'spine/FG_CLOUD';
 const SPLASH_BASE = 'spine/FG_SPLASH';
 const SHIP_BASE = 'spine/ship';
 const TORNADO_BASE = 'spine/tornado';
-const LANDSCAPE_RAIN_BASE = 'spine/landscape_rain';
-const PORTRAIT_RAIN_BASE = 'spine/portrait_rain';
+/** Tiled 2×2 rain field, used in BOTH orientations — see `getBonusRainOverlay`. */
+const RAIN_BASE = 'spine/landscape_rain';
 const MOON_IMAGE = 'img/moon.webp';
 const LIGHTNING_IMAGE = 'spine/lightning.webp';
 
@@ -297,35 +297,33 @@ export const getBonusTornadoOverlay = (
 
 /**
  * Diagonal free-game rain, drawn on top of the scene (still inside the background canvas, so always
- * behind the plinko board). Landscape and portrait ship their own rain skeletons, each authored in the
- * matching base scene's coordinate frame.
+ * behind the plinko board). `coverViewport` re-anchors it to the VIEWPORT rather than to the scene it
+ * rides, so it fills the screen at every window size and keeps filling it through a resize.
+ *
+ * It has to be re-anchored because the scene is width-filled and bottom-anchored: on any viewport
+ * taller than the aspect the scene was authored for, the scene's top edge sits below the top of the
+ * screen and an overlay riding its fit transform stopped there with it — a bare strip above the rain,
+ * ~15px at 1600×900 and over 200px at 4:3.
+ *
+ * BOTH orientations use the LANDSCAPE skeleton. It is four copies of the same 29-frame `rainFreeGame`
+ * flipbook tiled 2×2 over a ~16:9 field, so covering a portrait screen scales it about as much as a
+ * desktop one does and the drops come out the same size in both. The portrait-specific skeleton
+ * (`spine/portrait_rain`, still on disk, no longer referenced) is two overlapping quads covering only
+ * the upper sky — roughly the top half of the visible height — and covering with it meant ~2× drops.
  */
-export const getBonusRainOverlay = (orientation: Orientation): SpineOverlayDef =>
-	orientation === 'landscape'
-		? {
-				id: 'bonus_rain',
-				format: 'json',
-				skeleton: staticAssetPath(`${LANDSCAPE_RAIN_BASE}/skeleton.json`),
-				atlas: staticAssetPath(`${LANDSCAPE_RAIN_BASE}/skeleton.atlas`),
-				images: {
-					'skeleton.png': staticAssetPath(`${LANDSCAPE_RAIN_BASE}/skeleton.webp`),
-				},
-				animation: 'animation',
-				loop: true,
-				skeletonScale: OVERLAY_SKELETON_SCALE,
-			}
-		: {
-				id: 'bonus_rain',
-				format: 'json',
-				skeleton: staticAssetPath(`${PORTRAIT_RAIN_BASE}/portrait.json`),
-				atlas: staticAssetPath(`${PORTRAIT_RAIN_BASE}/portrait.atlas`),
-				images: {
-					'portrait.png': staticAssetPath(`${PORTRAIT_RAIN_BASE}/portrait.webp`),
-				},
-				animation: 'animation',
-				loop: true,
-				skeletonScale: OVERLAY_SKELETON_SCALE,
-			};
+export const getBonusRainOverlay = (): SpineOverlayDef => ({
+	id: 'bonus_rain',
+	format: 'json',
+	skeleton: staticAssetPath(`${RAIN_BASE}/skeleton.json`),
+	atlas: staticAssetPath(`${RAIN_BASE}/skeleton.atlas`),
+	images: {
+		'skeleton.png': staticAssetPath(`${RAIN_BASE}/skeleton.webp`),
+	},
+	animation: 'animation',
+	loop: true,
+	skeletonScale: OVERLAY_SKELETON_SCALE,
+	coverViewport: true,
+});
 
 /**
  * The free-game moon — a soft, dimmed moon in the upper-left sky, replacing the base scene's moon (which
@@ -465,7 +463,7 @@ export const getBonusOverlays = (orientation: Orientation): SpineOverlayDef[] =>
 	getBonusTornadoOverlay(orientation, false),
 	// Landscape shows a second, smaller tornado on the left; portrait has only the right-hand one.
 	...(orientation === 'landscape' ? [getBonusTornadoOverlay(orientation, true)] : []),
-	getBonusRainOverlay(orientation),
+	getBonusRainOverlay(),
 ];
 
 /**
