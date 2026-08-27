@@ -2,6 +2,8 @@ import { Application, Assets, Container, Graphics, Sprite, Text, type Ticker } f
 import {
   Spine,
   Physics,
+  MeshAttachment,
+  RegionAttachment,
   type Bone,
   type Slot as SpineSlot,
   type Attachment as SpineAttachment
@@ -336,6 +338,31 @@ export class PlinkoEngine {
   private static readonly GLOW_REF_CARD_WIDTH = 82;
   /** Card width as a fraction of slot width — ~1 packs the glow cards edge-to-edge (tiny gaps). */
   private static readonly GLOW_WIDTH_FILL = 1.02;
+  /** Authored width (px) of a number card's FACE (the solid tile the value prints on) — the beam
+   * (`GLOW_REF_CARD_WIDTH`) minus a 4px transparent glow margin per side. */
+  private static readonly GLOW_REF_FACE_WIDTH = 74;
+  /** Authored width (px) of the SPIN card's beam mesh (`Spin/Rectangle 240647904`, hull -86.43..83.57). */
+  private static readonly GLOW_SPIN_CARD_WIDTH = 170;
+  /** Authored width (px) of the SPIN card's FACE (`Spin/Rectangle 240647908`). */
+  private static readonly GLOW_SPIN_FACE_WIDTH = 144;
+  /**
+   * Beam width the SPIN card is normalized TO at load (`normalizeSpinCardGeometry`): its face plus the
+   * same 4px-per-side margin the number cards have. Authored, the spin beam carries a 13px margin —
+   * over 3× the number cards' — so a centre slot wide enough for the beam left the FACE gaps flanking
+   * the centre reading ~2.7× wider than every other seam, and a slot sized for even face gaps put the
+   * beam's bright edges on top of both green neighbours. Same margin everywhere resolves both at once.
+   */
+  private static readonly GLOW_SPIN_BEAM_TARGET_WIDTH =
+    PlinkoEngine.GLOW_SPIN_FACE_WIDTH +
+    (PlinkoEngine.GLOW_REF_CARD_WIDTH - PlinkoEngine.GLOW_REF_FACE_WIDTH);
+  /**
+   * The SPIN card's attachments are authored slightly LEFT of their bone (beam mesh centre -1.43,
+   * face -2.29, glyph -1.72; every number card sits at 0). `normalizeSpinCardGeometry` re-centres
+   * them, or the centre pocket — card, "SPIN" glyph and the 1-ball "0" printed on it — sits left of
+   * the pocket centre and eats further into the LEFT neighbour than the right one. This constant is
+   * the beam mesh's authored centre, negated (the regions carry their own `x` and just get zeroed).
+   */
+  private static readonly GLOW_SPIN_CARD_MESH_OFFSET = 1.43;
   private static readonly GLOW_Y_OFFSET_RATIO = 0.52;
 
   /** Multiplier-label IMAGES (`img/multiplier_slot_text_<label>.webp`) keyed by the slot's label. */
@@ -355,7 +382,7 @@ export class PlinkoEngine {
   private static readonly SLOT_TEXT_X_RATIO = 0.4625;
   /** Vertical center of the label within the slot body (0.5 = dead center of `y..y+h`). */
   private static readonly SLOT_TEXT_Y_RATIO = 0.7;
-  /** 1-BALL TIER ONLY — the centre pocket is a paying slot there (`0.1`) rather than the SPIN card, and
+  /** 1-BALL TIER ONLY — the centre pocket is a plain board slot there (`0`) rather than the SPIN card, and
    * it sits on the wider centre tile: print it 25% larger than the shared label scale and dead-centre it
    * vertically in the slot body (the 0.7 ratio above is tuned for the narrow tiles). */
   private static readonly ONE_BALL_CENTER_LABEL_SCALE = 1.25;
@@ -1683,6 +1710,8 @@ export class PlinkoEngine {
       this.glowSpinSlot = spine.skeleton.findSlot('spin') ?? undefined;
       this.glowSpinDefaultAttachment = this.glowSpinSlot?.pose.getAttachment() ?? null;
 
+      this.normalizeSpinCardGeometry(spine);
+
       spine.visible = false;
       this.slotSpineLayer.addChild(spine);
       this.glowSpine = spine;
@@ -1692,6 +1721,42 @@ export class PlinkoEngine {
     } catch (err) {
       console.warn('[PlinkoEngine] glow_numbers spine failed to load', err);
       this.glowSpineReady = false;
+    }
+  }
+
+  /**
+   * Normalize the SPIN card to the number cards' proportions so the slot row tiles evenly — see
+   * `GLOW_SPIN_BEAM_TARGET_WIDTH` (margin) and `GLOW_SPIN_CARD_MESH_OFFSET` (centring) for why.
+   * The face and glyph keep their authored size; only the transparent beam margin narrows, and all
+   * three land dead-centre on the Spin bone. Safe to mutate: `readSkeletonData` parses a fresh
+   * `SkeletonData` per load rather than a shared cached one, so this can't compound across remounts
+   * (same argument as `BalanceCoinGlowRenderer.applyBoneScale`). Animation only keys slot colors —
+   * no deform/bone timelines fight these edits. Best-effort: if the skeleton is re-cut and a lookup
+   * misses, the board still renders with the authored (overlapping) card.
+   */
+  private normalizeSpinCardGeometry(spine: Spine): void {
+    const skeleton = spine.skeleton;
+
+    // Beam mesh: re-centre on the bone, then narrow to the number cards' glow margin.
+    const beam = skeleton.findSlot('Rectangle 240647931')?.pose.getAttachment();
+    if (beam instanceof MeshAttachment && !beam.bones) {
+      const k = PlinkoEngine.GLOW_SPIN_BEAM_TARGET_WIDTH / PlinkoEngine.GLOW_SPIN_CARD_WIDTH;
+      const verts = beam.vertices;
+      for (let i = 0; i < verts.length; i += 2) {
+        verts[i] = (verts[i] + PlinkoEngine.GLOW_SPIN_CARD_MESH_OFFSET) * k;
+      }
+    } else {
+      console.warn('[PlinkoEngine] glow_numbers spin beam mesh missing; centre card may overlap');
+    }
+
+    // Face card + "SPIN" glyph: regions carry their own local x — zero it (4.3 bakes region offsets
+    // into the sequence, so re-bake after the change).
+    for (const slotName of ['Rectangle 240647932', 'spin']) {
+      const att = skeleton.findSlot(slotName)?.pose.getAttachment();
+      if (att instanceof RegionAttachment) {
+        att.x = 0;
+        att.updateSequence();
+      }
     }
   }
 
@@ -1726,7 +1791,9 @@ export class PlinkoEngine {
     for (let i = 0; i < this.slots.length; i++) {
       const bone = this.glowBoneBySlotIndex[i];
       if (!bone) continue;
-      // Spine 4.3 exposes the local transform via `bone.pose` (set by application code).
+      // Spine 4.3 exposes the local transform via `bone.pose` (set by application code). Every card
+      // sits centred on its bone — the SPIN card's authored offsets are removed at load by
+      // `normalizeSpinCardGeometry` — so bone-on-centerX puts every card on its pocket's axis.
       bone.pose.setPosition(this.slots[i].centerX / scale, 0);
     }
     spine.skeleton.updateWorldTransform(Physics.update);
@@ -2377,8 +2444,21 @@ export class PlinkoEngine {
       finalTotalWidth = availableWidth;
     }
     const middleIndex = Math.floor(slotsCount / 2);
-    // Wider center to fit the spine's broader SPIN card (its authored width ~2× a number card).
-    const centerWeight = 1.95;
+    // Wider center to fit the spine's broader SPIN card (its face is ~2× a number card's). Sized so
+    // the centre card's two seams follow the SAME rule as every other seam: adjacent beams overlap
+    // their transparent glow margin by `(GLOW_WIDTH_FILL - 1)` of a slot. Half the (normalized —
+    // see `normalizeSpinCardGeometry`) SPIN beam plus half a number beam, minus that shared overlap
+    // per side, spans centre-to-neighbour-centre — and because the normalized margin matches the
+    // number cards', the VISIBLE face gaps come out equal across the whole row. Hardcoded at 1.95
+    // this was 0.18 slot widths short of the authored card and the SPIN card clipped over both
+    // neighbours; derived from the same authored widths + fill the glow spine is scaled by, a re-cut
+    // of the card art or the packing can't silently reintroduce the overlap.
+    const centerWeight =
+      ((PlinkoEngine.GLOW_SPIN_BEAM_TARGET_WIDTH + PlinkoEngine.GLOW_REF_CARD_WIDTH) *
+        PlinkoEngine.GLOW_WIDTH_FILL) /
+        PlinkoEngine.GLOW_REF_CARD_WIDTH -
+      1 -
+      2 * (PlinkoEngine.GLOW_WIDTH_FILL - 1);
     const totalWeight = (slotsCount - 1) + centerWeight;
     const unitWidth = finalTotalWidth / totalWeight;
     const centerSlotWidth = unitWidth * centerWeight;
@@ -3109,7 +3189,7 @@ export class PlinkoEngine {
     }
 
     // Turn split from the slot's ACTUAL x, not a proportional index mapping. The pockets are neither
-    // evenly spaced (the centre one is 1.95× wide) nor confined to the walk's reach — 12 rows of
+    // evenly spaced (the centre one is ~1.9× wide) nor confined to the walk's reach — 12 rows of
     // half-spacing steps only span ±6 spacings, while the outer slot centres sit at ±7.69 — so the
     // old `round(targetIndex / (slots-1) * rows)` left a systematic end-gap of up to 1.69 spacings
     // for the final, bounce-free segment to cover in one sideways lurch.
@@ -5269,8 +5349,8 @@ export class PlinkoEngine {
 
       const labelSprite = this.slotLabelSprites[idx];
       if (labelSprite) {
-        // The 1-ball tier's centre pocket prints a real value (`0.1`) on the wider centre tile: bigger
-        // and vertically centred. Every other label keeps the shared scale + placement.
+        // The 1-ball tier's centre pocket prints its own board value (`0`) on the wider centre tile:
+        // bigger, and centred on the card rather than on the drawn box every other label follows.
         const oneBallCenter = this.rapidSingleBall && this.isSpinSlotIndex(idx);
         const labelScale = oneBallCenter ? PlinkoEngine.ONE_BALL_CENTER_LABEL_SCALE : 1;
         // Same scale for every label (computed once in `computeUniformLabelScale`), centered in the slot.
@@ -5278,13 +5358,21 @@ export class PlinkoEngine {
         // `SLOT_TEXT_X_RATIO` is a small leftward nudge off the slot's midpoint. Derive it from the
         // REFERENCE slot width so it stays the same number of PIXELS on every label — the centre pocket
         // is wider than the rest, and scaling the nudge by its own width visibly pulled its label
-        // (the 1-ball board's `0.1`) off centre. Identical to `x + w * RATIO` on the normal slots.
+        // (the 1-ball board's centre value) off centre. Identical to `x + w * RATIO` on the normal slots.
         const nudge = (this.slots[0]?.width ?? w) * (PlinkoEngine.SLOT_TEXT_X_RATIO - 0.5);
+        // The 1-ball centre "0" is printed on the SPIN card, and that card is placed on `slot.centerX`
+        // (`layoutGlowSpine`) — so centre the label on `centerX` too. The drawn box `x`/`w` it would
+        // otherwise follow is the slot inset by a +3 and a pegRadius trim, which `nudge` only cancels
+        // at a NUMBER card's width; on the ~2× wide centre tile the leftovers are what showed as the
+        // "0" sitting off the pocket's axis. Without the spine (fallback sprites) the card is drawn on
+        // the inset box instead, so the label follows it there.
+        const labelX =
+          oneBallCenter && glowActive ? slot.centerX : x + w / 2 + (oneBallCenter ? 0 : nudge);
         const yRatio = oneBallCenter
           ? PlinkoEngine.ONE_BALL_CENTER_LABEL_Y_RATIO
           : PlinkoEngine.SLOT_TEXT_Y_RATIO;
         labelSprite.position.set(
-          Math.round(x + w / 2 + nudge),
+          Math.round(labelX),
           Math.round(y + h * yRatio)
         );
       }
