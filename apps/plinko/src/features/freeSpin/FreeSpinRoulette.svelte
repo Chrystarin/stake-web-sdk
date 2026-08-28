@@ -48,7 +48,13 @@
 		},
 		portrait: {
 			label: { scale: 2, offsetX: 0, offsetY: 0.2 },
-			wheel: { scale: 1.35, offsetX: 0, offsetY: -0.2 },
+			// ⚠️ Portrait `wheel.offsetY` measures from the wheel's PARKING SPOT — the top of its grid
+			// row, directly under the title row — NOT from the row's centre like landscape. The row's
+			// spare height no longer moves the wheel (`place-self: start` + the height budget below), so
+			// this one knob fully decides the title↔wheel relationship, and the SAME value renders the
+			// SAME composition on every device and viewport height. +0.5 parks the pointer ~5px under
+			// the title art — "almost sticking". Bigger = lower. (Mirrors BonusRoulette.)
+			wheel: { scale: 1.35, offsetX: 0, offsetY: 0.5 },
 		},
 	};
 
@@ -377,6 +383,11 @@
 	 * the DISC — so divide out the ring:disc ratio. Keeps the knob stable if the disc/ring fit changes. */
 	const RING_OUTER_TO_DISC = BASE_PNG.outerR / DISC_R_IN_BASE_PX;
 	const wheelGroupScale = WHEEL_SCALE / RING_OUTER_TO_DISC;
+	/** How far the frame art reaches BELOW the wheel centre, as a multiple of the wheel diameter — the
+	 * lowest painted pixel of the assembly. NOT half the frame box: the ring centre sits below the base
+	 * PNG's canvas centre (the pointer is taller than the bottom edge). The portrait height budget in
+	 * `updateRouletteLayout()` is measured against this (mirrors BonusRoulette). */
+	const FRAME_REACH_BELOW_CENTRE = FRAME_BOX.h * (1 - BASE_PNG.cy / BASE_PNG.h) * wheelGroupScale;
 
 	let overlayVisible = $state(false);
 	let wheelVisible = $state(false);
@@ -407,7 +418,17 @@
 		const labelGapPx = Math.min(Math.max(window.innerWidth * 0.015, 4), 16);
 		const vwCap = window.innerWidth * ROULETTE_SIZE_VW;
 		const maxWidth = Math.min(vwCap, rect.width);
-		const fromHeight = Math.max(0, rect.height - labelGapPx) / (1 + LABEL_HEIGHT_TO_WIDTH);
+		// Vertical budget, as a multiple of the wheel diameter. Landscape keeps the naive column
+		// (label + wheel). Portrait measures what the PINNED composition actually OCCUPIES, top of the
+		// label row → bottom of the frame art: label + half the disc + the `wheel.offsetY` knob + the
+		// frame's reach below the wheel centre. The wheel is parked at the top of its row
+		// (`place-self: start`), so the composition is a pure function of the knobs — and when a short
+		// viewport can't hold it, the WHEEL shrinks (this budget) instead of the title and wheel
+		// drifting into each other.
+		const columnToWheel = portrait
+			? LABEL_HEIGHT_TO_WIDTH + 0.5 + WHEEL_OFFSET_Y + FRAME_REACH_BELOW_CENTRE
+			: 1 + LABEL_HEIGHT_TO_WIDTH;
+		const fromHeight = Math.max(0, rect.height - labelGapPx) / columnToWheel;
 		rouletteSizePx = Math.max(0, Math.floor(Math.min(maxWidth, fromHeight)));
 	}
 
@@ -530,7 +551,12 @@
 				src={staticUrl('img/free-spin-label.webp')}
 				alt="Free spin"
 			/>
-			<div class="free-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>
+			<div
+				class="free-spin-wheel-stack"
+				class:free-spin-wheel-stack--portrait={portrait}
+				style:width={stackSizePx}
+				style:height={stackSizePx}
+			>
 				<!-- One transformed group so the disc, highlight and frame keep their measured registration
 				     under the tuning scale/offsets and the entry animation. -->
 				<div
@@ -670,6 +696,19 @@
 		max-height: 100%;
 		flex-shrink: 0;
 		place-self: center;
+	}
+	/* Portrait parks the wheel at the TOP of its row, welded to the title row above it, so the
+	   title↔wheel relationship is `wheel.offsetY` alone — the row's spare height (which varies with
+	   browser chrome and viewport) all falls BELOW the wheel instead of centring it away from the
+	   title. The stack must also stay SQUARE: `rouletteSizePx` is already capped against both stage
+	   axes in JS, and the default max-width/height clamps do NOT scale the assembly down — every piece
+	   inside is `object-fit: fill` on a box measured in % of this one, so a clamped height silently
+	   squashes the wheel into an ellipse. The group inside is absolutely positioned; nothing here
+	   clips. (Mirrors BonusRoulette.) */
+	.free-spin-wheel-stack--portrait {
+		max-width: none;
+		max-height: none;
+		place-self: start center;
 	}
 	/* The frame overhangs this box (it is ~1.25× the disc), so nothing here may clip. */
 	.free-spin-wheel-group {

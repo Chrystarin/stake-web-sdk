@@ -46,8 +46,11 @@
 	const props: Props = $props();
 
 	/** Shared wheel diameter from viewport; label/wheel derive from this. The two banner exports are
-	 * NOT the same shape, so the ratio is picked per orientation alongside the art (see `labelSrc`). */
-	const PORTRAIT_LABEL_HEIGHT_TO_WIDTH = 594 / 1280;
+	 * NOT the same shape, so the ratio is picked per orientation alongside the art (see `labelSrc`).
+	 * ⚠️ These must match the ACTUAL exports — they are the height budget's only knowledge of how much
+	 * room the banner eats. The portrait one was left at the pre-`fe86d1d` export (1280×594) after the
+	 * banner was re-cut to 1400×579, which over-reserved ~5% of the wheel diameter on every screen. */
+	const PORTRAIT_LABEL_HEIGHT_TO_WIDTH = 579 / 1400;
 	const LANDSCAPE_LABEL_HEIGHT_TO_WIDTH = 618 / 1400;
 	/** Per the bonus art, the "FREE BALLS" banner is wider than the wheel — it's the widest element and
 	 * therefore drives the horizontal budget (the wheel = label / LABEL_TO_WHEEL). */
@@ -81,7 +84,14 @@
 		},
 		portrait: {
 			label: { scale: 1.2, offsetX: 0, offsetY: 0 },
-			wheel: { scale: 1.1, offsetX: 0, offsetY: -0.3 },
+			// ⚠️ Portrait `wheel.offsetY` measures from the wheel's PARKING SPOT — the top of its grid
+			// row, directly under the banner row — NOT from the row's centre like landscape. The row's
+			// spare height no longer moves the wheel (`place-self: start` + the height budget below), so
+			// this one knob fully decides the banner↔wheel relationship, and the SAME value renders the
+			// SAME composition on every device and viewport height (desktop portrait, Android, iPhone —
+			// browser chrome no longer changes the layout, only how much wood shows below the wheel).
+			// +0.08 parks the crown's gem ~2px under the banner art — "almost sticking". Bigger = lower.
+			wheel: { scale: 1.1, offsetX: 0, offsetY: -0.01 },
 		},
 	};
 
@@ -455,6 +465,11 @@
 	 * and preserves the knob's original values from the old (ring-sized) wheel image. */
 	const RING_OUTER_TO_DISC = BASE_PNG.outerR / DISC_R_IN_BASE_PX;
 	const wheelGroupScale = WHEEL_SCALE / RING_OUTER_TO_DISC;
+	/** How far the frame art reaches BELOW the wheel centre, as a multiple of the wheel diameter — i.e.
+	 * the lowest painted pixel of the assembly (the bottom ornament). NOT half the frame box: the ring
+	 * centre sits ~3% above the base PNG's canvas centre because the crown is taller than the ornament.
+	 * The portrait height budget in `updateRouletteLayout()` is measured against this. */
+	const FRAME_REACH_BELOW_CENTRE = FRAME_BOX.h * (1 - BASE_PNG.cy / BASE_PNG.h) * wheelGroupScale;
 
 	function updateRouletteLayout() {
 		const stage = stageEl;
@@ -466,8 +481,24 @@
 		const labelVwCap = window.innerWidth * (portrait ? MOBILE_LABEL_VW : DESKTOP_LABEL_VW);
 		const maxLabelWidth = Math.min(labelVwCap, rect.width);
 		const wheelFromWidth = maxLabelWidth / LABEL_TO_WHEEL;
-		// Column height = label height + gap + wheel, all expressed as multiples of the wheel diameter.
-		const columnToWheel = LABEL_TO_WHEEL * labelHeightToWidth + LABEL_GAP_TO_WHEEL + 1;
+		// Vertical budget, as a multiple of the wheel diameter. Landscape measures the naive column
+		// (label + gap + wheel) — its frame art is scaled 2.05 and deliberately runs off the bottom of
+		// the screen, so a budget built on where the art ENDS would shrink it to nothing.
+		//
+		// Portrait measures what the PINNED composition actually OCCUPIES, top of banner → bottom of the
+		// frame art: label + gap + half the disc + the `wheel.offsetY` knob + the frame's reach below
+		// the wheel centre. The wheel is parked at the top of its row (`place-self: start`), so the
+		// composition is a pure function of the knobs — and when a short viewport can't hold it, the
+		// WHEEL shrinks (this budget) instead of the banner and wheel drifting into each other. The
+		// naive column knew nothing of the offset or the frame's overhang, so a phone-shaped viewport
+		// got a wheel that was the wrong size for its composition.
+		const columnToWheel = portrait
+			? LABEL_TO_WHEEL * labelHeightToWidth +
+				LABEL_GAP_TO_WHEEL +
+				0.5 +
+				WHEEL_OFFSET_Y +
+				FRAME_REACH_BELOW_CENTRE
+			: LABEL_TO_WHEEL * labelHeightToWidth + LABEL_GAP_TO_WHEEL + 1;
 		const wheelFromHeight = Math.max(0, rect.height) / columnToWheel;
 		rouletteSizePx = Math.max(0, Math.floor(Math.min(wheelFromWidth, wheelFromHeight)));
 	}
@@ -1008,7 +1039,12 @@
 					src={labelSrc}
 					alt="Free balls"
 				/>
-				<div class="bonus-spin-wheel-stack" style:width={stackSizePx} style:height={stackSizePx}>
+				<div
+					class="bonus-spin-wheel-stack"
+					class:bonus-spin-wheel-stack--portrait={portrait}
+					style:width={stackSizePx}
+					style:height={stackSizePx}
+				>
 					<!-- One transformed group so the disc, highlight and frame keep their measured registration
 					     under the tuning scale/offsets and the entry animation. -->
 					<div
@@ -1256,6 +1292,19 @@
 		max-height: 100%;
 		flex-shrink: 0;
 		place-self: center;
+	}
+	/* Portrait parks the wheel at the TOP of its row, welded to the banner row above it, so the
+	   banner↔wheel relationship is `wheel.offsetY` alone — the row's spare height (which varies with
+	   browser chrome and viewport) all falls BELOW the wheel instead of centring it away from the
+	   banner. The stack must also stay SQUARE: `rouletteSizePx` is already capped against both stage
+	   axes in JS, and the default max-width/height clamps do NOT scale the assembly down — every piece
+	   inside is `object-fit: fill` on a box measured in % of this one, so a clamped height silently
+	   squashes the wheel into an ellipse. The group inside is absolutely positioned; nothing here
+	   clips. */
+	.bonus-spin-wheel-stack--portrait {
+		max-width: none;
+		max-height: none;
+		place-self: start center;
 	}
 	/* The frame overhangs this box (it is ~1.09× the disc), so nothing here may clip. */
 	.bonus-spin-wheel-group {
