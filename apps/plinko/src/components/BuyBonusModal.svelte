@@ -474,20 +474,46 @@
 
 	.bb-card-desc {
 		margin: 0;
-		/* Noto Sans Bold, per the design — not the display face. Registered as a 100..900 variable in
-		 * +layout.svelte, so 700 is a real weight and never faux-bold. */
+		/* Noto Sans, not the display face. Registered as a 100..900 VARIABLE in +layout.svelte, so any
+		 * weight on that axis is a real interpolated instance — which is why this line, unlike the
+		 * button label below, can actually be asked for a lighter cut.
+		 * 600 rather than the design's 700: one step down, which lifts the tagline off the free-ball
+		 * count and the title without going thin on a textured panel at ~11px. 500 is available if it
+		 * should go lighter still; much below that and the drop shadow starts eating the strokes. */
 		font-family: 'Noto Sans', sans-serif;
-		font-weight: 700;
+		font-weight: 600;
 		font-synthesis: none;
-		/* The design's 16px is 0.049 of its card, i.e. 1.11vw of the 22.59vw landscape card — but this
-		 * line is the ONE that can't be sized on ratio alone. Uppercase Noto Sans Bold runs ~18.3× the
-		 * font size for the longest tagline ("A STARTER BATCH OF FREE BALLS"), which is ~90% of the
-		 * design's card: the design has almost no slack, so a straight 1.11vw would wrap it to three
-		 * lines the moment a font metric rounds the wrong way. 1.06vw keeps ~7% in hand against the 92%
-		 * the padding above leaves, at every landscape width — the tightest case being 1024×576, where
-		 * the modal is 96vw rather than its 1100ui-px cap. Re-check both if either number moves. */
-		font-size: clamp(calc(9.5 * var(--ui-px)), 1.06vw, calc(12 * var(--ui-px)));
+		/* The design's 16px is 0.049 of its card, i.e. 1.11vw of the 22.59vw landscape card; 1.06vw
+		 * keeps a little back because this is the one line in the card that can wrap, and a third line
+		 * would push the art out of shape. The binding case is 1024×576, where the modal is 96vw
+		 * rather than its 1100ui-px cap and the card is at its narrowest for a given --ui-px.
+		 * MEASURED there, against the flex column's content width (NOT this <p>'s own box — it is a
+		 * centred flex item, so it shrink-wraps to its text and always looks 100% full): the design's
+		 * longest forced line, "A MASSIVE STARTING BATCH AND", needs 190.4px of the 212.5px available,
+		 * so every tagline clears its measure by 12-35% at the tightest landscape size.
+		 *
+		 * ⚠️ The 8.2 FLOOR is the PORTRAIT size, not a landscape guard — in landscape the vw term is
+		 * always the larger of the two (1.06vw against a floor that works out to 0.80vw when --ui-px
+		 * is width-bound, and less still when it is not), so the floor only ever takes effect once the
+		 * portrait rule at the foot of this file re-points --ui-px at the CARD. There it is what sets
+		 * the size outright, because 1.06vw on a phone is about 4px.
+		 * Its value is set by the same forced line: uppercase at this weight and tracking runs 17.545×
+		 * the font size, and a portrait card leaves 0.92 × 176ui-px = 161.9ui-px of measure, so
+		 * anything above 9.23 wraps to a THIRD line and loses the design's two-line split. 8.2 keeps
+		 * 12% in hand — and lands the tagline at 0.047 of the card, which is the 0.046 it is in
+		 * landscape, so both orientations read at the same size relative to their card. */
+		font-size: clamp(calc(8.2 * var(--ui-px)), 1.06vw, calc(12 * var(--ui-px)));
 		line-height: 1.3;
+		/* The `
+` in each tagline (see BUY_BONUS_TIERS) is the design's own line break, so the two
+		 * lines split where the comp splits them rather than wherever the measure runs out. `pre-line`
+		 * and not `pre`: it honours the newline while still letting a line wrap further if a narrow
+		 * card leaves it no room, so this can never push text off the panel. Other whitespace is
+		 * collapsed as usual, so the source strings stay ordinary single-line literals. */
+		white-space: pre-line;
+		/* Tracked-out caps. Well inside the 0.16em the two-line wrap tolerates above — roughly a third
+		 * of it — so there is room to open this further if it is ever wanted. */
+		letter-spacing: 0.05em;
 		text-transform: uppercase;
 		color: #d4d0c4;
 		text-shadow: 0 calc(4 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.7);
@@ -555,9 +581,20 @@
 		 * element's background layer (behind), while text-shadow paints in the text layer (in front), so a
 		 * text-shadow lands ON TOP of the gradient. drop-shadow composites the shadow behind the rendered
 		 * glyphs, matching the reference (shadow behind the number). */
-		filter: drop-shadow(0 calc(4 * var(--ui-px)) calc(4 * var(--ui-px)) #000000)
-			drop-shadow(var(--ui-px) calc(2 * var(--ui-px)) 0 #000000)
-			drop-shadow(0 0 calc(28.5 * var(--ui-px)) rgba(237, 176, 42, 0.64));
+		/* All four in em, NOT --ui-px. The design's figures (4px, 1/2px, 28.5px) are for a 30px number
+		 * on a 324px card; ours is 24px on a 260px one, so stating them raw made every pass ~19% too
+		 * large — and on the glow that mattered: 28.5px against a 24px number is 1.19em, spread wide
+		 * enough that it stopped reading as a glow at all and became a faint wash. em keeps each pass
+		 * the same fraction of the glyphs it is lit from, at every card size.
+		 *
+		 * The glow is TWO passes because one cannot do both jobs. 0.5em is the tight, bright core that
+		 * makes it read as a glow at a glance — the same 12px-on-24px this had before the restyle —
+		 * and 0.95em is the design's own broad halo (its 28.5px, scaled), which alone is too diffuse
+		 * to see against the textured panel. Chained, the second lights the first, so the falloff is
+		 * continuous rather than two visible rings. */
+		filter: drop-shadow(0 0.133em 0.133em #000000) drop-shadow(0.033em 0.067em 0 #000000)
+			drop-shadow(0 0 0.5em rgba(237, 176, 42, 0.6))
+			drop-shadow(0 0 0.95em rgba(237, 176, 42, 0.64));
 	}
 
 	.bb-activate {
@@ -608,6 +645,21 @@
 	.bb-activate-text {
 		position: relative;
 		z-index: 1;
+		/* The flex centring above centres this span's BOX; these two put the LETTERS in the middle of
+		   the plate, which is not the same thing.
+		   HORIZONTAL: letter-spacing is added after EVERY character, the last one included, so the box
+		   carries one tracking's worth of empty air on its right and the word sits half that to the
+		   left. The negative margin is exactly one tracking, so the box shrinks back to the word's own
+		   advance and the centring lands on the letters. (A residual ~0.03em from the A and E having
+		   different side bearings is left alone — it is sub-pixel here and would mean baking this one
+		   string's metrics into the rule.)
+		   VERTICAL: the line box reserves room under the baseline for descenders that an all-caps
+		   label never uses, so its middle sits below the middle of the caps and the word rides high —
+		   measured at 1.5px on the 18.5px label. 0.081em is that gap: half of the descent the caps
+		   leave empty, derived from the face's own ascent/descent/cap metrics, so it holds at every
+		   card size rather than only the one it was measured at. */
+		margin-right: -0.07em;
+		top: 0.081em;
 		font-family: 'PotatoSans', sans-serif;
 		/* 23px on the design's 324px card = 0.071 of it, which the existing 1.6vw already happened to
 		 * be — only the caps moved (0.071 of the 260.6ui-px card the modal settles at). */

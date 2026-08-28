@@ -28,10 +28,38 @@ export type BuyBonusTier = {
 };
 
 export const BUY_BONUS_TIERS: readonly BuyBonusTier[] = [
-	{ key: 'standard', name: 'Standard', freeBalls: 72, headStart: 0, tagline: 'A starter batch of free balls with chain potential.' },
-	{ key: 'enhanced', name: 'Enhanced', freeBalls: 95, headStart: 0, tagline: 'A bigger batch for stronger chain runs.' },
-	{ key: 'premium', name: 'Premium', freeBalls: 145, headStart: 0, tagline: 'A large batch with solid chain progression.' },
-	{ key: 'superfury', name: 'Super Fury', freeBalls: 239, headStart: 0, tagline: 'A massive starting batch and the strongest chains.' },
+	// Copy and line breaks are the design's own. The \n is a real break, not a hint: the card
+	// renders the tagline with `white-space: pre-line` so the two lines split where the comp splits
+	// them rather than wherever the measure runs out. `pre-line` still lets a line wrap further if a
+	// narrow card leaves it no room, so forcing the break here cannot push text off the panel.
+	{
+		key: 'standard',
+		name: 'Standard',
+		freeBalls: 72,
+		headStart: 0,
+		tagline: 'A starter batch of free balls\nwith chain potential.',
+	},
+	{
+		key: 'enhanced',
+		name: 'Enhanced',
+		freeBalls: 95,
+		headStart: 0,
+		tagline: 'A bigger batch for stronger\nchain runs.',
+	},
+	{
+		key: 'premium',
+		name: 'Premium',
+		freeBalls: 145,
+		headStart: 0,
+		tagline: 'Larger batch with solid\nfury progression.',
+	},
+	{
+		key: 'superfury',
+		name: 'Super Fury',
+		freeBalls: 239,
+		headStart: 0,
+		tagline: 'A massive starting batch and\nthe strong chain reactions.',
+	},
 ];
 
 /** RGS mode for a buy tier (mirror math `buy_bonus_mode_name`), e.g. buystandard. */
