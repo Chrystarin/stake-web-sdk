@@ -57,7 +57,7 @@
 		{
 			title: 'LEVEL BONUSES',
 			content: [
-				'Hit Gold Coins during Bonus Round to fill the Bonus meter.',
+				'Hit Gold Coins during the Bonus Round to fill the Bonus Meter.',
 				'Fill it to unlock the next bonus level and win more Free Balls!',
 			],
 			video: 3,
