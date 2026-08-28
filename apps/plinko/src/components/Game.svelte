@@ -146,6 +146,72 @@
 		return isPortraitGameLayout();
 	});
 
+	/**
+	 * ⚠️ JS mirror of the portrait container's CSS layout knobs — keep in step with
+	 * `.game-root--mobile .game-area > .container` (its laid-out content height is 222 top pad +
+	 * 248 board margin + 546 board = 1016 portrait-px, times --game-layout-scale-mobile, over the
+	 * 992 design width, plus --game-layout-offset-y-ratio-mobile). See the transform comment on
+	 * that rule for the full derivation.
+	 */
+	const PORTRAIT_VISUAL_H_RATIO = (1016 * 1.15) / 992 + 0.05;
+
+	let gameAreaEl = $state<HTMLElement | undefined>(undefined);
+	let portraitContainerEl = $state<HTMLElement | undefined>(undefined);
+
+	/**
+	 * Portrait vertical-fit values, computed in JS and written as inline CSS vars on `.container`.
+	 *
+	 * These started life as pure CSS — `min(1, tan(atan2(100cqh, 100cqw)) / ratio)` — but iOS
+	 * Safari evaluates that length-typed trig construct differently from Chromium: on an iPhone the
+	 * squeeze never engaged (the expression came out as 1), so on a short viewport (Safari's own
+	 * chrome plus a host page's rows eat ~200px) the full-size board ran its slot row straight into
+	 * the HUD's free-spin meter — while the same build on Android Chrome laid out correctly. JS
+	 * arithmetic on the measured `.game-area` box is engine-proof and byte-identical to what the
+	 * CSS produced in Chromium: fit-scale squeezes the block on short viewports, surplus-y hands
+	 * spare height to the top of the scene on tall ones (mutually exclusive by construction).
+	 * The stylesheet declares neutral fallbacks (1 / 0px), so before this first runs — and on
+	 * desktop, which has its own transform rule — the container simply renders unsqueezed.
+	 */
+	const applyPortraitFit = () => {
+		const cont = portraitContainerEl;
+		if (!cont) return;
+		if (!mobile) {
+			cont.style.removeProperty('--portrait-fit-scale');
+			cont.style.removeProperty('--portrait-surplus-y');
+			return;
+		}
+		const area = gameAreaEl;
+		if (!area) return;
+		// clientWidth/Height: the untransformed layout box — the same basis the container queries
+		// (100cqw/100cqh) resolved against, so the CSS and JS formulations agree exactly.
+		const w = area.clientWidth;
+		const h = area.clientHeight;
+		if (!(w > 0) || !(h > 0)) return;
+		const fit = Math.min(1, h / w / PORTRAIT_VISUAL_H_RATIO);
+		const surplus = Math.max(0, h - w * PORTRAIT_VISUAL_H_RATIO);
+		cont.style.setProperty('--portrait-fit-scale', String(fit));
+		cont.style.setProperty('--portrait-surplus-y', `${surplus}px`);
+	};
+
+	// Re-fit on any window resize / orientation change (the reactive window trackers fire even
+	// while rendering is throttled) …
+	$effect(() => {
+		innerWidth.current;
+		innerHeight.current;
+		void mobile;
+		applyPortraitFit();
+	});
+
+	// … and on any layout-driven change of the game-area box itself (e.g. the HUD growing a row),
+	// which a window-resize listener can't see.
+	$effect(() => {
+		const area = gameAreaEl;
+		if (!area || typeof ResizeObserver === 'undefined') return;
+		const ro = new ResizeObserver(() => applyPortraitFit());
+		ro.observe(area);
+		return () => ro.disconnect();
+	});
+
 	/** TODO: remove — temporary preview of bonus congratulations typography on load. */
 	const DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD = false;
 	let devBonusCongratulationsPreviewOpen = $state(DEV_SHOW_BONUS_CONGRATULATIONS_ON_LOAD);
@@ -866,12 +932,16 @@
 	{/if}
 
 	<div class="game-content">
-		<div class="game-area" class:game-area--pixi-fill={!mobile}>
+		<div class="game-area" class:game-area--pixi-fill={!mobile} bind:this={gameAreaEl}>
 			<!-- `container--bonus` cross-fades the bonus game-area frame (`img/game_area_bonus.webp`) in.
 			     It rides `isBonusFrameOverlayActive`, NOT `isBonusBackgroundActive`: the frame is meant to
 			     light the instant the bonus meter tops out, ahead of the wheel/congratulations screens,
 			     while the backdrop swap still waits for the round itself. -->
-			<div class="container" class:container--bonus={stateGameDerived.isBonusFrameOverlayActive}>
+			<div
+				class="container"
+				class:container--bonus={stateGameDerived.isBonusFrameOverlayActive}
+				bind:this={portraitContainerEl}
+			>
 				{#if stateGame.bonusRoundActive}
 					<div class="bonus-level-behind-game-area">
 						<BonusLevel
@@ -1760,28 +1830,29 @@
 		   The portrait game area is sized off --portrait-px (viewport WIDTH / 992, see .game-content),
 		   so its height is driven purely by viewport WIDTH. That's right while the viewport is tall
 		   enough, but on a SHORT viewport the width-driven height pushes the board + bonus meter down
-		   into the betting panel.
+		   into the betting panel — and on a TALL one it leaves a dead band of background above it.
 		   Rather than re-derive every token (the internals mix --portrait-px, vw, %, and container-
-		   query units, which resolve against different boxes), apply ONE uniform down-scale to the
-		   whole container. --portrait-fit-scale is 1 while there's enough height and drops below 1 once
-		   the container's natural visual height would exceed the room left above the HUD — that room is
-		   100cqh of the .game-area box (the flex item that soaks up the leftover space; its height is
-		   independent of the container, so there's no feedback loop). Because it's a transform on the
-		   whole subtree, the board, bonus meter and bonus-level bars shrink together and stay perfectly
-		   aligned whatever units each uses. Scaling toward `center top` (see transform-origin below)
-		   keeps the block anchored at the top and lifts its bottom clear of the panel. When height is
-		   not the limiting factor --portrait-fit-scale is 1, so tall phones render exactly as before.
-		   --portrait-visual-h-ratio is the container's natural visual height as a fraction of its
-		   width: laid-out height (222 top pad + 248 board margin + 546 board = 1016) × the layout
-		   scale, ÷ the 992 design width, + the downward y-offset. tan(atan2(100cqh, 100cqw)) yields the
-		   live height/width ratio of the .game-area box as a plain number so the two compare. Keep the
-		   ratio in sync if the scale / y-offset knobs change. */
-		--portrait-visual-h-ratio: calc(
-			1016 * var(--game-layout-scale-mobile) / var(--portrait-dw) +
-				var(--game-layout-offset-y-ratio-mobile)
-		);
-		--portrait-fit-scale: min(1, tan(atan2(100cqh, 100cqw)) / var(--portrait-visual-h-ratio));
-		transform: scale(var(--portrait-fit-scale))
+		   query units, which resolve against different boxes), apply ONE uniform correction to the
+		   whole container:
+		     • --portrait-fit-scale drops below 1 once the container's natural visual height exceeds
+		       the room left above the HUD (the .game-area flex box). A transform on the whole subtree,
+		       so board, bonus meter and bonus-level bars shrink together and stay aligned whatever
+		       units each uses; `center top` origin (below) lifts the bottom clear of the panel.
+		     • --portrait-surplus-y is the inverse case: with spare height the block tops out at scale
+		       1, and this translate hands the surplus to the TOP of the scene (sky above the hat,
+		       painted by the cover background) so the board bottom stays glued to the betting panel.
+		       Declared FIRST in the transform list so it applies outermost, in unscaled px.
+		   The two are mutually exclusive by construction (one binds only when the other is neutral).
+
+		   ⚠️ The VALUES are computed in JS — `applyPortraitFit()` in this file — from the measured
+		   .game-area box, and written here as inline vars. They were originally pure CSS
+		   (`min(1, tan(atan2(100cqh, 100cqw)) / ratio)`), but iOS Safari evaluates that length-typed
+		   trig construct to 1, which shipped iPhones a full-size board overlapping the free-spin
+		   meter while Android laid out correctly. The declarations below are neutral fallbacks for
+		   first paint / desktop only — keep them boring. */
+		--portrait-fit-scale: 1;
+		--portrait-surplus-y: 0px;
+		transform: translateY(var(--portrait-surplus-y)) scale(var(--portrait-fit-scale))
 			translate(
 				calc(var(--game-layout-offset-x-ratio-mobile) * 100vw),
 				calc(var(--game-layout-offset-y-ratio-mobile) * 100vw)

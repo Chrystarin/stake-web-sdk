@@ -2108,7 +2108,13 @@
 
 
 .mobile-bottom-corners {
-	position: fixed;
+	// `absolute` (against .mobile-hud, which is `position: relative` and ends flush with the 100svh
+	// game root), NOT `fixed`: a fixed element tracks the browser's LIVE visual viewport, while the
+	// rest of the layout is deliberately locked to `svh` (see .game-root) — so the moment mobile
+	// browser chrome collapsed/expanded, the bar detached from the HUD and floated into the exposed
+	// band below the game. Anchoring it to the HUD box lands in exactly the same place whenever the
+	// two viewports agree (any iframe embed, chrome at rest) and can never drift when they don't.
+	position: absolute;
 	left: 0;
 	right: 0;
 	// Flush to the bottom edge, Win (left) + Balance (right) in the same corners as before. The solid
