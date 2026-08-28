@@ -155,6 +155,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 
 	// ── Buy Bonus modal — card frame + Activate button + per-tier art (mirrors BUY_BONUS_TIERS) ──
 	'img/buy_bonus_button.webp',
+	'img/buy_bonus_button_hover.webp',
 	'img/buy_bonus_panel.webp',
 	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.webp`),
 	// The bet stepper at the top of the same modal (BetPerBallField's `panel` skin) — container plus its

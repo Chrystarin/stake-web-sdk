@@ -121,7 +121,8 @@
 								aria-hidden="true"
 							/>
 							<div class="bb-card-total">
-								<span class="bb-free">{tier.freeBalls}</span> Free Balls
+								<span class="bb-free">{tier.freeBalls}</span>
+								<span class="bb-free-label">Free Balls</span>
 							</div>
 							<!-- Price on its own line ABOVE the button, not inside its label. Shown on every tier,
 							     affordable or not — with the button now permanently labelled "Activate", this line
@@ -136,6 +137,16 @@
 								<img
 									class="bb-activate-bg"
 									src={staticUrl('img/buy_bonus_button.webp')}
+									alt=""
+									aria-hidden="true"
+								/>
+								<!-- The design's hover state is a whole second plate, not a tint: the gold button turns
+								     BLUE under the cursor. Stacked over the gold one and cross-faded by opacity (see
+								     .bb-activate-bg--hover) rather than swapped through `src`, so the blue frame is already
+								     decoded when the pointer arrives and the swap can't flash. -->
+								<img
+									class="bb-activate-bg bb-activate-bg--hover"
+									src={staticUrl('img/buy_bonus_button_hover.webp')}
 									alt=""
 									aria-hidden="true"
 								/>
@@ -435,7 +446,12 @@
 		flex-direction: column;
 		align-items: center;
 		text-align: center;
-		padding: 9% 10% 8%;
+		/* Design metrics: 24px of air above the title and 25px below the button on the 324×442 reference
+		   card. ⚠️ Percentage padding resolves against the containing block's WIDTH on every side, top
+		   and bottom included — so those two are 24/324 and 25/324, NOT /442. The 4% sides are what let
+		   the two-line tagline run to ~90% of the card the way the design does; the button no longer
+		   takes its width from this box (see .bb-activate), so widening it costs nothing there. */
+		padding: 7.4% 4% 7.7%;
 		gap: calc(4.48 * var(--ui-px)); /* 0.28rem */
 	}
 
@@ -444,31 +460,37 @@
 		font-family: 'PiecesOfEight', serif;
 		font-weight: 400;
 		/* px/vw based (NOT rem): the game halves the root font-size on narrow screens, so a rem title
-		 * clamps tiny. This keeps the tier title prominent at every width. */
-		font-size: clamp(calc(20 * var(--ui-px)), 4.2vw, calc(34 * var(--ui-px)));
-		line-height: 1.05;
+		 * clamps tiny. 55px on the design's 324px-wide card = 0.17 of the card. The vw term is what actually holds
+		 * that ratio: in landscape the card is 22.59vw wide (see the .bb-cards grid against
+		 * --bb-modal-width), so 0.17 × 22.59 = 3.84vw. The --ui-px cap takes over past ~1146px, where
+		 * the modal stops growing and the card settles at 260.6ui-px — 0.17 of which is 44. */
+		font-size: clamp(calc(24 * var(--ui-px)), 3.84vw, calc(44 * var(--ui-px)));
+		/* 52/55 in the design — tighter than a default, which is what keeps a two-word title like
+		 * "Super Fury" from eating the tagline's row. */
+		line-height: 0.95;
 		color: #ffffff;
-		/* Shared depth recipe with .bb-card-desc / .bb-card-total so every line reads with the same
-		 * contrast against the textured panel (no per-line brightness/glow mismatch). */
-		text-shadow: 0 calc(2 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.85);
+		text-shadow: 0 calc(4 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.8);
 	}
 
 	.bb-card-desc {
 		margin: 0;
-		/* PotatoSans (the game's display face) in uppercase to match the reference tagline styling. */
-		font-family: 'PotatoSans', sans-serif;
-		/* px/vw based — the game halves the root font-size on narrow screens (see title note).
-		 * Small caps, matching the reference (desktop caps at 10px). */
-		font-size: clamp(calc(8.5 * var(--ui-px)), 1.05vw, calc(10 * var(--ui-px)));
+		/* Noto Sans Bold, per the design — not the display face. Registered as a 100..900 variable in
+		 * +layout.svelte, so 700 is a real weight and never faux-bold. */
+		font-family: 'Noto Sans', sans-serif;
+		font-weight: 700;
+		font-synthesis: none;
+		/* The design's 16px is 0.049 of its card, i.e. 1.11vw of the 22.59vw landscape card — but this
+		 * line is the ONE that can't be sized on ratio alone. Uppercase Noto Sans Bold runs ~18.3× the
+		 * font size for the longest tagline ("A STARTER BATCH OF FREE BALLS"), which is ~90% of the
+		 * design's card: the design has almost no slack, so a straight 1.11vw would wrap it to three
+		 * lines the moment a font metric rounds the wrong way. 1.06vw keeps ~7% in hand against the 92%
+		 * the padding above leaves, at every landscape width — the tightest case being 1024×576, where
+		 * the modal is 96vw rather than its 1100ui-px cap. Re-check both if either number moves. */
+		font-size: clamp(calc(9.5 * var(--ui-px)), 1.06vw, calc(12 * var(--ui-px)));
 		line-height: 1.3;
-		/* Tracked-out caps, matching the reference spacing. */
-		letter-spacing: 0.05em;
 		text-transform: uppercase;
-		/* Near-white cream, matching the reference; double shadow lifts it clear of the textured panel. */
-		color: #f4efe4;
-		text-shadow:
-			0 var(--ui-px) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.95),
-			0 0 calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.85);
+		color: #d4d0c4;
+		text-shadow: 0 calc(4 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.7);
 	}
 
 	.bb-card-art {
@@ -491,43 +513,59 @@
 		transform-origin: center;
 	}
 
+	/* Count and label are ONE face in the comp — Noto Sans Black, differing only in fill — which is
+	   what makes their cap heights line up. (The Figma layer names the count "Potato sans Black", but
+	   a shape match of the comp's own "71" puts Noto Sans 900 at 0.93 IoU against PotatoSans's 0.52:
+	   the display face is a good deal narrower and sits shorter per em, so taking the layer name here
+	   left the number visibly small beside its label. The button's label IS PotatoSans — 0.76 there —
+	   so this is a per-line fact, not a blanket one.) */
 	.bb-card-total {
-		font-family: 'PotatoSans', sans-serif;
-		/* px/vw based (NOT rem) so it stays prominent on narrow screens (see title note). */
-		font-size: clamp(calc(16 * var(--ui-px)), 2.7vw, calc(24 * var(--ui-px)));
-		color: #ffffff;
-		text-shadow: 0 var(--ui-px) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.9);
+		display: flex;
+		align-items: baseline;
+		justify-content: center;
+		gap: 0.33em;
+		font-family: 'Noto Sans', sans-serif;
+		font-weight: 900;
+		font-synthesis: none;
+		/* 30px on the design's 324px card = 0.0926 of it, i.e. 2.09vw of the 22.59vw landscape card;
+		 * the cap is 0.0926 of the 260.6ui-px card the modal settles at. Both children inherit it. */
+		font-size: clamp(calc(16 * var(--ui-px)), 2.09vw, calc(24 * var(--ui-px)));
 		/* Keep "<n> FREE BALLS" on one line even for the wide 3-digit tiers (matches the reference). */
 		white-space: nowrap;
 	}
 
+	.bb-free-label {
+		text-transform: uppercase;
+		color: #ffffff;
+		text-shadow: 0 calc(4 * var(--ui-px)) calc(5.8 * var(--ui-px)) #000000;
+	}
+
 	.bb-free {
-		/* Numbers use Poppins Black (900) — the heaviest weight in the project and a clean geometric sans
-		 * that reads as a thicker cousin of the PotatoSans "FREE BALLS" label beside it. Already registered
-		 * and preloaded (see +layout.svelte / preloadAssets.ts), so no faux-bold and no first-open FOUT. */
-		font-family: 'Poppins', sans-serif;
-		font-weight: 900;
+		/* Face and weight come from .bb-card-total — see the note there. All this line adds is the fill. */
 		/* Gold gradient fill clipped to the glyphs (reference design); the "FREE BALLS" label stays white. */
 		background: linear-gradient(180deg, #f5b936 0%, #ebad26 56.7%, #d18a16 81.67%);
 		-webkit-background-clip: text;
 		background-clip: text;
 		-webkit-text-fill-color: transparent;
 		color: transparent;
-		/* Clear the text-shadow inherited from .bb-card-total (text-shadow is an inherited property) — it
-		 * would otherwise paint on top of the gradient too (same overlap bug the filter below fixes). */
+		/* Belt and braces: .bb-card-total no longer sets one, but text-shadow IS inherited, and any
+		 * shadow here would paint on top of the gradient (the same overlap bug the filter below fixes). */
 		text-shadow: none;
 		/* Use filter drop-shadow — NOT text-shadow. With background-clip:text the gradient paints in the
 		 * element's background layer (behind), while text-shadow paints in the text layer (in front), so a
 		 * text-shadow lands ON TOP of the gradient. drop-shadow composites the shadow behind the rendered
 		 * glyphs, matching the reference (shadow behind the number). */
-		filter: drop-shadow(0 calc(2.42262 * var(--ui-px)) calc(2.42262 * var(--ui-px)) #000000)
-			drop-shadow(calc(0.605655 * var(--ui-px)) calc(1.21131 * var(--ui-px)) 0 #000000)
-			drop-shadow(0 0 calc(12 * var(--ui-px)) rgba(237, 176, 42, 0.6));
+		filter: drop-shadow(0 calc(4 * var(--ui-px)) calc(4 * var(--ui-px)) #000000)
+			drop-shadow(var(--ui-px) calc(2 * var(--ui-px)) 0 #000000)
+			drop-shadow(0 0 calc(28.5 * var(--ui-px)) rgba(237, 176, 42, 0.64));
 	}
 
 	.bb-activate {
 		position: relative;
-		width: 100%;
+		/* 190.8px of the design's 324px card = 58.9% of it. `.bb-card-inner` leaves 92% of the card for
+		   its text column (the tagline wants that width), so the button takes 64% of THAT to land on
+		   the design's own width — and, through the aspect ratio below, its height. */
+		width: 64%;
 		/* The bottom of the card is now pinned by the PRICE line above (it carries the `margin-top: auto`
 		   that used to live here); this button just follows it, with the card-inner bottom padding
 		   leaving a small margin below. */
@@ -555,25 +593,59 @@
 		user-select: none;
 	}
 
+	/* The blue plate rides on top of the gold one and is faded in on hover. Both are the same 191×44
+	   art box, so they register exactly. */
+	.bb-activate-bg--hover {
+		opacity: 0;
+		transition: opacity 0.12s ease;
+	}
+	/* :focus-visible too — a keyboard user gets the same read on which tier is armed. */
+	.bb-activate:hover:not(:disabled) .bb-activate-bg--hover,
+	.bb-activate:focus-visible:not(:disabled) .bb-activate-bg--hover {
+		opacity: 1;
+	}
+
 	.bb-activate-text {
 		position: relative;
 		z-index: 1;
 		font-family: 'PotatoSans', sans-serif;
-		/* px/vw based — the game halves the root font-size on narrow screens (see title note). */
-		font-size: clamp(calc(12 * var(--ui-px)), 1.6vw, calc(16 * var(--ui-px)));
-		letter-spacing: 0.03em;
+		/* 23px on the design's 324px card = 0.071 of it, which the existing 1.6vw already happened to
+		 * be — only the caps moved (0.071 of the 260.6ui-px card the modal settles at). */
+		font-size: clamp(calc(14 * var(--ui-px)), 1.6vw, calc(18.5 * var(--ui-px)));
+		/* The design's own 1.61px on 23px. It only sets correctly alongside the inward stroke below —
+		 * see the note there. */
+		letter-spacing: 0.07em;
 		text-transform: uppercase;
-		/* White with a black outline. -webkit-text-stroke draws the outline where supported; the layered
-		 * text-shadow gives a solid black edge everywhere else. */
+		/* White with a black outline. The design HAS this outline — it just doesn't survive Figma's
+		 * code export, which reports the soft shadow alone; a 4× render of the button node measures a
+		 * visible edge of 0.75–1ui-px on the 23px label.
+		 *
+		 * ⚠️ NO `paint-order: stroke fill` here, deliberately, and it is the only lever this label has
+		 * on its weight: Potato sans ships as a single BLACK face (see +layout.svelte), so
+		 * `font-weight` selects nothing and there is no lighter cut to ask for. Left at the CSS
+		 * default the stroke paints OVER the fill, so the centred edge eats half its width back into
+		 * every stem and thins the white letterforms towards the Bold the comp is set in.
+		 * `paint-order: stroke fill` would put the fill back on top and restore the full Black weight.
+		 * The design's 0.07em tracking depends on this: against the fatter un-eroded glyphs the word
+		 * ran 4% wide and the letters drifted apart.
+		 *
+		 * That paint order is also why the width is 0.04em and not the 0.08em it would be if the edge
+		 * sat outside the glyph. With the stroke centred, the WHOLE width reads as black — half
+		 * outside the glyph and half in — so 0.04em is what draws the 0.92px band on a 23px label,
+		 * inside the 0.75–1px the 4× render measures. Doubling it to get the same OUTER reach paints
+		 * a band twice as heavy as the design's.
+		 *
+		 * Stated in em, NOT --ui-px, so the edge stays that fraction of the label at every card size.
+		 * The four offset shadows carry the outer edge for anything without -webkit-text-stroke; the
+		 * last one is the design's own soft drop shadow (1.467px on 23px). */
 		color: #ffffff;
-		-webkit-text-stroke: var(--ui-px) #000000;
-		paint-order: stroke fill;
+		-webkit-text-stroke: 0.04em #000000;
 		text-shadow:
-			var(--ui-px) var(--ui-px) 0 #000000,
-			calc(-1 * var(--ui-px)) var(--ui-px) 0 #000000,
-			var(--ui-px) calc(-1 * var(--ui-px)) 0 #000000,
-			calc(-1 * var(--ui-px)) calc(-1 * var(--ui-px)) 0 #000000,
-			0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.6);
+			0.02em 0.02em 0 #000000,
+			-0.02em 0.02em 0 #000000,
+			0.02em -0.02em 0 #000000,
+			-0.02em -0.02em 0 #000000,
+			0 0.064em 0.064em rgba(0, 0, 0, 0.25);
 		white-space: nowrap;
 	}
 
@@ -584,26 +656,32 @@
 	 * rows, so it — not the button — is what takes up the card's free space. */
 	.bb-price {
 		margin-top: auto;
-		/* Poppins Bold (700) — lighter than the free-ball number's Black (900) so the price doesn't
-		 * overpower the tier's headline count. 700 is a real registered face (no faux-weight). */
-		font-family: 'Poppins', sans-serif;
+		/* ⚠️ NOT the display face, even though the Figma layer is labelled "Potato sans Bold" — the
+		 * shipped Potato_sans-Black.otf HAS NO `$` GLYPH (nor € or £), so this line would fall back
+		 * mid-string and render the sign in a different face from the digits. The comp itself shows
+		 * the substituted face rather than Potato sans for exactly that reason, and matching what the
+		 * comp shows is also the only thing that can render every currency the game serves.
+		 * Noto Sans Bold is that face: shape-matched against the comp's own "$80.00" at 0.85 IoU, ahead
+		 * of Poppins Bold (0.80) and Instrument Sans Bold (0.67), and already the tagline's family. */
+		font-family: 'Noto Sans', sans-serif;
 		font-weight: 700;
-		/* A step above the button label: this is the number the player is comparing across tiers. */
-		font-size: clamp(calc(13 * var(--ui-px)), 1.75vw, calc(19 * var(--ui-px)));
+		font-synthesis: none;
+		/* 27px on the design's 324px card = 0.083 of it → 1.88vw of the 22.59vw landscape card, capped
+		 * at 0.083 of the 260.6ui-px card the modal settles at. */
+		font-size: clamp(calc(14 * var(--ui-px)), 1.88vw, calc(21.7 * var(--ui-px)));
 		line-height: 1;
 		/* Small gap to the button below; the pair reads as one price-and-buy block. */
 		margin-bottom: calc(5 * var(--ui-px));
+		/* The design drops the black outline this line used to carry, in favour of one soft drop
+		 * shadow — the type is now big enough to hold its own against the textured panel. */
 		color: #ffffff;
-		-webkit-text-stroke: var(--ui-px) #000000;
-		paint-order: stroke fill;
-		text-shadow:
-			0 var(--ui-px) calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.95),
-			0 0 calc(3 * var(--ui-px)) rgba(0, 0, 0, 0.85);
+		text-shadow: 0 calc(3 * var(--ui-px)) calc(4.5 * var(--ui-px)) rgba(0, 0, 0, 0.79);
 		white-space: nowrap;
 	}
 
 	.bb-activate:hover:not(:disabled) {
-		filter: brightness(1.06);
+		/* No brightness lift any more — the gold-to-blue plate swap is the whole hover treatment, and
+		   brightening on top of it only washed the blue out. */
 		transform: translateY(-1px);
 	}
 	.bb-activate:active:not(:disabled) {
