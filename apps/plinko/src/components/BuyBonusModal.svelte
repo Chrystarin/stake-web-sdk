@@ -64,6 +64,9 @@
 		if (target?.closest('.bp-bet-presets-wrap')) return;
 		betPresetsOpen = false;
 	}
+
+
+
 </script>
 
 {#if stateGame.buyBonusModalOpen}
@@ -170,6 +173,9 @@
 {/if}
 
 <style>
+
+
+
 	/* This is the one modal in the game that is allowed to SCROLL — and a scrolling overlay has two mobile
 	   traps that a merely-centred one doesn't. Both are handled here; see the two notes below.
 	   It should no longer ever need to: the PORTRAIT FIT block at the bottom of this stylesheet solves the
@@ -216,6 +222,12 @@
 		   the portrait override below for the one place that asks for more than 3vh. */
 		padding: calc(3vh + env(safe-area-inset-top, 0px)) calc(2vw + env(safe-area-inset-right, 0px))
 			calc(3vh + env(safe-area-inset-bottom, 0px)) calc(2vw + env(safe-area-inset-left, 0px));
+		/* The shorthand above, restated as one value both FIT blocks at the foot of this stylesheet can
+		   subtract from `100svh`. Declared here rather than per-orientation so it can never drift from
+		   the padding it describes; portrait re-states it because it raises the top to a floor. */
+		--bb-pad-y: calc(
+			6vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
+		);
 		overflow: auto;
 		/* Keeps a flick inside the modal from chaining to the document once this list hits its end —
 		   that chained scroll is what makes a mobile browser re-show its toolbar mid-gesture, resizing
@@ -426,6 +438,17 @@
 		position: relative;
 		aspect-ratio: 0.74;
 		display: flex;
+		/* ⚠️ Load-bearing on WebKit, and the reason this modal used to scroll on iOS while every
+		   Chromium browser fitted. `aspect-ratio` only sets a box's PREFERRED size: a grid item still
+		   carries `min-height: auto`, i.e. a floor of its own min-content height, and a floor taller
+		   than the ratio simply wins. Blink keeps the column's content under that floor because it
+		   resolves `.bb-card-art`'s `max-height: 48%` against the ratio-derived height; WebKit treats
+		   that height as indefinite there, drops the percentage, and sizes the chest from its width
+		   alone — which pushed the card ~57ui-px past its ratio, twice over in the portrait two-row
+		   grid, and overflowed the viewport by about the height of the balance line and a button row.
+		   Zeroing the floor lets the ratio hold on both engines; the art then shrinks into whatever
+		   the card has left (it is `flex: 0 1 auto; min-height: 0` for exactly that). */
+		min-height: 0;
 	}
 
 	.bb-card-frame {
@@ -831,6 +854,13 @@
 				/* Explicit tracks, not `1fr`: the cards have to be free to sit NARROWER than the modal once the
 				   height budget is the binding one. `justify-content` then centres them under the title. */
 				grid-template-columns: repeat(var(--bb-cols), var(--bb-card-w));
+				/* The rows stated as plainly as the columns, by the same 0.74 the card carries as its
+				   `aspect-ratio`. With `min-height: 0` above, the ratio alone would already hold the row —
+				   but an auto row still SIZES to its items, so this makes the track a definite length that
+				   the height budget solved for, rather than one that agrees with it. It also hands
+				   `.bb-card-inner` a definite height, which is what lets the art's `max-height: 48%`
+				   resolve on WebKit instead of falling back to its intrinsic size. */
+				grid-template-rows: repeat(var(--bb-rows), calc(var(--bb-card-w) / 0.74));
 				justify-content: center;
 			}
 
@@ -842,6 +872,90 @@
 			   Without it the type held still while the card shrank, and the tagline overran the panel. */
 			.bb-card {
 				--ui-px: calc(var(--bb-card-w) / 176);
+			}
+		}
+	}
+
+	/* ── LANDSCAPE FIT ───────────────────────────────────────────────────────────────────────────────
+	   The same solve as the PORTRAIT FIT above, for the other orientation, and it exists for the same
+	   reason: the tier cards carry a fixed `aspect-ratio`, so their HEIGHT came entirely from the
+	   modal's WIDTH and nothing in the column ever consulted the viewport's. That holds at the two
+	   frames this layout was tuned against — 1024x576 clears by ~2px and Stake's 400x225 popout by
+	   ~1px — but a PHONE IN LANDSCAPE is a far wider box than either (iPhone 15 measures 852x329 with
+	   Safari's chrome on screen), so the width budget hands the cards more height than the viewport
+	   has and the column scrolls.
+
+	   So the card is sized from BOTH budgets and takes the smaller, exactly as portrait does:
+	     • WIDTH  — the modal's width split between the four columns (what it always did), and
+	     • HEIGHT — whatever `100svh` has left once the rest of the column is paid for.
+
+	   ⚠️ Unlike portrait's, this budget is not a MEASURED constant — every term below is the same
+	   expression as the declaration it accounts for, so the two cannot drift:
+	       1.2 x the title's own clamp()      .bb-title      (line-height pinned just below)
+	       3 x 35.2ui-px                      the three .bb-modal gaps
+	       7.80045vw x 260/308 - 24ui-px      .bb-bet-row, rendered height less the transparent
+	                                          drop-shadow air its negative margins hand back
+	       1.5 x the balance's own clamp()    .bb-balance, less its -16ui-px margin
+	   7.80045vw is that row solved through the shared `bp-field-metrics` chain (GameHud.scss) at this
+	   modal's own knobs: --bp-item-height 7.5vw and --bp-height-boost 1.0925 give a 6.500375vw plaque,
+	   times the 1.2 --bb-bet-scale. It is stated as a literal because those variables live on
+	   `.bb-bet-row`, a SIBLING — custom properties only reach descendants, so `.bb-cards` cannot read
+	   them. ⚠️ Re-derive it if --bp-item-height, the boost, or --bb-bet-scale changes.
+	   Both line-heights are pinned, as in portrait, so the sum is exact before the display faces load.
+	   NO slack term here, deliberately: the reference frame clears its width budget by ~1.5px, and
+	   slack would tip the min() over and shrink the cards on the very frame this was tuned at.
+
+	   @supports for the same reason portrait needs it — every value here is invalid without `svh`, and
+	   an invalid var() in `grid-template-columns` computes to `none`, i.e. one card per row. */
+	@supports (height: 100svh) {
+		@media (min-aspect-ratio: 1/1) {
+			.bb-title {
+				line-height: 1.2;
+			}
+
+			.bb-balance {
+				line-height: 1.5;
+			}
+
+			.bb-cards {
+				--bb-cards-budget: calc(
+					100svh - var(--bb-pad-y) - 1.2 *
+						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) - 105.6 *
+						var(--ui-px) - (7.80045vw * 260 / 308 - 24 * var(--ui-px)) -
+						(
+							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) - 16 *
+								var(--ui-px)
+						)
+				);
+				/* The tighter of the two budgets, the height one turned into a WIDTH by the same 0.74 the
+				   card carries as its `aspect-ratio`. The outer max() is the floor for a viewport so short
+				   the budget goes negative — a negative track size drops the declaration and the grid with
+				   it. */
+				--bb-card-w: max(
+					calc(48 * var(--ui-px)),
+					min(
+						calc(
+							(var(--bb-modal-width) - (var(--bb-cols) - 1) * var(--bb-card-gap)) / var(--bb-cols)
+						),
+						calc(
+							(var(--bb-cards-budget) - (var(--bb-rows) - 1) * var(--bb-card-gap)) /
+								var(--bb-rows) * 0.74
+						)
+					)
+				);
+				grid-template-columns: repeat(var(--bb-cols), var(--bb-card-w));
+				grid-template-rows: repeat(var(--bb-rows), calc(var(--bb-card-w) / 0.74));
+				justify-content: center;
+			}
+
+			/* The portrait trick, one orientation over: inside a card "one pixel" is one pixel of a
+			   REFERENCE CARD, so everything the card contains stays a fixed fraction of it once the height
+			   budget starts shrinking it. 231.36 is what a card measures at the 1024x576 frame this
+			   landscape layout was tuned at — (96vw - 3 x 19.2ui-px) / 4 — so the ratio is exactly 1 there
+			   and the `1px` cap keeps every viewport at or above the reference rendering as it does today
+			   (a wide desktop's card is the wider 260.6ui-px, and must NOT scale its contents UP). */
+			.bb-card {
+				--ui-px: min(1px, calc(var(--bb-card-w) / 231.36));
 			}
 		}
 	}

@@ -45,6 +45,22 @@
    TypeScript mirror for px computed in JS: \`uiScale()\` in lib/uiScale.ts — keep the two in step. */
 :root{--ui-px:1px;}
 @media (min-aspect-ratio: 1/1){:root{--ui-px:min(1px, calc(100vw / 1024), calc(100vh / 576));}}
+/* \`svh\`, not \`vh\`, wherever the browser has it. On a mobile browser \`vh\` is the chrome-HIDDEN
+   height, so with a toolbar on screen this unit scales the landscape UI against space the player
+   cannot see — measured on an iPhone 15 / iOS 26 as vh 735 against svh 695 in portrait, and the gap
+   is far wider in landscape (~393 against ~320), which is what pushed the Buy Bonus column's title
+   off the top of the screen and clipped its balance line.
+   It also puts this token back in step with the two things it is supposed to mirror: \`.game-root\`
+   (Game.svelte) and the shell below both size themselves in \`svh\`, and \`uiScale()\`
+   (lib/uiScale.ts) reads \`window.innerHeight\`, which on iOS IS the small viewport — so the CSS was
+   the only piece still measuring against the large one.
+   Stated as a SEPARATE rule behind @supports rather than edited into the line above, because a
+   custom property holds any valid token stream: a browser without \`svh\` would accept the value and
+   only fail when it was substituted, leaving every \`var(--ui-px)\` in the app invalid at computed
+   -value time. Guarded, such a browser simply keeps the \`vh\` line. */
+@supports (height: 100svh){
+@media (min-aspect-ratio: 1/1){:root{--ui-px:min(1px, calc(100vw / 1024), calc(100svh / 576));}}
+}
 
 /* ── NO NATIVE TAP HIGHLIGHT ─────────────────────────────────────────────────────────────────────
    Mobile browsers paint a translucent box over whatever element a touch lands on — blue in most
