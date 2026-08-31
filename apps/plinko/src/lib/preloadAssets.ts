@@ -169,9 +169,13 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	//    memory by then. Its four video loops are warmed too, but as ELEMENTS rather than as bytes
 	//    and only as far as a first frame — see QUICK_GUIDE_VIDEO_PATHS.
 	//    BOTH frames, not just this orientation's: which one is showing is a media query, so a device
-	//    rotated mid-guide swaps the art with no fetch behind it. 24 KB + 112 KB buys that outright.
+	//    rotated mid-guide swaps the art with no fetch behind it. 24 KB + 74 KB buys that outright.
+	//    `_tall` is the retired 769x980 frame — the portrait guide runs `_container_mobile` now (the
+	//    1641x2794 art the mobile design is drawn against). Kept out of the manifest with the file
+	//    itself still on disk: nothing references it, and re-adding it is a one-line change if the
+	//    taller frame ever has to be rolled back.
 	'img/quick_guide/quick_guide_container_wide.webp',
-	'img/quick_guide/quick_guide_container_tall.webp',
+	'img/quick_guide/quick_guide_container_mobile.webp',
 	'img/quick_guide/quick_guide_title.webp',
 	'img/quick_guide/quick_guide_button_container.webp',
 
@@ -265,6 +269,47 @@ export const QUICK_GUIDE_VIDEO_PATHS: readonly string[] = [
 ];
 
 /**
+ * The same four pages, cut portrait (586x960) for the mobile frame.
+ *
+ * A second SET rather than a second fill mode on the first, because the mobile guide's well is a
+ * portrait box — 491x805 in the design, 0.61 against the landscape clips' 16:9. There is no fit that
+ * puts 16:9 footage in it honestly: `cover` throws away 62% of every frame's width, which on a Plinko
+ * board is the outer pockets, and `contain` leaves the well two-thirds empty. So the well's aspect
+ * follows the clips and the clips follow the frame.
+ *
+ * ⚠️ Indexed in step with {@link QUICK_GUIDE_VIDEO_PATHS} — same page order, same length. The modal's
+ * `PAGES[].video` is one index into whichever of the two is current, so the arrays cannot drift.
+ */
+export const QUICK_GUIDE_VIDEO_PATHS_PORTRAIT: readonly string[] = [
+	'img/quick_guide/quick_guide_video_1_portrait.mp4',
+	'img/quick_guide/quick_guide_video_2_portrait.mp4',
+	'img/quick_guide/quick_guide_video_3_portrait.mp4',
+	'img/quick_guide/quick_guide_video_4_portrait.mp4',
+];
+
+/**
+ * Which cut the guide is showing, as the STYLESHEET decides it.
+ *
+ * `(max-aspect-ratio: 1/1)` verbatim, and deliberately not {@link isPortraitGameLayout}: the frame
+ * under these clips is chosen by that media query in QuickGuideModal.svelte, and the two predicates
+ * disagree in a real case — a non-touch window 900 wide and 1000 tall is portrait to the media query
+ * and landscape to `isPortraitGameLayout` (which also gates on touch and a 820px cap). Reading the
+ * game layout here would put a 16:9 clip in the portrait frame's 0.61 well exactly there. One source
+ * of truth, and it is the one that picks the frame.
+ *
+ * ⚠️ Keep this string in step with the `@media` at the foot of QuickGuideModal.svelte's stylesheet.
+ */
+export function isPortraitQuickGuide(): boolean {
+	if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+	return window.matchMedia('(max-aspect-ratio: 1/1)').matches;
+}
+
+/** The cut for the orientation on screen right now. */
+function quickGuideVideoPaths(): readonly string[] {
+	return isPortraitQuickGuide() ? QUICK_GUIDE_VIDEO_PATHS_PORTRAIT : QUICK_GUIDE_VIDEO_PATHS;
+}
+
+/**
  * Where the warmed clips sit while the guide is closed: a 1x1, fully transparent, click-through box
  * pinned behind the page.
  *
@@ -290,8 +335,19 @@ function getQuickGuideStage(): HTMLElement {
 	return stage;
 }
 
-/** The warmed clip elements, indexed as {@link QUICK_GUIDE_VIDEO_PATHS}. Retained for the session. */
-const quickGuideVideos: (HTMLVideoElement | undefined)[] = [];
+/**
+ * The warmed clip elements, keyed by the PATH they were built for. Retained for the session.
+ *
+ * Keyed by path rather than by page index because there are now two cuts of every page (see
+ * {@link QUICK_GUIDE_VIDEO_PATHS_PORTRAIT}) and both can be live in one session — a phone rotated
+ * mid-guide swaps the whole set. A path is the one key that cannot collide between them, and it means
+ * a rotation back finds the elements it warmed the first time still holding their buffers.
+ *
+ * Only the CURRENT orientation's four are warmed behind the splash. The other four are built on first
+ * ask, which is the same cold-stream fallback the guide already had for a menu re-open after a
+ * capped-out splash — one code path, and a rotation is at least as rare as that.
+ */
+const quickGuideVideos = new Map<string, HTMLVideoElement>();
 
 /**
  * The `<video>` for clip `index`, created and started on first ask.
@@ -305,8 +361,10 @@ const quickGuideVideos: (HTMLVideoElement | undefined)[] = [];
  */
 export function getQuickGuideVideo(index: number): HTMLVideoElement | undefined {
 	if (typeof document === 'undefined') return undefined;
-	if (index < 0 || index >= QUICK_GUIDE_VIDEO_PATHS.length) return undefined;
-	const existing = quickGuideVideos[index];
+	const paths = quickGuideVideoPaths();
+	if (index < 0 || index >= paths.length) return undefined;
+	const path = paths[index];
+	const existing = quickGuideVideos.get(path);
 	if (existing) return existing;
 	const el = document.createElement('video');
 	el.muted = true;
@@ -322,9 +380,9 @@ export function getQuickGuideVideo(index: number): HTMLVideoElement | undefined 
 	// come after reveal instead, through `fillQuickGuideVideoBuffer`.
 	el.preload = 'metadata';
 	// The plain same-origin URL, never a `blob:` — see the CSP note on QUICK_GUIDE_VIDEO_PATHS.
-	el.src = staticUrl(QUICK_GUIDE_VIDEO_PATHS[index]);
+	el.src = staticUrl(path);
 	getQuickGuideStage().appendChild(el);
-	quickGuideVideos[index] = el;
+	quickGuideVideos.set(path, el);
 	return el;
 }
 
@@ -434,12 +492,16 @@ export function fillQuickGuideVideoBuffer(index: number): void {
  * Take the clips back off-screen when the guide closes, paused and rewound. Parked, NOT destroyed:
  * reopening from the menu then costs nothing, because the buffers and the decoded frames are still
  * sitting in the same elements.
+ *
+ * Every element in the cache, not just the current orientation's: a rotation with the guide open runs
+ * this to hand back the cut that was on screen, and by then {@link isPortraitQuickGuide} already reads
+ * the NEW orientation — so asking it which four to park would park the four about to be adopted and
+ * leave the outgoing four in a well that is being torn out from under them.
  */
 export function releaseQuickGuideVideos(): void {
 	if (typeof document === 'undefined') return;
 	const stage = getQuickGuideStage();
-	for (const el of quickGuideVideos) {
-		if (!el) continue;
+	for (const el of quickGuideVideos.values()) {
 		el.pause();
 		el.currentTime = 0;
 		stage.appendChild(el);
@@ -742,7 +804,10 @@ function coveredUrls(): Set<string> {
 			...WIN_POPUP_IMAGE_PATHS,
 			...PIXI_TEXTURE_PATHS,
 			...AUDIO_PATHS,
+			// BOTH cuts: the manifest-gap watcher below has to recognise either as expected traffic,
+			// and a rotation can pull the set the splash did not warm.
 			...QUICK_GUIDE_VIDEO_PATHS,
+			...QUICK_GUIDE_VIDEO_PATHS_PORTRAIT,
 		].map((path) => staticUrl(path)),
 		...spineDefFiles(
 			isPortraitGameLayout() ? getBackgroundPortraitAsset() : getBackgroundLandscapeAsset(),
@@ -877,6 +942,9 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		// after this splash clears (SPLASH_HANDOVER_MS in QuickGuideModal.svelte), far too soon for a
 		// cold `<video>` to have anything but black to paint. ~0.5 MB for all four; see
 		// QUICK_GUIDE_VIDEO_PATHS for why it is elements rather than bytes, and why only a frame.
+		// THIS orientation's four only — `getQuickGuideVideo` resolves the index against the cut the
+		// media query is showing, so warming both sets would be four extra decode pipelines held for a
+		// frame the player cannot be looking at. The other cut is built on first ask if they rotate.
 		...QUICK_GUIDE_VIDEO_PATHS.map((_, index) => () => warmQuickGuideVideoFrame(index)),
 		// Audio is deliberately absent — see AUDIO_PATHS. It is warmed after reveal instead, as are the
 		// clip BODIES above (fillQuickGuideVideoBuffer).
@@ -988,6 +1056,7 @@ export function watchForUnpreloadedAssets(): void {
 		// ahead of the player (see QUICK_GUIDE_VIDEO_PATHS). They sit under `img/`, so without this a
 		// perfectly healthy guide reads as a manifest gap.
 		...QUICK_GUIDE_VIDEO_PATHS.map((path) => staticUrl(path)),
+		...QUICK_GUIDE_VIDEO_PATHS_PORTRAIT.map((path) => staticUrl(path)),
 		...otherOrientationBackgroundFiles().map((path) => new URL(path, window.location.href).href),
 	]);
 

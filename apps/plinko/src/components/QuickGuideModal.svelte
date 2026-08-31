@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { stateUrlDerived } from 'state-shared';
 
+	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
+
 	import { getContext } from '../game/context';
 	import { stateGame } from '../game/stateGame.svelte';
 	import {
 		fillQuickGuideVideoBuffer,
 		getQuickGuideVideo,
+		isPortraitQuickGuide,
 		releaseQuickGuideVideos,
 	} from '../lib/preloadAssets';
 	import { staticUrl } from '../lib/staticUrl';
@@ -66,6 +69,25 @@
 
 	/** Replay is passive playback with no player to dismiss anything — never put a modal in its way. */
 	const isReplay = $derived(stateUrlDerived.replay());
+
+	/**
+	 * Which frame the stylesheet is showing, read reactively so the WELL can follow it.
+	 *
+	 * The two frames run different cuts of the same four clips — 16:9 in landscape, 586x960 in the
+	 * mobile frame (see QUICK_GUIDE_VIDEO_PATHS_PORTRAIT) — so a rotation has to swap the whole set,
+	 * not just the art behind it. `isPortraitQuickGuide` is the media query the `@media` block at the
+	 * foot of this stylesheet uses, restated in JS; the window dimensions are read purely to make this
+	 * re-evaluate, the way Background.svelte tracks the layout it shares with Game.svelte.
+	 *
+	 * Deliberately NOT `isPortraitGameLayout`: that predicate gates on touch and a 820px width cap as
+	 * well as the aspect, so a 900x1000 desktop window is portrait to the frame and landscape to it —
+	 * which would put a 16:9 clip in the mobile frame's 0.61 well. See the note on isPortraitQuickGuide.
+	 */
+	const isPortrait = $derived.by(() => {
+		innerWidth.current;
+		innerHeight.current;
+		return isPortraitQuickGuide();
+	});
 
 	let pageIndex = $state(0);
 	let modalEl = $state<HTMLElement | undefined>(undefined);
@@ -222,26 +244,40 @@
 	 * Adopt the warmed clips for as long as the guide is open, and hand them back when it closes so
 	 * they keep their buffers for a reopen from the menu instead of going down with the markup.
 	 *
-	 * Keyed on the well alone. Page turns call {@link showVideo} directly (as the old cross-fade did)
-	 * rather than being driven from here, because an effect that read `pageIndex` would re-run this
-	 * whole adoption on every turn. Opening on page 1 needs no read either — the reset effect above
-	 * has already put `pageIndex` back to 0 by the time the markup exists.
+	 * Keyed on the well and on the ORIENTATION. Page turns call {@link showVideo} directly (as the old
+	 * cross-fade did) rather than being driven from here, because an effect that read `pageIndex` would
+	 * re-run this whole adoption on every turn. Opening on page 1 needs no read either — the reset
+	 * effect above has already put `pageIndex` back to 0 by the time the markup exists.
+	 *
+	 * The orientation IS read, because it changes which four elements exist: rotating swaps the frame
+	 * and with it the cut of the clips, so the set on screen has to be handed back and the other one
+	 * adopted. Re-running lands on page 1, which is the one thing a rotation costs — acceptable against
+	 * a well showing 16:9 footage inside a portrait frame, and rotating mid-guide is rare.
 	 */
 	$effect(() => {
 		const well = videoWell;
+		// Read, not used: this is what makes a rotation re-run the adoption below. `getQuickGuideVideo`
+		// resolves the cut itself, off the same media query.
+		isPortrait;
 		if (!well) return;
+		// The elements are REMEMBERED rather than looked up again in the cleanup. On a rotation the
+		// cleanup runs after the media query has already flipped, so `getQuickGuideVideo` would hand
+		// back the INCOMING cut and this would strip the on-class off the clip about to be shown while
+		// leaving it on the one being handed back. The list adopted is the list to undo.
+		const adopted: HTMLVideoElement[] = [];
 		for (const { video } of PAGES) {
 			const el = getQuickGuideVideo(video);
 			if (!el) continue;
 			el.classList.add('qg-video-el');
 			well.appendChild(el);
+			adopted.push(el);
 		}
 		showVideo(PAGES[0].video);
 		return () => {
 			clearTimeout(pauseTimer);
 			pauseTimer = undefined;
 			shownVideo = undefined;
-			for (const { video } of PAGES) getQuickGuideVideo(video)?.classList.remove(ON_CLASS);
+			for (const el of adopted) el.classList.remove(ON_CLASS);
 			releaseQuickGuideVideos();
 		};
 	});
@@ -313,7 +349,9 @@
 			aria-modal="true"
 			aria-label="Quick guide"
 			style:--qg-frame-wide="url({staticUrl('img/quick_guide/quick_guide_container_wide.webp')})"
-			style:--qg-frame-tall="url({staticUrl('img/quick_guide/quick_guide_container_tall.webp')})"
+			style:--qg-frame-mobile="url({staticUrl(
+				'img/quick_guide/quick_guide_container_mobile.webp',
+			)})"
 			bind:this={modalEl}
 		>
 			<button type="button" class="qg-close" aria-label="Close" onclick={close}>X</button>
@@ -396,9 +434,10 @@
 		 *
 		 * ⚠️ The vh term carries the FRAME'S ASPECT, so it has to be restated wherever the frame
 		 * changes: it is really "panel height <= N vh", written as a width. Landscape runs the 1311x735
-		 * wide frame, portrait the 769x980 tall one, and the portrait override below restates both this
-		 * and the aspect together. Change one without the other and the panel silently stops obeying
-		 * the height cap.
+		 * wide frame, portrait the 1641x2794 mobile one, and the portrait override below restates both
+		 * this and the aspect together — in its own form, because at that frame's 0.587 the logo is too
+		 * tall a share of the block to leave out of the budget. Change one without the other and the
+		 * panel silently stops obeying the height cap.
 		 *
 		 * 68vh, not the 100 an unobstructed panel could take: the budget has to cover the panel AND the
 		 * part of the logo that stands proud of it, or a viewport the vh term binds on centres a block
@@ -461,15 +500,16 @@
 	 * at every frame. Both knobs are fractions of the panel's WIDTH, and both are restated in the
 	 * portrait block — the two frames are different enough shapes that one pair cannot serve both:
 	 *
-	 *   • `--qg-logo-w`. 35% against the wide frame, 58% against the tall one, which is the same logo
-	 *     at roughly the same size on screen either way (306px and 204px at 1280x720 / 375x812). It is
-	 *     the PANEL that changes width between them, not the artwork's proper size. Never upscaled:
-	 *     35% of the 1000px panel ceiling is 350px against a 615px asset.
+	 *   • `--qg-logo-w`. 35% against the wide frame, 65.85% against the mobile one — the same logo at
+	 *     roughly the same size on screen either way. It is the PANEL that changes width between them,
+	 *     not the artwork's proper size. Never upscaled: 35% of the 1000px panel ceiling is 350px
+	 *     against a 1000px asset.
 	 *   • `--qg-logo-overlap`, as a negative bottom margin, which is what puts the logo ON the video
 	 *     rather than merely against the frame. It has to clear `.qg-inner`'s top padding to reach the
 	 *     video at all, so read it as that inset plus the bite: 7% over a 4.5% inset lands 22px onto a
-	 *     216px clip in landscape, 8.5% over a 6% inset lands 9px onto a 164px clip in portrait —
-	 *     10% and 5% of the clip's height, which is the "just a little" the design asks for. The
+	 *     216px clip in landscape. In portrait the mobile comp draws the two only just touching —
+	 *     6.63% over a 7.86% inset, so the logo stops a hair SHORT of the well and lands on the frame's
+	 *     top band instead of on the footage. The
 	 *     backdrop's flex `gap` was removed for this: gap is added between margin boxes, so it would
 	 *     have to be subtracted back out here and the overlap would read as a viewport unit minus a
 	 *     panel fraction.
@@ -522,7 +562,20 @@
 		 */
 		--qg-type: 1;
 		--qg-video-width: 44%;
+		--qg-video-aspect: 16 / 9;
 		--qg-plate-w: calc(10.8cqw * var(--qg-type));
+		/*
+		 * The FLOW spacing down the column — well → title → copy → note. Knobs rather than literals in
+		 * the rules because the two orientations set them independently: landscape's are a multiple of
+		 * `--qg-type` (the design was drawn that way), the mobile frame's are measured straight off the
+		 * comp, where the type grew more than the gaps between it did.
+		 *
+		 * These MOVE the column; the `-y` knobs in the tuning layer below only move the painted box. Use
+		 * these to change what follows an element, and those to nudge one element alone.
+		 */
+		--qg-gap-title: calc(3cqw * var(--qg-type));
+		--qg-gap-copy: calc(1.2cqw * var(--qg-type));
+		--qg-gap-note: calc(1cqw * var(--qg-type));
 		/*
 		 * The interior inset, as three values rather than a shorthand, and in `cqw` rather than %:
 		 * the nav row positions itself off the same numbers (see `.qg-nav`), and for an absolutely
@@ -738,7 +791,12 @@
 		position: relative;
 		width: calc(var(--qg-video-width) * var(--qg-video-scale));
 		transform: translate(calc(var(--qg-video-x) * 1cqw), calc(var(--qg-video-y) * 1cqw));
-		aspect-ratio: 16 / 9;
+		/* The CLIPS' own aspect, per orientation — 16:9 landscape, 586x960 in the mobile frame (see
+		   QUICK_GUIDE_VIDEO_PATHS_PORTRAIT). A knob rather than a constant because the two cuts are
+		   different shapes and the well has to be the shape of whatever is playing in it: this is what
+		   keeps `object-fit: cover` below a no-op instead of a crop. ⚠️ Restated in the portrait block
+		   alongside `--qg-video-width` — the pair is one media box. */
+		aspect-ratio: var(--qg-video-aspect);
 		flex: 0 0 auto;
 		overflow: hidden;
 		background: #000000;
@@ -789,7 +847,7 @@
 	   there is smaller than this number reads — widen `--qg-title-y` instead of this if it still needs
 	   to open up further; the margin controls flow spacing, that knob controls the visual result. */
 	.qg-title {
-		margin: calc(3cqw * var(--qg-type)) 0 0;
+		margin: var(--qg-gap-title) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 600;
 		font-size: calc(2.9cqw * var(--qg-type) * var(--qg-title-scale));
@@ -812,7 +870,7 @@
 	   new wrap. Left as-is rather than re-widening the well to reclaim that slack. */
 	.qg-content {
 		max-width: var(--qg-copy-w);
-		margin: calc(1.2cqw * var(--qg-type)) 0 0;
+		margin: var(--qg-gap-copy) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 400;
 		font-size: calc(1.85cqw * var(--qg-type) * var(--qg-copy-scale));
@@ -856,7 +914,7 @@
 	   spreads, install the italic subsets rather than letting the synthesis spread with it. */
 	.qg-note {
 		max-width: var(--qg-copy-w);
-		margin: calc(1cqw * var(--qg-type)) 0 0;
+		margin: var(--qg-gap-note) 0 0;
 		font-family: 'Noto Sans', 'Instrument Sans', sans-serif;
 		font-weight: 400;
 		font-style: italic;
@@ -992,87 +1050,198 @@
 	}
 
 	/*
-	 * ── PORTRAIT ──────────────────────────────────────────────────────────────────────────────────
-	 * A different frame, not a squeezed one: the 769x980 tall art in place of the 1311x735 wide one.
-	 * Three things describe that frame and MUST be changed together — the art, the `aspect-ratio`, and
-	 * the aspect inside the vh term of `--qg-panel-w` — or the panel stops obeying its height cap and
-	 * the ornaments stretch.
+	 * ── PORTRAIT / MOBILE ─────────────────────────────────────────────────────────────────────────
+	 * A different frame, not a squeezed one: the 1641x2794 `container_mobile` art in place of the
+	 * 1311x735 wide one. Three things describe that frame and MUST be changed together — the art, the
+	 * `aspect-ratio`, and the vh term of `--qg-panel-w` — or the panel stops obeying its height cap
+	 * and the ornaments stretch.
 	 *
-	 * The panel is width-bound here (94vw at 375 wide is a 352px frame, 449px tall), and that is the
-	 * whole reason the type is scaled up rather than merely re-derived: the SAME cqw values against a
-	 * 352px panel are a quarter of the size they are against an 873px one. 2.1 restores them and lands
-	 * the body copy at 13.7px — comfortably over the ~11px the rest of the portrait UI treats as its
-	 * readable floor (see the portrait note on `.bb-bet-row` in BuyBonusModal), where the old frame
-	 * could only just reach that floor by starving the video well to 44%.
+	 * ⚠️ EVERY NUMBER IN THIS BLOCK IS MEASURED OFF THE COMP, not derived from the landscape design.
+	 * The comp is drawn at 922x1761 with the panel at 55,302 sized 814x1386, so a design pixel is
+	 * 1/8.14 cqw and each knob below carries the measurement it came from. Re-tune freely — that is
+	 * what the tuning layer is for — but if the comp is re-issued, re-measure rather than nudging.
 	 *
-	 * Which is the real gain from the taller frame. The well no longer pays for everything: it runs at
-	 * 88% of the interior — near enough the full width of the frame, as the reference has it — and the
-	 * copy still clears the nav row by 37px on the longest page.
-	 *
-	 * Both numbers came down a step when the copy was uppercased (2.4/94% → 2.1/88%): caps run ~15%
-	 * wider, which at this measure is a whole extra line on three of the four pages, and at 2.4 the
-	 * longest page overflowed the frame by 23px.
+	 * ── WHAT THE TALLER FRAME COSTS ──────────────────────────────────────────────────────────────
+	 * At 0.587 the frame is a third narrower for its height than the 0.785 one it replaces, so the
+	 * block it makes with the logo stands 1.99 panel-WIDTHS tall. On a viewport at the comp's own
+	 * 1:1.91 that is free — 88vw of panel fills 92vh. On the aspect a real phone actually gives this
+	 * game (h/w ~1.3; see the portrait note in Game.svelte's fit code) the height term binds hard and
+	 * the panel comes out ~60vw instead, which takes the body copy from ~10.4px to ~8.7px at 390x500.
+	 * The type is tied to the panel on purpose — that is what keeps the frame one coherent design —
+	 * so the lever if that reads too small is `--qg-panel-scale`, or a shorter frame. It is NOT a
+	 * per-element floor: a floor that overrides these knobs makes them look broken when tuned.
 	 */
 	@media (max-aspect-ratio: 1/1) {
 		.qg-backdrop {
-			/* Same budget, the tall frame's aspect — see the note on the landscape declaration. */
-			--qg-panel-w: calc(
-				min(94vw, calc(1000 * var(--ui-px)), calc(68vh * 769 / 980)) * var(--qg-panel-scale)
-			);
-			/* The same logo at roughly the same size on screen; it is the panel under it that narrowed. */
-			--qg-logo-w: 0.58;
-			--qg-logo-overlap: 0.085;
-			/* Down a tenth with the landscape one, and for the same reason — see the note there. */
-			--qg-logo-scale: 1.25;
+			/*
+			 * The width, and with it everything else. Three caps, as in landscape, but the vh term is
+			 * written differently here and the difference matters: landscape states a budget for the
+			 * PANEL, and at 0.785 the logo standing proud of it is a rounding error. At 0.587 it is not
+			 * — the panel alone is 1.70 panel-widths tall and the logo adds another 0.28 clear of it, so
+			 * a panel-only budget silently crops the logo's top edge on any viewport the term binds on.
+			 *
+			 * So this term is the WHOLE BLOCK's budget, logo included, resolved back into a width:
+			 *   block height = logo (0.6585 / 1.8797) - overlap (0.0663) + panel (1 / 0.58733)
+			 *                = 0.3503 - 0.0663 + 1.7026 = 1.9866 panel widths
+			 *   92vh / 1.9866 = 46.3vh
+			 * ⚠️ Those three fractions are `--qg-logo-w`, `--qg-logo-overlap` and the frame's aspect,
+			 * all set below. Change any of them and 46.3 is stale — re-derive it.
+			 *
+			 * 92vh and not 100: the comp leaves 72px above the logo and 73px under the panel out of
+			 * 1761, i.e. 4vh of air at each end, and a modal pinned edge to edge reads as broken even
+			 * when nothing is clipped.
+			 *
+			 * 88.3vw is the comp's own 814/922. It binds only above ~1:1.91 — anything squatter is
+			 * height-bound, which is the regime a real phone is in.
+			 */
+			--qg-panel-w: calc(min(88.3vw, calc(1000 * var(--ui-px)), 46.3vh) * var(--qg-panel-scale));
+			/* 536/814 of the panel, centred on it, hanging 54/814 over the top edge — comp 194,72
+			   sized 536x284. `--qg-logo-scale` is folded out to 1 so `--qg-logo-w` reads as the
+			   measurement it is; scale that, not the width, when nudging. */
+			--qg-logo-w: 0.6585;
+			--qg-logo-overlap: 0.0663;
+			--qg-logo-scale: 1;
 			--qg-logo-x: 0;
-			--qg-logo-y: -1;
+			--qg-logo-y: 0;
 			--qg-panel-scale: 1;
 			--qg-modal-x: 0;
 			--qg-modal-y: 0;
 		}
 
 		.qg-modal {
+			/*
+			 * `--qg-type` is the master multiplier and 2.1 is kept from the old tall frame, so the
+			 * per-element `-scale` knobs below carry the difference between that and what the comp
+			 * actually sets. Each one is the comp's size over the landscape design's, and the working
+			 * is written out beside it so a re-measure is arithmetic rather than eyeballing.
+			 */
 			--qg-type: 2.1;
-			--qg-video-width: 88%;
-			--qg-copy-w: 100%;
+			/* 491/814 of the panel, top-left at 214,366 in the comp. In `cqw` and not `%` because a
+			   percentage here resolves against `.qg-inner`'s CONTENT box, so it would move every time
+			   `--qg-pad-x` did; the comp measures the well against the FRAME. */
+			--qg-video-width: 60.32cqw;
+			/* The portrait cut's own 586x960 (0.6104) rather than the comp's 491x805 (0.6099) — the
+			   two agree to half a pixel, and matching the footage is what keeps `cover` from cropping. */
+			--qg-video-aspect: 586 / 960;
+			/* 691/814 — the comp's copy measure, narrower than the frame's interior. Both the copy and
+			   the note are set to it. */
+			--qg-copy-w: 84.89cqw;
+			/* Unchanged from the old portrait frame: 11.5 x 2.1 = 24.15cqw, and `--qg-btn-scale` below
+			   takes it to the comp's 170/814 = 20.88cqw. */
 			--qg-plate-w: calc(11.5cqw * var(--qg-type));
-			/* The tall frame's band is a smaller fraction of its width than the wide frame's, and there
-			   is height to spare, so the copy sits further inside the wood than it can afford to in
-			   landscape. */
-			--qg-pad-top: 6cqw;
-			--qg-pad-x: 6cqw;
-			--qg-pad-bottom: 5cqw;
+			/* 64/814 — panel top 302 to well top 366. The well is first in the column, so this inset IS
+			   the well's position and `--qg-video-y` can stay neutral. */
+			--qg-pad-top: 7.86cqw;
+			/* 46/814. The comp's own nav insets are asymmetric (57 left, 35 right, which reads as
+			   drawing slack rather than intent), so the row is set symmetric on their mean and the
+			   counter lands on the panel's centre line instead of 4px off it. */
+			--qg-pad-x: 5.65cqw;
+			/*
+			 * NEGATIVE, which landscape's never is, and the sign is the whole point.
+			 *
+			 * In this comp the nav plates HANG OFF the frame — 1616..1700 against a panel that ends at
+			 * 1688 — sitting on the riveted bottom band rather than inside it. -12/814 puts `.qg-nav`'s
+			 * box exactly there, and everything else follows from that one number: `--qg-btn-y` stays
+			 * neutral, and `.qg-inner`'s reserve (this plus the plate's height, 8.85cqw = 72px) stops
+			 * the copy column at 1616 — the plates' own top edge.
+			 *
+			 * Carrying the overhang in `--qg-btn-y` instead was the obvious way and is subtly wrong:
+			 * the transform moves the plates without moving the reserve, so the column would stop 45px
+			 * higher than the furniture actually is and page 2's note would sit 20px inside a strip the
+			 * padding had already called spoken for. It still cleared, because the reserve was 45px
+			 * pessimistic — but a knob left at its tuned value is not a layout guarantee, and zeroing
+			 * `--qg-btn-y` would have dropped the note onto the plates. Reserve and position now come
+			 * off the same declaration and cannot disagree.
+			 *
+			 * Clearance under the binding page (2, five lines of copy plus a one-line note): its last
+			 * row ends at 1591.6, so 24.5 comp px of air under it.
+			 */
+			--qg-pad-bottom: -1.47cqw;
+			/*
+			 * Flow spacing, measured between the comp's boxes rather than multiplied out of
+			 * `--qg-type`: the mobile type is ~2.1x the landscape design's but the air between it is
+			 * not, so deriving these from the type factor overshoots every gap.
+			 *   title  well bottom 1171 -> title line box ~1202 = 31px = 3.8cqw
+			 *   copy   title line box bottom ~1257 -> copy box 1306 = 49px = 6.0cqw
+			 *   note   copy box bottom 1429 -> note line box ~1471 = 42px = 5.2cqw
+			 */
+			--qg-gap-title: 3.8cqw;
+			--qg-gap-copy: 6cqw;
+			--qg-gap-note: 5.2cqw;
 
-			/* The tuning layer again, portrait's own copy — see the block on `.qg-modal`. Neutral here
-			   too, and independent: turning a knob above does nothing to this frame and vice versa. The
-			   offsets stay a % of the panel's width, which is 3.5px at 375x812 against 8.7px at
-			   1280x720, so the same number is the same nudge relative to the frame it is nudging in. */
-			--qg-video-scale: 1.075;
+			/*
+			 * The tuning layer, portrait's own copy — see the block on `.qg-modal`. NOT neutral here,
+			 * unlike landscape's: these are what carry the comp's type sizes onto the landscape
+			 * design's `cqw` coefficients. Each is `comp size / (coefficient x --qg-type)`.
+			 *
+			 * The offsets stay a % of the panel's width, so a given number is the same nudge relative
+			 * to the frame it is nudging in whatever the viewport is doing.
+			 */
+			--qg-video-scale: 1;
 			--qg-video-x: 0;
-			--qg-video-y: -0;
-			--qg-title-scale: 1;
+			--qg-video-y: 0;
+			/* 50px -> 6.143cqw; 6.143 / (2.9 x 2.1) */
+			--qg-title-scale: 1.009;
 			--qg-title-x: 0;
 			--qg-title-y: 0;
+			/*
+			 * ── THE COPY AND THE NOTE FOLLOW LANDSCAPE, NOT THE COMP ─────────────────────────────
+			 * Both neutral, deliberately: the two knobs that carry the comp's type onto this frame are
+			 * turned OFF, so the body copy and the caveat under it are the landscape design's own
+			 * coefficients (1.85cqw and 1.5cqw) taken through `--qg-type`. Every other size in this
+			 * block is still the comp's — this pair is the exception, and it is the only one.
+			 *
+			 * The comp sets the copy at 30px and the note at 36px, i.e. the note a step LARGER than the
+			 * copy, which is the reverse of landscape's relationship. It can do that because it sets
+			 * the note in Noto Sans Display ExtraCondensed Italic (`wdth` 62.5) — narrow enough at 36px
+			 * to still take less width per character than 30px upright. This game installs Google's
+			 * latin/latin-ext subsets of Noto Sans, which carry the 100..900 WEIGHT axis and nothing
+			 * else (measured: `font-stretch: 62.5%` and `font-variation-settings: 'wdth' 62.5` both
+			 * leave a string exactly as wide, and there is no italic cut — the slant is synthesised).
+			 * Set at 36px in the face we have, page 1's note runs 1085 comp px against a 691 measure —
+			 * 1.57x, the missing 62.5% almost to the digit.
+			 *
+			 * So the comp's note size is not reachable without shipping a second family, and a note
+			 * that merely LOOKS bigger than the copy without being narrower is not what it draws. The
+			 * relationship the game already has — note a step down in size, a shade down in colour,
+			 * italic, same face and weight — is the one both orientations now share.
+			 *
+			 * `--qg-copy-scale` is 1 rather than landscape's 0.98: that 0.98 is not part of the design,
+			 * it is a fitting hack for landscape's own measure (see the note on it there), and the
+			 * lines here wrap inside their authored breaks anyway.
+			 */
 			--qg-copy-scale: 1;
 			--qg-copy-x: 0;
-			--qg-copy-y: 1;
+			--qg-copy-y: 0;
 			--qg-note-scale: 1;
 			--qg-note-x: 0;
-			--qg-note-y: 5;
+			--qg-note-y: 0;
 			--qg-nav-x: 0;
 			--qg-nav-y: 0;
-			--qg-btn-scale: 0.8;
+			/* 28px label -> 3.440cqw; 3.44 / (1.9 x 2.1) = 0.862, and the same factor takes the plate
+			   to 24.15 x 0.865 = 20.89cqw against the comp's 170/814 = 20.88. One knob, both sizes —
+			   which is why it is 0.865 and not 0.862: the plate is the half worth landing exactly. */
+			--qg-btn-scale: 0.865;
 			--qg-btn-x: 0;
-			--qg-btn-y: 5;
-			--qg-count-scale: 1;
+			/* Neutral: the plates' overhang past the frame's bottom edge is `--qg-pad-bottom`'s job
+			   here, so that the copy column's reserve moves with them. See the note there. */
+			--qg-btn-y: 0;
+			/* 31px -> 3.808cqw; 3.808 / (1.9 x 2.1) */
+			--qg-count-scale: 0.954;
 			--qg-count-x: 0;
-			--qg-count-y: 4;
-			--qg-close-scale: 0.8;
+			/* The counter stays INSIDE the frame where the plates straddle its edge — comp 1620 against
+			   a row box that centres it at 1642.5, so 22.5px up. This is the one part of the row that
+			   does not follow the overhang, which is why the row's three knob sets are separate. */
+			--qg-count-y: -2.77;
+			/* 35px -> 4.300cqw; 4.3 / (2.5 x 2.1). Placement is the frame's own corner ornament rather
+			   than the comp's, which has the X stranded behind the panel art at 816,479 — clearly a
+			   stale layer and not a position to read a decision off. */
+			--qg-close-scale: 0.82;
 			--qg-close-x: 1;
 			--qg-close-y: -1;
 
-			aspect-ratio: 769 / 980;
-			background-image: var(--qg-frame-tall);
+			aspect-ratio: 1641 / 2794;
+			background-image: var(--qg-frame-mobile);
 		}
 	}
 </style>
