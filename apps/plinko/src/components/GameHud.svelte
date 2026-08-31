@@ -560,10 +560,24 @@
 	 * (`onPlayPointerDown` drops the first free ball, then streams while held). The browser still
 	 * fires a `click` on release, which must not drop a second ball — and, once the last free ball is
 	 * gone, must not fall through to a real wager either. So a pointer-driven bonus press consumes its
-	 * own trailing click. Cleared as soon as the press ends, so a keyboard activation (a `click` with
-	 * no preceding `pointerdown`) is never swallowed.
+	 * own trailing click. It is that click which clears the guard again (or, for a press that never
+	 * produces one, the fallback window below), so a keyboard activation — a `click` with no preceding
+	 * `pointerdown` — is never swallowed.
 	 */
 	let bonusPointerPressActive = false;
+
+	/**
+	 * How long the guard above waits for its trailing `click` before giving up on one.
+	 *
+	 * It is a SAFETY NET, not the mechanism: the click clears the guard itself (see
+	 * `consumeBonusPointerPress`), and this only covers the presses that never produce one — a release
+	 * that lands off the button while the pointer is captured, or a `pointercancel`. Generous on
+	 * purpose, because the cost of it being too short is a double drop and the cost of it being too
+	 * long is nothing: the next press clears any stale guard before it arms its own.
+	 */
+	const BONUS_TRAILING_CLICK_WINDOW_MS = 800;
+
+	let bonusPointerPressTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/**
 	 * Which transport currently holds the free-ball stream open, so a release on one never ends a hold
@@ -607,6 +621,10 @@
 	function onPlayPointerDown(event: PointerEvent) {
 		// Base game: a press is an ordinary single bet — leave it to the click handler. (Repeat-betting
 		// with real money is Autobet's job, and it is armed deliberately.)
+		// Any guard still standing belongs to a PREVIOUS press whose trailing click never came, and the
+		// fallback window may not have expired yet. Drop it here so it can never swallow the click this
+		// press is about to produce — or, once the free balls run out, a real wager's.
+		consumeBonusPointerPress();
 		if (!props.hasPendingBonusBalls) return;
 		if (!event.isPrimary) return;
 		if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -633,11 +651,43 @@
 		endBonusBallHold('pointer', 'transport');
 	}
 
+	/**
+	 * The press is over, so the guard is now waiting for one thing only: the trailing `click`, which
+	 * consumes it in `onMainActionClick`.
+	 *
+	 * ⚠️ This used to drop the guard on a `setTimeout(0)`, on the reasoning that the trailing click
+	 * fires first. That holds on Chromium, where the compatibility mouse events and the `click` are
+	 * dispatched in the same task as `pointerup` — the timeout is a macrotask and runs after all of
+	 * them. WebKit dispatches that click in a LATER task, so the timeout slotted in between and the
+	 * click arrived to find the guard already false: measured on an iPhone 15 / iOS 26 as pointerup at
+	 * 159356ms, guard cleared at 159357ms, click at 159358ms. Every tap on the bonus Play button
+	 * therefore spent TWO free balls — one from the press, one from the click falling through to
+	 * `props.onPlay()`.
+	 *
+	 * So the click clears it now and this is only the fallback for a press that never produces one
+	 * (released off the button under pointer capture, or cancelled).
+	 */
 	function clearBonusPointerPress() {
-		// The trailing `click` fires before this, so it still sees the flag set.
-		setTimeout(() => {
+		// Every pointer release in the game reaches the window handler below, so without this the
+		// fallback would arm a timer on releases that never touched the Play button at all.
+		if (!bonusPointerPressActive) return;
+		cancelBonusPointerPressTimer();
+		bonusPointerPressTimer = setTimeout(() => {
+			bonusPointerPressTimer = null;
 			bonusPointerPressActive = false;
-		}, 0);
+		}, BONUS_TRAILING_CLICK_WINDOW_MS);
+	}
+
+	function cancelBonusPointerPressTimer() {
+		if (bonusPointerPressTimer === null) return;
+		clearTimeout(bonusPointerPressTimer);
+		bonusPointerPressTimer = null;
+	}
+
+	/** The trailing click arrived and has been swallowed — the guard has done its job. */
+	function consumeBonusPointerPress() {
+		cancelBonusPointerPressTimer();
+		bonusPointerPressActive = false;
 	}
 
 	/**
@@ -693,7 +743,10 @@
 	}
 
 	function onMainActionClick() {
-		if (bonusPointerPressActive) return;
+		if (bonusPointerPressActive) {
+			consumeBonusPointerPress();
+			return;
+		}
 		if (isPlayButtonHardDisabled) return;
 		// The button is greyed out purely because the total bet exceeds the balance — a click still
 		// lands here (it is not natively `disabled`), so tell the player why instead of betting.
