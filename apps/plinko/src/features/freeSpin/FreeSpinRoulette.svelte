@@ -640,7 +640,7 @@
 		z-index: 12000;
 		display: flex;
 		overflow: hidden;
-		background: rgba(3, 8, 18, 0.72);
+		background: rgba(3, 8, 18, 0.88);
 		opacity: 0;
 		transition: opacity 0.28s ease;
 		pointer-events: auto;
