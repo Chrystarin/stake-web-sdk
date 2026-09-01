@@ -378,13 +378,11 @@ export class PlinkoEngine {
   private static readonly SLOT_TEXT_HEIGHT_RATIO = 0.72;
   /** Cap the (widest) label to this fraction of the slot width — applied uniformly to all labels. */
   private static readonly SLOT_TEXT_MAX_WIDTH_RATIO = 0.95;
-  /** Horizontal center of the label within the slot (0.5 = dead center of `x..x+w`). */
-  private static readonly SLOT_TEXT_X_RATIO = 0.4625;
   /** Vertical center of the label within the slot body (0.5 = dead center of `y..y+h`). */
   private static readonly SLOT_TEXT_Y_RATIO = 0.7;
   /** 1-BALL TIER ONLY — the centre pocket is a plain board slot there (`0`) rather than the SPIN card, and
-   * it sits on the wider centre tile: print it 25% larger than the shared label scale and dead-centre it
-   * vertically in the slot body (the 0.7 ratio above is tuned for the narrow tiles). */
+   * it sits on the wider centre tile: print it 25% larger than the shared label scale and raise it to
+   * the card's optical centre (the 0.7 ratio above is tuned for the narrow tiles). */
   private static readonly ONE_BALL_CENTER_LABEL_SCALE = 1.25;
   /** 0.61, not 0.5: the PAINTED centre tile (the glow spine's wide card) does not sit centred inside the
    * slot body — measured at 1920×1080 it spans 0.61 of `y..y+h` at its middle, so this ratio puts the
@@ -5253,7 +5251,7 @@ export class PlinkoEngine {
     }
   }
 
-  private layoutSlotAssetSprite(idx: number, x: number, y: number, w: number, h: number): void {
+  private layoutSlotAssetSprite(idx: number, y: number, h: number): void {
     const sp = this.slotSprites[idx];
     if (!sp || this.uniformSlotDisplayW <= 0 || this.uniformSlotDisplayH <= 0) return;
     // Glow spine replaces the slot background art when it's the active slot count.
@@ -5272,7 +5270,10 @@ export class PlinkoEngine {
 
     sp.visible = true;
     sp.scale.set(displayW / texW, this.uniformSlotDisplayH / texH);
-    sp.position.set(x + w / 2, y + h);
+    // On the pocket's own axis, exactly like the glow spine's cards — NOT on the midpoint of the
+    // drawn box, which is the slot inset by a +3 and a pegRadius trim and so drifts left of centre
+    // by a resolution-dependent amount.
+    sp.position.set(this.slots[idx].centerX, y + h);
     sp.tint = 0xffffff;
     sp.alpha = 1;
   }
@@ -5311,14 +5312,12 @@ export class PlinkoEngine {
       const slot = this.slots[idx];
       slot.animationOffset = this.resolveSlotAnimationOffset(slot, currentTime);
 
-      const x = slot.x;
       const y = slot.y + slot.animationOffset;
-      const w = slot.width - this.pegRadius;
       const h = this.slotHeight * 0.82;
 
       const sprite = this.slotSprites[idx];
       if (sprite) {
-        this.layoutSlotAssetSprite(idx, x, y, w, h);
+        this.layoutSlotAssetSprite(idx, y, h);
       }
 
       // Bounce the whole glow tile (card) with the slot, so the entire slot dips down and back up
@@ -5341,40 +5340,37 @@ export class PlinkoEngine {
         textScale = restScale * (1 + 0.15 * Math.sin(progress * Math.PI * 4) * (1 - progress));
       }
 
+      // Every label — sprite or text fallback — goes on `slot.centerX`, the pocket's own axis and the
+      // exact x `layoutGlowSpine` puts the card's bone on, so the number lands dead centre on the tile
+      // it is printed on. It used to follow the DRAWN BOX (`slot.x`, i.e. the slot inset by a fixed +3
+      // and a pegRadius trim) plus a hand-tuned `SLOT_TEXT_X_RATIO` fudge. Only one of those three terms
+      // scales with the board, so the fudge cancelled the insets at the one viewport it was eyeballed at
+      // and nowhere else: measured at a 2560-wide window the labels sat ~3px (5% of a tile) left of their
+      // cards. Centre on the axis and there is nothing left to cancel at any size.
       const label = this.slotLabels[idx];
       if (label) {
+        label.position.set(slot.centerX, y + h * 0.52);
         label.scale.set(textScale, textScale);
-        label.position.set(Math.round(x + w / 2), Math.round(y + h * 0.52));
       }
 
       const labelSprite = this.slotLabelSprites[idx];
       if (labelSprite) {
-        // The 1-ball tier's centre pocket prints its own board value (`0`) on the wider centre tile:
-        // bigger, and centred on the card rather than on the drawn box every other label follows.
+        // The 1-ball tier's centre pocket prints its own board value (`0`) on the wider centre tile,
+        // so it alone is printed larger and sits higher on the card.
         const oneBallCenter = this.rapidSingleBall && this.isSpinSlotIndex(idx);
         const labelScale = oneBallCenter ? PlinkoEngine.ONE_BALL_CENTER_LABEL_SCALE : 1;
         // Same scale for every label (computed once in `computeUniformLabelScale`), centered in the slot.
         labelSprite.scale.set(this.uniformLabelScale * textScale * labelScale);
-        // `SLOT_TEXT_X_RATIO` is a small leftward nudge off the slot's midpoint. Derive it from the
-        // REFERENCE slot width so it stays the same number of PIXELS on every label — the centre pocket
-        // is wider than the rest, and scaling the nudge by its own width visibly pulled its label
-        // (the 1-ball board's centre value) off centre. Identical to `x + w * RATIO` on the normal slots.
-        const nudge = (this.slots[0]?.width ?? w) * (PlinkoEngine.SLOT_TEXT_X_RATIO - 0.5);
-        // The 1-ball centre "0" is printed on the SPIN card, and that card is placed on `slot.centerX`
-        // (`layoutGlowSpine`) — so centre the label on `centerX` too. The drawn box `x`/`w` it would
-        // otherwise follow is the slot inset by a +3 and a pegRadius trim, which `nudge` only cancels
-        // at a NUMBER card's width; on the ~2× wide centre tile the leftovers are what showed as the
-        // "0" sitting off the pocket's axis. Without the spine (fallback sprites) the card is drawn on
-        // the inset box instead, so the label follows it there.
-        const labelX =
-          oneBallCenter && glowActive ? slot.centerX : x + w / 2 + (oneBallCenter ? 0 : nudge);
         const yRatio = oneBallCenter
           ? PlinkoEngine.ONE_BALL_CENTER_LABEL_Y_RATIO
           : PlinkoEngine.SLOT_TEXT_Y_RATIO;
-        labelSprite.position.set(
-          Math.round(labelX),
-          Math.round(y + h * yRatio)
-        );
+        // NOT rounded. The card is drawn on the raw fractional `centerX` (the spine bone takes
+        // `centerX / scale`), so snapping only the label to a whole CSS pixel re-introduces up to half a
+        // pixel of the very offset this is centring — in a different direction per pocket, since each
+        // centre lands on its own fraction. Portrait is where that shows: the tiles are ~22px wide there,
+        // so the two 0.2 pockets either side of centre rounded opposite ways and visibly disagreed. The
+        // sprite is already resampled by `uniformLabelScale`, so there is no crispness to protect.
+        labelSprite.position.set(slot.centerX, y + h * yRatio);
       }
     }
 
