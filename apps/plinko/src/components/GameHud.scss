@@ -843,8 +843,8 @@
 	   documented and one edit away.
 	   ⚠️ Consequence of keeping it at 1: the art is opaque across the bottom, which puts a hard floor
 	   under everything layered on top. The readout's band cannot go lighter than the art's rgb(7, 33, 48)
-	   by any tint change, and the `backdrop-filter` on that bar has nothing left to blur. Both of those
-	   only move if this comes down.
+	   by any tint change, and a `backdrop-filter` on that bar would have nothing to blur (which is why
+	   `.bp-total-overlay::before` no longer carries one). Both of those only move if this comes down.
 	   └───────────────────────────────────────────────────────────────────────────────────────────┘ */
 	--bp-panel-scrim-opacity: 1;
 
@@ -981,11 +981,12 @@
    reads as the bar failing to reach the screen edge.
    Still on a pseudo-element so the bar applies to the BACKDROP ONLY and never touches the label/value,
    both of which sit at z-index 1 above this.
-   ⚠️ `backdrop-filter` does nothing here as things stand and is pure cost: it blurs whatever shows
-   THROUGH this bar, and what sits behind it is the art scrim at full strength — opaque across the
-   bottom of this band, so there is nothing left to blur. It is not free on mobile GPUs and it spans
-   the full viewport width. Kept only because it comes back to life if the scrim is ever made
-   translucent or pulled up above this bar; drop it if neither is ever going to happen. */
+   The `backdrop-filter: blur(6.2px)` that used to sit here is GONE, deliberately: it blurred whatever
+   shows THROUGH this bar, and what sits behind it is the art scrim at full strength — opaque across
+   the bottom of this band, so it changed no pixels at all. What it did do is force the compositor to
+   snapshot and blur a viewport-wide band behind this bar every frame — real GPU memory + fill cost on
+   phones, where iOS reaps WebGL contexts (the animated background) under exactly that kind of
+   pressure. Re-add it only if the scrim is ever made translucent or pulled above this bar. */
 .bp-total-overlay::before {
 	content: '';
 	position: absolute;
@@ -1010,8 +1011,6 @@
 	background-position: bottom center;
 	/* See the knob block on `.bp-total-overlay`. 1 = the art's own 43%. */
 	opacity: var(--bp-total-scrim-opacity);
-	backdrop-filter: blur(6.2px);
-	-webkit-backdrop-filter: blur(6.2px);
 }
 
 /* "Bet" label, sitting to the LEFT of the value inside the bar. Uppercase to match the other

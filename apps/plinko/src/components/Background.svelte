@@ -36,6 +36,21 @@
 	let renderer: SpineBackgroundRenderer | undefined;
 	let activeSession = 0;
 
+	/**
+	 * WebGL context losses survived so far. iOS Safari reaps WebGL contexts under memory pressure —
+	 * this full-viewport renderer, the biggest in the game, is its first pick, and QA hit it as "the
+	 * background turns black" when a bonus round begins deep into a 75/100-drop autoplay run. On a
+	 * loss the canvas is dead (Pixi only restores contexts IT chose to lose), so: flip back to the
+	 * static backdrop image immediately — `fallbackImageSrc` is already mode-aware, so the free-game
+	 * art shows during a bonus — then rebuild the renderer after a pause long enough for the memory
+	 * pressure that killed it to ease. Rebuilds are capped for the component's lifetime: if fresh
+	 * contexts keep dying, the device genuinely hasn't the memory for this scene, and looping
+	 * destroy/create would feed the very pressure that kills them. The static image is the floor.
+	 */
+	let contextLosses = 0;
+	const MAX_CONTEXT_LOSS_REBUILDS = 2;
+	const CONTEXT_LOSS_REBUILD_DELAY_MS = 4000;
+
 	const mountSpine = async (host: HTMLElement, asset: SpineAssetDef) => {
 		const session = ++activeSession;
 
@@ -46,6 +61,24 @@
 
 		const instance = new SpineBackgroundRenderer(host);
 		renderer = instance;
+		instance.onContextLost = () => {
+			if (session !== activeSession) return;
+			// Static image takes over this frame; the dead canvas sits behind it at opacity 0.
+			spineReady = false;
+			contextLosses += 1;
+			if (contextLosses > MAX_CONTEXT_LOSS_REBUILDS) {
+				console.error('[Background] WebGL context lost again; staying on the static backdrop');
+				spineFailed = true;
+				return;
+			}
+			console.error(
+				`[Background] WebGL context lost; rebuilding the spine background (attempt ${contextLosses}/${MAX_CONTEXT_LOSS_REBUILDS})`,
+			);
+			window.setTimeout(() => {
+				if (session !== activeSession) return;
+				void mountSpine(host, asset);
+			}, CONTEXT_LOSS_REBUILD_DELAY_MS);
+		};
 
 		try {
 			await instance.init(asset);

@@ -252,6 +252,16 @@ export class SpineBackgroundRenderer {
 	private hiddenSlotSetup = new Map<string, Attachment | null>();
 	/** Saved `Ticker.shared._maxElapsedMS` when this renderer clamped it (intro splash only), restored on destroy. */
 	private sharedTickerRestore?: { maxElapsedMS: number };
+	/**
+	 * Invoked when this renderer's WebGL context is lost. iOS Safari reaps WebGL contexts under
+	 * memory pressure — and it reaps the most expensive one first, which is this full-viewport
+	 * renderer (its atlas pages alone are ~100 MB of texture memory). Pixi only restores contexts
+	 * it lost on purpose (`forceContextLoss`), so a real reap leaves this canvas permanently dead —
+	 * on screen as a solid black backdrop. The owner is expected to fall back to the static
+	 * backdrop image and/or rebuild the renderer; without a listener the loss is silent.
+	 */
+	onContextLost?: () => void;
+	private contextLostListener?: () => void;
 
 	constructor(hostElement: HTMLElement) {
 		this.hostElement = hostElement;
@@ -265,7 +275,14 @@ export class SpineBackgroundRenderer {
 			await app.init({
 				resizeTo: this.hostElement,
 				backgroundAlpha: 0,
-				antialias: true,
+				// Off, like the coin fountain: everything this renderer draws is alpha-textured quads
+				// (spine meshes and backdrop sprites), and MSAA only smooths GEOMETRY edges — texture
+				// interiors and their alpha cutouts are untouched — so on this content it changes nothing
+				// visible. What it does cost is a 4x-sample backbuffer on the biggest canvas in the game
+				// (full viewport at resolution 2): tens of MB of GPU memory on a phone, which is exactly
+				// the pressure that makes iOS reap WebGL contexts mid-session (seen as the background
+				// going permanently black when the bonus round starts during a long autoplay run).
+				antialias: false,
 				autoDensity: true,
 				// Cap at 2, matching every other Pixi app in the game (PlinkoEngine's
 				// MAX_RENDER_RESOLUTION, both meters, the coin fountain, the balance glow). This was the
@@ -287,6 +304,16 @@ export class SpineBackgroundRenderer {
 			// background's block canvas so the splash fills its host exactly.
 			app.canvas.style.display = 'block';
 			this.app = app;
+
+			// Pixi registers its own `webglcontextlost` listener on this canvas, but it only restores
+			// contexts it lost deliberately — a browser-initiated loss (iOS memory-pressure reap) is
+			// swallowed. Listen alongside it and tell the owner, so the loss has a visible response
+			// instead of a permanently black canvas. See `onContextLost`.
+			this.contextLostListener = () => {
+				console.error('[SpineBackgroundRenderer] WebGL context lost');
+				this.onContextLost?.();
+			};
+			app.canvas.addEventListener('webglcontextlost', this.contextLostListener);
 
 			// Clamp per-frame catch-up so a stall (atlas GPU upload, the game booting behind the splash)
 			// pauses-and-resumes the animation instead of skipping ahead. Spine's `autoUpdate` advances
@@ -457,6 +484,11 @@ export class SpineBackgroundRenderer {
 		cancelAnimationFrame(this.fitFrameId);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
+		if (this.contextLostListener) {
+			this.app?.canvas.removeEventListener('webglcontextlost', this.contextLostListener);
+			this.contextLostListener = undefined;
+		}
+		this.onContextLost = undefined;
 		if (this.bonusTick) {
 			this.app?.ticker.remove(this.bonusTick);
 			this.bonusTick = undefined;

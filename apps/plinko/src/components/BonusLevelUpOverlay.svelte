@@ -97,6 +97,26 @@
 		background: rgba(6, 14, 28, 0.65);
 	}
 
+	/* Phones and tablets get a stronger scrim INSTEAD of the blur. A full-screen `backdrop-filter`
+	   makes WebKit snapshot everything composited beneath this fixed overlay — all five WebGL
+	   canvases and the coin-shower canvas — into an offscreen surface at NATIVE device scale
+	   (DPR 3 = 1170x2532 on an iPhone 12 Pro; the Pixi apps' own min(2, DPR) caps don't apply to
+	   the compositor) and run a two-pass Gaussian over it, every frame the overlay is up. That is
+	   real GPU memory + fill on exactly the devices where iOS reaps WebGL contexts under pressure,
+	   and it lands mid-bonus, the busiest the game ever is. The extra ~0.09 alpha stands in for the
+	   legibility the blur was buying behind the card; `any-pointer: coarse` is the same touch signal
+	   `isTouchDevice()` (lib/format.ts) keys on, so it tracks the game's own idea of a handheld. */
+	@media (any-pointer: coarse) {
+		.bonus-level-up-overlay {
+			backdrop-filter: none;
+			-webkit-backdrop-filter: none;
+			background: rgba(6, 14, 28, 0.72);
+		}
+		.bonus-level-up-overlay--portrait {
+			background: rgba(6, 14, 28, 0.74);
+		}
+	}
+
 	/* The box is sized to the ARTWORK's own aspect (bonus-level-up-base.png is 1919x721) so container
 	   units land on the plaque instead of on letterbox: 1cqw = 1% of the art's width, 1cqh = 1% of its
 	   height. Every type size and position below is expressed in those units, so the whole card scales

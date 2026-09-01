@@ -1226,7 +1226,17 @@ export class PlinkoEngine {
             ? Math.min(this.MAX_RENDER_RESOLUTION, window.devicePixelRatio || 1)
             : 1,
         autoDensity: true,
-        antialias: true,
+        // MSAA only smooths GEOMETRY edges — here the tessellated ball/peg circles — and on touch
+        // devices those already render at resolution 2 on a DPR-3 screen, where the remaining
+        // stair-step is invisible under a moving ball. What MSAA costs there is a 4x-sample
+        // backbuffer on the game's second-biggest canvas: tens of MB of GPU memory on the phones
+        // where iOS reaps WebGL contexts under memory pressure (the QA "background turns black
+        // mid-autoplay" report — the same pressure this canvas contributes to even when the
+        // BACKGROUND context is the one that dies). Desktops keep MSAA: many sit at DPR 1, where
+        // circle edges genuinely need it, and desktop GPUs have memory to spare.
+        antialias: !(
+          typeof window !== 'undefined' && window.matchMedia?.('(any-pointer: coarse)').matches
+        ),
         backgroundAlpha: 0,
         preference: 'webgl',
       });
@@ -1236,6 +1246,16 @@ export class PlinkoEngine {
     }
 
     this.hostElement.appendChild(app.canvas as HTMLCanvasElement);
+
+    // iOS Safari reaps WebGL contexts under memory pressure (seen on the background renderer as a
+    // black backdrop mid-bonus). If it ever takes THIS context the board stops painting — balls
+    // frozen mid-air — with no signal anywhere: Pixi only restores contexts it lost on purpose, and
+    // GL calls on a dead context are silent no-ops. No recovery is attempted here (rebuilding the
+    // board mid-drop means reconstructing live ball state); log loudly so a device run that "froze"
+    // can be told apart from a logic hang in one look at the console.
+    (app.canvas as HTMLCanvasElement).addEventListener('webglcontextlost', () => {
+      console.error('[PlinkoEngine] WebGL context lost — the board can no longer render');
+    });
 
     this.world.sortableChildren = true;
     this.pegStaticGraphics.zIndex = 0.9;
