@@ -61,6 +61,11 @@ export const getBackgroundLandscapeAsset = (): SpineAssetDef => ({
 		widthFillScale: LANDSCAPE_BACKGROUND_IMAGE_WIDTH_FILL,
 		offsetXVw: LANDSCAPE_BACKGROUND_IMAGE_OFFSET_X_VW,
 		offsetYVh: LANDSCAPE_BACKGROUND_IMAGE_OFFSET_Y_VH,
+		// Cover the height too: squarer-than-16:9 windows otherwise show an empty strip above the
+		// scene (the width fill only reaches the top down to ~1.7:1). The scene zooms in about its
+		// bottom-centre anchor, cropping the sides; the Spine layer's scale is tied to this one
+		// (computeSpineOverlayTransform), so the animated scene zooms with it and stays registered.
+		coverHeight: true,
 	},
 	bonusBackdropSrc: staticAssetPath(LANDSCAPE_BONUS_IMAGE),
 	bonusHiddenSlots: LANDSCAPE_BONUS_HIDDEN_SLOTS,
