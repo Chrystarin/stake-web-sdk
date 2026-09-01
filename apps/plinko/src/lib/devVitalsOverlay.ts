@@ -111,6 +111,23 @@ export function installVitalsOverlay(): () => void {
 	window.addEventListener('pagehide', onHide);
 	window.addEventListener('pageshow', onShow);
 
+	// ── Out-of-band heartbeat ─────────────────────────────────────────────────
+	// Pings a throwaway listener on the dev machine (port 9777, reachable from a BrowserStack
+	// device via the bs-local tunnel) every 5 s with this page's identity and uptime. The listener's
+	// log is liveness ground truth that no frozen video stream can fake: pings continuing through a
+	// "freeze" prove the device page kept running; pings stopping (or restarting under a new load
+	// id) timestamp a real freeze or reload to the second. no-cors: the response is opaque and
+	// irrelevant — only the request's arrival matters. Fully best-effort; nothing depends on it.
+	const hbId = `${loadedAt.getTime().toString(36)}`;
+	const hbTimer = setInterval(() => {
+		const up = Math.round((performance.now() - t0) / 1000);
+		// origFetch, not the tapped window.fetch — a missing listener must not spam FETCH FAIL lines.
+		origFetch(`//${location.hostname}:9777/hb?id=${hbId}&up=${up}&raf=${rafTotal}`, {
+			mode: 'no-cors',
+			cache: 'no-store',
+		}).catch(() => {});
+	}, 5000);
+
 	// ── Panel + suspension watchdog ───────────────────────────────────────────
 	// The 1s timer doubles as the suspension detector: iOS freezing the page freezes this timer,
 	// so a wall-clock gap between ticks is exactly how long the page was suspended.
@@ -149,6 +166,7 @@ export function installVitalsOverlay(): () => void {
 	return () => {
 		rafAlive = false;
 		clearInterval(timer);
+		clearInterval(hbTimer);
 		window.fetch = origFetch;
 		console.warn = origWarn;
 		window.removeEventListener('error', onError);
