@@ -60,6 +60,21 @@ const BONUS_METER_PIN_FAILSAFE_MS = 2000;
 
 /** True while a level-up is filling its bar out / holding it full, before its reward has been awarded. */
 let bonusLevelUpRevealInProgress = false;
+/**
+ * True while a QUEUED level-up is committed but has not started filling its bar out yet.
+ *
+ * Both queued paths (`applyAuthoritativeBonusLevel`, `applyBonusLevelUpWhenPipelineIdle`) wait on the
+ * drop batch before they reach `completeBonusMeterThenLevelUp`, and `bonusLevelUpRevealInProgress` only
+ * covers what happens after that. The level has to be spoken for across that wait too, or
+ * `combineNextBonusLevelNow` claims the same rung from the other side. Whoever sets this owns it until
+ * their own `finally` — it is never handed over mid-flight.
+ */
+let bonusLevelUpClaimed = false;
+
+/** A level-up owns the ladder — committed, filling its bar out, or revealing. */
+function bonusLevelUpInProgress(): boolean {
+	return bonusLevelUpClaimed || bonusLevelUpRevealInProgress;
+}
 /** Coin-peg hits that landed while the bar was pinned full for a level-up — see `bankBonusPegDuringLevelUp`. */
 let bonusPegsBankedDuringLevelUp = 0;
 /** An in-bonus free-spin wheel has been dequeued and is waiting for the level-up card to clear. */
@@ -806,14 +821,39 @@ async function completeBonusMeterThenLevelUp(reveal: () => void, settleBar: () =
 			if (generation !== bonusLevelUpGeneration) return;
 			stateGame.bonusMeterHoldFull = false;
 		}, BONUS_METER_PIN_FAILSAFE_MS);
+		// A settler that bailed on the gate above is not coming back on its own. A level-up that AWARDED
+		// balls needs no help — the round returns here when they deplete (`playOneBonusBall`) — but one that
+		// awarded nothing (an early return out of the sequence above) would leave the round parked at zero
+		// balls with nothing left to end it. Re-invoke for exactly that state; the settler re-checks
+		// everything for itself and is a no-op in any other.
+		//
+		// ⚠️ A TIMER, NOT A DIRECT CALL. When a QUEUED level-up got here, its applier is still parked on
+		// the `await` around this function and its `finally` — the one that releases `bonusLevelUpClaimed`
+		// — has not run yet, so a settler called inline would bail on its own claim gate and the round
+		// would stay parked. `setTimeout` puts this behind every pending microtask, which that `finally`
+		// is one of.
+		setTimeout(() => {
+			if (stateGame.bonusRoundActive && stateGame.bonusBallsRemaining <= 0 && !isGameOngoing()) {
+				void settleBonusRoundWhenFinished();
+			}
+		}, 0);
 	}
 }
 
-/** Pull the next book-authored level off the queue, show the level-up, and award its balls. */
+/**
+ * Claim the next book-authored level off the queue, show the level-up, and award its balls.
+ *
+ * PEEKS — it does not pop. The level is only taken off the queue once `applyAuthoritativeBonusLevel` has
+ * cleared its wait and is actually going to award it: popping here dropped the level outright whenever
+ * that wait ended on a state the applier bails out of (`bonusBallsRemaining > 0`, a bonus that ended
+ * underneath it), and a book level that never reaches the player is a lost award, not just a lost card.
+ * `bonusLevelUpClaimed` is what stops anything else taking the same rung meanwhile.
+ */
 function consumeAuthoritativeBonusLevel(): boolean {
 	const next = stateGame.authoritativeBonusLevelQueue[0];
 	if (!next) return false;
-	stateGame.authoritativeBonusLevelQueue = stateGame.authoritativeBonusLevelQueue.slice(1);
+	if (bonusLevelUpInProgress()) return false;
+	bonusLevelUpClaimed = true;
 	void applyAuthoritativeBonusLevel(next);
 	return true;
 }
@@ -826,39 +866,51 @@ async function applyAuthoritativeBonusLevel(level: {
 	spinMeterStart?: number;
 	spinMeterMax?: number;
 }) {
-	await waitForDropBatchCompletion();
-	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
-	// The +N free balls must only ever be awarded on a FULLY filled progress meter (parity with the
-	// session-meter path + the "ready to level up" blink, both gated on a full bar).
-	await completeBonusMeterThenLevelUp(
-		() => {
-			stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level.level);
-			showBonusLevelUpOverlay(level.level, level.freeBalls);
-			stateGame.authoritativeBonusOutcomes = level.outcomes;
-			stateGame.authoritativeBonusOutcomeIndex = 0;
-			// Depletion path: this level REPLACES the outcome array (nothing is left of the last batch),
-			// so the batch ledger restarts on its published spin-meter carry-in.
-			registerBonusSpinBatch(level.outcomes, level.spinMeterStart, true, level.spinMeterMax);
-			awardBonusBalls(level.freeBalls);
-			// NOTHING free-spin related fires here any more. A level-up is an ENERGY-bar event; the free
-			// spin belongs to the SPIN bar and is fired the instant that one completes
-			// (`creditInBonusSpinMeter`). Firing a queued trigger at this boundary instead is exactly what
-			// decoupled the wheel from its meter — it opened on a spin bar that was nowhere near full, or
-			// left a full one waiting for a level-up that never came.
-		},
-		() => {
-			// Re-size the bar to the new level's escalating threshold (mirrors the mid-drop combine path),
-			// then drain so the new, taller bar visibly re-fills from empty as its balls drop — unless this
-			// was the last level, which keeps its completed bar (see `settleBonusMeterForEnteredLevel`).
-			// This path only runs once the level's balls have DEPLETED, so there is no leftover carry.
-			settleBonusMeterForEnteredLevel(
-				level.levelupPegs ?? 0,
-				level.level,
-				countBonusPegs(level.outcomes),
-				0,
-			);
-		},
-	);
+	try {
+		await waitForDropBatchCompletion();
+		if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
+		// NOW take it off the queue — everything that could still abandon this level-up is behind us, so
+		// from here the level either reaches the player or the round is over. Head-checked because the
+		// claim is the only thing holding the queue still: if it is somehow no longer ours, leave it for
+		// whoever does own it rather than awarding a level twice.
+		if (stateGame.authoritativeBonusLevelQueue[0] !== level) return;
+		stateGame.authoritativeBonusLevelQueue = stateGame.authoritativeBonusLevelQueue.slice(1);
+		// The +N free balls must only ever be awarded on a FULLY filled progress meter (parity with the
+		// session-meter path + the "ready to level up" blink, both gated on a full bar).
+		await completeBonusMeterThenLevelUp(
+			() => {
+				stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, level.level);
+				showBonusLevelUpOverlay(level.level, level.freeBalls);
+				stateGame.authoritativeBonusOutcomes = level.outcomes;
+				stateGame.authoritativeBonusOutcomeIndex = 0;
+				// Depletion path: this level REPLACES the outcome array (nothing is left of the last batch),
+				// so the batch ledger restarts on its published spin-meter carry-in.
+				registerBonusSpinBatch(level.outcomes, level.spinMeterStart, true, level.spinMeterMax);
+				awardBonusBalls(level.freeBalls);
+				// NOTHING free-spin related fires here any more. A level-up is an ENERGY-bar event; the free
+				// spin belongs to the SPIN bar and is fired the instant that one completes
+				// (`creditInBonusSpinMeter`). Firing a queued trigger at this boundary instead is exactly what
+				// decoupled the wheel from its meter — it opened on a spin bar that was nowhere near full, or
+				// left a full one waiting for a level-up that never came.
+			},
+			() => {
+				// Re-size the bar to the new level's escalating threshold (mirrors the mid-drop combine path),
+				// then drain so the new, taller bar visibly re-fills from empty as its balls drop — unless this
+				// was the last level, which keeps its completed bar (see `settleBonusMeterForEnteredLevel`).
+				// This path only runs once the level's balls have DEPLETED, so there is no leftover carry.
+				settleBonusMeterForEnteredLevel(
+					level.levelupPegs ?? 0,
+					level.level,
+					countBonusPegs(level.outcomes),
+					0,
+				);
+			},
+		);
+	} finally {
+		// Released here, never handed over: `completeBonusMeterThenLevelUp` runs entirely inside the await
+		// above, so by this point the level-up is done and the next one is free to claim the ladder.
+		bonusLevelUpClaimed = false;
+	}
 }
 
 /**
@@ -878,6 +930,13 @@ async function applyAuthoritativeBonusLevel(level: {
  */
 export function combineNextBonusLevelNow(): boolean {
 	if (!stateGame.bonusRoundActive) return false;
+	// The other half of the interlock in `settleBonusRoundWhenFinished`: a level-up already filling its bar
+	// out owns the queue until it is done. `bonusMeterHoldFull` normally banks coin-peg hits rather than
+	// crediting them, but it is only raised once `completeBonusMeterThenLevelUp` clears its first await —
+	// and on the depletion path `applyAuthoritativeBonusLevel` waits on the whole drop batch before even
+	// reaching it. A hit landing in either window would otherwise pop a second level on top of the one
+	// being revealed, which is the same double award from the other direction.
+	if (bonusLevelUpInProgress()) return false;
 	if (stateGame.bonusLevelProgress >= BONUS_LEVEL_LABELS.length) return false;
 	const next = stateGame.authoritativeBonusLevelQueue[0];
 	if (!next) return false;
@@ -1304,38 +1363,50 @@ function consumePendingBonusLevelUp(): boolean {
 		stateGame.deferredBonusLevelUpCount = 0;
 		return false;
 	}
-	stateGame.pendingBonusLevelUpCount = Math.max(0, stateGame.pendingBonusLevelUpCount - 1);
-	const nextLevel = Math.max(1, stateGame.bonusLevelProgress + 1);
-	// Session-meter fallback only (production levels come from book `bonusRound` events).
-	const addedBalls = Math.max(1, bonusLevelBalls(nextLevel));
-	void applyBonusLevelUpWhenPipelineIdle(nextLevel, addedBalls);
+	if (bonusLevelUpInProgress()) return false;
+	// CLAIMED, not spent — the count is only decremented once the applier below has cleared its wait, for
+	// the same reason `consumeAuthoritativeBonusLevel` no longer pops its queue here.
+	bonusLevelUpClaimed = true;
+	void applyBonusLevelUpWhenPipelineIdle();
 	return true;
 }
 
-async function applyBonusLevelUpWhenPipelineIdle(nextLevel: number, addedBalls: number) {
-	await waitForDropBatchCompletion();
-	if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
-	// Match the authoritative path: the +N reward never appears before the meter is visibly full.
-	await completeBonusMeterThenLevelUp(
-		() => {
-			stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, nextLevel);
-			showBonusLevelUpOverlay(nextLevel, addedBalls);
-			awardBonusBalls(addedBalls);
-		},
-		() => {
-			// Another level-up is already queued behind this one — leave the bar full for it rather than
-			// draining and immediately re-filling. Otherwise hand the next level whatever overflowed.
-			if (stateGame.pendingBonusLevelUpCount + stateGame.deferredBonusLevelUpCount > 0) {
-				stateGame.bonusMeterValue = stateGame.bonusMeterMax;
-				return;
-			}
-			const safeMax = stateGame.bonusMeterMax || 20;
-			stateGame.bonusMeterValue = Math.max(
-				0,
-				Math.min(safeMax, stateGame.bonusMeterOverflowValue),
-			);
-		},
-	);
+async function applyBonusLevelUpWhenPipelineIdle() {
+	try {
+		await waitForDropBatchCompletion();
+		if (!stateGame.bonusRoundActive || stateGame.bonusBallsRemaining > 0) return;
+		if (stateGame.pendingBonusLevelUpCount <= 0) return;
+		// Spend the level-up here, where it is certain to be awarded. Read AFTER the wait so it names the
+		// rung the round is actually on — the claim keeps `bonusLevelProgress` still across it, so this
+		// agrees with what the caller would have computed, and stays right if that ever stops holding.
+		stateGame.pendingBonusLevelUpCount = Math.max(0, stateGame.pendingBonusLevelUpCount - 1);
+		const nextLevel = Math.max(1, stateGame.bonusLevelProgress + 1);
+		// Session-meter fallback only (production levels come from book `bonusRound` events).
+		const addedBalls = Math.max(1, bonusLevelBalls(nextLevel));
+		// Match the authoritative path: the +N reward never appears before the meter is visibly full.
+		await completeBonusMeterThenLevelUp(
+			() => {
+				stateGame.bonusLevelProgress = Math.max(stateGame.bonusLevelProgress, nextLevel);
+				showBonusLevelUpOverlay(nextLevel, addedBalls);
+				awardBonusBalls(addedBalls);
+			},
+			() => {
+				// Another level-up is already queued behind this one — leave the bar full for it rather than
+				// draining and immediately re-filling. Otherwise hand the next level whatever overflowed.
+				if (stateGame.pendingBonusLevelUpCount + stateGame.deferredBonusLevelUpCount > 0) {
+					stateGame.bonusMeterValue = stateGame.bonusMeterMax;
+					return;
+				}
+				const safeMax = stateGame.bonusMeterMax || 20;
+				stateGame.bonusMeterValue = Math.max(
+					0,
+					Math.min(safeMax, stateGame.bonusMeterOverflowValue),
+				);
+			},
+		);
+	} finally {
+		bonusLevelUpClaimed = false;
+	}
 }
 
 function clearBonusLevelUpOverlayTimer() {
@@ -1909,7 +1980,7 @@ function fireRemainingBonusFreeSpin(): boolean {
 export async function settleBonusRoundWhenFinished() {
 	if (stateGame.bonusRoundSettlementInProgress) return;
 	// A level-up is mid-reveal (bar filling out / held full): its balls land when the reward does.
-	if (bonusLevelUpRevealInProgress) return;
+	if (bonusLevelUpInProgress()) return;
 	// A free spin's coins are still streaming into the Win field. Ending here would slide the treasure
 	// screen over them; `endInBonusFreeSpinCoinStream` re-invokes this the moment they have faded.
 	if (stateGame.inBonusFreeSpinCoinStreamActive) return;
@@ -1920,6 +1991,25 @@ export async function settleBonusRoundWhenFinished() {
 	stateGame.bonusRoundSettlementInProgress = true;
 	try {
 		await waitForDropBatchCompletion();
+		// ⚠️ RE-CHECK THE LEVEL-UP GATE — the check on entry above is not enough, and this is the double
+		// award QA sees.
+		//
+		// The common caller is `playOneBonusBall`, which invokes this settler the moment the last bonus
+		// ball is RELEASED, not when it lands. The balls still in the air across the await are exactly the
+		// ones that finish the energy bar, and a bar completing mid-flight pops the next level by itself
+		// (`onCoinPegHit` -> `combineNextBonusLevelNow`). That level's award is deliberately deferred into
+		// its reveal, so for the whole fill-out the round still reads as zero balls remaining — and falling
+		// through here popped a SECOND level off the same queue.
+		//
+		// Both then awarded: +40 and +80 reached the player as a single +120, and the second card overwrote
+		// the first (`showBonusLevelUpOverlay` replaces whatever is on screen), so the level it belonged to
+		// was never seen. It also ran this path's outcome REPLACE over the combine's APPEND, leaving balls
+		// with no book-authored outcome and re-seating the free-spin bar on the wrong batch — which is what
+		// opened the wheel on a part-filled meter.
+		//
+		// Bailing is safe: a level-up that awards balls brings the round back here on their depletion, and
+		// one that awards nothing re-invokes this settler from `completeBonusMeterThenLevelUp`.
+		if (bonusLevelUpInProgress()) return;
 		flushDeferredBonusLevelUp();
 		// (1) Level-ups first. A level-up card no longer has to share this boundary with a free spin: the
 		// spin bar fires its own wheel the moment it completes (`creditInBonusSpinMeter`), which is
