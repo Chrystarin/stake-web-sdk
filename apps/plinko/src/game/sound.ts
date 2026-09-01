@@ -172,8 +172,13 @@ export function resumePlinkoAudio(): void {
 	const ctx = howler.ctx;
 	if (!ctx || typeof ctx.resume !== 'function') return;
 	// Already live — do nothing at all. This is the common case (these listeners fire on every tap and
-	// every resize frame of a rotation), so it has to stay free.
-	if (ctx.state === 'running') return;
+	// every resize frame of a rotation), so it has to stay free. The one exception: a context whose
+	// state reads `running` while the watchdog has caught its clock frozen is the iOS zombie —
+	// `resume()` is a no-op on it, only a suspend()→resume() cycle restarts the render thread.
+	if (ctx.state === 'running') {
+		if (ctxClockLooksFrozen) recoverZombieAudioContext(ctx);
+		return;
+	}
 	// Nothing has EVER been interacted with, so the autoplay policy is guaranteed to refuse this —
 	// and Chrome writes "The AudioContext was not allowed to start" to the console for every refusal.
 	// The non-gesture listeners below (`resize` above all: a devtools drag or a mobile address bar
@@ -197,6 +202,62 @@ export function resumePlinkoAudio(): void {
 		.catch(() => {
 			// Still gesture-locked — the next interaction will try again.
 		});
+}
+
+// ── iOS zombie-context recovery ────────────────────────────────────────────────────────────────
+// After the app is backgrounded (home screen, app switch) iOS tears down the page's audio session.
+// On return the context usually reports `interrupted` or `suspended` — those states the resume
+// paths above/below recover. But when audio was actively rendering at hide time, WebKit often
+// hands back a context whose `state` reads `running` while its render clock is dead:
+// `ctx.currentTime` stops advancing and every play() goes silently into a stalled graph, forever.
+// Nothing observable distinguishes it from a healthy context except the frozen clock — so the
+// watchdog below samples the clock, and when it catches `running` + frozen, a suspend()→resume()
+// cycle provably restarts the render thread (verified on iPhone 16 / iOS 18.6, where nothing else
+// — not taps, not resume(), not Howler's own recovery — brought it back).
+let lastCtxClock = -1;
+let ctxClockLooksFrozen = false;
+
+function recoverZombieAudioContext(ctx: AudioContext): void {
+	void ctx
+		.suspend()
+		.then(() => ctx.resume())
+		.then(() => {
+			(Howler as unknown as { state?: string }).state = 'running';
+		})
+		.catch(() => {
+			// The next watchdog tick retries while the clock stays frozen.
+		});
+}
+
+/**
+ * One watchdog tick: keep the context alive without needing a user gesture. Recovers all three
+ * post-backgrounding flavors seen on real iOS hardware — `interrupted` (stuck until a resume() call
+ * succeeds), `suspended`, and the zombie above. Safe to run every second: two property reads when
+ * everything is healthy.
+ */
+function watchdogTick(): void {
+	const howler = Howler as unknown as { ctx?: AudioContext; state?: string };
+	const ctx = howler.ctx;
+	if (!ctx || typeof document === 'undefined' || document.hidden) {
+		lastCtxClock = -1;
+		return;
+	}
+	if (ctx.state !== 'running') {
+		lastCtxClock = -1;
+		// Howler's own 30s idle auto-suspend is deliberate (battery) and self-heals inside the next
+		// play() — leave it alone. Everything else (iOS `interrupted`, a browser-suspended context
+		// Howler believes is running) is recovered here, WITHOUT waiting for a tap: sticky activation
+		// carries over an app switch, so a non-gesture resume() is accepted (verified on iOS 18.6).
+		if (!(ctx.state === 'suspended' && howler.state === 'suspended')) resumePlinkoAudio();
+		return;
+	}
+	if (lastCtxClock >= 0 && ctx.currentTime === lastCtxClock) {
+		ctxClockLooksFrozen = true;
+		recoverZombieAudioContext(ctx);
+		return;
+	}
+	ctxClockLooksFrozen = false;
+	lastCtxClock = ctx.currentTime;
 }
 
 /**
@@ -224,8 +285,29 @@ function hasBeenInteractedWith(): boolean {
  *
  * Returns a teardown for the caller's `onMount`.
  */
+/**
+ * Route the page's audio through the `playback` audio-session category (Audio Session API,
+ * iOS Safari 16.4+ / iOS-based browsers). The default `auto` resolves Web Audio to the `ambient`
+ * category, which the iPhone's silent/ringer switch mutes outright — the classic "game has no
+ * sound on iOS while everything reports playing" report. `playback` is the category native games
+ * and media apps use: audible regardless of the switch. Harmless everywhere else (the property
+ * simply doesn't exist). Re-asserted on pageshow because an app switch can hand the session back
+ * re-categorised.
+ */
+function preferPlaybackAudioSession(): void {
+	if (typeof navigator === 'undefined') return;
+	const session = (navigator as unknown as { audioSession?: { type?: string } }).audioSession;
+	if (!session || typeof session.type !== 'string') return;
+	try {
+		session.type = 'playback';
+	} catch {
+		// Older engines expose the object read-only — nothing to do.
+	}
+}
+
 export function installPlinkoAudioResume(): () => void {
 	if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+	preferPlaybackAudioSession();
 	const onVisible = () => {
 		if (!document.hidden) resumePlinkoAudio();
 	};
@@ -234,18 +316,26 @@ export function installPlinkoAudioResume(): () => void {
 	const gestureEvents = ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown'] as const;
 	const gestureOpts = { capture: true, passive: true } as const;
 	for (const evt of gestureEvents) document.addEventListener(evt, resumePlinkoAudio, gestureOpts);
+	const onPageShow = () => {
+		preferPlaybackAudioSession();
+		resumePlinkoAudio();
+	};
 	document.addEventListener('visibilitychange', onVisible);
-	window.addEventListener('pageshow', resumePlinkoAudio);
+	window.addEventListener('pageshow', onPageShow);
 	window.addEventListener('orientationchange', resumePlinkoAudio);
 	window.addEventListener('resize', resumePlinkoAudio, { passive: true });
+	// The watchdog is what brings audio back WITHOUT a tap after an app switch (QA: "does not
+	// automatically resume") — and it is the only thing that can catch the zombie flavor at all.
+	const watchdog = setInterval(watchdogTick, 1000);
 	return () => {
 		for (const evt of gestureEvents) {
 			document.removeEventListener(evt, resumePlinkoAudio, gestureOpts);
 		}
 		document.removeEventListener('visibilitychange', onVisible);
-		window.removeEventListener('pageshow', resumePlinkoAudio);
+		window.removeEventListener('pageshow', onPageShow);
 		window.removeEventListener('orientationchange', resumePlinkoAudio);
 		window.removeEventListener('resize', resumePlinkoAudio);
+		clearInterval(watchdog);
 	};
 }
 

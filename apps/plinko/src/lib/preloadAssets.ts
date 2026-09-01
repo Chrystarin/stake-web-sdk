@@ -565,8 +565,8 @@ const AUDIO_PATHS: readonly string[] = [
 	'sound/coin_peg.wav',
 	// One file, played as two sprite windows (coinShuffleSingle / coinShuffleMulti).
 	'sound/coin_shuffle.mp3',
-	'sound/door_close.ogg',
-	'sound/door_open.ogg',
+	'sound/door_close.mp3',
+	'sound/door_open.mp3',
 	'sound/bonus_level_up.mp3',
 	// Held on loop under the post-bonus treasure screen (EnableSound).
 	'sound/post_bonus_clinking_coins.mpeg',

@@ -63,7 +63,9 @@
 						preload: false,
 						onloaderror: (_id, err) => {
 							console.warn('[plinko] background music failed to load', err);
+							armMusicRecoveryOnGesture();
 						},
+						onplayerror: () => armMusicRecoveryOnGesture(),
 					})
 				: new Howl({
 						// The file carries a `.mpeg` extension but is MPEG layer III (MP3) audio — pin the
@@ -76,7 +78,9 @@
 						preload: false,
 						onloaderror: (_id, err) => {
 							console.warn('[plinko] bonus background music failed to load', err);
+							armMusicRecoveryOnGesture();
 						},
+						onplayerror: () => armMusicRecoveryOnGesture(),
 					});
 		silenceHowlerTeardownSrc(howl);
 		trackedVolume.set(howl, kind === 'normal' ? NORMAL_VOLUME : BONUS_VOLUME);
@@ -167,6 +171,32 @@
 			normalHowl.load();
 			bonusHowl.load();
 		}
+	}
+
+	/**
+	 * A track failed to load or start — most commonly on iOS after an app switch, where the rebuilt
+	 * track's play() can be rejected (no fresh user activation) or its re-stream aborted. Nothing
+	 * reactive re-runs `applyMusicState` after such an async failure, so without this the music
+	 * stays silent for the rest of the session (QA: "BGM does not resume until a full refresh").
+	 * Arm a one-shot retry on the next gesture: inside a tap the play() is always allowed.
+	 */
+	let musicRecoveryArmed = false;
+	function armMusicRecoveryOnGesture() {
+		if (musicRecoveryArmed || typeof document === 'undefined') return;
+		musicRecoveryArmed = true;
+		const opts = { capture: true, passive: true } as const;
+		const retry = () => {
+			for (const evt of recoveryEvents) document.removeEventListener(evt, retry, opts);
+			musicRecoveryArmed = false;
+			// A track whose stream was aborted mid-download sits `unloaded` and play() on it would
+			// just queue forever — kick the load first, then re-drive playback to the wanted state.
+			for (const howl of [music, bonusMusic]) {
+				if (howl && howl.state() === 'unloaded') howl.load();
+			}
+			applyMusicState();
+		};
+		const recoveryEvents = ['touchend', 'click', 'keydown'] as const;
+		for (const evt of recoveryEvents) document.addEventListener(evt, retry, opts);
 	}
 
 	/** Drop any media metadata/transport state the browser may still be holding for this page, so a

@@ -32,9 +32,11 @@
 		// Both shuffle variants are the SAME file, played as different time windows (see sprite below).
 		coinShuffleSingle: staticUrl('sound/coin_shuffle.mp3'),
 		coinShuffleMulti: staticUrl('sound/coin_shuffle.mp3'),
-		// Bonus congratulations screen slide SFX (see sprite windows below).
-		doorClose: staticUrl('sound/door_close.ogg'),
-		doorOpen: staticUrl('sound/door_open.ogg'),
+		// Bonus congratulations screen slide SFX (see sprite windows below). MP3 rather than the
+		// originally delivered OGG: iOS Safari has no Vorbis decoder, so the .ogg versions simply
+		// never loaded on any iPhone/iPad and both doors were silent there.
+		doorClose: staticUrl('sound/door_close.mp3'),
+		doorOpen: staticUrl('sound/door_open.mp3'),
 		// Bonus level-up chime (leading silence trimmed via sprite below).
 		bonusLevelUp: staticUrl('sound/bonus_level_up.mp3'),
 		// Post-bonus treasure screen coin bed — held on loop, see the `loop` option below.
@@ -90,6 +92,12 @@
 	onMount(() => {
 		for (const [name, url] of Object.entries(soundMap)) {
 			loadPlinkoSound(name as SoundEffectName, url, soundOptions[name as SoundEffectName]);
+		}
+		// TEMP: on-screen audio state overlay for debugging on devices without DevTools (BrowserStack).
+		if (import.meta.env.DEV && new URLSearchParams(location.search).has('audioDebug')) {
+			void import('../lib/devAudioDebug').then(({ installAudioDebugOverlay }) =>
+				installAudioDebugOverlay(),
+			);
 		}
 		// Keep the Web Audio context running for the whole session — the autoplay policy blocks it on a
 		// fresh load, and the browser suspends it again on backgrounding / orientation change, which
