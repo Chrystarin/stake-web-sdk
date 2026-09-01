@@ -393,6 +393,15 @@
 	onMount(() => {
 		installPlinkoDevDebug();
 
+		// TEMP: on-screen liveness/vitals overlay for freeze triage on devices without DevTools
+		// (BrowserStack). Tells a stalled video stream, an iOS page suspension, a memory-kill reload
+		// and a genuine game freeze apart from the video alone — see devVitalsOverlay.ts.
+		if (import.meta.env.DEV && new URLSearchParams(location.search).has('vitals')) {
+			void import('../lib/devVitalsOverlay').then(({ installVitalsOverlay }) =>
+				installVitalsOverlay(),
+			);
+		}
+
 		if (import.meta.env.DEV) {
 			// Live cosmetic override for the bonus meter fill — see DEV_BONUS_METER_PROGRESS above.
 			// plinkoSetBonusMeter(0.5) fills to half; plinkoSetBonusMeter(null) restores the live value.
@@ -566,7 +575,14 @@
 
 		if (import.meta.env.DEV && (!hasRgsSession || forceLocalBooks)) {
 			try {
-				await playDevLocalBook();
+				const played = await playDevLocalBook();
+				// FALSE = no matching local book (the fixture set has none for this balls-per-drop —
+				// e.g. 50), so nothing was wagered and nothing dropped. An autobet run must stop HERE:
+				// the `isSubmitting` flicker this handler raises is enough for the autobet loop to score
+				// the round as played, so left alone it burns every remaining round as an instant no-op —
+				// on a device, where the console warning is invisible, that reads as "autobet keeps
+				// counting but nothing drops". Dev-only path; an RGS session never comes through here.
+				if (!played) stopAutoBet();
 			} finally {
 				// Preserve the still-falling ball in rapid 1-ball mode (parity with playBet's own finally),
 				// otherwise this outer reset would strip its outcome before it lands.
