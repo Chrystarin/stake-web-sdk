@@ -14,11 +14,23 @@ export function recordBookEvent<TBookEvent extends BaseBookEvent>({
 		return;
 	}
 
+	const rgsUrl = stateUrlDerived.rgsUrl();
+	const sessionID = stateUrlDerived.sessionID();
+	// Dev-local play has no RGS session — firing anyway makes every recorded book event reject
+	// with an unhandled "Failed to fetch" (Safari: "TypeError: Load failed"), which reads as a
+	// crash clue on devices where the console is the only diagnostic.
+	if (!rgsUrl || !sessionID) return;
+
 	try {
-		requestEndEvent({
+		// requestEndEvent is async and this call is deliberately fire-and-forget; the catch must be
+		// ON THE PROMISE — the try/catch around it only ever covered a synchronous throw, so a failed
+		// request still surfaced as an unhandledrejection.
+		void requestEndEvent({
 			eventIndex: bookEvent.index,
-			rgsUrl: stateUrlDerived.rgsUrl(),
-			sessionID: stateUrlDerived.sessionID(),
+			rgsUrl,
+			sessionID,
+		}).catch((error) => {
+			console.warn('[utils-book] end-event request failed:', error);
 		});
 	} catch (error) {
 		console.error(error);
