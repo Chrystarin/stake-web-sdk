@@ -726,23 +726,47 @@ async function preloadImage(url: string): Promise<void> {
 	return withImageFetchSlot(() => fetchDecodeAndPublish(url));
 }
 
+/**
+ * Attempts per image before it is written off. A single dropped fetch used to lose the asset for the
+ * whole session: `registerResidentUrl` never ran, so `staticUrl` fell back to the raw network URL,
+ * and a CSS `background-image` fetches that ONCE with no retry of its own — one blank strap / border
+ * for the rest of the session. Transient drops are the norm on a flaky connection (and on the
+ * BrowserStack tunnel, where this surfaced), so give each image a couple of quick retries; the whole
+ * pass still sits behind the splash, well inside the timeout cap.
+ */
+const IMAGE_FETCH_ATTEMPTS = 3;
+const IMAGE_RETRY_BASE_MS = 250;
+
 async function fetchDecodeAndPublish(url: string): Promise<void> {
-	try {
-		const response = await fetch(url, { credentials: 'same-origin' });
-		if (!response.ok) throw new Error(`HTTP ${response.status}`);
-		const objectUrl = URL.createObjectURL(await response.blob());
-		const img = new Image();
-		retainedImages.push(img);
-		img.src = objectUrl;
-		// decode() guarantees the bitmap is ready to paint with no first-use hitch.
-		if (typeof img.decode === 'function') await img.decode();
-		// Published only after a successful decode, so a truncated or corrupt body can never become the
-		// URL a component paints from.
-		registerResidentUrl(url, objectUrl);
-	} catch (error) {
-		if (report.failed.length < 100) {
-			report.failed.push({ url, reason: String((error as Error)?.message ?? error) });
+	let lastError: unknown;
+	for (let attempt = 1; attempt <= IMAGE_FETCH_ATTEMPTS; attempt++) {
+		try {
+			// `cache: reload` on a retry: a failed/aborted first try can leave a poisoned entry (an
+			// opaque or partial response) in the HTTP cache that a plain refetch would keep serving.
+			const response = await fetch(url, {
+				credentials: 'same-origin',
+				cache: attempt === 1 ? 'default' : 'reload',
+			});
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			const objectUrl = URL.createObjectURL(await response.blob());
+			const img = new Image();
+			retainedImages.push(img);
+			img.src = objectUrl;
+			// decode() guarantees the bitmap is ready to paint with no first-use hitch.
+			if (typeof img.decode === 'function') await img.decode();
+			// Published only after a successful decode, so a truncated or corrupt body can never become
+			// the URL a component paints from.
+			registerResidentUrl(url, objectUrl);
+			return;
+		} catch (error) {
+			lastError = error;
+			if (attempt < IMAGE_FETCH_ATTEMPTS) {
+				await new Promise((r) => setTimeout(r, IMAGE_RETRY_BASE_MS * attempt));
+			}
 		}
+	}
+	if (report.failed.length < 100) {
+		report.failed.push({ url, reason: String((lastError as Error)?.message ?? lastError) });
 	}
 }
 
