@@ -303,6 +303,14 @@ export function installPlinkoDevDebug() {
 	// (Massive ≤25% ≤ Epic ≤75% < Captain) and scales the coin count — e.g. on the default 10-ball tier
 	// (max win 250×): `plinkoTestWin(1234.56, 120)` (48%) is Epic Bounty, `plinkoTestWin(9999, 220)` (88%)
 	// is Captain's Jackpot.
+	// Dev-only: show/hide the bonus level-up card without playing a bonus, for layout checks.
+	w.plinkoTestLevelUp = (visible = true, level = 4, addedBalls = 80) => {
+		stateGame.bonusLevelUpLevel = level;
+		stateGame.bonusLevelUpAddedBalls = addedBalls;
+		stateGame.bonusLevelUpOverlayOpen = visible;
+		stateGame.bonusLevelUpOverlayVisible = visible;
+	};
+
 	w.plinkoTestWin = (amount = 1234.56, multiplier = 120, balls = 10) => {
 		stateGame.ballPerDrop = balls <= 1 ? 10 : balls;
 		stateGame.winPopupAmount = amount;

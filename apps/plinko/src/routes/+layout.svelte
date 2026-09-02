@@ -76,6 +76,13 @@
    feedback via :active (GameHud.scss — brightness on the Play buttons, scale on the smaller ones). */
 :root{-webkit-tap-highlight-color:transparent;}
 
+/* ── NO iOS TEXT AUTOSIZING ──────────────────────────────────────────────────────────────────────
+   iOS Safari alone may inflate text it judges too small after an orientation change (WebKit's
+   text autosizing, which Android Chrome does not do for a device-width viewport). Every size in this
+   game is a deliberate fraction of the viewport, so the standard opt-out pins them. Harmless where the
+   property is unknown. */
+:root{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+
 @font-face{font-family:'Instrument Sans';src:url(${JSON.stringify(staticUrl('fonts/Instrument_Sans/static/InstrumentSans-Regular.ttf'))}) format('truetype');font-weight:400;}
 
 @font-face{font-family:'Instrument Sans';src:url(${JSON.stringify(staticUrl('fonts/Instrument_Sans/static/InstrumentSans-SemiBold.ttf'))}) format('truetype');font-weight:600;}

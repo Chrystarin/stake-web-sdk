@@ -81,6 +81,9 @@
 		pointer-events: none;
 		opacity: 0;
 		transition: opacity 0.28s ease;
+		/* The card below is wider than the viewport in portrait (its glow is meant to run off both
+		   sides); clip it here so that overflow can never become a scrollable strip. */
+		overflow: hidden;
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		/* Scrim, tuned so the game BEHIND it measures ~30% darker than it did at the old 0.28.
@@ -124,16 +127,21 @@
 	.bonus-level-up-card {
 		container-type: size;
 		position: relative;
-		width: min(64vw, 920px);
+		/* Overall size of the whole card (art + type together). Portrait overrides it below.
+		   ⚠️ Applied to the WIDTH, not as `transform: scale()`: everything inside is in container units,
+		   so a wider box scales the art and the type together exactly as the transform did — and iOS
+		   Safari drops the first paint of whatever a transform scales up past its own layout box (the
+		   Buy Bonus plaque lost its top strip that way inside the Stake Engine iframe; see
+		   BuyBonusModal.svelte). A card that is simply this big has no strip to lose. */
+		--card-scale: 1.25;
+		width: calc(min(64vw, 920px) * var(--card-scale));
+		/* A flex item wider than the overlay would otherwise shrink to fit it; the overflow is glow. */
+		flex-shrink: 0;
 		aspect-ratio: 1919 / 721;
 		background-position: center;
 		background-repeat: no-repeat;
 		background-size: contain;
 		box-sizing: border-box;
-		/* Overall size of the whole card (art + type together). Portrait overrides it below. */
-		--card-scale: 1.25;
-		transform: scale(var(--card-scale));
-		transform-origin: center center;
 
 		/* ═══ TUNING KNOBS ═══════════════════════════════════════════════════════════════════════════
 		   Three numbers per row. They are plain NUMBERS, not lengths — don't add units.
@@ -170,7 +178,7 @@
 		--label-y: 81.5;
 	}
 	.bonus-level-up-overlay--portrait .bonus-level-up-card {
-		width: min(92vw, 760px);
+		width: calc(min(92vw, 760px) * var(--card-scale));
 		/* Portrait runs the card 20% larger than landscape (1.25 x 1.2). The artwork is mostly glow —
 		   the plaque is only the middle ~66% of it — so the extra width bleeds off-screen as glow rather
 		   than cropping the plaque. */

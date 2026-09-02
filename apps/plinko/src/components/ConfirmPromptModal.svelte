@@ -280,11 +280,10 @@
 				class="cf-title"
 				style:--x="{layout.title.x}%"
 				style:--y="{layout.title.y}%"
-				style:--scale={layout.title.scale}
 				style:--shadow-x="{layout.title.shadowX}em"
 				style:--shadow-y="{layout.title.shadowY}em"
 				style:--shadow-blur="{layout.title.shadowBlur}em"
-				style:font-size="{layout.title.size}cqw"
+				style:font-size="{layout.title.size * layout.title.scale}cqw"
 				style:--q-em="{layout.title.questionEm}em"
 			>
 				<!-- prettier-ignore -->
@@ -297,7 +296,6 @@
 					style:--x="{layout.caption.x}%"
 					style:--y="{layout.caption.y}%"
 					style:--w="{layout.caption.width}cqw"
-					style:--scale={1}
 					style:font-size="{layout.caption.size}cqw"
 					style:line-height={layout.caption.lineHeight}
 				>
@@ -396,14 +394,21 @@
 		user-select: none;
 	}
 
-	/* `--x` / `--y` are the element's CENTRE within the panel, hence the -50% pre-translate. */
+	/* `--x` / `--y` are the element's CENTRE within the panel, hence the -50% pre-translate.
+	   ⚠️ Centring only — no `scale()` here. Each layout's `scale` knob used to ride on this transform,
+	   and iOS Safari drops the first paint of whatever a transform scales up past its own layout box
+	   (the Buy Bonus plaque lost its top strip that way inside the Stake Engine iframe — see
+	   BuyBonusModal.svelte). The knob is now folded into LAYOUT instead: the title's font-size is
+	   multiplied by it in the markup, and the choice plates multiply their width, label size, stroke
+	   and label nudge by `--scale` below. Same picture — a scale about the centre and a centred box
+	   that is `scale` times bigger put the ink in the same place — but nothing overflows a box. */
 	.cf-title,
 	.cf-caption,
 	.cf-choice {
 		position: absolute;
 		left: var(--x);
 		top: var(--y);
-		transform: translate(-50%, -50%) scale(var(--scale));
+		transform: translate(-50%, -50%);
 	}
 
 	.cf-title {
@@ -464,7 +469,9 @@
 	}
 
 	.cf-choice {
-		width: var(--w);
+		/* The layout's `scale` knob, applied to the plate's width (its height follows through the
+		   aspect ratio) rather than as a transform — see the note on `.cf-title, .cf-caption, .cf-choice`. */
+		width: calc(var(--w) * var(--scale, 1));
 		aspect-ratio: var(--btn-aspect);
 		display: flex;
 		align-items: center;
@@ -492,7 +499,8 @@
 		font-family: 'Poppins', sans-serif;
 		font-style: normal;
 		font-weight: 500;
-		font-size: var(--label-size);
+		/* × the plate's `scale` knob: the old transform enlarged the wording with the plate. */
+		font-size: calc(var(--label-size) * var(--scale, 1));
 		line-height: 1;
 		text-align: center;
 		text-transform: uppercase;
@@ -501,9 +509,9 @@
 		/* The reference's `border: 10px solid #000` is a Figma stroke on the text, not a box — drawn
 		   here as a glyph edge, sized in cqw so it tracks the panel instead of staying a fixed 10px.
 		   Set `label.stroke: 0` above to drop it. */
-		-webkit-text-stroke: var(--label-stroke) #000000;
+		-webkit-text-stroke: calc(var(--label-stroke) * var(--scale, 1)) #000000;
 		paint-order: stroke fill;
-		translate: var(--label-dx) var(--label-dy);
+		translate: calc(var(--label-dx) * var(--scale, 1)) calc(var(--label-dy) * var(--scale, 1));
 		white-space: nowrap;
 	}
 
