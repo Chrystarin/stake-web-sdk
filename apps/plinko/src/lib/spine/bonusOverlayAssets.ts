@@ -308,8 +308,8 @@ export const getBonusTornadoOverlay = (
  * BOTH orientations use the LANDSCAPE skeleton. It is four copies of the same 29-frame `rainFreeGame`
  * flipbook tiled 2×2 over a ~16:9 field, so covering a portrait screen scales it about as much as a
  * desktop one does and the drops come out the same size in both. The portrait-specific skeleton
- * (`spine/portrait_rain`, still on disk, no longer referenced) is two overlapping quads covering only
- * the upper sky — roughly the top half of the visible height — and covering with it meant ~2× drops.
+ * (`spine/portrait_rain`, since deleted) was two overlapping quads covering only the upper sky —
+ * roughly the top half of the visible height — and covering with it meant ~2× drops.
  */
 export const getBonusRainOverlay = (): SpineOverlayDef => ({
 	id: 'bonus_rain',
