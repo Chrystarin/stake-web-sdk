@@ -11,6 +11,101 @@
 
 	const context = getContext();
 
+	/**
+	 * CHEST ART + SPARKLE PLACEMENT, from the comp (Figma `Bonus`, node 494:22601).
+	 *
+	 * The comp draws every card absolutely on a 324 x 442 box, and the art there is NOT a flow item:
+	 * it is TALLER than the gap between the tagline and the free-ball count and bleeds over both (the
+	 * glow runs under the text on all four tiers). So the chest is taken out of the column and hung
+	 * inside `.bb-card-art-slot`, the empty flex item that holds its place — which puts the tagline
+	 * (with the title) hard against the top of the card and the count, price and button hard against
+	 * the bottom, exactly where the comp has them.
+	 *
+	 * ⚠️ VERTICALLY the art is CENTRED IN THAT SLOT (`top: 50%` + a −50% translate), not placed at
+	 * the comp's own `top`. The slot is precisely the space between the tagline and the count — the
+	 * two `.bb-card-inner` gaps that flank it are equal — so centring in it is centring between those
+	 * two components, and the overhang lands evenly above and below instead of the comp's
+	 * bottom-heavy sit. It also survives a tagline that wraps to a third line, which a fixed `top`
+	 * would not. This is deliberately the ONE place the comp is not copied literally.
+	 *
+	 * HORIZONTALLY the comp's own offsets are kept — they are not centred and should not be, because
+	 * each render's chest sits off-centre on its own canvas by a different amount.
+	 *
+	 * Everything is a PERCENTAGE, so one set of numbers serves the landscape 4x1 grid, the portrait
+	 * 2x2 grid and every viewport in between:
+	 *  - the wrap's `left`/`width` are relative to the SLOT, which is `.bb-card-inner`'s content box
+	 *    and so 92% of the card (the inner's 4% side padding, twice) — hence `SLOT_W` below;
+	 *  - each sparkle is relative to the WRAP, i.e. to the chest's own box, so the whole cluster
+	 *    travels with the art rather than having to be re-derived whenever the art moves. Values
+	 *    outside 0-100% are normal: the comp scatters a few sparkles past the chest's edges.
+	 * The wrap's HEIGHT is left to the image's intrinsic ratio — each delivered webp matches its comp
+	 * box to within 0.3%, so stating it would only be a second chance to disagree.
+	 */
+	const CARD_W = 324;
+	/** `.bb-card-inner`'s content width: the card less its 4% side padding, twice. */
+	const SLOT_W = CARD_W * 0.92;
+	/** Left edge of that content box, in card px — what a comp x-coordinate is measured back from. */
+	const SLOT_X = CARD_W * 0.04;
+	const pct = (n: number) => `${(n * 100).toFixed(3)}%`;
+
+	/** Comp box of each tier's chest art, in card px. `height` is only used to place the sparkles. */
+	const TIER_ART: Record<string, { left: number; top: number; width: number; height: number }> = {
+		standard: { left: 61, top: 117, width: 199, height: 192 },
+		enhanced: { left: 60, top: 105, width: 217, height: 209 },
+		premium: { left: 40, top: 114, width: 228, height: 207 },
+		superfury: { left: 39, top: 107, width: 235, height: 207 },
+	};
+
+	/**
+	 * The comp scatters a single sparkle sprite over the two top tiers — four on Premium, twelve on
+	 * Super Fury — which is most of what makes those two cards read as richer than the first two.
+	 * `[left, top, size, opacity]` in CARD px, the same space as `TIER_ART`; one shared 128px webp at
+	 * every size. `sparkleStyle` is what converts them into the chest's own box.
+	 */
+	const TIER_SPARKLES: Record<string, readonly [number, number, number, number][]> = {
+		premium: [
+			[206, 194, 26, 1],
+			[162, 189, 26, 1],
+			[81, 202, 19, 1],
+			[200, 260, 19, 1],
+		],
+		superfury: [
+			[59, 135, 37, 1],
+			[52, 240, 29, 1],
+			[26, 273, 18, 0.57],
+			[264, 136, 18, 0.55],
+			[249, 254, 29, 0.9],
+			[272, 198, 22, 0.9],
+			[115, 163, 17, 1],
+			[157, 183, 17, 1],
+			[157, 134, 17, 1],
+			[169, 198, 17, 1],
+			[28, 172, 22, 0.75],
+			[217, 167, 19, 1],
+		],
+	};
+
+	/** The chest's box, against the slot. No `top` — the CSS centres it; see the note above. */
+	function artStyle(key: string) {
+		const box = TIER_ART[key];
+		if (!box) return '';
+		return `left:${pct((box.left - SLOT_X) / SLOT_W)};width:${pct(box.width / SLOT_W)}`;
+	}
+
+	/** One sparkle, against the chest's box rather than the card's, so it travels with the art. */
+	function sparkleStyle(
+		key: string,
+		[left, top, size, opacity]: readonly [number, number, number, number],
+	) {
+		const box = TIER_ART[key];
+		if (!box) return '';
+		return (
+			`left:${pct((left - box.left) / box.width)};` +
+			`top:${pct((top - box.top) / box.height)};` +
+			`width:${pct(size / box.width)};opacity:${opacity}`
+		);
+	}
+
 	type Props = {
 		/** Disabled while a round/bonus is in progress (can't buy mid-round). */
 		disabled?: boolean;
@@ -64,9 +159,6 @@
 		if (target?.closest('.bp-bet-presets-wrap')) return;
 		betPresetsOpen = false;
 	}
-
-
-
 </script>
 
 {#if stateGame.buyBonusModalOpen}
@@ -116,13 +208,27 @@
 						<div class="bb-card-inner">
 							<h3 class="bb-card-title">{tier.name}</h3>
 							<p class="bb-card-desc">{tier.tagline}</p>
-							<img
-								class="bb-card-art"
-								class:bb-card-art--superfury={tier.key === 'superfury'}
-								src={staticUrl(`img/buy_bonus_${tier.key}.webp`)}
-								alt=""
-								aria-hidden="true"
-							/>
+							<!-- The chest hangs here rather than flowing, so the tagline above and the count
+							     below keep the comp's positions while the art overhangs both. The slot is the
+							     gap between those two rows, and the wrap centres itself in it — see the
+							     TIER_ART note for why that, and not the comp's own `top`. -->
+							<div class="bb-card-art-slot" aria-hidden="true">
+								<div class="bb-card-art-wrap" style={artStyle(tier.key)}>
+									<img
+										class="bb-card-art"
+										src={staticUrl(`img/buy_bonus_${tier.key}.webp`)}
+										alt=""
+									/>
+									{#each TIER_SPARKLES[tier.key] ?? [] as sparkle}
+										<img
+											class="bb-card-sparkle"
+											style={sparkleStyle(tier.key, sparkle)}
+											src={staticUrl('img/buy_bonus_sparkle.webp')}
+											alt=""
+										/>
+									{/each}
+								</div>
+							</div>
 							<div class="bb-card-total">
 								<span class="bb-free">{tier.freeBalls}</span>
 								<span class="bb-free-label">Free Balls</span>
@@ -173,9 +279,6 @@
 {/if}
 
 <style>
-
-
-
 	/* This is the one modal in the game that is allowed to SCROLL — and a scrolling overlay has two mobile
 	   traps that a merely-centred one doesn't. Both are handled here; see the two notes below.
 	   It should no longer ever need to: the PORTRAIT FIT block at the bottom of this stylesheet solves the
@@ -225,9 +328,7 @@
 		/* The shorthand above, restated as one value both FIT blocks at the foot of this stylesheet can
 		   subtract from `100svh`. Declared here rather than per-orientation so it can never drift from
 		   the padding it describes; portrait re-states it because it raises the top to a floor. */
-		--bb-pad-y: calc(
-			6vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)
-		);
+		--bb-pad-y: calc(6vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
 		overflow: auto;
 		/* Keeps a flick inside the modal from chaining to the document once this list hits its end —
 		   that chained scroll is what makes a mobile browser re-show its toolbar mid-gesture, resizing
@@ -441,13 +542,12 @@
 		/* ⚠️ Load-bearing on WebKit, and the reason this modal used to scroll on iOS while every
 		   Chromium browser fitted. `aspect-ratio` only sets a box's PREFERRED size: a grid item still
 		   carries `min-height: auto`, i.e. a floor of its own min-content height, and a floor taller
-		   than the ratio simply wins. Blink keeps the column's content under that floor because it
-		   resolves `.bb-card-art`'s `max-height: 48%` against the ratio-derived height; WebKit treats
-		   that height as indefinite there, drops the percentage, and sizes the chest from its width
-		   alone — which pushed the card ~57ui-px past its ratio, twice over in the portrait two-row
-		   grid, and overflowed the viewport by about the height of the balance line and a button row.
-		   Zeroing the floor lets the ratio hold on both engines; the art then shrinks into whatever
-		   the card has left (it is `flex: 0 1 auto; min-height: 0` for exactly that). */
+		   than the ratio simply wins — which pushed the card ~57ui-px past its ratio, twice over in
+		   the portrait two-row grid, and overflowed the viewport by about the height of the balance
+		   line and a button row. Zeroing the floor lets the ratio hold on both engines.
+		   (The chest is out of flow now, so it can no longer be what raises that floor — but the
+		   remaining rows still can on a narrow card, and the ratio is what every art percentage in
+		   this file is stated against, so this must stay.) */
 		min-height: 0;
 	}
 
@@ -542,24 +642,55 @@
 		text-shadow: 0 calc(4 * var(--ui-px)) calc(4 * var(--ui-px)) rgba(0, 0, 0, 0.7);
 	}
 
-	.bb-card-art {
-		width: auto;
-		/* Larger art, matching the reference (the chest is the card's dominant visual). */
-		max-width: 86%;
-		max-height: 48%;
-		object-fit: contain;
-		margin: calc(1.6 * var(--ui-px)) auto; /* 0.1rem */
-		flex: 0 1 auto;
+	/* The art's stand-in in the flex column. It takes the card's whole slack, which pins the tagline
+	 * (and title) to the top of the column and the free-ball count, price and button to the bottom —
+	 * exactly where the comp puts them — while the chest itself hangs over the gap.
+	 * `position: relative` is what makes this box, and not the card, the frame the chest is placed
+	 * and centred against. */
+	.bb-card-art-slot {
+		position: relative;
+		flex: 1 1 0;
 		min-height: 0;
-		filter: drop-shadow(0 calc(3 * var(--ui-px)) calc(6 * var(--ui-px)) rgba(0, 0, 0, 0.5));
+		width: 100%;
+	}
+
+	/* The chest and its sparkles as one block, so the cluster moves together. `left`/`width` arrive
+	 * from `artStyle()`; the height is the image's own.
+	 *
+	 * `top: 50%` + the −50% translate is the CENTRING between the tagline and the count — the whole
+	 * point of hanging the art here rather than at the comp's `top`; see the TIER_ART note. The
+	 * translate (not `bottom: 50%` or a margin) because the box's height is intrinsic and unknown to
+	 * the stylesheet.
+	 *
+	 * ⚠️ `z-index: -1` keeps the art BEHIND the card's text. `.bb-card-inner` is itself `z-index: 1`,
+	 * so it opens a stacking context and a negative child cannot escape it — the chest lands above
+	 * the panel art and below every row of type, which is what keeps the tagline crisp where the
+	 * glow overlaps it. (The comp has the art on TOP of the text; it gets away with it because
+	 * nothing there overlaps ink. Ours can, once the art is centred, so the order is flipped.) */
+	.bb-card-art-wrap {
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		z-index: -1;
+		pointer-events: none;
 		user-select: none;
 	}
 
-	/* Super Fury's art reads smaller than the others, so scale it up 35%. transform (not max-width/height)
-	 * so it grows purely visually and does NOT reflow this card or affect any other layout. */
-	.bb-card-art--superfury {
-		transform: scale(1.35);
-		transform-origin: center;
+	/* No drop-shadow filter. The four renders bring their own cave backdrop and glow (that is most of
+	 * what the canvas is), so a CSS shadow only greyed the halo's outer falloff — and, being a
+	 * filter, it forced a separate compositing layer per card for nothing. */
+	.bb-card-art {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+
+	/* One sprite, sixteen placements — see TIER_SPARKLES. `left`/`top`/`width`/`opacity` all arrive
+	 * from `sparkleStyle()`, relative to the chest's box; the art is square, so `height: auto`
+	 * keeps it so. */
+	.bb-card-sparkle {
+		position: absolute;
+		height: auto;
 	}
 
 	/* Count and label are ONE face in the comp — Noto Sans Black, differing only in fill — which is
@@ -858,8 +989,8 @@
 				   `aspect-ratio`. With `min-height: 0` above, the ratio alone would already hold the row —
 				   but an auto row still SIZES to its items, so this makes the track a definite length that
 				   the height budget solved for, rather than one that agrees with it. It also hands
-				   `.bb-card-inner` a definite height, which is what lets the art's `max-height: 48%`
-				   resolve on WebKit instead of falling back to its intrinsic size. */
+				   `.bb-card-inner` a definite height, which every percentage inside the card — the chest's
+				   `top`, the inner's own padding — resolves against. */
 				grid-template-rows: repeat(var(--bb-rows), calc(var(--bb-card-w) / 0.74));
 				justify-content: center;
 			}
@@ -920,8 +1051,8 @@
 			.bb-cards {
 				--bb-cards-budget: calc(
 					100svh - var(--bb-pad-y) - 1.2 *
-						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) - 105.6 *
-						var(--ui-px) - (7.80045vw * 260 / 308 - 24 * var(--ui-px)) -
+						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) - 105.6 * var(--ui-px) -
+						(7.80045vw * 260 / 308 - 24 * var(--ui-px)) -
 						(
 							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) - 16 *
 								var(--ui-px)

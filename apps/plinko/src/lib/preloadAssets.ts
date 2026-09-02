@@ -158,6 +158,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy_bonus_button_hover.webp',
 	'img/buy_bonus_panel.webp',
 	...['standard', 'enhanced', 'premium', 'superfury'].map((key) => `img/buy_bonus_${key}.webp`),
+	'img/buy_bonus_sparkle.webp',
 	// The bet stepper at the top of the same modal (BetPerBallField's `panel` skin) — container plus its
 	// two buttons, all three on screen the moment the modal opens. 16 KB for the set.
 	'img/buy_bonus/buy_bonus_bet_container.webp',
