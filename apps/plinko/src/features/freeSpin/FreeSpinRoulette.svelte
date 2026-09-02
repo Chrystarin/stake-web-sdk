@@ -652,16 +652,23 @@
 	.free-spin-overlay--exit {
 		opacity: 0;
 	}
-	/* Portrait's backdrop, straight off the Figma spec (node 495:22803): fill #09131B at 85% over a
-	   9.3px background blur. Figma reports that blur as radius 18.6 — its radius is twice the CSS
-	   value, so `blur(9.3px)` is the faithful translation, not half the design. The scrim is a touch
-	   LIGHTER than the flat 0.88 landscape keeps, on purpose: the blur is what separates the wheel
-	   from the board, so the scrim no longer has to do that work alone and more of the game reads
-	   through — which is the whole look in node 495:22805. */
+	/* Portrait's backdrop. Started as the Figma spec (node 495:22803) — fill #09131B at 85% over a
+	   blur whose reported radius 18.6 halves to `blur(9.3px)` in CSS — and BOTH values have since been
+	   tuned by eye: the blur pulled back 30% (9.3 → 6.51), and the scrim taken down 15% then back up
+	   7% (0.85 → 0.72 → 0.77), landing ~9% under spec. So the pair is deliberately off-spec in the
+	   direction of letting MORE of the board show through; don't "restore" either one on the strength
+	   of the Figma numbers alone.
+	   The two knobs do different jobs and are worth changing independently: the scrim sets how dark
+	   the board goes, the blur how legible its detail stays. Neither is load-bearing for reading the
+	   wheel — that art is fully opaque and sits on top — so both are safe to move in either direction;
+	   they only decide how present the game feels behind it. Note portrait's scrim is now well lighter
+	   than the flat 0.88 landscape keeps, which is the point: landscape has no blur to separate the
+	   wheel from the board, so its scrim has to do that work alone.
+	   Softening the blur also cuts the compositor's work, which the note below cares about. */
 	.free-spin-overlay--portrait {
-		background: rgba(9, 19, 27, 0.85);
-		backdrop-filter: blur(9.3px);
-		-webkit-backdrop-filter: blur(9.3px);
+		background: rgba(9, 19, 27, 0.77);
+		backdrop-filter: blur(6.51px);
+		-webkit-backdrop-filter: blur(6.51px);
 	}
 
 	/* ⚠️ The blur above is NOT gated behind `any-pointer: coarse`, unlike BonusLevelUpOverlay's — this
@@ -678,8 +685,10 @@
 	   bonus overlay's was: the wheel is only up for a few seconds, and the board is idle underneath —
 	   no balls in flight — so the snapshotted surface is mostly static. If iOS starts dropping the
 	   background during free spins, this rule is the first suspect: re-add an
-	   `@media (any-pointer: coarse)` block setting `backdrop-filter: none` and `background:
-	   rgba(9, 19, 27, 0.9)`, which reads close to the flat scrim portrait had before this change. */
+	   `@media (any-pointer: coarse)` block setting `backdrop-filter: none`, and raise the scrim in the
+	   same block — around `rgba(9, 19, 27, 0.9)`, close to the flat scrim portrait had before any of
+	   this. Do NOT just drop the blur and leave the scrim at 0.77: it was lightened precisely because
+	   the blur was carrying the separation, so on its own it is far too transparent. */
 	.free-spin-content {
 		position: relative;
 		z-index: 1;
