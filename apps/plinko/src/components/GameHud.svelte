@@ -356,6 +356,22 @@
 	// the count inside it) off in the gap between one round settling and the next being submitted.
 	const autoBetRunning = $derived(props.autoPlayStarted && !autoBetStopping);
 
+	/**
+	 * A running Autobet turns the portrait Play plaque into a DISPLAY, not a control — matching desktop,
+	 * which renders a separate `disabled` plaque for the running state (spinner + rounds left, no clicks).
+	 * Stopping is the side Autobet toggle's job; it is the one control deliberately exempt from the run's
+	 * own lock.
+	 *
+	 * Portrait shares ONE button across every state, so this has to be spelled out. And it can't be left
+	 * to `isPlayButtonHardDisabled`: in rapid single-ball mode the plaque stays enabled right through a
+	 * round (that is what lets a human bet again immediately), so during an Autobet run at 1 ball per drop
+	 * a tap meant as a bet used to land on the Stop path and cancel the run.
+	 *
+	 * Free balls are the exception: with a bonus pending the plaque is the bonus Play button, so an
+	 * auto-driven bonus can still be dropped by hand.
+	 */
+	const autoBetPlaqueInert = $derived(autoBetRunning && !props.hasPendingBonusBalls);
+
 	function formatMoney(value: number) {
 		const formatted = value.toLocaleString('en-US', {
 			minimumFractionDigits: 2,
@@ -774,11 +790,10 @@
 			props.onPlay();
 			return;
 		}
-		if (props.autoPlayStarted) {
-			onAutoGameStopClick();
-		} else {
-			onAutoGameStartClick();
-		}
+		// A run is up: the plaque is inert (see `autoBetPlaqueInert`). Stopping happens on the Autobet
+		// toggle only, so neither a tap nor the Space hotkey can cancel a run from here.
+		if (props.autoPlayStarted) return;
+		onAutoGameStartClick();
 	}
 
 	/**
@@ -1152,8 +1167,8 @@
 					class="mobile-icon-btn mobile-icon-btn--play"
 					class:mobile-icon-btn--play-loading={showPlayLoading || autoBetRunning}
 					class:mobile-icon-btn--soft-disabled={isPlayButtonSoftInsufficient}
-					disabled={isPlayButtonHardDisabled}
-					aria-label="Bet"
+					disabled={isPlayButtonHardDisabled || autoBetPlaqueInert}
+					aria-label={autoBetPlaqueInert ? 'Autobet running' : 'Bet'}
 					aria-disabled={isPlayButtonSoftInsufficient}
 					aria-busy={showPlayLoading || autoBetRunning}
 					onclick={onMainActionClick}
