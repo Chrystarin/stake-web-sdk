@@ -323,6 +323,19 @@
 			!isRapidSingleBallMode(),
 	);
 
+	// The free-spin wheel is a full-screen overlay, so the Play plaque's ring sits UNDER it — reduced to
+	// a blurred smudge in portrait (see .free-spin-overlay--portrait) and a dimmed one in landscape.
+	// Nobody can read it there, but it keeps turning, and under the portrait `backdrop-filter` a moving
+	// layer means the compositor keeps re-blurring that corner of the backdrop. So freeze it while the
+	// wheel is up.
+	// ⚠️ This must be `animation-play-state`, not an `{#if}` around the <img>: pausing holds the CSS
+	// animation at its current TIME, so the ring picks up from the exact angle it stopped at when the
+	// wheel closes. Unmounting (or toggling the animation off and back on) restarts the keyframes at
+	// 0deg, which reads as the ring snapping round — the opposite of continuing.
+	// Scoped to the free-spin wheel on purpose. `bonusRouletteOpen` is the same situation and would
+	// only need adding here, but it wasn't asked for — add it if that wheel wants the same treatment.
+	const spinnerPaused = $derived(stateGame.freeSpinRouletteOpen);
+
 	const mobileAutoCountDisplay = $derived(
 		props.autoMode || props.autoPlayStarted
 			? String(props.autoRoundsLeft ?? stateGame.autoRoundsDisplay)
@@ -1158,6 +1171,7 @@
 					{#if showPlayLoading || autoBetRunning}
 						<img
 							class="bp-btn-play-spinner"
+							class:bp-btn-play-spinner--paused={spinnerPaused}
 							src={staticUrl('img/spinner_logo.webp')}
 							alt=""
 							aria-hidden="true"
@@ -1417,6 +1431,7 @@
 								{#if showPlayLoading}
 									<img
 										class="bp-btn-play-spinner"
+										class:bp-btn-play-spinner--paused={spinnerPaused}
 										src={staticUrl('img/spinner_logo.webp')}
 										alt=""
 										aria-hidden="true"
@@ -1442,6 +1457,7 @@
 								{@render mainButtonBase()}
 								<img
 									class="bp-btn-play-spinner"
+									class:bp-btn-play-spinner--paused={spinnerPaused}
 									src={staticUrl('img/spinner_logo.webp')}
 									alt=""
 									aria-hidden="true"

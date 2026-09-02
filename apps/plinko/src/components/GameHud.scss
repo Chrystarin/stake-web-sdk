@@ -1245,6 +1245,13 @@
 	z-index: 3;
 }
 
+// Frozen while a full-screen wheel overlay covers the HUD (see `spinnerPaused` in GameHud.svelte).
+// `animation-play-state` holds the animation at its current time rather than resetting it, so the ring
+// resumes from the angle it stopped at — the pause is invisible apart from the stillness.
+.bp-btn-play-spinner--paused {
+	animation-play-state: paused;
+}
+
 @keyframes bp-play-spin {
 	from {
 		transform: rotate(0deg);

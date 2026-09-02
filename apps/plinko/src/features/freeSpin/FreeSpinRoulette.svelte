@@ -534,6 +534,7 @@
 
 <div
 	class="free-spin-overlay"
+	class:free-spin-overlay--portrait={portrait}
 	class:free-spin-overlay--visible={overlayVisible}
 	class:free-spin-overlay--exit={!overlayVisible}
 	role="dialog"
@@ -651,6 +652,34 @@
 	.free-spin-overlay--exit {
 		opacity: 0;
 	}
+	/* Portrait's backdrop, straight off the Figma spec (node 495:22803): fill #09131B at 85% over a
+	   9.3px background blur. Figma reports that blur as radius 18.6 — its radius is twice the CSS
+	   value, so `blur(9.3px)` is the faithful translation, not half the design. The scrim is a touch
+	   LIGHTER than the flat 0.88 landscape keeps, on purpose: the blur is what separates the wheel
+	   from the board, so the scrim no longer has to do that work alone and more of the game reads
+	   through — which is the whole look in node 495:22805. */
+	.free-spin-overlay--portrait {
+		background: rgba(9, 19, 27, 0.85);
+		backdrop-filter: blur(9.3px);
+		-webkit-backdrop-filter: blur(9.3px);
+	}
+
+	/* ⚠️ The blur above is NOT gated behind `any-pointer: coarse`, unlike BonusLevelUpOverlay's — this
+	   one is meant for handhelds, so guarding it out on touch would leave the design showing only on a
+	   narrow desktop window, i.e. the one place nobody sees it. Know what that costs: a full-screen
+	   `backdrop-filter` makes WebKit snapshot everything composited beneath this overlay — all five
+	   WebGL canvases plus the coin shower — into an offscreen surface at NATIVE device scale (DPR 3 =
+	   1170x2532 on an iPhone 12 Pro; the Pixi apps' own min(2, DPR) caps don't apply to the
+	   compositor) and run a two-pass Gaussian over it every frame the overlay is up. That is real GPU
+	   memory + fill on exactly the devices where iOS reaps WebGL contexts under pressure, and this
+	   wheel lands at a meter completion, one of the busiest moments in the game. It is the same shape
+	   of load that produced the "background turns black" QA bug (see Background.svelte's
+	   `onContextLost` fallback, which is what would catch it now). Two things keep it cheaper than the
+	   bonus overlay's was: the wheel is only up for a few seconds, and the board is idle underneath —
+	   no balls in flight — so the snapshotted surface is mostly static. If iOS starts dropping the
+	   background during free spins, this rule is the first suspect: re-add an
+	   `@media (any-pointer: coarse)` block setting `backdrop-filter: none` and `background:
+	   rgba(9, 19, 27, 0.9)`, which reads close to the flat scrim portrait had before this change. */
 	.free-spin-content {
 		position: relative;
 		z-index: 1;
@@ -673,6 +702,21 @@
 		grid-template-rows: auto minmax(0, 1fr);
 		justify-items: center;
 	}
+	/* ⚠️ The fix for the title's hard-edged halo lives in the ART, not here — `free-spin-label.webp`
+	   was re-encoded on 2026-09-02, so a `git log -p` on this file will not show it.
+	   The delivered art had its glow TRUNCATED at the top of its canvas: row 0 still carried alpha 10
+	   and the profile kept climbing downward (mean 2.8 → 4.0 → 6.0 → 10.0 over the first 40 rows), so
+	   the canvas edge landed mid-falloff and painted a straight line across the top of the halo — faint
+	   in isolation, obvious once the portrait backdrop-filter put a smooth blur behind it. The other
+	   three edges already reached 0.
+	   The alpha of rows 0–54 is now multiplied by a smoothstep ramp (0 at row 0, 1 at row 55, zero
+	   slope at both ends so there is no kink where it lands). Row 55 is the ceiling that matters: the
+	   glyphs start at row 61 (alpha>32) / row 77 (solid), so the ramp only ever touches glow, never
+	   lettering — verified byte-wise, rows 77+ are unchanged.
+	   The re-encode rewrote ONLY the webp `ALPH` chunk and spliced back the original `VP8` chunk, so the
+	   colour data is byte-identical to what shipped — no second lossy generation on the gold — and the
+	   file got 5 KB smaller. Re-do it that way if the art is ever redelivered still truncated; a plain
+	   PIL round-trip at q95 costs a max RGB delta of 16 across the glyphs, and lossless costs 500 KB. */
 	.free-spin-label {
 		position: relative;
 		/* Above the wheel assembly so the label always paints over the frame's pointer when it pokes up. */
