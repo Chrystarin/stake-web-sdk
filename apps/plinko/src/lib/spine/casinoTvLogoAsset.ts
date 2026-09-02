@@ -16,9 +16,9 @@ export const getCasinoTvLogoAsset = (): SpineAssetDef => ({
 	atlas: staticAssetPath(`${SPINE_BASE}/skeleton.atlas`),
 	images: {
 		'skeleton.png': staticAssetPath(`${SPINE_BASE}/skeleton.webp`),
-		'skeleton2.png': staticAssetPath(`${SPINE_BASE}/skeleton2.webp`),
-		'skeleton3.png': staticAssetPath(`${SPINE_BASE}/skeleton3.webp`),
-		'skeleton4.png': staticAssetPath(`${SPINE_BASE}/skeleton4.webp`),
+		'skeleton_2.png': staticAssetPath(`${SPINE_BASE}/skeleton_2.webp`),
+		'skeleton_3.png': staticAssetPath(`${SPINE_BASE}/skeleton_3.webp`),
+		'skeleton_4.png': staticAssetPath(`${SPINE_BASE}/skeleton_4.webp`),
 	},
 	animation: 'animation',
 	loop: false,
@@ -70,16 +70,18 @@ export const CASINO_TV_LOGO_HOLD_SECONDS = 2;
  * The motion is the ARTIST'S, not a synthesized wobble — the window is seeked out of the authored
  * animation, so it rides the real curve and cannot fight the renderer's fit transform.
  *
- * ⚠️ Tune against the MEASURED pose, not the raw JSON. `skeleton.json` shows `logo_adjust`'s scale
- * timeline running 1.0 → 1.05, which reads like a 5% nudge; what the runtime actually applies over the
- * reveal is far bigger (sampled from the live skeleton, `logo_adjust` pose scaleX / slot alpha):
+ * ⚠️ Tune against the MEASURED pose, not the raw JSON — the bone scale timeline is only half the
+ * story. `logo_adjust` carries BOTH a bone scale ramp (1.0 → 1.254) and a mesh deform that widens the
+ * logo on top of it, so the on-screen size grows faster than the scale value alone suggests. Sampled
+ * from the live skeleton over the reveal (`logo_adjust` pose scaleX / slot alpha / world width):
  *
  *     t     0.6    0.7    1.0    1.5    1.8    1.9    2.0    2.4    3.0   3.2
- *     scale 1.000  0.585  0.692  0.846  0.917  0.937  0.952  1.011  1.050  —
+ *     scale 1.000  1.004  1.036  1.091  1.123  1.134  1.145  1.189  1.254  1.254
  *     alpha 0      1      1      1      1      1      1      0.667  0.167  0
+ *     width 1169   1175   1231   1327   1386   1406   1426   1507   1633   1648
  *
- * So 0.7 → 2.0 is the logo GROWING IN by ~63%, not a breath — pulsing across it throbs the logo half
- * its size again. The window below is the top ~4% of that ramp, which reads as a breath.
+ * So 0.7 → 2.0 is the logo GROWING IN by ~21%, not a breath — pulsing across it visibly swells it.
+ * The window below is the top ~3% of that ramp, which reads as a breath.
  *
  * Hard bounds: below ~0.7s the `effectsLogo` flicker is still on screen; above 2.0s alpha starts
  * dropping, so the pulse would visibly dim the logo. Widen `fromSeconds` downward for a deeper breath,

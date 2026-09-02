@@ -1,170 +1,74 @@
 skeleton.png
-size: 1950,1806
-format: RGBA8888
-filter: Linear,Linear
-repeat: none
+size:1950,1859
+filter:Linear,Linear
+pma:true
+scale:0.6
 effectsLogo/0
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:2,1209,1152,648
 effectsLogo/1
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:2,1209,1152,648
 effectsLogo/2
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:2,1209,1152,648
 effectsLogo/3
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:2,1209,1152,648
 effectsLogo/4
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/5
-  rotate: true
-  xy: 1156, 652
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/6
-  rotate: true
-  xy: 2, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/7
-  rotate: false
-  xy: 652, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-logo_adjust
-  rotate: true
-  xy: 1806, 1103
-  size: 701, 142
-  orig: 701, 142
-  offset: 0, 0
-  index: -1
-
-skeleton2.png
-size: 1806,1806
-format: RGBA8888
-filter: Linear,Linear
-repeat: none
+bounds:2,1209,1152,648
 effectsLogo/10
-  rotate: true
-  xy: 2, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:1156,705,1152,648
+rotate:90
 effectsLogo/11
-  rotate: false
-  xy: 652, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/8
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/9
-  rotate: true
-  xy: 1156, 652
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-
-skeleton3.png
-size: 1806,1806
-format: RGBA8888
-filter: Linear,Linear
-repeat: none
+bounds:2,55,1152,648
+rotate:90
 effectsLogo/12
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/13
-  rotate: true
-  xy: 1156, 652
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/14
-  rotate: true
-  xy: 2, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
-effectsLogo/15
-  rotate: false
-  xy: 652, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:652,55,1152,648
+logo_adjust
+bounds:1806,2,701,142
+rotate:90
 
-skeleton4.png
-size: 1806,1806
-format: RGBA8888
-filter: Linear,Linear
-repeat: none
+skeleton_2.png
+size:1806,1806
+filter:Linear,Linear
+pma:true
+scale:0.6
+effectsLogo/13
+bounds:2,1156,1152,648
+effectsLogo/14
+bounds:1156,652,1152,648
+rotate:90
+effectsLogo/15
+bounds:2,2,1152,648
+rotate:90
 effectsLogo/16
-  rotate: false
-  xy: 2, 1156
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:652,2,1152,648
+
+skeleton_3.png
+size:1806,1806
+filter:Linear,Linear
+pma:true
+scale:0.6
 effectsLogo/17
-  rotate: true
-  xy: 1156, 652
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:2,1156,1152,648
 effectsLogo/18
-  rotate: true
-  xy: 2, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:1156,652,1152,648
+rotate:90
 effectsLogo/19
-  rotate: false
-  xy: 652, 2
-  size: 1152, 648
-  orig: 1152, 648
-  offset: 0, 0
-  index: -1
+bounds:2,2,1152,648
+rotate:90
+effectsLogo/5
+bounds:652,2,1152,648
+
+skeleton_4.png
+size:1806,1806
+filter:Linear,Linear
+pma:true
+scale:0.6
+effectsLogo/6
+bounds:2,1156,1152,648
+effectsLogo/7
+bounds:1156,652,1152,648
+rotate:90
+effectsLogo/8
+bounds:2,2,1152,648
+rotate:90
+effectsLogo/9
+bounds:652,2,1152,648
