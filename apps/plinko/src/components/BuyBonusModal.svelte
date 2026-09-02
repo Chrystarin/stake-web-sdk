@@ -178,9 +178,10 @@
 			<div class="bb-bet-row bp-field-host">
 				<!-- The control is sized in vw against the LANDSCAPE bottom panel, so a straight copy reads
 				     tiny in portrait (where the HUD swaps to its own mobile cards instead) and smaller than
-				     this screen wants everywhere. Scaling the whole thing keeps every part of it — frame,
-				     steppers, type, popup — in proportion, which per-property overrides could not.
-				     `.bb-bet-row` reserves the SCALED height, since a transform doesn't affect layout. -->
+				     this screen wants everywhere. `.bb-bet-row` scales it up IN LAYOUT — a taller item height
+				     through the shared metrics chain, plus matching type sizes — rather than with a
+				     transform, which iOS would not paint completely on the Stake Engine page; see the
+				     `.bb-bet-row` note. `.bb-bet-scale` is now just the shrink-wrap box around it. -->
 				<div class="bb-bet-scale">
 					<BetPerBallField
 						betAmount={props.betAmount}
@@ -393,7 +394,16 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: calc(35.2 * var(--ui-px)); /* 2.2rem */
+		/* NO `gap` — deliberately. The column used to space its four blocks with `gap: 35.2ui-px` and
+		   then trim that back with NEGATIVE margins on the bet row and the balance line. iOS Safari
+		   (iPhone 15 / iOS 26.6, in the Stake Engine iframe and in a plain page alike) does not paint
+		   the part of a flex item that a negative top margin pulls into the gap before it: the bet
+		   plaque lost its top band and drop shadow, clipped dead straight at the row's un-margined
+		   position, while every layout box measured exactly as Chromium's. Setting the row's margin to
+		   0, hiding the title above it, or zeroing this gap each restored the paint — so the spacing
+		   is now carried entirely by POSITIVE margins on the items (`.bb-bet-row`, `.bb-balance`),
+		   which produce the same geometry to the pixel (measured on the device: row 72.1..138.5,
+		   cards 151.7, balance 595.5 at 393×639 before and after). Do not reintroduce `gap` here. */
 	}
 
 	.bb-close {
@@ -436,22 +446,34 @@
 	}
 
 	/* Bet row between the title and the tier grid. `--bb-bet-scale` is the single knob for how big the
-	   shared control renders here (1 = the size it is in the landscape betting bar). */
+	   shared control renders here (1 = the size it is in the landscape betting bar).
+
+	   ⚠️ The scale is applied in LAYOUT, not with `transform: scale()`. It used to be a transform on
+	   `.bb-bet-scale`, and iOS Safari would not paint the top strip of the scaled plaque on the first
+	   open of the modal when the game ran inside the Stake Engine page — a cross-site iframe that the
+	   host also scales down — while a top-level tab, a same-site iframe, Chromium and desktop WebKit
+	   were all fine. The part of the scaled image above the wrapper's UNSCALED layout box was dropped,
+	   straight across, with every layout box measuring exactly as Chromium's; promoting the wrapper to
+	   its own layer (translateZ + will-change) cured a plain cross-site iframe but not the real host.
+	   Sizing the control at its true size leaves nothing transformed and nothing overflowing, so there
+	   is no strip for the compositor to lose. Keep it that way. */
 	.bb-bet-row {
 		--bb-bet-scale: 1.2;
-		/* Taller than the betting bar's 4.5vw. Feeds --bp-field-height / --bp-field-plaque-height through
-		   the `bp-field-metrics` chain, so the row height (and now the WIDTH — see below) follows it.
-		   The panel skin's frame spends the top 16% of its canvas on drop shadow plus band, and the same
-		   at the bottom, leaving 67% of it for the label/value pair, which centres itself in whatever height
-		   it is given: ~67px of cavity for ~37px of text at the reference width, so this is no longer bound
-		   by the text the way the old 9-sliced card frame was. What binds it now is the MODAL's vertical budget — the
-		   row's rendered height is this × --bb-bet-scale, and the column clears the reference 1024×576
-		   frame by only ~5px (see the margin below). Raising it also widens the control, since the two are
-		   locked together by the frame ratio.
+		/* Field CONTENT height, solved so the LAID-OUT plaque comes out exactly --bb-bet-scale times the
+		   plaque a 7.5vw item gives: the shared chain is plaque = (item × 0.7 + 0.7vw) × boost, so a
+		   7.5vw item is 5.95vw of pre-boost plaque, and this hands back the item whose pre-boost plaque
+		   is 5.95vw × scale. The plaque is therefore 6.500375vw × scale — 7.80045vw in landscape,
+		   16.900975vw in portrait — the numbers both FIT budgets at the foot of this stylesheet are
+		   written against.
+		   ⚠️ Assumes the mixin's --bp-height-boost of 1.0925 and its 0.7vw of vertical padding
+		   (GameHud.scss, `--bp-field-height`); change either there and this stops being an exact inverse.
 		   7.5vw (up from the 6vw the old frame used) is what puts the VISIBLE frame back at the ~82px it
 		   painted before, since 17.5% of the new art's canvas height is transparent drop shadow — see the
-		   margin below, which hands that 17.5% back to the column so the swap costs it only ~2px. */
-		--bp-item-height: 7.5vw;
+		   margin below, which hands that 17.5% back to the column so the swap costs it only ~2px.
+		   What binds the size is the MODAL's vertical budget: the column clears the reference 1024×576
+		   frame by only ~5px (see the margin below). Raising it also widens the control, since the two
+		   are locked together by the frame ratio. */
+		--bp-item-height: calc((5.95vw * var(--bb-bet-scale) - 0.7vw) / 0.7);
 		/* The delivered container is a finished 661×308 bar, not a square frame to be re-cut, so it is
 		   drawn as a plain stretched image and the plaque has to carry the art's ratio or the rivets go
 		   oval. This overrides the shared 16.38846vw (which would have stretched it 43% wide) and is the
@@ -469,31 +491,61 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		/* The plaque is painted by a transform, which leaves the layout box unscaled — so state the
-		   scaled height here or the modal's gap would be measured against the unscaled plaque. */
-		height: calc(var(--bp-field-plaque-height) * var(--bb-bet-scale));
-		/* Two things at once.
-		   (1) The −12ui-px trims the modal's own `gap` (2.2rem) down to the ~23px that four blocks can
-		   afford. The binding case is the REFERENCE 1024×576 frame, not this one: --ui-px is 1px at both
-		   1024×576 and 1280×720, so these gaps are the same pixel size in each, while the tier cards scale
-		   with vw — 1024×576 is where the column is tightest and the backdrop would start scrolling. It
-		   clears that frame by ~5px, so treat this and the balance's margin below as one budget: buy a
-		   bigger gap by shortening a block, not by loosening both.
+		/* Laid out at its true size, so the plaque IS the row. */
+		height: var(--bp-field-plaque-height);
+		/* The column's spacing above and below this row, as a POSITIVE margin (the modal has no `gap` —
+		   see the note on `.bb-modal` for the iOS paint bug that rules a negative one out). Two things
+		   are folded into the number:
+		   (1) 23.2ui-px = the 35.2ui-px (2.2rem) block gap the column used to have, less the 12ui-px this
+		   row used to claw back from it — the ~23px that four blocks can afford. The binding case is the
+		   REFERENCE 1024×576 frame, not this one: --ui-px is 1px at both 1024×576 and 1280×720, so these
+		   gaps are the same pixel size in each, while the tier cards scale with vw — 1024×576 is where
+		   the column is tightest and the backdrop would start scrolling. It clears that frame by ~5px, so
+		   treat this and the balance's margin below as one budget: buy a bigger gap by shortening a
+		   block, not by loosening both.
 		   (2) The container art bakes its drop shadow into its own canvas — the frame's solid edge starts
 		   24 px down a 308 px canvas — so `height` above reserves 7.8% of transparent air at the top and
-		   the same at the bottom. Pulling exactly that back means the column spaces the VISIBLE frame
+		   the same at the bottom. Subtracting exactly that means the column spaces the VISIBLE frame
 		   rather than the canvas, which is what keeps the taller --bp-item-height affordable. Derived, not
-		   a constant: it tracks the row height, so it stays right at every viewport and scale. */
-		margin: calc(
-				-12 * var(--ui-px) - var(--bp-field-plaque-height) * var(--bb-bet-scale) * 24 / 308
-			)
-			0;
+		   a constant: it tracks the row height, so it stays right at every viewport and scale.
+		   The `max(0px, …)` is a guard, not a knob: the shadow term only outgrows the 23.2ui-px on a
+		   ~4K-wide landscape frame (it is 0.61vw there against a 1px --ui-px), and the guard keeps the
+		   margin from ever going negative again rather than clipping the plaque by a fraction of a pixel.
+		   Both FIT budgets at the foot of this stylesheet count the unclamped value, which on such a frame
+		   over-books the column by well under a pixel — the safe direction. */
+		margin: max(0px, calc(23.2 * var(--ui-px) - var(--bp-field-plaque-height) * 24 / 308)) 0;
 	}
 
+	/* Shrink-wrap box around the control. No transform here — see the `.bb-bet-row` note. */
 	.bb-bet-scale {
 		display: flex;
-		transform: scale(var(--bb-bet-scale));
-		transform-origin: center;
+	}
+
+	/* The two text sizes inside the field are vw clamps tuned for the landscape betting bar
+	   (GameHud.scss `.bp-field-label`, BetPerBallField `.bp-field--panel .bp-select-display`), which the
+	   old transform enlarged along with everything else. All three terms of each clamp are vw, so each
+	   is simply its middle term (1vw and 1.29vw); restated here × the scale. The extra classes are for
+	   specificity: the value's panel rule carries four classes once Svelte scopes it, and the shared
+	   label rule is beaten by any two. Everything else in the control — frame, gutters, the wooden
+	   − / + — is already derived from the plaque height and follows the item height on its own. */
+	.bb-bet-row :global(.bp-field.bp-field--panel .bp-field-label) {
+		font-size: calc(1vw * var(--bb-bet-scale));
+	}
+
+	.bb-bet-row :global(.bp-field.bp-field--panel.bp-field--bet-controls .bp-select-display) {
+		font-size: calc(1.29vw * var(--bb-bet-scale));
+	}
+
+	/* The presets popup is sized in vw for the betting bar too (GameHud.scss `.bp-bet-presets-panel`:
+	   27.46vw × 8.1vw, 6.04vw options), so it needs the same scale. It opens BELOW the field here
+	   (`presetsBelow`), and a transform about its own TOP edge keeps it hanging off the plaque where the
+	   old wrapper-wide transform put it, the 0.75vw gap scaled to match. A transform is acceptable on
+	   the popup where it was not on the plaque: the iOS clip only ever took the strip ABOVE a scaled
+	   box's layout box, and with the origin on the top edge nothing is painted above it. */
+	.bb-bet-row :global(.bp-bet-presets-wrap.bp-field > .bp-bet-presets-panel--below) {
+		top: calc(100% + 0.75vw * var(--bb-bet-scale));
+		transform: translateX(-50%) scale(var(--bb-bet-scale));
+		transform-origin: top center;
 	}
 
 	/* Portrait: 1vw is a fraction of what it is in landscape, so the landscape-tuned control would render
@@ -510,9 +562,11 @@
 	   than as a fifth control. Sized between the card tagline and the free-ball count, and in --ui-px
 	   like the rest of this modal so it scales with the frame (see the note on .bb-modal). */
 	.bb-balance {
-		/* Trims the modal's block gap the same way the bet row above does (same shared budget — see the
-		   note there): the full 2.2rem under a 4-row column would push it past the reference frame. */
-		margin: calc(-16 * var(--ui-px)) 0 0;
+		/* 19.2ui-px = the column's 35.2ui-px (2.2rem) block gap less the 16ui-px this line used to trim
+		   off it as a negative margin (same shared budget as the bet row — see the note there): the full
+		   2.2rem under a 4-row column would push it past the reference frame. Stated as a positive margin
+		   because the modal no longer has a `gap` — see `.bb-modal`. */
+		margin: calc(19.2 * var(--ui-px)) 0 0;
 		font-family: 'Poppins', 'Instrument Sans', sans-serif;
 		font-weight: 600;
 		font-synthesis: none;
@@ -933,18 +987,18 @@
 	   that should now never fire.
 
 	   ⚠️ `137.6` is the rest of the column MEASURED, in --ui-px, and has to be re-derived if any of it
-	   changes:
+	   changes (the modal has no `gap`; every space is an item margin — see `.bb-modal`):
 	       37.0  .bb-title       (32ui-px × the 1.16 line-height pinned below)
-	      105.6  three .bb-modal gaps (3 × 35.2)
-	      −24.0  .bb-bet-row's two −12ui-px margins (its art-shadow term is in the vw figure below)
-	      −16.0  .bb-balance's negative margin-top
+	       46.4  .bb-bet-row's two 23.2ui-px margins (its art-shadow term is in the vw figure below)
+	       19.2  .bb-balance's margin-top
 	       27.0  .bb-balance     (18ui-px × the 1.5 line-height pinned below)
 	        8.0  slack, so a rounding or font-metric surprise costs a slightly smaller card rather than
 	             a scrollbar
 	   and `14.265vw` is the bet row, the one block that stays vw-driven (its plaque is solved by the
 	   shared `bp-field-metrics` chain, which is vw throughout): 6.4993vw of plaque × the 2.6 portrait
-	   scale × the 0.844 left of it after its own negative margins. Both line-heights are pinned rather
-	   than left at `normal` so that sum is exact even before the display faces have loaded.
+	   scale × the 0.844 left of it once its margins have subtracted the art's transparent shadow. Both
+	   line-heights are pinned rather than left at `normal` so that sum is exact even before the display
+	   faces have loaded.
 
 	   @supports, because every one of these values is invalid on a browser without `svh` — and an
 	   invalid `var()` in `grid-template-columns` computes to `none`, i.e. one card per row. Guarded, such
@@ -1021,17 +1075,18 @@
 	     • HEIGHT — whatever `100svh` has left once the rest of the column is paid for.
 
 	   ⚠️ Unlike portrait's, this budget is not a MEASURED constant — every term below is the same
-	   expression as the declaration it accounts for, so the two cannot drift:
+	   expression as the declaration it accounts for, so the two cannot drift (the modal has no `gap`;
+	   every space is an item margin — see `.bb-modal`):
 	       1.2 x the title's own clamp()      .bb-title      (line-height pinned just below)
-	       3 x 35.2ui-px                      the three .bb-modal gaps
-	       7.80045vw x 260/308 - 24ui-px      .bb-bet-row, rendered height less the transparent
-	                                          drop-shadow air its negative margins hand back
-	       1.5 x the balance's own clamp()    .bb-balance, less its -16ui-px margin
-	   7.80045vw is that row solved through the shared `bp-field-metrics` chain (GameHud.scss) at this
-	   modal's own knobs: --bp-item-height 7.5vw and --bp-height-boost 1.0925 give a 6.500375vw plaque,
-	   times the 1.2 --bb-bet-scale. It is stated as a literal because those variables live on
-	   `.bb-bet-row`, a SIBLING — custom properties only reach descendants, so `.bb-cards` cannot read
-	   them. ⚠️ Re-derive it if --bp-item-height, the boost, or --bb-bet-scale changes.
+	       7.80045vw x 260/308 + 46.4ui-px    .bb-bet-row, rendered height less the transparent
+	                                          drop-shadow air its margins subtract, plus the two
+	                                          23.2ui-px margins themselves
+	       1.5 x the balance's own clamp()    .bb-balance, plus its 19.2ui-px margin-top
+	   7.80045vw is that row's plaque: `.bb-bet-row` solves its item height so the shared
+	   `bp-field-metrics` chain (GameHud.scss) lays the plaque out at 6.500375vw × the 1.2 --bb-bet-scale.
+	   It is stated as a literal because those variables live on `.bb-bet-row`, a SIBLING — custom
+	   properties only reach descendants, so `.bb-cards` cannot read them. ⚠️ Re-derive it if the
+	   item-height formula, the boost, or --bb-bet-scale changes.
 	   Both line-heights are pinned, as in portrait, so the sum is exact before the display faces load.
 	   NO slack term here, deliberately: the reference frame clears its width budget by ~1.5px, and
 	   slack would tip the min() over and shrink the cards on the very frame this was tuned at.
@@ -1051,10 +1106,10 @@
 			.bb-cards {
 				--bb-cards-budget: calc(
 					100svh - var(--bb-pad-y) - 1.2 *
-						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) - 105.6 * var(--ui-px) -
-						(7.80045vw * 260 / 308 - 24 * var(--ui-px)) -
+						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) -
+						(7.80045vw * 260 / 308 + 46.4 * var(--ui-px)) -
 						(
-							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) - 16 *
+							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) + 19.2 *
 								var(--ui-px)
 						)
 				);
