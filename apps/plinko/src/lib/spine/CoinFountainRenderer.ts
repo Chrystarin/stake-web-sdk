@@ -156,6 +156,7 @@ export class CoinFountainRenderer {
 		app.ticker.stop();
 		app.ticker.add(this.tick);
 		this.app = app;
+		this.shrinkWhileIdle();
 
 		this.coinSkeletons = await this.loadCoinSkeletons();
 		this.ready = this.coinSkeletons.length > 0;
@@ -206,9 +207,38 @@ export class CoinFountainRenderer {
 		};
 	}
 
+	/**
+	 * Idle memory: this is a full-viewport canvas that draws for a few seconds per win. Between wins
+	 * its GL backbuffer (860×1864 ≈ 12.8 MB at resolution 2 on a phone, plus the compositor's copies)
+	 * was allocated the whole session — the third-largest surface in a game whose background context
+	 * iOS already reaps under memory pressure. So the renderer is parked at 1×1 while nothing is in
+	 * flight and sized back to the host on `burst()`. Invisible: the canvas is transparent, its CSS
+	 * box is pinned to 100% by the host stylesheet (so autoDensity's 1px style is overridden), and
+	 * the last frame drawn before parking is a clear one. `resizeTo` is detached while parked so a
+	 * window resize cannot silently re-expand an idle canvas; re-attaching it on burst is what sizes
+	 * the renderer to the host again (the setter resizes immediately).
+	 */
+	private idleParked = false;
+
+	private shrinkWhileIdle(): void {
+		const app = this.app;
+		if (!app || this.idleParked) return;
+		this.idleParked = true;
+		(app as { resizeTo: Window | HTMLElement | null }).resizeTo = null;
+		app.renderer.resize(1, 1);
+	}
+
+	private restoreSizeForBurst(): void {
+		const app = this.app;
+		if (!app || !this.idleParked) return;
+		this.idleParked = false;
+		app.resizeTo = this.hostElement;
+	}
+
 	/** Launch a coin burst from `from` to `to`. No-op until the skeletons have loaded. */
 	burst(options: CoinBurstOptions): void {
 		if (!this.ready || !this.app) return;
+		this.restoreSizeForBurst();
 		const { from, to } = options;
 		if (options.onComplete) this.onBurstComplete = options.onComplete;
 		const count = Math.max(1, Math.min(48, Math.round(options.count ?? 26)));
@@ -395,6 +425,7 @@ export class CoinFountainRenderer {
 			this.running = false;
 			app.renderer.render(app.stage);
 			app.ticker.stop();
+			this.shrinkWhileIdle();
 			// Signal the burst finished (only if one was in progress) so the caller can hide the swirl.
 			const done = this.onBurstComplete;
 			this.onBurstComplete = undefined;

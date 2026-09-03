@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
+	import { landscapeBackdropImagePaths } from '../lib/backdropArt';
 
 	import { isPortraitGameLayout } from '../lib/format';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
@@ -25,8 +26,11 @@
 	);
 	/** Shown only while the Spine stack (backdrop + animation) is loading or failed. */
 	const fallbackImageSrc = $derived.by(() => {
-		const base = portrait ? 'img/BG_portrait.webp' : 'img/BG_landscape.webp';
-		const free = portrait ? 'img/BG_portrait_FREEGAME.webp' : 'img/BG_landscape_FREEGAME.webp';
+		// Same per-device cut the spine renderer draws (phones: the 1920 px files), so the fallback and
+		// the canvas never differ, and the phone never decodes the 2879 px originals at all.
+		const landscape = landscapeBackdropImagePaths();
+		const base = portrait ? 'img/BG_portrait.webp' : landscape.base;
+		const free = portrait ? 'img/BG_portrait_FREEGAME.webp' : landscape.bonus;
 		return staticUrl(bonus ? free : base);
 	});
 

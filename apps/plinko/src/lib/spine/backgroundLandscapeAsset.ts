@@ -1,10 +1,10 @@
 import { getBonusImageOverlays, getBonusOverlays } from './bonusOverlayAssets';
+import { landscapeBackdropAssetPaths } from '../backdropArt';
 import { staticAssetPath } from '../staticUrl';
 import type { SpineAssetDef } from './types';
 
 const SPINE_BASE = 'spine/background_landscape';
-const LANDSCAPE_IMAGE = 'img/BG_landscape.webp';
-const LANDSCAPE_BONUS_IMAGE = 'img/BG_landscape_FREEGAME.webp';
+// Backdrop cut is per device — phones get the 1920 px `_phone` files. See `lib/backdropArt.ts`.
 
 /** Ambient cloud slots in the base scene, hidden during bonus (replaced by the FG_CLOUD overlay). */
 const LANDSCAPE_CLOUD_SLOTS = ['cloud1', 'cloud2', 'cloud3', 'cloud5', 'cloud6', 'cloud7'];
@@ -57,7 +57,7 @@ export const getBackgroundLandscapeAsset = (): SpineAssetDef => ({
 	offsetXVw: LANDSCAPE_BACKGROUND_OFFSET_X_VW,
 	offsetYVh: LANDSCAPE_BACKGROUND_OFFSET_Y_VH,
 	backdrop: {
-		src: staticAssetPath(LANDSCAPE_IMAGE),
+		src: landscapeBackdropAssetPaths().base,
 		widthFillScale: LANDSCAPE_BACKGROUND_IMAGE_WIDTH_FILL,
 		offsetXVw: LANDSCAPE_BACKGROUND_IMAGE_OFFSET_X_VW,
 		offsetYVh: LANDSCAPE_BACKGROUND_IMAGE_OFFSET_Y_VH,
@@ -67,7 +67,7 @@ export const getBackgroundLandscapeAsset = (): SpineAssetDef => ({
 		// (computeSpineOverlayTransform), so the animated scene zooms with it and stays registered.
 		coverHeight: true,
 	},
-	bonusBackdropSrc: staticAssetPath(LANDSCAPE_BONUS_IMAGE),
+	bonusBackdropSrc: landscapeBackdropAssetPaths().bonus,
 	bonusHiddenSlots: LANDSCAPE_BONUS_HIDDEN_SLOTS,
 	bonusOverlays: getBonusOverlays('landscape'),
 	bonusImageOverlays: getBonusImageOverlays('landscape'),

@@ -1,4 +1,5 @@
 import { Assets } from 'pixi.js';
+import { landscapeBackdropImagePaths } from './backdropArt';
 
 import { BOARD_LABELS } from '../game-logic/boardMultipliers';
 import { isPortraitGameLayout } from './format';
@@ -61,10 +62,9 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// ── Static background fallbacks ──────────────────────────────────────────────────────────────
 	// Shown by Background.svelte until the spine stack is live (and permanently if it fails), and by
 	// Game.svelte's portrait layout. The spine renderer loads its own copies as Pixi textures (see
-	// `spineAssetTasks`); these entries are what the plain <img> tags read.
-	'img/BG_landscape.webp',
+	// `spineAssetTasks`); these entries are what the plain <img> tags read. The LANDSCAPE pair is
+	// per device (phones get the 1920 px cut) and is added by `domImagePaths()`.
 	'img/BG_portrait.webp',
-	'img/BG_landscape_FREEGAME.webp',
 	'img/BG_portrait_FREEGAME.webp',
 
 	// ── Free-spin meter (HUD, on screen from launch) ─────────────────────────────────────────────
@@ -203,6 +203,12 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/congratulations_screen/coin_1.webp',
 	'img/congratulations_screen/coin_2.webp',
 ];
+
+/** {@link DOM_IMAGE_PATHS} plus the landscape backdrop cut this device draws — see `backdropArt.ts`. */
+function domImagePaths(): string[] {
+	const landscape = landscapeBackdropImagePaths();
+	return [...DOM_IMAGE_PATHS, landscape.base, landscape.bonus];
+}
 
 /**
  * WIN-CELEBRATION art (`WinCelebration.svelte` + `RapidWinSparkles.svelte`). Split out of
@@ -825,7 +831,7 @@ function coveredUrls(): Set<string> {
 	const absolute = (path: string) => new URL(path, window.location.href).href;
 	const paths = [
 		...[
-			...DOM_IMAGE_PATHS,
+			...domImagePaths(),
 			...WIN_POPUP_IMAGE_PATHS,
 			...PIXI_TEXTURE_PATHS,
 			...AUDIO_PATHS,
@@ -957,7 +963,7 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 	const { timeoutMs = 300_000 } = options;
 
 	const tasks: (() => Promise<unknown>)[] = [
-		...DOM_IMAGE_PATHS.map((path) => () => preloadImage(staticUrl(path))),
+		...domImagePaths().map((path) => () => preloadImage(staticUrl(path))),
 		// Kept as one task: it is idempotent and may already be in flight from a component mount.
 		() => preloadWinPopupAssets(),
 		...PIXI_TEXTURE_PATHS.map((path) => () => Assets.load(staticUrl(path))),
