@@ -390,13 +390,28 @@
 		}
 	});
 
+	function vitalsOverlayRequested(): boolean {
+		if (typeof window === 'undefined') return false;
+		if (new URLSearchParams(location.search).has('vitals')) return true;
+		try {
+			return window.localStorage.getItem('plinkoVitals') === '1';
+		} catch {
+			return false;
+		}
+	}
+
 	onMount(() => {
 		installPlinkoDevDebug();
 
 		// TEMP: on-screen liveness/vitals overlay for freeze triage on devices without DevTools
 		// (BrowserStack). Tells a stalled video stream, an iOS page suspension, a memory-kill reload
 		// and a genuine game freeze apart from the video alone — see devVitalsOverlay.ts.
-		if (import.meta.env.DEV && new URLSearchParams(location.search).has('vitals')) {
+		// Available in PRODUCTION builds too (opt-in only: `?vitals=1` on the game URL, or
+		// `localStorage.plinkoVitals = '1'` set once from the address bar for launchers that strip the
+		// query): the freeze reproduced on the published Stake build, where BrowserStack's remote Web
+		// Inspector crashes against the device's WebKit and there is no other console. Nothing renders
+		// or runs without the flag; remove once the iOS freeze reports are resolved.
+		if (vitalsOverlayRequested()) {
 			void import('../lib/devVitalsOverlay').then(({ installVitalsOverlay }) =>
 				installVitalsOverlay(),
 			);

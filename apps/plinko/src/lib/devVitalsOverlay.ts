@@ -53,9 +53,26 @@ export function installVitalsOverlay(): () => void {
 
 	const log: string[] = [];
 	const stamp = () => ((performance.now() - t0) / 1000).toFixed(1).padStart(7);
+	// The log survives a reload in sessionStorage, so when iOS kills the page (jetsam) and Safari
+	// reloads it, the overlay comes back showing the PREVIOUS page's last events under `prev:` — the
+	// only way to see what was happening right before a memory kill, since the kill itself leaves
+	// no trace in the new page. Best-effort: storage can throw in private mode / after a kill.
+	const PREV_KEY = 'plinkoVitalsPrevLog';
+	let prevLines: string[] = [];
+	try {
+		const raw = sessionStorage.getItem(PREV_KEY);
+		if (raw) prevLines = (JSON.parse(raw) as string[]).slice(-4);
+	} catch {
+		/* ignore */
+	}
 	function push(line: string) {
 		log.push(`${stamp()} ${line}`);
 		if (log.length > MAX_LOG) log.shift();
+		try {
+			sessionStorage.setItem(PREV_KEY, JSON.stringify(log));
+		} catch {
+			/* ignore */
+		}
 	}
 	push(`loaded (nav=${navType})`);
 
@@ -121,8 +138,12 @@ export function installVitalsOverlay(): () => void {
 	// "freeze" prove the device page kept running; pings stopping (or restarting under a new load
 	// id) timestamp a real freeze or reload to the second. no-cors: the response is opaque and
 	// irrelevant — only the request's arrival matters. Fully best-effort; nothing depends on it.
+	// Only where a listener can exist: the dev machine reached directly or through the bs-local
+	// tunnel. On the published game host it would just be a failing request every 5 s.
+	const hbHost = /^(localhost|127\.0\.0\.1|bs-local\.com)$/.test(location.hostname);
 	const hbId = `${loadedAt.getTime().toString(36)}`;
 	const hbTimer = setInterval(() => {
+		if (!hbHost) return;
 		const up = Math.round((performance.now() - t0) / 1000);
 		// origFetch, not the tapped window.fetch — a missing listener must not spam FETCH FAIL lines.
 		origFetch(`//${location.hostname}:9777/hb?id=${hbId}&up=${up}&raf=${rafTotal}`, {
@@ -166,6 +187,7 @@ export function installVitalsOverlay(): () => void {
 			`board tick=${boardVitals.lastTickAt ? `${((performance.now() - boardVitals.lastTickAt) / 1000).toFixed(1)}s ago` : 'never'} anim=${boardVitals.animating ? 1 : 0} stepErr=${boardVitals.stepErrors} cbErr=${boardVitals.callbackErrors} revives=${boardVitals.revives} gl=${boardVitals.contextLost}/${boardVitals.contextRestored}`,
 			'── events ──',
 			...log,
+			...(prevLines.length ? ['── prev page (before reload) ──', ...prevLines] : []),
 		];
 		box.textContent = lines.join('\n');
 	}, 1000);
