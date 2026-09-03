@@ -555,28 +555,28 @@ const AUDIO_PATHS: readonly string[] = [
 	'sound/bet.mp3',
 	'sound/win.mp3',
 	'sound/pocket.mp3',
-	'sound/peg.wav',
-	'sound/roulette_tick.wav',
+	'sound/peg.mp3',
+	'sound/roulette_tick.mp3',
 	'sound/placeChip.mp3',
 	'sound/clickingFail.mp3',
 	'sound/startAutoPlay.mp3',
 	'sound/openPopup.mp3',
 	'sound/clickUIButton.mp3',
-	'sound/coin_flip.wav',
-	'sound/coin_peg.wav',
+	'sound/coin_flip.mp3',
+	'sound/coin_peg.mp3',
 	// One file, played as two sprite windows (coinShuffleSingle / coinShuffleMulti).
 	'sound/coin_shuffle.mp3',
 	'sound/door_close.mp3',
 	'sound/door_open.mp3',
 	'sound/bonus_level_up.mp3',
 	// Held on loop under the post-bonus treasure screen (EnableSound).
-	'sound/post_bonus_clinking_coins.mpeg',
+	'sound/post_bonus_clinking_coins.mp3',
 	// Congratulations-screen fanfare, both screens (EnableSound).
 	'sound/bonus_congratulations.mp3',
 
 	// Looping music (EnableMusic).
-	'sound/background_music.m4a',
-	'sound/background_music_bonus_mode.mpeg',
+	'sound/background_music.mp3',
+	'sound/background_music_bonus_mode.mp3',
 ];
 
 /**

@@ -16,19 +16,25 @@
 
 	const context = getContext();
 
+	// Every clip is MP3, on purpose. It is the one codec both of Howler's paths play on every iOS,
+	// Android and desktop browser: Web Audio `decodeAudioData` for these one-shots and `<audio>`
+	// streaming for the music. OGG/Vorbis and Opus never decode on an iPhone/iPad, and a file whose
+	// extension does not name its codec (the MP3s that used to ship as `.mpeg`) is served under a
+	// `video/*` MIME type that iOS `<audio>` may refuse outright. A clip re-delivered in any other
+	// format goes through `scripts/transcode-audio.mjs` first.
 	const soundMap: Record<SoundEffectName, string> = {
 		bet: staticUrl('sound/bet.mp3'),
 		win: staticUrl('sound/win.mp3'),
 		pocket: staticUrl('sound/pocket.mp3'),
-		peg: staticUrl('sound/peg.wav'),
-		rouletteTick: staticUrl('sound/roulette_tick.wav'),
+		peg: staticUrl('sound/peg.mp3'),
+		rouletteTick: staticUrl('sound/roulette_tick.mp3'),
 		placeChip: staticUrl('sound/placeChip.mp3'),
 		clickingFail: staticUrl('sound/clickingFail.mp3'),
 		startAutoPlay: staticUrl('sound/startAutoPlay.mp3'),
 		openPopup: staticUrl('sound/openPopup.mp3'),
 		clickUIButton: staticUrl('sound/clickUIButton.mp3'),
-		coinFlip: staticUrl('sound/coin_flip.wav'),
-		coinPeg: staticUrl('sound/coin_peg.wav'),
+		coinFlip: staticUrl('sound/coin_flip.mp3'),
+		coinPeg: staticUrl('sound/coin_peg.mp3'),
 		// Both shuffle variants are the SAME file, played as different time windows (see sprite below).
 		coinShuffleSingle: staticUrl('sound/coin_shuffle.mp3'),
 		coinShuffleMulti: staticUrl('sound/coin_shuffle.mp3'),
@@ -40,7 +46,7 @@
 		// Bonus level-up chime (leading silence trimmed via sprite below).
 		bonusLevelUp: staticUrl('sound/bonus_level_up.mp3'),
 		// Post-bonus treasure screen coin bed — held on loop, see the `loop` option below.
-		postBonusCoins: staticUrl('sound/post_bonus_clinking_coins.mpeg'),
+		postBonusCoins: staticUrl('sound/post_bonus_clinking_coins.mp3'),
 		// Congratulations-screen fanfare, both screens (leading silence trimmed via sprite below).
 		bonusCongratulations: staticUrl('sound/bonus_congratulations.mp3'),
 	};
@@ -74,11 +80,9 @@
 		// starts 71ms in — so the window would have skipped the chime and played its tail instead
 		// (measured over the old window: peak 0.06 against 0.90 for the chime itself, i.e. inaudible).
 		// It plays whole. Re-measure the onset if it is ever re-delivered again.
-		// Held on loop under the post-bonus treasure screen (started by `soundLoopStart`, below). The
-		// file carries a `.mpeg` extension but is MPEG layer III (MP3) audio, so the format is pinned
-		// rather than guessed from that unusual extension — same as the bonus music track. Mixed under
-		// the music it plays over: it is a texture behind the message, not a cue.
-		postBonusCoins: { loop: true, volume: 0.55, format: ['mp3'] },
+		// Held on loop under the post-bonus treasure screen (started by `soundLoopStart`, below). Mixed
+		// under the music it plays over: it is a texture behind the message, not a cue.
+		postBonusCoins: { loop: true, volume: 0.55 },
 		// Fired the instant the message starts popping in, so it has to open ON the sound — the file
 		// carries 270ms of silence first (envelope-measured: nothing above 2% of peak until then), which
 		// would have landed the fanfare a fifth of a second behind the type. The window opens 20ms early

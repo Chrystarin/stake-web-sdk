@@ -50,12 +50,13 @@
 		const howl =
 			kind === 'normal'
 				? new Howl({
-						src: [staticUrl('sound/background_music.m4a')],
+						src: [staticUrl('sound/background_music.mp3')],
 						loop: true,
 						volume: NORMAL_VOLUME,
 						// HTML5 streaming is better suited to a long music file than buffering it fully.
-						// (The two loops are 5 and 11 minutes long — decoding them into Web Audio buffers
-						// would cost hundreds of MB of PCM, so `<audio>` is the only workable path here.)
+						// (The two loops are 5:19 and 3:20 long — decoding them into Web Audio buffers would
+						// cost ~200 MB of PCM, so `<audio>` is the only workable path here.) Both are MP3:
+						// the one codec every iOS/Android/desktop `<audio>` streams — see EnableSound.
 						html5: true,
 						// ⚠️ Must not preload — see the note on `unlock()` below. Loading an `html5: true`
 						// source before Howler's own first-gesture handler has run logs "HTML5 Audio pool
@@ -68,10 +69,7 @@
 						onplayerror: () => armMusicRecoveryOnGesture(),
 					})
 				: new Howl({
-						// The file carries a `.mpeg` extension but is MPEG layer III (MP3) audio — pin the
-						// format so Howler picks the right codec instead of guessing from the unusual extension.
-						src: [staticUrl('sound/background_music_bonus_mode.mpeg')],
-						format: ['mp3'],
+						src: [staticUrl('sound/background_music_bonus_mode.mp3')],
 						loop: true,
 						volume: BONUS_VOLUME,
 						html5: true,

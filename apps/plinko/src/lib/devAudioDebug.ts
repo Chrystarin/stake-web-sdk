@@ -120,7 +120,7 @@ export function installAudioDebugOverlay(): () => void {
 	});
 	addButton('KICK', () => {
 		// html5 <audio> play to reactivate the media session, then resume the ctx.
-		const a = new Audio('/sound/peg.wav');
+		const a = new Audio('/sound/peg.mp3');
 		a.volume = 0.3;
 		a.play()
 			.then(() => push('[KICK] html5 play ok'))

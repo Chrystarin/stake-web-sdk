@@ -52,7 +52,7 @@
 	// random pitch keeps rapid repeats from sounding machine-gun identical. Coin (featured) pegs
 	// ring out distinctly higher-pitched than normal pegs.
 	const handlePegBounce = (event: { featured: boolean }) => {
-		// Coin (featured) peg plays its own coin_peg.wav sample, with a touch of random pitch. Normal
+		// Coin (featured) peg plays its own coin_peg.mp3 sample, with a touch of random pitch. Normal
 		// pegs keep the original peg "thunk".
 		context.eventEmitter.broadcast(
 			event.featured

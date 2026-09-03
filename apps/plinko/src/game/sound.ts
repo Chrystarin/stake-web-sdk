@@ -6,6 +6,13 @@ import { Howl, Howler } from 'howler';
 // the pool so concurrent plays each get their own node.
 Howler.html5PoolSize = 60;
 
+// Ask iOS for the `playback` audio-session category before any AudioContext exists — Howler creates
+// its context inside the first `new Howl()`, which runs from EnableSound's mount, and the default
+// `auto` category is `ambient`, which the silent/ringer switch mutes. WebKit re-derives the category
+// as sessions start, so `installPlinkoAudioResume` re-asserts it later too; requesting it this early
+// simply leaves no window in which a fresh context can be categorised as ambient.
+preferPlaybackAudioSession();
+
 export type SoundEffectName =
 	| 'bet'
 	| 'win'
@@ -56,8 +63,9 @@ export type LoadSoundOptions = {
 	 */
 	loop?: boolean;
 	/**
-	 * Codec hint for a file whose extension does not name its format — `post_bonus_clinking_coins.mpeg`
-	 * is MP3 data. Without it Howler guesses from the extension and can decide it cannot play the file.
+	 * Codec hint for a file whose extension does not name its format (MP3 data behind a `.mpeg` name,
+	 * say). Without it Howler guesses from the extension and can decide it cannot play the file.
+	 * Nothing sets it today — every shipped clip is a real `.mp3` — it stays for a mis-named re-delivery.
 	 */
 	format?: string[];
 	/**
