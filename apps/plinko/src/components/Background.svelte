@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
-	import { landscapeBackdropImagePaths } from '../lib/backdropArt';
+	import { isPhoneScreen, landscapeBackdropImagePaths } from '../lib/backdropArt';
 
 	import { isPortraitGameLayout } from '../lib/format';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
@@ -126,6 +126,16 @@
 		const hidden = stateGame.overlayCoversGame;
 		if (!spineReady) return;
 		renderer?.setHiddenByOverlay(hidden);
+	});
+
+	// Halve the scene's repaints while the full-screen win reveal plays over it — phones only, where the
+	// reveal's own layers already saturate the GPU (iPhone 12: visibly laggy for the popup's whole life).
+	// Same gate WinCelebration mounts on (`showWinPopup`, not the 1-ball tier, whose win is a sparkle).
+	const phone = isPhoneScreen();
+	$effect(() => {
+		const reveal = phone && stateGame.showWinPopup && stateGame.ballPerDrop !== 1;
+		if (!spineReady) return;
+		renderer?.setWinRevealActive(reveal);
 	});
 </script>
 

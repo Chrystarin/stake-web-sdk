@@ -244,6 +244,8 @@ export class SpineBackgroundRenderer {
 	private bonusActive = false;
 	/** True while a full-screen congratulations screen completely hides this canvas — see `setHiddenByOverlay`. */
 	private hiddenByOverlay = false;
+	/** True while a win reveal is being drawn over this canvas on a phone — see `setWinRevealActive`. */
+	private winRevealActive = false;
 	/** Latched once the lazy bonus-asset load starts; awaited by `setBonusMode`. */
 	private bonusAssetsPromise?: Promise<void>;
 	/** Setup attachment object for each `bonusHiddenSlots` slot, so it can be restored on exit. Stored
@@ -1102,6 +1104,20 @@ export class SpineBackgroundRenderer {
 	}
 
 	/**
+	 * A full-screen win reveal (WinCelebration) is up. On phones it caps this renderer at the bonus rate
+	 * (30 fps) for the reveal's life: the reveal itself is the busiest compositing moment in the game — a
+	 * ~2300 device-px spinning ray layer, the vignette, a full-viewport 2D coin canvas redrawn every frame
+	 * and the digit count-up all sit ON TOP of this canvas — and QA reported the iPhone 12 dropping frames
+	 * from the moment the popup appears until it hides. Same reasoning as the bonus cap: the sea/ship scene
+	 * is delta-time driven, so it moves at the same speed with half the repaints, and the budget goes to
+	 * the reveal the player is actually looking at. The caller decides the device gate.
+	 */
+	setWinRevealActive(active: boolean): void {
+		this.winRevealActive = active;
+		this.applyBonusFrameRate();
+	}
+
+	/**
 	 * Cap the BACKGROUND app's frame rate while the bonus round is active, then restore it on exit.
 	 *
 	 * The bonus scene layers a lot of extra per-frame work onto this renderer — the full-viewport rain
@@ -1123,7 +1139,8 @@ export class SpineBackgroundRenderer {
 			ticker.maxFPS = SpineBackgroundRenderer.OVERLAY_HIDDEN_MAX_FPS;
 			return;
 		}
-		ticker.maxFPS = this.bonusActive ? SpineBackgroundRenderer.BONUS_BACKGROUND_MAX_FPS : 0;
+		ticker.maxFPS =
+			this.bonusActive || this.winRevealActive ? SpineBackgroundRenderer.BONUS_BACKGROUND_MAX_FPS : 0;
 	}
 
 	private applyBackdropTexture(bonus: boolean): void {

@@ -455,6 +455,11 @@
 	   the two transforms don't fight. `will-change` on BOTH for the same reason as `.wc-backdrop`: the
 	   wrap's opacity/transform transitions END at 0.4s/0.55s, and a layer demoted at that moment gets
 	   re-rastered at full size (196vw ≈ 2300px on a phone) — one missed raster = one flashed frame. */
+	/* ⚠️ The opacity lives on the IMG, not on this wrap. A translucent wrap around a composited child is
+	   GROUP opacity: iOS renders the whole subtree to an offscreen surface every frame before blending
+	   it, and the subtree here is a ~2300 device-px square that is rotating continuously — ~5 MP of
+	   extra fill per frame for the popup's entire life, on the device class QA reports as laggy
+	   throughout the win reveal. Opacity on the single spinning layer itself costs nothing. */
 	.wc-rays-wrap {
 		position: absolute;
 		left: var(--wc-nx);
@@ -463,23 +468,24 @@
 		height: var(--wc-rays-size);
 		transform: translate(-50%, -50%) scale(0.55);
 		z-index: 1;
-		opacity: 0;
-		will-change: opacity, transform;
-		transition:
-			opacity 0.4s ease,
-			transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1);
+		will-change: transform;
+		transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1);
 	}
 	.wc-overlay.entered .wc-rays-wrap {
-		opacity: 0.9;
 		transform: translate(-50%, -50%) scale(1);
 	}
 	.wc-rays-img {
 		width: 100%;
 		height: 100%;
+		opacity: 0;
 		animation: wc-rays-spin 30s linear infinite;
 		transform-origin: center;
 		backface-visibility: hidden;
-		will-change: transform;
+		will-change: transform, opacity;
+		transition: opacity 0.4s ease;
+	}
+	.wc-overlay.entered .wc-rays-img {
+		opacity: 0.9;
 	}
 	@keyframes wc-rays-spin {
 		to {
@@ -620,6 +626,11 @@
 			opacity 0.4s ease,
 			transform 0.5s cubic-bezier(0.2, 0.85, 0.3, 1);
 		filter: drop-shadow(0 0.5vh 0.7vh rgba(0, 0, 0, 0.5));
+		/* Keep the row on its own composited layer for the whole count-up. Its glyphs change on most
+		   frames for ~1.2 s, and a filtered element that is NOT composited has its drop-shadow
+		   re-rasterised in software on every change; composited, WebKit applies the shadow on the GPU.
+		   The slide-in transition would only promote it for its first 0.5 s. */
+		will-change: transform, filter;
 	}
 	.wc-number.visible .wc-number-row {
 		opacity: 1;
@@ -642,7 +653,7 @@
 	/* Exit — fade the whole reveal as the coins turn and stream into the balance coin. Placed after the
 	   enter rules and at matching specificity so it wins while both `entered` and `exiting` are set. */
 	.wc-overlay.exiting .wc-backdrop,
-	.wc-overlay.exiting .wc-rays-wrap,
+	.wc-overlay.exiting .wc-rays-img,
 	.wc-overlay.exiting .wc-banner,
 	.wc-overlay.exiting .wc-number-row {
 		opacity: 0;
