@@ -80,6 +80,10 @@ function bonusLevelUpInProgress(): boolean {
 let bonusPegsBankedDuringLevelUp = 0;
 /** An in-bonus free-spin wheel has been dequeued and is waiting for the level-up card to clear. */
 let bonusFreeSpinOpenPending = false;
+/** Debug read of the deferred in-bonus wheel flag (`beginInBonusFreeSpin`) — for `plinkoDebugLocks`. */
+export function isBonusFreeSpinOpenPending(): boolean {
+	return bonusFreeSpinOpenPending;
+}
 
 /**
  * ── IN-BONUS FREE-SPIN METER: BOOK-DRIVEN, PER BATCH ────────────────────────────────────────────

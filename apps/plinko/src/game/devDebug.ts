@@ -18,6 +18,7 @@ import {
 	isInBonusFreeSpinInevitable,
 	pushRapidWinSparkle,
 	snapshotInBonusSpinBank,
+	isBonusFreeSpinOpenPending,
 } from './gameOrchestrator';
 import { forceUnlockBettingControls } from './meterFlow';
 import { plinkoActiveModeMaxWin, plinkoStakePerBall } from './plinkoBet';
@@ -63,6 +64,7 @@ export type PlinkoLockDebugSnapshot = {
 	showWinPopup: boolean;
 	winAmount: number;
 	freeSpinRouletteOpen: boolean;
+	bonusFreeSpinOpenPending: boolean;
 	/** In-bonus free-spin bar pinned full, owed a wheel. Stuck true = the free-ball stream stays blocked. */
 	spinMeterHoldFull: boolean;
 	/** Centre pockets that landed BEHIND a wheel and are owed back to the bar, plus whether the paced
@@ -112,6 +114,7 @@ export function snapshotPlinkoLocks(): PlinkoLockDebugSnapshot {
 		showWinPopup: stateGame.showWinPopup,
 		winAmount: stateGame.winAmount,
 		freeSpinRouletteOpen: stateGame.freeSpinRouletteOpen,
+		bonusFreeSpinOpenPending: isBonusFreeSpinOpenPending(),
 		spinMeterHoldFull: stateGame.spinMeterHoldFull,
 		inBonusSpinBanked: inBonusSpinBank.banked,
 		inBonusSpinBankDraining: inBonusSpinBank.draining,
