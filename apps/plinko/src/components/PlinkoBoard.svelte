@@ -14,6 +14,7 @@
 	import { coefficientsForTier, PLINKO_VISUAL_ROWS, SIM_SPEED } from '../game-logic/constants';
 	import { isSpinSlotRateIndex, spinPocketActiveForBallsPerDrop } from '../game-logic/spinSlot';
 	import { activeMeterTierBalls } from '../game/plinkoSessionMeters';
+	import { isPhoneScreen } from '../lib/backdropArt';
 	import { frameImagePoint, SKULL_MOUTH_CAVITY, SKULL_MOUTH_CAVITY_HALF_W } from '../lib/frameArt';
 	import config from '../game/config';
 	import { pocketPitchForMultiplier } from '../game/sound';
@@ -257,6 +258,14 @@
 		if (!e) return;
 		syncEngineScene();
 		if (props.animationSpeed != null) e.animationSpeed = props.animationSpeed;
+	});
+
+	// Phones: halve the board's repaints while the full-screen win reveal is up (same gate WinCelebration
+	// mounts on). The balls are down by then; see `PlinkoEngine.setFrameRateCap`.
+	const phone = isPhoneScreen();
+	$effect(() => {
+		const reveal = phone && stateGame.showWinPopup && stateGame.ballPerDrop !== 1;
+		engine?.setFrameRateCap(reveal ? 30 : 0);
 	});
 
 	// 1-ball rapid tier: the center pocket is a plain 0× slot (no bonus), so the board shows "0"

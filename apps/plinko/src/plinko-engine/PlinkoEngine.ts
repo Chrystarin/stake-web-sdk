@@ -571,6 +571,19 @@ export class PlinkoEngine {
    * listener — Pixi's `add` requests a frame when none is pending, which is precisely the dead state,
    * and is a no-op when a frame IS pending (rAF merely throttled), so this cannot double-step.
    */
+  /**
+   * Cap (or uncap, with 0) the board app's own frame rate. Used by the host while the full-screen win
+   * reveal plays on a phone: the balls have landed by then, so every frame only redraws the static
+   * pegs and the pocket glow underneath a reveal that is already the busiest compositing moment in the
+   * game. Physics is unaffected — `animateFrame` steps by elapsed time, so a capped frame simply runs
+   * more sub-steps. Pixi clamps anything below its 10 fps floor itself.
+   */
+  setFrameRateCap(maxFps: number): void {
+    const ticker = this.app?.ticker;
+    if (!ticker) return;
+    ticker.maxFPS = Math.max(0, maxFps);
+  }
+
   reviveStalledTicker(): void {
     if (!this.app || !this.isAnimating || !this.tickerRegistered) return;
     if (typeof document !== 'undefined' && document.hidden) return;

@@ -5,6 +5,7 @@
 	import { stateGame } from '../game/stateGame.svelte';
 	import { plinkoActiveModeMaxWin } from '../game/plinkoBet';
 	import { eventEmitter } from '../game/eventEmitter';
+	import { isPhoneScreen } from '../lib/backdropArt';
 	import { frameImagePoint } from '../lib/frameArt';
 	import { isPortraitGameLayout } from '../lib/format';
 	import { preloadWinPopupAssets } from '../lib/preloadAssets';
@@ -297,7 +298,10 @@
 		if (!shower) return;
 		const w = overlayEl?.clientWidth || window.innerWidth;
 		const h = overlayEl?.clientHeight || window.innerHeight;
-		shower.resize(w, h, Math.min(2, window.devicePixelRatio || 1));
+		// Phones draw the shower at 1.5x, not 2x: this is a full-viewport 2D canvas cleared and redrawn on
+		// every frame of the reveal (780x1688 at 2x on an iPhone 12), and the coins are small sprites in
+		// motion, where the extra density is invisible — the fill is not. Desktops/tablets keep 2x.
+		shower.resize(w, h, Math.min(isPhoneScreen() ? 1.5 : 2, window.devicePixelRatio || 1));
 	}
 
 	onMount(() => {
