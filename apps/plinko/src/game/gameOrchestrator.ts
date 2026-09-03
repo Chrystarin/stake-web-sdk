@@ -29,6 +29,7 @@ import {
 	type HistoryEntry,
 } from './stateGame.svelte';
 import { onCoinPegHit, onSpinSlotLand, triggerRoulette } from './meterFlow';
+import { waitUntil } from './waitUntil';
 import { traceBonusMeterWrite } from './plinkoMeterTrace';
 import { stateXstateDerived } from './stateXstate';
 import {
@@ -411,18 +412,7 @@ export function isBonusRoundInProgress(): boolean {
 
 /** Wait until bonus balls are played, any follow-up wheel closes, and the end screen is dismissed. */
 export function waitForBonusRoundCompletion(): Promise<void> {
-	if (!isBonusRoundBlockingSettlement()) return Promise.resolve();
-	return new Promise((resolve) => {
-		const started = Date.now();
-		const check = () => {
-			if (!isBonusRoundBlockingSettlement() || Date.now() - started >= BONUS_ROUND_COMPLETION_TIMEOUT_MS) {
-				resolve();
-				return;
-			}
-			requestAnimationFrame(check);
-		};
-		check();
-	});
+	return waitUntil(() => !isBonusRoundBlockingSettlement(), BONUS_ROUND_COMPLETION_TIMEOUT_MS);
 }
 
 export function addSettledWinAmount(amount: number, updateDisplay = true) {
@@ -1500,25 +1490,14 @@ function waitForBonusLevelUpCardHidden(maxMs = 8000): Promise<void> {
  * (`waitForBonusLevelUpCardHidden`), whose lifetime is driven by its own timers.
  */
 function waitForFreeSpinRouletteClosed(maxMs = 30_000): Promise<void> {
-	return new Promise((resolve) => {
-		const started = Date.now();
-		const check = () => {
-			if (!isFreeSpinWheelOwningScreen() || Date.now() - started >= maxMs) resolve();
-			else requestAnimationFrame(check);
-		};
-		check();
-	});
+	return waitUntil(() => !isFreeSpinWheelOwningScreen(), maxMs);
 }
 
+// rAF + timer polling (`waitUntil`), not rAF alone: the hidden driver lands balls while the page is
+// not painting, and this is the wait that has to notice — or the round sits unsettled until the next
+// painted frame, with Autobet stalled behind it.
 export function waitForDropBatchCompletion(maxMs = 30_000): Promise<void> {
-	return new Promise((resolve) => {
-		const started = Date.now();
-		const check = () => {
-			if (!isDropBatchPending() || Date.now() - started >= maxMs) resolve();
-			else requestAnimationFrame(check);
-		};
-		check();
-	});
+	return waitUntil(() => !isDropBatchPending(), maxMs);
 }
 
 /**
@@ -2509,7 +2488,13 @@ export function beginRoundHistory() {
 		win: 0,
 		chips: buildRoundHistoryChips(),
 	});
+	// Session history is a scrollable list in the info modal, not an archive: cap it so a long Autobet
+	// session (rows carry per-ball chip arrays) cannot grow it without bound. Only the tail goes — the
+	// live round's row at `history[0]` is untouched.
+	if (stateGame.history.length > MAX_HISTORY_ENTRIES) stateGame.history.length = MAX_HISTORY_ENTRIES;
 }
+
+const MAX_HISTORY_ENTRIES = 200;
 
 /** Record a free-spin wheel multiplier as its own "Free Spin xN" chip on the round row. */
 export function recordFreeSpinWinHistory(multiplier: number) {

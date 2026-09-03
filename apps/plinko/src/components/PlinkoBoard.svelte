@@ -165,6 +165,8 @@
 					const dt = (now - lastHiddenTs) / 1000;
 					lastHiddenTs = now;
 					if (document.hidden) eng?.advanceWhileHidden(dt);
+					// Visible: make sure the frame loop is still alive under an in-flight drop (see the engine).
+					else eng?.reviveStalledTicker();
 				}, 100);
 
 				layoutObserver = new ResizeObserver(() => {
@@ -301,8 +303,9 @@
 		stateGame.expectedOutcomeByBallId = isRapidSingleBallMode()
 			? new Map(stateGame.expectedOutcomeByBallId)
 			: new Map<number, PlinkoBallOutcome>();
-		stateGame.pendingSpacedSpawnTimers = n;
-		engine.dropBallBurst(targetIndices, delays, ({ dropped, index }) => {
+		// Count only the spawns the engine actually scheduled (0 if it refused the burst) — the callback
+		// below is the only thing that decrements this, and it never runs for a burst that never started.
+		stateGame.pendingSpacedSpawnTimers = engine.dropBallBurst(targetIndices, delays, ({ dropped, index }) => {
 			const outcome = outcomes[index];
 			if (outcome && dropped) {
 				const next = new Map(stateGame.expectedOutcomeByBallId);

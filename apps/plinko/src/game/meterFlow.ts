@@ -13,6 +13,7 @@ import {
 	waitForDropBatchCompletion,
 } from './gameOrchestrator';
 import type { PlinkoBallOutcome } from './typesBookEvent';
+import { waitUntil } from './waitUntil';
 import { FREE_SPIN_WHEEL_OPEN_DELAY_MS, coefficientsForTier } from '../game-logic/constants';
 import config from './config';
 import { traceBonusMeterWrite, traceBonusMeterWriteAfter } from './plinkoMeterTrace';
@@ -63,7 +64,7 @@ const isDropPipelineBusy = () =>
 /**
  * Longest a wheel opener will sit on the drop pipeline before opening anyway.
  *
- * This wait is an rAF loop, and rAF is throttled/parked when the tab is hidden — so without a ceiling
+ * This wait polls on rAF AND a timer (`waitUntil`; rAF alone is parked when the tab is hidden) — so without a ceiling
  * a backgrounded tab can leave a roulette flow begun-but-never-opened indefinitely. That now matters
  * more than it used to: `isBonusRoundBlockingSettlement` holds the round open while a flow is in
  * progress, so a stalled opener would stall settlement with it.
@@ -71,14 +72,7 @@ const isDropPipelineBusy = () =>
 const DROP_PIPELINE_IDLE_TIMEOUT_MS = 15_000;
 
 const waitForDropPipelineIdle = (): Promise<void> =>
-	new Promise((resolve) => {
-		const started = Date.now();
-		const check = () => {
-			if (!isDropPipelineBusy() || Date.now() - started >= DROP_PIPELINE_IDLE_TIMEOUT_MS) resolve();
-			else requestAnimationFrame(check);
-		};
-		check();
-	});
+	waitUntil(() => !isDropPipelineBusy(), DROP_PIPELINE_IDLE_TIMEOUT_MS);
 
 export function waitForRouletteClose(): Promise<void> {
 	return new Promise((resolve) => rouletteCloseWaiters.push(resolve));

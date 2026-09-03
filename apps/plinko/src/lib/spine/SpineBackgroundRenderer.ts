@@ -262,6 +262,8 @@ export class SpineBackgroundRenderer {
 	 */
 	onContextLost?: () => void;
 	private contextLostListener?: () => void;
+	/** Set by `destroy()`; every `await` in `init`/`loadAsset` re-checks it before creating GPU state. */
+	private destroyed = false;
 
 	constructor(hostElement: HTMLElement) {
 		this.hostElement = hostElement;
@@ -269,6 +271,10 @@ export class SpineBackgroundRenderer {
 
 	async init(asset: SpineAssetDef): Promise<void> {
 		await this.waitForHostSize();
+		// `destroy()` can land during that wait (a rotation re-mounting Background, the context-loss
+		// rebuild, the splash finishing). Creating the Application after it would append a full-viewport
+		// renderer nothing owns — a 60 fps WebGL context leaked for the session.
+		if (this.destroyed) return;
 
 		if (!this.app) {
 			const app = new Application();
@@ -337,6 +343,8 @@ export class SpineBackgroundRenderer {
 
 		await this.loadAsset(asset);
 
+		// Torn down mid-load: nothing to report, the owner has already moved on.
+		if (this.destroyed) return;
 		if (!this.app || !this.spine) {
 			throw new Error('[SpineBackgroundRenderer] spine layer was not created');
 		}
@@ -476,6 +484,7 @@ export class SpineBackgroundRenderer {
 	 *   GPU memory) linger for the whole session and starve the game's ball renderer.
 	 */
 	destroy(options?: { releaseAssets?: boolean }): void {
+		this.destroyed = true;
 		if (this.sharedTickerRestore) {
 			(Ticker.shared as unknown as { _maxElapsedMS: number })._maxElapsedMS =
 				this.sharedTickerRestore.maxElapsedMS;
@@ -534,8 +543,32 @@ export class SpineBackgroundRenderer {
 		const keys = [...this.loadedAssetKeys];
 		this.loadedAssetKeys.clear();
 		this.skeletonDataCache.clear();
-		// Fire-and-forget: unload frees the texture sources from the shared cache + GPU.
-		void Promise.allSettled(keys.map((key) => Assets.unload(key))).catch(() => {});
+		// The atlas PAGE bitmaps do not go with the atlas alias. The spine atlas loader fetches each page
+		// through `Assets.loader.load(url)` directly, so a page lives in the loader's promise cache under
+		// its absolute URL and never in the `Assets` cache. Unloading the alias runs `TextureAtlas.dispose`
+		// → `SpineTexture.dispose` → `texture.destroy()` WITHOUT `destroySource`: that only drops spine's
+		// per-page wrapper Texture, and the decoded ImageBitmap behind it stays pinned by the loader for
+		// the rest of the session. For the splash that was the four ~1900px logo pages — ~51 MB of decoded
+		// image memory — held on every device, on top of the game's own scene, which is exactly the
+		// pressure that makes iOS reap WebGL contexts mid-session. So collect the pages' cache URLs
+		// (`createTexture` stamps them on `source.label`) BEFORE the alias unload, then release them
+		// through the loader, whose texture parser destroys the source. `Assets.loader.unload` rather
+		// than `Assets.unload`: the latter also tries `Cache.remove(url)`, which these entries never had,
+		// and warns about it.
+		const pageUrls = new Set<string>();
+		for (const key of keys) {
+			const atlas = Assets.get(key) as
+				| { pages?: { texture?: { texture?: { source?: { label?: string } } } }[] }
+				| undefined;
+			for (const page of atlas?.pages ?? []) {
+				const label = page.texture?.texture?.source?.label;
+				if (label) pageUrls.add(label);
+			}
+		}
+		// Fire-and-forget: alias first (disposes the atlas + skeleton data), then the page sources.
+		void Promise.allSettled(keys.map((key) => Assets.unload(key)))
+			.then(() => Promise.allSettled([...pageUrls].map((url) => Assets.loader.unload(url))))
+			.catch(() => {});
 	}
 
 	private async loadSkeletonData(asset: SpineLoadable): Promise<SkeletonData> {
@@ -550,13 +583,11 @@ export class SpineBackgroundRenderer {
 
 		this.loadedAssetKeys.add(atlasAlias);
 		this.loadedAssetKeys.add(skeletonAlias);
-		// NOTE: do NOT track the atlas page image URLs (skeleton.png, skeleton2.png, …) here.
-		// The spine atlas loader loads pages via its own low-level `loader.load()` and stores them
-		// inside the TextureAtlas — they are never registered as `Assets` cache entries under their
-		// URLs. They are freed when the atlas ALIAS is unloaded (Assets.unload → atlas loader
-		// unload() → TextureAtlas.dispose() → SpineTexture.dispose() → texture.destroy()). Adding the
-		// page URLs made `releaseLoadedAssets()` call `Assets.unload(<pageUrl>)` on ids that aren't in
-		// the cache, which logs a noisy "Asset id … was not found in the Cache" warning and no-ops.
+		// NOTE: the atlas page images (skeleton.png, skeleton2.png, …) are NOT tracked here. The spine
+		// atlas loader loads pages via its own low-level `loader.load()` and stores them inside the
+		// TextureAtlas — they are never `Assets` cache entries under their URLs, so `Assets.unload(<pageUrl>)`
+		// only warns. They are also NOT freed by unloading the atlas alias (that destroys spine's wrapper
+		// Texture, not the source); `releaseLoadedAssets` releases them through the loader's own cache.
 
 		await Assets.load([atlasAlias, skeletonAlias]);
 
@@ -619,6 +650,10 @@ export class SpineBackgroundRenderer {
 			this.loadBackdrop(asset),
 			this.loadBaseImageOverlays(asset),
 		]);
+
+		// Destroyed while the loads were in flight: `app.stage` is gone, and a Spine created now would
+		// register on `Ticker.shared` with nothing left to destroy it.
+		if (this.destroyed || !this.app) return;
 
 		this.spine?.destroy({ children: true });
 		this.backdrop?.destroy();

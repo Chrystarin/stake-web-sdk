@@ -537,7 +537,71 @@ export class PlinkoEngine {
    * triangle so the enlarged coins read as one tight cluster. No peg is added back in their place.
    */
   private static readonly REMOVED_PEG_KEYS = new Set(['3:4', '4:4', '4:5']);
-  private animTickerBound = (ticker: Ticker): void => this.animateFrame(ticker.deltaMS);
+  /**
+   * Pixi's ticker re-arms `requestAnimationFrame` only AFTER its listeners return, with no try/catch
+   * around them. An exception escaping this callback therefore ends the board's frames for good —
+   * `tickerRegistered` and `isAnimating` stay true, no ball ever lands, `onBallDropped` never fires,
+   * and the round (and an Autobet run behind it) waits on a landing that cannot come: the exact face of
+   * a "frozen" board with a live HUD. Contain it here and carry on; the next frame re-runs the step
+   * with the same state. See also `reviveStalledTicker` for the case where the ticker still dies.
+   */
+  private animTickerBound = (ticker: Ticker): void => {
+    this.lastTickAt = performance.now();
+    try {
+      this.animateFrame(ticker.deltaMS);
+    } catch (err) {
+      console.error('[PlinkoEngine] frame step threw; keeping the ticker alive', err);
+    }
+  };
+  /** `performance.now()` of the last ticker callback; read by `reviveStalledTicker`. */
+  private lastTickAt = 0;
+
+  /**
+   * Re-arm the board's frame loop if it has silently died while a drop is in flight.
+   *
+   * Belt to the try/catch above's braces: Pixi's own render listener runs on the same ticker and is
+   * outside our reach (a GL call on a context iOS just reaped, for one), and if it throws, the ticker
+   * never requests another frame. Called from the board's 100 ms driver: if the page is being painted,
+   * a drop is animating, and no ticker callback has run for `TICKER_STALL_MS`, remove + re-add our
+   * listener — Pixi's `add` requests a frame when none is pending, which is precisely the dead state,
+   * and is a no-op when a frame IS pending (rAF merely throttled), so this cannot double-step.
+   */
+  reviveStalledTicker(): void {
+    if (!this.app || !this.isAnimating || !this.tickerRegistered) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    const now = performance.now();
+    if (now - this.lastTickAt < PlinkoEngine.TICKER_STALL_MS) return;
+    console.warn('[PlinkoEngine] frame loop stalled while visible; re-arming the ticker');
+    this.lastTickAt = now;
+    this.stopTicker();
+    this.startTicker();
+  }
+  private static readonly TICKER_STALL_MS = 2000;
+
+  // Host callbacks run inside the physics step. A throw in one (a sound backend, a state handler)
+  // must not abort the step for every other ball in flight — or, for a landing, lose the one event
+  // the round is waiting on after `isDropping` has already been cleared.
+  private emitPegBounce(event: PegBounceEvent): void {
+    try {
+      this.onPegBounce?.(event);
+    } catch (err) {
+      console.error('[PlinkoEngine] onPegBounce threw', err);
+    }
+  }
+  private emitCoinPegHit(event: CoinPegHitEvent): void {
+    try {
+      this.onCoinPegHit?.(event);
+    } catch (err) {
+      console.error('[PlinkoEngine] onCoinPegHit threw', err);
+    }
+  }
+  private emitBallDropped(event: BallDroppedEvent): void {
+    try {
+      this.onBallDropped?.(event);
+    } catch (err) {
+      console.error('[PlinkoEngine] onBallDropped threw', err);
+    }
+  }
   private tickerRegistered = false;
   /**
    * The one physics step the whole engine advances in (~60fps). A rendered frame is only a sampling
@@ -1248,13 +1312,20 @@ export class PlinkoEngine {
     this.hostElement.appendChild(app.canvas as HTMLCanvasElement);
 
     // iOS Safari reaps WebGL contexts under memory pressure (seen on the background renderer as a
-    // black backdrop mid-bonus). If it ever takes THIS context the board stops painting — balls
-    // frozen mid-air — with no signal anywhere: Pixi only restores contexts it lost on purpose, and
-    // GL calls on a dead context are silent no-ops. No recovery is attempted here (rebuilding the
-    // board mid-drop means reconstructing live ball state); log loudly so a device run that "froze"
-    // can be told apart from a logic hang in one look at the console.
+    // black backdrop mid-bonus). If it takes THIS context the board stops painting — balls frozen
+    // mid-air — while physics keeps stepping, so rounds still settle invisibly. Pixi's GlContextSystem
+    // `preventDefault()`s the loss (asking the browser for a restore) and, when `webglcontextrestored`
+    // arrives, resets its GPU caches and re-uploads everything on the next render — so a board that
+    // the browser gives back comes back by itself. What never returns is a context iOS has decided
+    // not to restore; no rebuild is attempted for that here (rebuilding the board mid-drop means
+    // reconstructing live ball state). Log both edges loudly so a device run that "froze" can be told
+    // apart from a logic hang in one look at the console / the ?vitals=1 overlay.
     (app.canvas as HTMLCanvasElement).addEventListener('webglcontextlost', () => {
-      console.error('[PlinkoEngine] WebGL context lost — the board can no longer render');
+      console.error('[PlinkoEngine] WebGL context lost — the board cannot render until it is restored');
+    });
+    (app.canvas as HTMLCanvasElement).addEventListener('webglcontextrestored', () => {
+      console.warn('[PlinkoEngine] WebGL context restored — re-uploading the board');
+      this.pegStaticDirty = true;
     });
 
     this.world.sortableChildren = true;
@@ -3724,13 +3795,13 @@ export class PlinkoEngine {
               ball.coinSfxRow = ball.bonusPegEmitRow;
               ball.coinSfxCol = ball.bonusPegEmitCol;
               ball.coinSfxFeatured = true;
-              this.onPegBounce?.({
+              this.emitPegBounce({
                 row: ball.bonusPegEmitRow,
                 col: ball.bonusPegEmitCol,
                 ballId: ball.id,
                 featured: true,
               });
-              this.onCoinPegHit?.({
+              this.emitCoinPegHit({
                 row: ball.bonusPegEmitRow,
                 col: ball.bonusPegEmitCol,
                 ballId: ball.id,
@@ -3872,7 +3943,7 @@ export class PlinkoEngine {
             this.triggerSlotAnimation(ball, currentTime);
           }
           const spinSlotIndex = Math.floor(this.slots.length / 2);
-          this.onBallDropped?.({
+          this.emitBallDropped({
             multiplier: ball.target,
             ballId: ball.id,
             slotIndex: ball.targetIndex,
@@ -4591,7 +4662,7 @@ export class PlinkoEngine {
       // coin it was sent to — still needs a bounce sound, but it gets the ordinary peg thunk. The
       // coin chime stays reserved for the hit that actually feeds the meter, so players never hear
       // the bonus cue without the bonus.
-      this.onPegBounce?.({
+      this.emitPegBounce({
         row: peg.row,
         col: peg.col,
         ballId: ball.id,
@@ -4601,7 +4672,7 @@ export class PlinkoEngine {
 
     if (credits && !ball.bonusPegEmitted) {
       ball.bonusPegEmitted = true;
-      this.onCoinPegHit?.({ row: peg.row, col: peg.col, ballId: ball.id });
+      this.emitCoinPegHit({ row: peg.row, col: peg.col, ballId: ball.id });
     }
   }
 
@@ -4921,7 +4992,7 @@ export class PlinkoEngine {
           bouncePeg.isTouched = true;
           // Fires once per peg contact (row is added to bouncedRows below, so no re-fire) — drives
           // the per-bounce "thunk" sound.
-          this.onPegBounce?.({
+          this.emitPegBounce({
             row: bouncePeg.row,
             col: bouncePeg.col,
             ballId: ball.id,
@@ -5507,10 +5578,13 @@ export class PlinkoEngine {
     onBallSpawned?: (info: { dropped: { ballId: number; targetIndex: number } | null; index: number }) => void,
     hitBonusPegs?: boolean[],
     burstOptions?: { deterministic?: boolean },
-  ): void {
+  ): number {
+    // Returns how many spawns were scheduled: 0 when nothing can drop (no coefficients yet, malformed
+    // delays), so the caller never counts spawns that will not happen — a phantom pending spawn keeps
+    // the drop batch "in flight" until the round's 30 s force-unlock.
     const n = targetIndices?.length ?? 0;
-    if (!n || !this.coefficients.length) return;
-    if (!Array.isArray(spawnDelaysMs) || spawnDelaysMs.length !== n) return;
+    if (!n || !this.coefficients.length) return 0;
+    if (!Array.isArray(spawnDelaysMs) || spawnDelaysMs.length !== n) return 0;
     this.pendingBurstDrops += n;
     for (let i = 0; i < n; i++) {
       const targetIndex = targetIndices[i];
@@ -5530,6 +5604,7 @@ export class PlinkoEngine {
       }, delayMs);
       this.pendingDropTimeouts.add(timeoutId);
     }
+    return n;
   }
 
   reset(): void {

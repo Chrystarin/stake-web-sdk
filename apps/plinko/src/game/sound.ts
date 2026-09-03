@@ -354,6 +354,20 @@ export function playPlinkoSound(name: SoundEffectName, rate = 1): void {
 	// A gate here rather than `Howler.mute()`: Howler pools its `<audio>` nodes and never resets a
 	// node's `muted` flag when it hands one out again, so a global mute can outlive the mute itself.
 	if (typeof document !== 'undefined' && document.hidden) return;
+	// While the AudioContext is not rendering, Howler does not drop a play() — it allocates the Sound
+	// (a GainNode wired into the graph) and parks a `once('resume')` closure per call until the context
+	// comes back. iOS parks the context as `interrupted` for a call, Siri, an app switch or another
+	// tab's audio, and a 50-ball drop fires ~700 plays: a long interruption during an Autobet run banks
+	// thousands of nodes and closures, then fires every one of them in a single burst on resume. Skip
+	// the play instead — an SFX is momentary, and the watchdog already owns getting the context back.
+	// Howler's own 30 s idle suspend (ctx suspended AND Howler.state suspended, the same pair the
+	// watchdog leaves alone) is the one non-running state to let through: play() resumes it itself
+	// within a few ms, and the queued sound is exactly the one that should be heard.
+	const audio = Howler as unknown as { ctx?: AudioContext; state?: string };
+	const ctxState = audio.ctx?.state as string | undefined;
+	if (ctxState && ctxState !== 'running' && !(ctxState === 'suspended' && audio.state === 'suspended')) {
+		return;
+	}
 	const instances = howls.get(name);
 	if (!instances?.length) return;
 	const howl = takeVoice(name, instances);

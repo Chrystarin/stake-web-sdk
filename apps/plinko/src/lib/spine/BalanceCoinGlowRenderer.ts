@@ -64,15 +64,24 @@ export class BalanceCoinGlowRenderer {
 	private canvases: GlowCanvas[] = [];
 	private ready = false;
 	private resizeObserver?: ResizeObserver;
+	/** Set by `destroy()`. BalanceCard unmounts on a rotation, which can land while `init` is still
+	 * awaiting a canvas — without this the two Applications created after it would be orphaned WebGL
+	 * contexts for the rest of the session. */
+	private destroyed = false;
 
 	constructor(hosts: BalanceCoinGlowHosts) {
 		this.hosts = hosts;
 	}
 
 	async init(): Promise<void> {
-		if (this.canvases.length > 0) return;
+		if (this.canvases.length > 0 || this.destroyed) return;
 		for (const depth of ['back', 'front'] as const) {
-			this.canvases.push(await this.createCanvas(depth, this.hosts[depth]));
+			const canvas = await this.createCanvas(depth, this.hosts[depth]);
+			if (this.destroyed) {
+				canvas.app.destroy(true, { children: true, texture: false });
+				return;
+			}
+			this.canvases.push(canvas);
 		}
 
 		// Sequential, not Promise.all: the two share the `skeleton.png` FILENAME as their atlas page key,
@@ -86,6 +95,7 @@ export class BalanceCoinGlowRenderer {
 				console.error('[BalanceCoinGlowRenderer] failed to load', def.id, err);
 			}
 		}
+		if (this.destroyed) return;
 		this.ready = this.canvases.some((c) => c.layers.length > 0);
 
 		// The card is vw-sized, so the hosts rescale with the viewport. This ALSO covers init: they are
@@ -286,6 +296,7 @@ export class BalanceCoinGlowRenderer {
 	}
 
 	destroy(): void {
+		this.destroyed = true;
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
 		for (const canvas of this.canvases) {
