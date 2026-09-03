@@ -13,11 +13,14 @@
  *   3. iOS KILLED the page under memory pressure (jetsam) and Safari reloaded it: the overlay comes
  *      back with a FRESH `load` stamp and zeroed counters — the one signature a reload can't hide.
  *   4. The game genuinely broke: `up` ticks (page alive) while `raf` reads STALLED (render loop
- *      dead), or the log shows a JS error / a webglcontextlost, or a `flow` flag is stuck.
+ *      dead), or the `board` line shows anim=1 with its tick age growing (the Pixi ticker died — the
+ *      engine now contains step errors and re-arms it, and counts both), or the log shows a JS
+ *      error / a webglcontextlost, or a `flow` flag is stuck.
  *
  * DELETE (or leave query-gated) once the iOS freeze reports are resolved.
  */
 import { stateGame } from '../game/stateGame.svelte';
+import { boardVitals } from '../plinko-engine/boardVitals';
 
 const MAX_LOG = 12;
 
@@ -157,6 +160,10 @@ export function installVitalsOverlay(): () => void {
 			`VITALS load=${loadedAt.toLocaleTimeString()} nav=${navType}  up=${fmtUp()}`,
 			`raf=${rafInInterval}/s total=${rafTotal} ${rafStatus}   vis=${document.visibilityState}   glLost=${glLost}`,
 			`flow spin=${g.freeSpinRouletteOpen ? 1 : 0} bonusWheel=${g.bonusRouletteOpen ? 1 : 0} flowIP=${g.rouletteFlowInProgress ? 1 : 0} submit=${g.isSubmitting ? 1 : 0} drop=${g.dropRoundActive ? 1 : 0} auto=${g.autoPlayStarted ? g.autoRoundsDisplay : '-'} bonusBalls=${g.bonusBallsRemaining}`,
+			// The board's OWN frame loop, separate from the page rAF above: `anim=1` with `tick` growing
+			// past ~2 s while `raf` is LIVE = the Pixi ticker died (stepErr/revives say why and whether it
+			// was re-armed); gl=lost/restored counts a reaped board context, which paints nothing.
+			`board tick=${boardVitals.lastTickAt ? `${((performance.now() - boardVitals.lastTickAt) / 1000).toFixed(1)}s ago` : 'never'} anim=${boardVitals.animating ? 1 : 0} stepErr=${boardVitals.stepErrors} cbErr=${boardVitals.callbackErrors} revives=${boardVitals.revives} gl=${boardVitals.contextLost}/${boardVitals.contextRestored}`,
 			'── events ──',
 			...log,
 		];

@@ -1,4 +1,5 @@
 import { Application, Assets, Container, Graphics, Sprite, Text, type Ticker } from 'pixi.js';
+import { boardVitals } from './boardVitals';
 import {
   Spine,
   Physics,
@@ -547,10 +548,14 @@ export class PlinkoEngine {
    */
   private animTickerBound = (ticker: Ticker): void => {
     this.lastTickAt = performance.now();
+    boardVitals.lastTickAt = this.lastTickAt;
     try {
       this.animateFrame(ticker.deltaMS);
     } catch (err) {
+      boardVitals.stepErrors += 1;
       console.error('[PlinkoEngine] frame step threw; keeping the ticker alive', err);
+    } finally {
+      boardVitals.animating = this.isAnimating;
     }
   };
   /** `performance.now()` of the last ticker callback; read by `reviveStalledTicker`. */
@@ -571,6 +576,7 @@ export class PlinkoEngine {
     if (typeof document !== 'undefined' && document.hidden) return;
     const now = performance.now();
     if (now - this.lastTickAt < PlinkoEngine.TICKER_STALL_MS) return;
+    boardVitals.revives += 1;
     console.warn('[PlinkoEngine] frame loop stalled while visible; re-arming the ticker');
     this.lastTickAt = now;
     this.stopTicker();
@@ -585,6 +591,7 @@ export class PlinkoEngine {
     try {
       this.onPegBounce?.(event);
     } catch (err) {
+      boardVitals.callbackErrors += 1;
       console.error('[PlinkoEngine] onPegBounce threw', err);
     }
   }
@@ -592,6 +599,7 @@ export class PlinkoEngine {
     try {
       this.onCoinPegHit?.(event);
     } catch (err) {
+      boardVitals.callbackErrors += 1;
       console.error('[PlinkoEngine] onCoinPegHit threw', err);
     }
   }
@@ -599,6 +607,7 @@ export class PlinkoEngine {
     try {
       this.onBallDropped?.(event);
     } catch (err) {
+      boardVitals.callbackErrors += 1;
       console.error('[PlinkoEngine] onBallDropped threw', err);
     }
   }
@@ -1321,9 +1330,11 @@ export class PlinkoEngine {
     // reconstructing live ball state). Log both edges loudly so a device run that "froze" can be told
     // apart from a logic hang in one look at the console / the ?vitals=1 overlay.
     (app.canvas as HTMLCanvasElement).addEventListener('webglcontextlost', () => {
+      boardVitals.contextLost += 1;
       console.error('[PlinkoEngine] WebGL context lost — the board cannot render until it is restored');
     });
     (app.canvas as HTMLCanvasElement).addEventListener('webglcontextrestored', () => {
+      boardVitals.contextRestored += 1;
       console.warn('[PlinkoEngine] WebGL context restored — re-uploading the board');
       this.pegStaticDirty = true;
     });
@@ -3670,6 +3681,7 @@ export class PlinkoEngine {
 
     if (!this.isAnimating) {
       this.isAnimating = true;
+      boardVitals.animating = true;
       this.startTicker();
     }
 
