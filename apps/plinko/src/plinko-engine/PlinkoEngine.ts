@@ -3690,6 +3690,12 @@ export class PlinkoEngine {
 
   private startTicker(): void {
     if (!this.app || this.tickerRegistered) return;
+    // Fresh stall clock: `lastTickAt` still holds the LAST frame of the previous drop, which may be
+    // minutes ago (a bonus wheel, an announcement). Without this the 100 ms driver read that stale
+    // stamp before the first new frame had painted and "revived" a ticker that was never stalled —
+    // harmless, but it logged a false stall at the first ball of every bonus.
+    this.lastTickAt = performance.now();
+    boardVitals.lastTickAt = this.lastTickAt;
     this.app.ticker.add(this.animTickerBound);
     this.tickerRegistered = true;
   }
