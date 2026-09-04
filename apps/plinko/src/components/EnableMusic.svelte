@@ -384,10 +384,21 @@
 		},
 	});
 
-	// Bonus over → back to the normal loop. Clearing on `!bonusRoundActive` also covers the case where
-	// the bonus ends before any door-close ever set the flag (e.g. a mid-bonus reload/resume).
+	// Bonus over → back to the normal loop; a bonus round that opens with no entry slam behind it →
+	// straight onto the bonus loop.
+	//
+	// That second half is what carries a RESUME. Rejoining an active bought-bonus round replays the book
+	// with the entry wheel skipped (`bonusRoulette` returns early while `resumingActiveRound`), so no
+	// congratulations screen — and therefore no `doorClose` — ever reaches the cue above, and the bonus
+	// music stayed off for the whole restored round while its SFX played normally (QA: "Free Bonus BGM
+	// does not resume after a refresh"). `bonusRoundActive` is the one state every bonus start raises
+	// (`awardBonusBalls`), wheel or not, so keying off it covers the wheel-less starts too.
+	//
+	// Harmless on the normal entry path: the slam fires 240ms BEFORE `awardBonusBalls` flips
+	// `bonusRoundActive` (see `scheduleDoorCloseForSlide` / `emitResultReady`), so `bonusMusicOn` is
+	// already true by the time this sees the round open — the swap still lands on the slam, not here.
 	$effect(() => {
-		if (!stateGame.bonusRoundActive) bonusMusicOn = false;
+		bonusMusicOn = stateGame.bonusRoundActive;
 	});
 
 	/** Bring the two tracks to the volumes the current state calls for: the normal loop always runs
