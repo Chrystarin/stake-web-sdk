@@ -1,6 +1,6 @@
 import '@esotericsoftware/spine-pixi-v8';
 import { Physics, Spine, Vector2 } from '@esotericsoftware/spine-pixi-v8';
-import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { AlphaFilter, Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import {
 	getFreeSpinMeterFullAssets,
 	type FreeSpinMeterFullAssetDef,
@@ -72,6 +72,9 @@ export class FreeSpinMeterEngine {
   private resizeRafId: number | null = null;
   private readonly meterScene = new Container();
   private readonly meterMask = new Graphics();
+  /** Holds the masked fill sprite. Filtered with `antialias: 'on'` so the STENCIL mask's edges —
+   *  the round leading cap and the corner radii — come out smooth; see `initPixi`. */
+  private readonly fillLayer = new Container();
   private baseSprite?: Sprite;
   private meterSprite?: Sprite;
   private wheelSprite?: Sprite;
@@ -202,8 +205,11 @@ export class FreeSpinMeterEngine {
       // un-resolved multisample buffer as an OPAQUE WHITE box for a frame (a GPU/driver-timing quirk
       // — it reproduces on some machines but not others, which is exactly the "QA sees it, I don't"
       // report). With antialias off a cleared buffer is transparent, so the worst case is an
-      // imperceptible transparent blip instead of a white flash. The meter art + spinning wheel are
-      // alpha-defined PNGs, so MSAA does nothing for their visible edges — no visual cost.
+      // imperceptible transparent blip instead of a white flash. The base art + spinning wheel are
+      // alpha-defined PNGs and need no MSAA. The fill's Graphics MASK does (a stencil mask has hard,
+      // stair-stepped edges without it) and gets it per-layer instead — see `fillLayer` below. That
+      // renders the masked fill through a multisampled OFFSCREEN texture and composites the resolved
+      // (smooth) result, so the canvas backbuffer stays single-sampled and the flash guard holds.
       antialias: false,
       autoDensity: true,
       backgroundAlpha: 0,
@@ -235,10 +241,20 @@ export class FreeSpinMeterEngine {
     this.wheelSprite = new Sprite(wheelTexture);
     this.wheelSprite.anchor.set(0.5, 0.5);
 
+    // Smooth edges for the masked fill. A Graphics mask is a STENCIL mask in Pixi, which clips to
+    // whole pixels; with the canvas at `antialias: false` (see above) that left the fill's round
+    // leading cap and its corner radii visibly jagged. Rendering the masked sprite through a filter
+    // with `antialias: 'on'` draws it into an MSAA render texture and resolves it before compositing.
+    // `resolution: 'inherit'` keeps that texture at the canvas's device-pixel resolution (the filter
+    // default is 1x, which would have softened the whole fill on retina screens); one pixel of
+    // padding so the resolved edge fringe is never clipped by the filter bounds.
+    this.fillLayer.filters = [new AlphaFilter({ alpha: 1, antialias: 'on', resolution: 'inherit', padding: 1 })];
+    this.fillLayer.addChild(this.meterMask);
+    this.fillLayer.addChild(this.meterSprite);
+
     // Base first, then masked meter so fill is visible on top of the base strip.
     this.meterScene.addChild(this.baseSprite);
-    this.meterScene.addChild(this.meterMask);
-    this.meterScene.addChild(this.meterSprite);
+    this.meterScene.addChild(this.fillLayer);
 
     await this.loadFullEffect();
     if (this.destroyed) return;

@@ -1,4 +1,13 @@
-import { Application, Assets, BlurFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import {
+  AlphaFilter,
+  Application,
+  Assets,
+  BlurFilter,
+  Container,
+  Graphics,
+  Sprite,
+  Texture
+} from 'pixi.js';
 import { BONUS_METER_FILL_SPEED_PER_SECOND } from '../../game-logic/constants';
 import { reportBonusMeterRenderedProgress } from './bonusMeterVisual';
 import { staticUrl } from '../../lib/staticUrl';
@@ -96,8 +105,11 @@ export class BonusMeterEngine {
       // un-resolved multisample buffer as an OPAQUE WHITE box for a frame (a GPU/driver-timing quirk
       // — it reproduces on some machines but not others, which is exactly the "QA sees it, I don't"
       // report). With antialias off a cleared buffer is transparent, so the worst case is an
-      // imperceptible transparent blip instead of a white flash. The meter art is alpha-defined PNGs,
-      // so MSAA does nothing for their visible edges — no visual cost.
+      // imperceptible transparent blip instead of a white flash. The base art is an alpha-defined PNG
+      // and needs no MSAA; the VECTOR fill stroke does, and gets it per-layer instead — see the
+      // `AlphaFilter({ antialias: 'on' })` on `fillStroke` in this method. That renders the stroke
+      // through a multisampled OFFSCREEN texture and composites the resolved (smooth) result, so the
+      // canvas backbuffer itself stays single-sampled and the flash guard above still holds.
       antialias: false,
       autoDensity: true,
       backgroundAlpha: 0,
@@ -142,6 +154,15 @@ export class BonusMeterEngine {
     // box-shadow. Blur radius is set per-resize once we know the render scale.
     this.glowFilter = new BlurFilter({ strength: 4 });
     this.fillGlow.filters = [this.glowFilter];
+    // Smooth edges for the solid stroke. The canvas is created with `antialias: false` (see above),
+    // and a Pixi Graphics stroke has no shader-side edge smoothing of its own, so without this the
+    // arch's long outer curves and its round leading cap rendered as hard, stair-stepped pixel edges.
+    // `antialias: 'on'` draws this one layer into an MSAA render texture and resolves it before it
+    // is composited; `resolution: 'inherit'` keeps that texture at the canvas's device-pixel
+    // resolution (the filter default is 1x, which would have blurred the stroke on retina screens).
+    // One extra pixel of padding so the resolved edge fringe is never clipped by the filter bounds.
+    // The glow layer is left as-is: the blur already hides any stair-stepping on its edges.
+    this.fillStroke.filters = [new AlphaFilter({ alpha: 1, antialias: 'on', resolution: 'inherit', padding: 1 })];
 
     this.meterScene.addChild(this.baseSprite);
     this.meterScene.addChild(this.fillGlow);
@@ -367,7 +388,23 @@ export class BonusMeterEngine {
 
   /** Per-column center of the solid fill core (alpha > threshold), ascending x. The marker rides
    *  this polyline so it tracks the bright tip exactly, with none of the grazing-ray drift a
-   *  single radial sample suffers near the ends of the shallow arch. */
+   *  single radial sample suffers near the ends of the shallow arch.
+   *
+   *  THE STROKE IS DRAWN ALONG THIS LINE TOO, so its smoothness IS the fill's edge quality. The first
+   *  cut took each column's center as the midpoint of its first and last opaque pixel — a value
+   *  quantised to HALF A TEXTURE PIXEL. Along a shallow arch the top/bottom edge of the core crosses a
+   *  pixel row only every several columns, so that midpoint sat flat and then jumped by 0.5px, over
+   *  and over: a staircase, not a curve. An 11px-wide stroke with round joins faithfully reproduced
+   *  every step as a bump in its outline, which read as "pixelated edges" — and it scaled with the
+   *  meter, so it survived DPR 2 and MSAA alike (both smooth pixel edges, neither straightens geometry).
+   *
+   *  Two fixes, both here at the source so the marker inherits them for free:
+   *  1. Sub-pixel centers — the alpha-weighted centroid of each column's core, not its integer
+   *     midpoint. Edge pixels' partial coverage puts the center where the art actually is.
+   *  2. A short Gaussian smoothing pass along x. The arch is one smooth curve, so neighbouring
+   *     columns are legitimately correlated and averaging them removes what sampling noise remains
+   *     without changing the shape. The window shrinks at the ends (weights renormalised over the
+   *     columns that exist) so the two tips stay exactly where `cacheFillTips` expects them. */
   private cacheFillCenterline(): void {
     if (!this.fillAlphaData || !this.fillAlphaWidth || !this.fillAlphaHeight) {
       this.fillCenterlineLocal = undefined;
@@ -377,18 +414,46 @@ export class BonusMeterEngine {
     const threshold = 80;
     const w = this.fillAlphaWidth;
     const h = this.fillAlphaHeight;
-    const line: Array<{ x: number; y: number }> = [];
+    const raw: Array<{ x: number; y: number }> = [];
     for (let x = 0; x < w; x++) {
-      let top = -1;
-      let bot = -1;
+      let weightSum = 0;
+      let weightedY = 0;
       for (let y = 0; y < h; y++) {
-        if (this.fillAlphaData[(y * w + x) * 4 + 3] <= threshold) continue;
-        if (top < 0) top = y;
-        bot = y;
+        const alpha = this.fillAlphaData[(y * w + x) * 4 + 3];
+        if (alpha <= threshold) continue;
+        // Weight by how far above the threshold the pixel is, so a barely-passing edge pixel pulls
+        // the center far less than a fully solid one — that is what gives the sub-pixel position.
+        const weight = alpha - threshold;
+        weightSum += weight;
+        weightedY += weight * (y + 0.5);
       }
-      if (top >= 0) line.push({ x, y: (top + bot) / 2 });
+      if (weightSum > 0) raw.push({ x, y: weightedY / weightSum });
     }
-    this.fillCenterlineLocal = line.length >= 2 ? line : undefined;
+    if (raw.length < 2) {
+      this.fillCenterlineLocal = undefined;
+      return;
+    }
+
+    // Gaussian smoothing along the column index. Radius is relative to the art so the pass has the
+    // same effect on the shape whatever size the texture ships at; ~1.5% of the width (min 3 columns)
+    // is wide enough to flatten the half-pixel staircase and far too narrow to bend the arch.
+    const radius = Math.max(3, Math.round(w * 0.015));
+    const sigma = radius / 2;
+    const kernel: number[] = [];
+    for (let k = -radius; k <= radius; k++) kernel.push(Math.exp(-(k * k) / (2 * sigma * sigma)));
+    const line: Array<{ x: number; y: number }> = raw.map((point, i) => {
+      let weightSum = 0;
+      let weightedY = 0;
+      for (let k = -radius; k <= radius; k++) {
+        const j = i + k;
+        if (j < 0 || j >= raw.length) continue;
+        const weight = kernel[k + radius];
+        weightSum += weight;
+        weightedY += weight * raw[j].y;
+      }
+      return { x: point.x, y: weightedY / weightSum };
+    });
+    this.fillCenterlineLocal = line;
   }
 
   /**
