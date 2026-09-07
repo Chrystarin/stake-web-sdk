@@ -240,6 +240,29 @@
 		answerConfirmPrompt(confirmed);
 	}
 
+	/**
+	 * PRESS-THROUGH GUARD. The buy-bonus Activate fires on `pointerdown` (see BuyBonusModal) and raises
+	 * this prompt while the finger is still down, so that same touch's RELEASE lands on this prompt —
+	 * over the backdrop (a "No"), or, where a tier's button happens to sit under a choice, over "Yes".
+	 * Chromium dispatches that click to the common ancestor of the press and release targets, which is
+	 * above both modals, and WebKit cancels a tap whose node changed under it — but neither is a
+	 * contract, and the failure mode is a confirmed buy the player never chose. So a pointer click is
+	 * honoured only if its press landed inside the prompt AFTER it opened. `event.detail === 0` is a
+	 * keyboard / assistive-tech activation, which has no press to wait for and passes straight through.
+	 */
+	let pressSeenSinceOpen = false;
+
+	$effect(() => {
+		// Re-arm for every prompt, including one that supersedes an open one of a different kind.
+		kind;
+		pressSeenSinceOpen = false;
+	});
+
+	function onChoiceClick(event: MouseEvent, confirmed: boolean) {
+		if (event.detail !== 0 && !pressSeenSinceOpen) return;
+		answer(confirmed);
+	}
+
 	/** Escape is a cancel, matching the backdrop click. Guarded so it only fires while open. */
 	function onKeydown(event: KeyboardEvent) {
 		if (confirmPrompt.kind === null) return;
@@ -253,7 +276,12 @@
 
 {#if kind && layout}
 	<!-- Clicking the backdrop is a cancel — same outcome as "No", never a silent commit. -->
-	<div class="cf-backdrop" role="presentation" onclick={() => answer(false)}>
+	<div
+		class="cf-backdrop"
+		role="presentation"
+		onpointerdown={() => (pressSeenSinceOpen = true)}
+		onclick={(event) => onChoiceClick(event, false)}
+	>
 		<div
 			class="cf-panel"
 			role="dialog"
@@ -311,7 +339,7 @@
 				style:--y="{layout.yes.y}%"
 				style:--w="{layout.yes.width}cqw"
 				style:--scale={layout.yes.scale}
-				onclick={() => answer(true)}
+				onclick={(event) => onChoiceClick(event, true)}
 			>
 				<img class="cf-choice-frame" src={artUrl(layout.art.yes)} alt="" aria-hidden="true" />
 				<span class="cf-choice-text">Yes</span>
@@ -324,7 +352,7 @@
 				style:--y="{layout.no.y}%"
 				style:--w="{layout.no.width}cqw"
 				style:--scale={layout.no.scale}
-				onclick={() => answer(false)}
+				onclick={(event) => onChoiceClick(event, false)}
 			>
 				<img class="cf-choice-frame" src={artUrl(layout.art.no)} alt="" aria-hidden="true" />
 				<span class="cf-choice-text">No</span>

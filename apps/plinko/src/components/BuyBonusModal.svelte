@@ -147,6 +147,40 @@
 	}
 
 	/**
+	 * Activate fires on the PRESS, not the release. Two iOS reports drove this, both about `click`
+	 * being the wrong event for a touch UI:
+	 *
+	 *  - A tap only registered when the finger LIFTED — `click` is synthesised on touchend, so the
+	 *    button visibly lagged the press on a phone.
+	 *  - After a swipe on the screen (the modal is the one overlay that can scroll, and a flick that
+	 *    finds nothing to scroll still rubber-bands the page), the NEXT tap on Activate did nothing.
+	 *    WebKit spends a touch that lands during a scroll/bounce animation on stopping it and never
+	 *    synthesises the click; `pointerdown` still fires for that touch.
+	 *
+	 * So the press activates, and the trailing `click` the browser still fires on release is swallowed
+	 * by `onActivateClick`. Same shape as the HUD's Play button (`onPlayPointerDown`), including the
+	 * reason the guard is a TIMESTAMP and not a flag: on WebKit the click can arrive in a later task
+	 * than `pointerup`, and for a press whose release lands off the button (or whose tap WebKit cancels
+	 * because the confirm prompt appeared under the finger) it never arrives at all — a flag would then
+	 * stay armed and eat the next keyboard activation. A click within the window is that press's own;
+	 * a `click` with no recent press (keyboard, assistive tech) still activates through `onActivateClick`.
+	 */
+	const ACTIVATE_TRAILING_CLICK_WINDOW_MS = 800;
+	let lastPointerActivateAt = -Infinity;
+
+	function onActivatePointerDown(event: PointerEvent, tier: BuyBonusTier) {
+		if (!event.isPrimary) return;
+		if (event.pointerType === 'mouse' && event.button !== 0) return;
+		lastPointerActivateAt = performance.now();
+		activate(tier);
+	}
+
+	function onActivateClick(tier: BuyBonusTier) {
+		if (performance.now() - lastPointerActivateAt < ACTIVATE_TRAILING_CLICK_WINDOW_MS) return;
+		activate(tier);
+	}
+
+	/**
 	 * A click anywhere in the modal that isn't the bet field dismisses its presets popup — the modal's
 	 * own stand-in for the HUD's document-level click-outside handler (which only knows about the
 	 * betting bar). The stopPropagation keeps the same click off the backdrop, which would close the
@@ -242,7 +276,8 @@
 								type="button"
 								class="bb-activate"
 								disabled={props.disabled || !affordable}
-								onclick={() => activate(tier)}
+								onpointerdown={(event) => onActivatePointerDown(event, tier)}
+								onclick={() => onActivateClick(tier)}
 							>
 								<img
 									class="bb-activate-bg"
@@ -826,6 +861,14 @@
 		transition:
 			transform 0.1s ease,
 			filter 0.1s ease;
+		/* Activate fires on `pointerdown` (see `onActivatePointerDown`), so a touch that starts here is
+		   a press, never the start of a pan: `none` keeps the browser from claiming it for a scroll
+		   (which would also mean a `pointercancel` racing the activation). No selection and no iOS
+		   long-press callout for the same reason — the plate is a button, not text. */
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
 	}
 
 	.bb-activate-bg {
@@ -844,8 +887,17 @@
 		opacity: 0;
 		transition: opacity 0.12s ease;
 	}
-	/* :focus-visible too — a keyboard user gets the same read on which tier is armed. */
-	.bb-activate:hover:not(:disabled) .bb-activate-bg--hover,
+	/* :focus-visible too — a keyboard user gets the same read on which tier is armed.
+	   The HOVER half is gated on a device that can actually hover. A touch screen has no hover, but a
+	   tap still sets `:hover` on the target and LEAVES it there until the next tap lands elsewhere —
+	   so on a phone the plate went blue on press and stayed blue after the prompt was dismissed, which
+	   read as a stuck/selected button. `(hover: hover)` is false on touch-only devices, so they only
+	   ever see the gold plate; the keyboard rule keeps working everywhere. */
+	@media (hover: hover) {
+		.bb-activate:hover:not(:disabled) .bb-activate-bg--hover {
+			opacity: 1;
+		}
+	}
 	.bb-activate:focus-visible:not(:disabled) .bb-activate-bg--hover {
 		opacity: 1;
 	}
@@ -939,10 +991,14 @@
 		white-space: nowrap;
 	}
 
-	.bb-activate:hover:not(:disabled) {
-		/* No brightness lift any more — the gold-to-blue plate swap is the whole hover treatment, and
-		   brightening on top of it only washed the blue out. */
-		transform: translateY(-1px);
+	/* Same hover gate as the blue plate above — a sticky touch `:hover` must not leave the button
+	   sitting 1px high either. */
+	@media (hover: hover) {
+		.bb-activate:hover:not(:disabled) {
+			/* No brightness lift any more — the gold-to-blue plate swap is the whole hover treatment, and
+			   brightening on top of it only washed the blue out. */
+			transform: translateY(-1px);
+		}
 	}
 	.bb-activate:active:not(:disabled) {
 		transform: translateY(1px);
