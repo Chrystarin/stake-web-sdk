@@ -47,17 +47,48 @@
 	 * viewport and is then multiplied — so the box's rendered size stays honest to the flow, and
 	 * iOS keeps the first paint (a transform-scaled box loses it inside the Stake Engine iframe).
 	 */
-	const LANDSCAPE_DESIGN_VW = 56.25; // 16:9
+	/**
+	 * Landscape splits the viewport's height between the cabinet and the wheel — a fifth and the rest
+	 * — so both grow and shrink with the window and the wheel still ends a hair above the bottom. The
+	 * fit only has to cover the parts that stay put — the cabinet above it and the panel below — so
+	 * it scales down only once the viewport is too short even for those. Portrait is the other way
+	 * round: the wheel is the viewport's width, and the fit works against the stack's own height.
+	 */
+	const LANDSCAPE_MIN_VW = 34; // cabinet + panel + a wheel worth having
 	const PORTRAIT_DESIGN_VW = 164;
+	/** Landscape splits the height between the two: a fifth for the cabinet, the rest for the wheel. */
+	const CABINET_SHARE = 0.2;
+	const WHEEL_SHARE = 0.8;
+	/** The cabinet art is twice as wide as it is tall, and it is sized by width. */
+	const CABINET_ASPECT = 2;
+	/** The wheel's frame art is a hair taller than it is wide (1911x1925), and it too is sized by
+	 *  width — so its share of the height has to be divided by that before it becomes a width. */
+	const WHEEL_ASPECT = 1925 / 1911;
+	const PORTRAIT_CABINET_VW = 67;
+	/**
+	 * How far the wheel laps over the cabinet, as a share of the cabinet's HEIGHT — so the overlap
+	 * grows and shrinks with it. It can run well past the rail (13.4% of that height) because the
+	 * wheel's own art is only opaque at the pin and the ring's crown, both on the centre line, which
+	 * is the divider BETWEEN the two windows rather than either reel.
+	 */
+	const WHEEL_LAP_SHARE = 0.2;
 	let fitScale = $state(1);
 	let portrait = $state(false);
+	let wheelVw = $state(45);
+	let cabinetVw = $state(22.5);
+	let lapVw = $state(1.29);
 	const updateFit = () => {
 		const w = window.innerWidth;
 		const h = window.innerHeight;
 		if (!w || !h) return;
 		portrait = h > w;
 		const availableVw = (h / w) * 100;
-		fitScale = Math.min(1, availableVw / (portrait ? PORTRAIT_DESIGN_VW : LANDSCAPE_DESIGN_VW));
+		fitScale = Math.min(1, availableVw / (portrait ? PORTRAIT_DESIGN_VW : LANDSCAPE_MIN_VW));
+		// In the frame's own units, which is what both widths are expressed in.
+		const localVw = availableVw / fitScale;
+		wheelVw = portrait ? 100 : (localVw * WHEEL_SHARE) / WHEEL_ASPECT;
+		cabinetVw = portrait ? PORTRAIT_CABINET_VW : localVw * CABINET_SHARE * CABINET_ASPECT;
+		lapVw = (cabinetVw / CABINET_ASPECT) * WHEEL_LAP_SHARE;
 	};
 	$effect(() => {
 		updateFit();
@@ -707,15 +738,14 @@
 
 <div class="viewport-fit" style="--fit:{fitScale}">
 	<Background />
-	<div class="game" class:portrait bind:this={gameEl}>
+	<div class="game" class:portrait style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw" bind:this={gameEl}>
 		{#if stateGame.openRoundError || betNotice}
 			<div class="bet-notice" onclick={() => (betNotice = '')} aria-hidden="true">
 				{stateGame.openRoundError || betNotice}
 			</div>
 		{/if}
 
-		<!-- Portrait moves the wager down beside the balance, so both read-outs share the bottom rail;
-		     landscape keeps it at the head of the betting panel. One definition, rendered in place. -->
+		<!-- The wager reads off the same rail as the balance, opposite it. -->
 		{#snippet totalBet()}
 			<div class="total-bet">
 				<span class="total-bet-lbl">Total Bet</span>
@@ -733,9 +763,7 @@
 					</div>
 				</div>
 			{/key}
-			{#if portrait}
-				{@render totalBet()}
-			{/if}
+			{@render totalBet()}
 		</div>
 
 		<!-- The show: Top Slot over the wheel. -->
@@ -772,10 +800,6 @@
 			<div class="betting-panel-wrap">
 				<div class="betting-panel">
 					<div class="inner-panel">
-						{#if !portrait}
-							{@render totalBet()}
-						{/if}
-
 						<!-- Bet board: LuckyWheel's 4x2 tile grid. -->
 						<div class="board">
 							<div class="tiles">
@@ -1277,19 +1301,29 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.4vw;
 		z-index: 1;
 		pointer-events: none;
 	}
-	/* The Top Slot cabinet crowns the wheel, in flow above it and centred by the stage. */
+	/* The Top Slot cabinet crowns the wheel, in flow above it and centred by the stage. Its own
+	   stacking context, so the frame art's z-index stays inside it and the wheel — which laps over
+	   the cabinet's lower edge — still paints in front. */
 	.topslot-wrap {
 		position: relative;
+		z-index: 0;
+		isolation: isolate;
 	}
 	/* Sized to land the wheel's bottom just short of the frame: 0.4 top + the Top Slot cabinet
 	   + 0.4 gap + the wheel has to stay inside the frame's 56.25vw. */
+	/* Lapped over the cabinet's lower edge. The offset is a margin and the stage has no gap: an iOS
+	   first paint inside the Stake Engine iframe drops a box that spends a flex gap on a negative
+	   margin, so the two are never combined. */
 	.wheel-wrap {
 		position: relative;
-		width: 47vw;
+		z-index: 1;
+		width: var(--wheel-w, 44.5vw);
+		/* Only as far as the cabinet's lower rail — see WHEEL_LAP_SHARE, which keeps the lap a share of
+		   the cabinet's height so it tracks the viewport with everything else. */
+		margin-top: calc(var(--wheel-lap, 1.29vw) * -1);
 	}
 	/* The stage is click-through; this is the one piece of it that answers. */
 	.hub-spin {
@@ -1383,17 +1417,9 @@
 	   vw to come out the same physical size. */
 	.game.portrait {
 		--panel-inset: 0.8vw;
-		--ts-cell: 8vw;
-		--ts-reel: 22vw;
-		--ts-badge: 5.6vw;
-		--ts-label: 2.3vw;
-		--ts-mult: 4.6vw;
 	}
 	.game.portrait .stage {
 		gap: 1vw;
-	}
-	.game.portrait .wheel-wrap {
-		width: 100vw;
 	}
 	.game.portrait .hub-cta {
 		font-size: 3.4vw;
@@ -1419,14 +1445,6 @@
 	}
 	.game.portrait .board {
 		margin-top: 1.2vw;
-	}
-	.game.portrait .total-bet-lbl {
-		font-size: 2vw;
-	}
-	.game.portrait .total-bet-val {
-		font-size: 4vw;
-		/* Same digits as the balance it sits opposite, so neither jitters as the numbers change. */
-		font-variant-numeric: tabular-nums;
 	}
 	.game.portrait .actions-wrap {
 		height: 10vw;
@@ -1475,27 +1493,20 @@
 	   is lifted clear of it so the chip tray and the read-outs do not share a line. */
 	.game.portrait .hud {
 		--hud-mark: 7vw;
-		top: auto;
-		bottom: 0;
-		align-items: flex-end;
 		padding: 2.4vw 3vw;
 	}
 	.game.portrait .bottom-panel {
 		bottom: 12vw;
 	}
-	.game.portrait .hud .total-bet {
-		flex-direction: column;
-		align-items: flex-end;
-		gap: 0;
-		margin: 0;
-	}
 	.game.portrait .balance-hud {
 		gap: 1.4vw;
 	}
-	.game.portrait .hud-lbl {
+	.game.portrait .hud-lbl,
+	.game.portrait .total-bet-lbl {
 		font-size: 2vw;
 	}
-	.game.portrait .hud-val {
+	.game.portrait .hud-val,
+	.game.portrait .total-bet-val {
 		font-size: 4vw;
 	}
 	.game.portrait .chip span {
@@ -1521,18 +1532,26 @@
 	}
 
 	/* ---- HUD ---- */
+	/* The rail: balance bottom-left, wager bottom-right, both in the same hand. In landscape they sit
+	   in the margins either side of the board; in portrait the panel lifts clear of them. */
 	.hud {
 		--hud-mark: 3.2vw;
 		position: absolute;
-		top: 0;
+		bottom: 0;
 		left: 0;
 		right: 0;
 		z-index: 20;
 		display: flex;
-		align-items: flex-start;
+		align-items: flex-end;
 		justify-content: space-between;
 		padding: 1vw 1.2vw;
 		pointer-events: none;
+	}
+	.hud .total-bet {
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0;
+		margin: 0;
 	}
 	.balance-hud {
 		display: flex;
@@ -1568,14 +1587,17 @@
 		display: flex;
 		flex-direction: column;
 	}
-	.hud-lbl {
+	/* The balance and the wager are the same read-out in two places, so they share their type. */
+	.hud-lbl,
+	.total-bet-lbl {
 		font-size: 0.95vw;
 		font-weight: 500;
 		letter-spacing: 0.05vw;
 		text-transform: uppercase;
 		color: #d6c6b4;
 	}
-	.hud-val {
+	.hud-val,
+	.total-bet-val {
 		font-size: 1.9vw;
 		font-weight: 700;
 		color: #ffe14d;
@@ -1778,17 +1800,5 @@
 		margin-top: 0.35vw;
 		font-family: 'Alexandria', sans-serif;
 		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.8);
-	}
-	.total-bet-lbl {
-		font-size: 0.62vw;
-		font-weight: 500;
-		letter-spacing: 0.05vw;
-		text-transform: uppercase;
-		color: #d6c6b4;
-	}
-	.total-bet-val {
-		font-size: 0.95vw;
-		font-weight: 700;
-		color: #ffe14d;
 	}
 </style>
