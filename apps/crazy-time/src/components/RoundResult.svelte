@@ -33,18 +33,19 @@
 {/if}
 
 <style>
-	/* Dead centre of the table. The win is the thing that happened this round, so it is announced
-	   in the middle of the screen rather than tucked above the button that collects it.
+	/* Sat just above the betting panel, so the win reads next to the board it was won on rather
+	   than across the middle of the wheel.
 
-	   Centred on the frame's own half-height, so it holds at any viewport. `pointer-events: none`
-	   keeps the board live underneath. */
+	   `--panel-top` is the panel's own top edge, measured by Game.svelte in the frame's units and
+	   updated whenever the panel changes height, and `--result-gap` is the breathing room left
+	   above it. `pointer-events: none` keeps the board live underneath. */
 	.result-wrapper {
 		position: absolute;
-		top: 50%;
+		top: calc(var(--panel-top, 62%) - var(--result-gap, 1.2vw));
 		left: 0;
 		right: 0;
 		z-index: 22;
-		transform: translateY(-50%);
+		transform: translateY(-100%);
 		pointer-events: none;
 	}
 	/* Dismissed when the board is cleared. It collapses into its own centre, which reads as the
@@ -65,20 +66,21 @@
 		}
 	}
 
-	/* The marquee. `contain` fits the artwork to this height and centres it, so the height is
-	   what sets its size — and the label offset below is measured against it. */
+	/* The marquee. `contain` fits the artwork to this height and centres it, so the height is what
+	   sets its size — and the label below is measured against it, so the two scale together. The
+	   frame sets `--result-size`: the portrait frame is narrower, so it asks for more vw. */
 	.win-result {
-		height: 8vw;
+		height: var(--result-size, 8vw);
 		background: url('img/win_bg.svg') no-repeat center / contain;
 	}
 	/* Gold gradient clipped to the glyphs, dropped onto the marquee's pill. The offset sits it in
 	   that pill, so it goes with `.win-result`'s height rather than standing on its own. */
 	.win-amount-lbl {
 		position: relative;
-		top: 4.65vw;
+		top: calc(var(--result-size, 8vw) * 0.581);
 		color: #f7de70;
 		font-family: 'DDIN', sans-serif;
-		font-size: 2vw;
+		font-size: calc(var(--result-size, 8vw) * 0.25);
 		font-weight: 600;
 		text-align: center;
 		background: linear-gradient(#faab0a, #f3f353);

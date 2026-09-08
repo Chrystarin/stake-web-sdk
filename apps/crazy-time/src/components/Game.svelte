@@ -100,6 +100,28 @@
 		};
 	});
 
+	/**
+	 * Where the betting panel's top edge sits, in the frame's own units, so the round's readout can
+	 * be parked just above it. The panel's height is not a constant — it loses the chip tray while a
+	 * round runs — so it is watched rather than assumed.
+	 */
+	let panelEl: HTMLElement | undefined = $state();
+	let panelTop = $state(0);
+	const measurePanel = () => {
+		if (!gameEl || !panelEl) return;
+		panelTop = (panelEl.getBoundingClientRect().top - gameEl.getBoundingClientRect().top) / fitScale;
+	};
+	$effect(() => {
+		// Read the fit so a resize re-measures too: the panel moves with it.
+		void fitScale;
+		void portrait;
+		if (!panelEl) return;
+		measurePanel();
+		const observer = new ResizeObserver(measurePanel);
+		observer.observe(panelEl);
+		return () => observer.disconnect();
+	});
+
 	const BOARD: Spot[] = ['x1', 'x2', 'plinko', 'wheel', 'x5', 'x10', 'chest', 'tower'];
 
 	// The wooden ring art (static/img/wheel/frame_v2.png, 1911x1925) with its pin at 12 o'clock and
@@ -772,7 +794,7 @@
 
 <div class="viewport-fit" style="--fit:{fitScale}">
 	<Background />
-	<div class="game" class:portrait style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw" bind:this={gameEl}>
+	<div class="game" class:portrait style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px" bind:this={gameEl}>
 		{#if stateGame.openRoundError || betNotice}
 			<div class="bet-notice" onclick={() => (betNotice = '')} aria-hidden="true">
 				{stateGame.openRoundError || betNotice}
@@ -835,7 +857,7 @@
 			</div>
 		</div>
 
-		<div class="bottom-panel" class:dimmed={panelDimmed}>
+		<div class="bottom-panel" class:dimmed={panelDimmed} bind:this={panelEl}>
 			<div class="betting-panel-wrap">
 				<div class="betting-panel">
 					<div class="inner-panel">
@@ -1344,6 +1366,9 @@
 		--panel-inset: 12.5vw;
 		/* The size the Top Slot's multiplier settles at on a tile — the flight reads it too. */
 		--mult-land: 1.45vw;
+		/* The round's readout: how tall the marquee is, and how far above the panel it sits. */
+		--result-size: 8vw;
+		--result-gap: 0.3vw;
 		position: relative;
 		width: calc(100vw / var(--fit, 1));
 		height: calc(100vh / var(--fit, 1));
@@ -1476,6 +1501,8 @@
 	   vw to come out the same physical size. */
 	.game.portrait {
 		--mult-land: 3.7vw;
+		--result-size: 20vw;
+		--result-gap: 3vw;
 		/* The board is held well clear of the viewport's edges: the tiles are sized off this, so the
 		   margin is set here once rather than tuned into the grid. The chip tray is trimmed to
 		   match, since its row would otherwise be the widest thing in the panel. */
