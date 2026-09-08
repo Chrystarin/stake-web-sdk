@@ -267,7 +267,6 @@
 					fill={seg.fill}
 					class="wedge"
 					class:lit={highlight === i}
-					class:dim={highlight !== null && highlight !== i}
 				/>
 			{/each}
 			<circle cx={R} cy={R} r={OUTER} fill="url(#rim)" />
@@ -315,6 +314,9 @@
 						{/each}
 					</g>
 				{/if}
+			{/each}
+			{#each segments as seg, i (i)}
+				<path d={wedgePath(i)} class="shade" class:on={highlight !== null && highlight !== i} />
 			{/each}
 			{#if !frame && INNER > 4}
 				<circle cx={R} cy={R} r={INNER - 4} class="hub" />
@@ -395,7 +397,15 @@
 	.wedge.lit {
 		filter: brightness(1.35) saturate(1.2);
 	}
-	.wedge.dim {
+	/* Losing wedges are covered, not faded: a black copy of the wedge laid over everything drawn in
+	   it — fill, badge and lettering alike — so the winner reads as lit rather than merely opaque. */
+	.shade {
+		fill: #000;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 300ms ease;
+	}
+	.shade.on {
 		opacity: 0.55;
 	}
 	.label {

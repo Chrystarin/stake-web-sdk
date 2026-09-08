@@ -13,8 +13,6 @@
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
 	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
 	import {
-		BUNDLE_MODES,
-		MODE_COVERAGE,
 		NUMBER_PAY,
 		SEGMENT_LAYOUT,
 		SPOT_COLOUR,
@@ -84,6 +82,13 @@
 	// the wedge below it by the Wheel itself.
 	const BADGE_ASPECT = 30 / 48;
 	const CREST_ASPECT = 1;
+	/**
+	 * The play button's diameter as a fraction of the frame box: the gem at the middle of the hub,
+	 * not the whole ship's wheel. The gem and its red ring run to about r=60px in the 1911px frame
+	 * art (sampled: strongly red to r≈55, wood from r≈60), so 72 leaves a small margin around it.
+	 */
+	const HUB_HIT = (2 * 72) / 1911;
+
 	const WHEEL_SEGMENTS: WheelSegment[] = SEGMENT_LAYOUT.map((spot) => ({
 		label: isRoomSpot(spot) ? SPOT_LABEL[spot].split(' ').at(-1) ?? spot : String(NUMBER_PAY[spot]),
 		fill: SPOT_COLOUR[spot].base,
@@ -114,8 +119,8 @@
 	const chipTextColour = (index: number) =>
 		`hsl(${Math.round(chipHue(index)) % 360}, 70%, ${Math.round(55 * 0.7)}%)`;
 
-	// --- Chip carousel (five visible, selected in the middle, clamped at the ends) ---------------
-	const VISIBLE_CHIPS = 5;
+	// --- Chip carousel (the whole tray is visible; it still windows if more levels arrive) -------
+	const VISIBLE_CHIPS = 7;
 	const carousel = $derived.by(() => {
 		const total = stakes.length;
 		const windowSize = Math.min(VISIBLE_CHIPS, total);
@@ -152,7 +157,6 @@
 	const backedCount = $derived(stateGameDerived.backedCount());
 	const total = $derived(stateGameDerived.totalStake());
 	const currentBet = $derived(stateGameDerived.currentBet());
-	const notTicket = $derived(stateGameDerived.selectionIsNotTicket());
 	const idle = $derived(context.stateXstateDerived.isIdle() && !stateGame.rolling);
 	const settled = $derived(stateGame.resultReady);
 	let clearing = $state(false);
@@ -168,7 +172,6 @@
 	const clearDisabled = $derived(
 		clearing || payingOut || (!settled && (!idle || backedCount === 0)),
 	);
-	const confirmTucked = $derived(!bettingOpen && !(settled && !confirmDisabled));
 
 	/** Tiles to hold in shadow once the wheel has stopped: everything but the landed spot. */
 	let landedSpot = $state<Spot | null>(null);
@@ -532,27 +535,6 @@
 		else flyChip(spot, 'place');
 	};
 
-	/** One-tap bundle tickets: chips fly onto every spot the ticket covers. */
-	const selectTicket = (mode: string) => {
-		if (!idle || settled || clearing) return;
-		const before = new Set(stateGameDerived.backedSpots());
-		const coverage = MODE_COVERAGE[mode] ?? [];
-		// A bundle already on the board toggles off.
-		if (coverage.length && coverage.every((spot) => before.has(spot)) && before.size === coverage.length) {
-			clearBoard();
-			return;
-		}
-		const face = currentChipFace();
-		const removed = [...before].filter((spot) => !coverage.includes(spot));
-		const spots = stateGameDerived.selectTicket(mode);
-		if (!spots.length) return;
-		sweepChips(removed, face);
-		for (const [i, spot] of spots.entries()) {
-			if (before.has(spot)) continue;
-			setTimeout(() => flyChip(spot, 'place'), i * 60);
-		}
-	};
-
 	const undoBet = () => {
 		const last = stateGameDerived.backedSpots().at(-1);
 		stateGameDerived.undoBet();
@@ -696,6 +678,19 @@
 				highlight={wheelHighlight}
 				onTick={() => playSound('peg', 1.4)}
 			/>
+			<!-- The gem at the middle of the hub is the play button: it spins, or plays again once a
+			     round has settled. It carries the prompt the old tab used to, and pulses while it can
+			     be pressed, since a gem is not self-evidently a button. -->
+			<div
+				class="hub-spin"
+				class:disabled={confirmDisabled}
+				style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{WHEEL_FRAME.hole.cy * 100}%; width:{HUB_HIT *
+					100}%"
+				onclick={onConfirmClick}
+				aria-hidden="true"
+			>
+				<span class="hub-cta">{stateGame.rolling ? '…' : settled ? 'PLAY AGAIN' : 'SPIN'}</span>
+			</div>
 		</div>
 		{#if banner}
 			<div
@@ -714,20 +709,66 @@
 		{/if}
 	</div>
 
-	<div class="bottom-panel">
+	<div class="bottom-panel" class:rolling={stateGame.rolling}>
 		<div class="betting-panel-wrap">
 			<div class="betting-panel">
 				<div class="inner-panel">
-					<div
-						class="confirm-btn"
-						class:clear-mode={settled}
-						class:disabled={confirmDisabled}
-						class:tucked={confirmTucked}
-						onclick={onConfirmClick}
-						aria-hidden="true"
-					>
-						<div class="confirm-lbl">
-							{stateGame.rolling ? '…' : settled ? 'PLAY AGAIN' : 'SPIN'}
+					<!-- Total wager, read straight off the play tab. -->
+					<div class="total-bet">
+						<span class="total-bet-lbl">Total Bet</span>
+						<span class="total-bet-val">{sign}{fmt(total)}</span>
+					</div>
+
+					<!-- Bet board: LuckyWheel's 4x2 tile grid. -->
+					<div class="board">
+						<div class="tiles">
+							{#each BOARD as spot (spot)}
+								{@const backed = stateGameDerived.isBacked(spot)}
+								{@const win = stateGameDerived.isWinSpot(spot)}
+								{@const landed = stateGameDerived.isLandedSpot(spot)}
+								{@const colour = SPOT_COLOUR[spot]}
+								<div
+									bind:this={tileEls[spot]}
+									class="tile"
+									class:win
+									class:landed={landed && !win}
+									class:dimmed={shadowed(spot)}
+									class:locked={bettingOpen && backedCount > 0 && !backed}
+									class:backed
+									style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
+									onclick={() => toggleSpot(spot)}
+									aria-hidden="true"
+								>
+									<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
+									<span class="tile-sub">{isRoomSpot(spot) ? 'BONUS' : 'MULTIPLIER'}</span>
+
+									{#if stateGame.resultReady && landed}
+										<div class="result-badge" class:paid={win}>
+											{#if win}
+												x{stateGame.result?.payout}
+											{:else if isRoomSpot(spot)}
+												x{(stateGame.result?.roomValue ?? 0) * (stateGame.result?.multiplier ?? 1)}
+											{:else}
+												x{1 + NUMBER_PAY[spot] * (stateGame.result?.multiplier ?? 1)}
+											{/if}
+										</div>
+									{/if}
+
+									{#if backed && !arrivingSpots.has(spot) && !clearing}
+										{#each Array.from({ length: chipsOnSpot(spot) }, (_, tier) => tier) as tier (tier)}
+											<div
+												class="placed-chip chip"
+												class:won={tier > 0}
+												style="--tier:{tier}; --rise:{TIER_RISE_VW}vw; --pop-ms:{PAYOUT_POP_MS}ms; --chip-hue:{chipHueShift(
+													stakes.indexOf(stateGame.stake),
+												)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
+											>
+												<span>{fmtChip(stateGame.stake)}</span>
+											</div>
+										{/each}
+									{/if}
+								</div>
+							{/each}
 						</div>
 					</div>
 
@@ -794,81 +835,7 @@
 						></div>
 					</div>
 
-					<!-- Bet board: LuckyWheel's 4x2 tile grid, plus the two bundle tickets alongside. -->
-					<div class="board">
-						<div class="tiles">
-							{#each BOARD as spot (spot)}
-								{@const backed = stateGameDerived.isBacked(spot)}
-								{@const win = stateGameDerived.isWinSpot(spot)}
-								{@const landed = stateGameDerived.isLandedSpot(spot)}
-								{@const colour = SPOT_COLOUR[spot]}
-								<div
-									bind:this={tileEls[spot]}
-									class="tile"
-									class:win
-									class:landed={landed && !win}
-									class:dimmed={shadowed(spot)}
-									class:backed
-									style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
-									onclick={() => toggleSpot(spot)}
-									aria-hidden="true"
-								>
-									<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
-									<span class="tile-sub">{isRoomSpot(spot) ? 'BONUS' : 'MULTIPLIER'}</span>
-
-									{#if stateGame.resultReady && landed}
-										<div class="result-badge" class:paid={win}>
-											{#if win}
-												x{stateGame.result?.payout}
-											{:else if isRoomSpot(spot)}
-												x{(stateGame.result?.roomValue ?? 0) * (stateGame.result?.multiplier ?? 1)}
-											{:else}
-												x{1 + NUMBER_PAY[spot] * (stateGame.result?.multiplier ?? 1)}
-											{/if}
-										</div>
-									{/if}
-
-									{#if backed && !arrivingSpots.has(spot) && !clearing}
-										{#each Array.from({ length: chipsOnSpot(spot) }, (_, tier) => tier) as tier (tier)}
-											<div
-												class="placed-chip chip"
-												class:won={tier > 0}
-												style="--tier:{tier}; --rise:{TIER_RISE_VW}vw; --pop-ms:{PAYOUT_POP_MS}ms; --chip-hue:{chipHueShift(
-													stakes.indexOf(stateGame.stake),
-												)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
-											>
-												<span>{fmtChip(stateGame.stake)}</span>
-											</div>
-										{/each}
-									{/if}
-								</div>
-							{/each}
-						</div>
-						<div class="tickets">
-							{#each BUNDLE_MODES as ticket (ticket.mode)}
-								<div
-									class="ticket"
-									class:active={currentBet?.mode === ticket.mode}
-									class:disabled={!bettingOpen}
-									onclick={() => selectTicket(ticket.mode)}
-									aria-hidden="true"
-								>
-									<span class="ticket-lbl">{ticket.label}</span>
-									<span class="ticket-cost">{MODE_COVERAGE[ticket.mode].length} chips</span>
-								</div>
-							{/each}
-						</div>
-					</div>
-
-					{#if notTicket}
-						<div class="ticket-hint">Bet one spot, ALL BONUS or FULL BOARD</div>
-					{/if}
 				</div>
-			</div>
-			<!-- Total wager, below the bet panel (colour-dice's readout). -->
-			<div class="total-bet">
-				<span class="total-bet-lbl">Total Bet</span>
-				<span class="total-bet-val">{sign}{fmt(total)}</span>
 			</div>
 		</div>
 	</div>
@@ -1153,6 +1120,10 @@
 		height: 2.5vw;
 		margin: auto 0.7vw;
 	}
+	/* The shared table.scss floats the tray on a pale pill; black suits this table. */
+	.chips-wrap {
+		background: rgba(0, 0, 0, 0.45);
+	}
 	.chips-rail {
 		display: flex;
 		width: max-content;
@@ -1222,6 +1193,8 @@
 		zoom: var(--fit, 1);
 		background: none;
 	}
+	/* The show sits behind the betting panel (z-index 2): the wheel now runs most of the frame's
+	   height, and its lower arc passes under the board rather than stopping above it. */
 	.stage {
 		position: absolute;
 		top: 0.4vw;
@@ -1230,17 +1203,72 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		gap: 0.4vw;
 		z-index: 1;
 		pointer-events: none;
 	}
-	.wheel-wrap {
-		width: 35vw;
-	}
-	/* The Top Slot cabinet sits beside the wheel (there is no room above the frame's pointer). */
+	/* The Top Slot cabinet crowns the wheel, in flow above it and centred by the stage. */
 	.topslot-wrap {
+		position: relative;
+	}
+	/* Sized to land the wheel's bottom just short of the frame: 0.4 top + 4.56 cabinet + 0.4 gap
+	   + 48 = 53.4vw of the frame's 56.25vw. */
+	.wheel-wrap {
+		position: relative;
+		width: 48vw;
+	}
+	/* The stage is click-through; this is the one piece of it that answers. */
+	.hub-spin {
 		position: absolute;
-		top: 10.4vw;
-		left: calc(50% + 19.4vw);
+		translate: -50% -50%;
+		aspect-ratio: 1;
+		border-radius: 50%;
+		cursor: pointer;
+		pointer-events: auto;
+		animation: hub-pulse 1.7s ease-in-out infinite;
+		transition: scale 120ms ease;
+	}
+	@keyframes hub-pulse {
+		0%,
+		100% {
+			box-shadow: 0 0 0.6vw 0.1vw rgba(255, 225, 77, 0.35);
+		}
+		50% {
+			box-shadow: 0 0 1.4vw 0.35vw rgba(255, 225, 77, 0.7);
+		}
+	}
+	.hub-spin:hover {
+		animation: none;
+		box-shadow: 0 0 1.6vw 0.45vw rgba(255, 225, 77, 0.75);
+	}
+	.hub-spin:active {
+		scale: 0.96;
+	}
+	.hub-spin.disabled {
+		cursor: default;
+		pointer-events: none;
+		animation: none;
+		box-shadow: none;
+	}
+	/* The prompt the play tab used to carry, centred on the gem. Click-through: the button is the gem
+	   itself, so a long word's ends do not extend the target. */
+	.hub-cta {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		translate: -50% -50%;
+		pointer-events: none;
+		font-family: 'PotatoSans', 'Alexandria', sans-serif;
+		font-size: 1.4vw;
+		letter-spacing: 0.08vw;
+		white-space: nowrap;
+		color: #fff;
+		paint-order: stroke;
+		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
+		text-shadow: 0 0 0.5vw rgba(0, 0, 0, 0.85);
+	}
+	.hub-spin.disabled .hub-cta {
+		opacity: 0;
 	}
 	.banner {
 		position: absolute;
@@ -1291,6 +1319,11 @@
 		justify-content: center;
 		bottom: 0.6vw;
 		z-index: 2;
+		transition: opacity 300ms ease;
+	}
+	/* The wheel has the floor while it spins; the board steps back until it stops. */
+	.bottom-panel.rolling {
+		opacity: 0.45;
 	}
 	.actions-wrap {
 		height: 3.6vw;
@@ -1375,10 +1408,6 @@
 
 	/* ---- Bet board ---- */
 	.board {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 0.6vw;
-		align-items: stretch;
 		margin: 0.45vw auto 0;
 		width: fit-content;
 	}
@@ -1388,7 +1417,7 @@
 		grid-auto-rows: 4.6vw;
 		gap: 0.25vw 0.3vw;
 	}
-	/* Tiles carry the bundle-ticket frame — gold border, label + sub-label — over a solid fill in the
+	/* Tiles carry a gold border and a label + sub-label over a solid fill in the
 	   spot's own colour, the same flat fill its wedges use on the wheel. */
 	.tile {
 		position: relative;
@@ -1401,7 +1430,10 @@
 		gap: 0.15vw;
 		border-radius: 0.35vw;
 		background: var(--tile);
-		border: 0.12vw solid #f0c65a;
+		border: 0.12vw solid #4c2813;
+		/* A second, brighter edge just inside the brown one — inset rather than a real border, so
+		   it follows the same corner radius without changing the tile's box. */
+		box-shadow: inset 0 0 0 0.11vw #ea9f16;
 		font-family: 'Alexandria', sans-serif;
 		color: var(--tile-text);
 		transition: opacity 300ms ease, filter 150ms ease, transform 150ms ease;
@@ -1409,20 +1441,24 @@
 	.tile:hover {
 		filter: brightness(1.15);
 	}
+	/* The spot's name is set in the wheel's own face; weight 400 because it has a single cut. Sized
+	   and tracked so the longest name — TREASURE CHEST — still clears the tile's edges. */
 	.tile-lbl {
-		font-size: 1vw;
-		font-weight: 700;
-		letter-spacing: 0.08vw;
+		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
+		font-size: 1.05vw;
+		font-weight: 400;
+		letter-spacing: 0.04vw;
 		white-space: nowrap;
+		/* The wheel's own label outline: same colour, and the same share of the type size (the wedges
+		   use a 2.4 stroke on 21px). `paint-order` keeps it behind the glyph where a browser honours
+		   it on HTML text; where it does not, a stroke this thin still reads as an edge. */
+		paint-order: stroke;
+		-webkit-text-stroke: 0.11vw rgba(0, 0, 0, 0.55);
 	}
 	.tile-sub {
 		font-size: 0.55vw;
 		letter-spacing: 0.06vw;
 		opacity: 0.85;
-	}
-	.tile.backed {
-		background: linear-gradient(180deg, #ffe89a, #f0b429);
-		color: #4a2c00;
 	}
 	.tile.win {
 		outline: 0.3vw solid #ffe14d;
@@ -1435,6 +1471,19 @@
 	}
 	.tile.dimmed {
 		opacity: 0.3;
+	}
+	/* One bet at a time: once a spot is backed the others are covered over and stop answering. The
+	   cover is a pseudo-element rather than a fade, so the tile's own colour stays underneath. */
+	.tile.locked {
+		pointer-events: none;
+	}
+	.tile.locked::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: 20;
+		border-radius: inherit;
+		background: rgba(0, 0, 0, 0.55);
 	}
 	.result-badge {
 		position: absolute;
@@ -1502,49 +1551,6 @@
 		}
 	}
 
-	/* Bundle tickets, stacked beside the grid: one per row. */
-	.tickets {
-		display: grid;
-		grid-template-rows: 1fr 1fr;
-		gap: 0.25vw;
-	}
-	.ticket {
-		width: 6.4vw;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.15vw;
-		border-radius: 0.35vw;
-		background: linear-gradient(180deg, #3a2f5c, #1e1636);
-		border: 0.12vw solid #f0c65a;
-		cursor: pointer;
-		font-family: 'Alexandria', sans-serif;
-		color: #ffe9b0;
-		transition: filter 150ms ease, transform 150ms ease;
-	}
-	.ticket:hover {
-		filter: brightness(1.15);
-	}
-	.ticket.active {
-		background: linear-gradient(180deg, #ffe89a, #f0b429);
-		color: #4a2c00;
-		transform: scale(1.03);
-	}
-	.ticket.disabled {
-		opacity: 0.45;
-		pointer-events: none;
-	}
-	.ticket-lbl {
-		font-size: 0.85vw;
-		font-weight: 700;
-		letter-spacing: 0.08vw;
-	}
-	.ticket-cost {
-		font-size: 0.6vw;
-		opacity: 0.85;
-	}
-
 	/* ---- Total / hint ---- */
 	.total-bet {
 		display: flex;
@@ -1567,59 +1573,5 @@
 		font-weight: 700;
 		color: #ffe14d;
 	}
-	.ticket-hint {
-		margin-top: 0.4vw;
-		text-align: center;
-		font-family: 'Alexandria', sans-serif;
-		font-size: 0.8vw;
-		font-weight: 600;
-		color: #ff9a8a;
-		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.8);
-	}
 
-	/* ---- Play tab (from colour-dice) ---- */
-	.confirm-btn {
-		position: relative;
-		bottom: -0.75vw;
-		margin: auto auto 0.8vw auto;
-		width: 12vw;
-		height: 1.7vw;
-		padding-top: 0.85vw;
-		background: linear-gradient(180deg, #68d253 0%, #61c741 100%);
-		box-shadow: inset 0 0.2vw 0.5vw #0000003f;
-		border-radius: 1.3vw 1.3vw 0 0;
-		color: #195b25;
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 600;
-		font-size: 1.5vw;
-		line-height: 0.85vw;
-		text-align: center;
-		cursor: pointer;
-		overflow: hidden;
-		transition:
-			height 260ms cubic-bezier(0.4, 0, 0.2, 1),
-			padding-top 260ms cubic-bezier(0.4, 0, 0.2, 1),
-			margin-bottom 260ms cubic-bezier(0.4, 0, 0.2, 1),
-			opacity 180ms ease,
-			visibility 260ms;
-	}
-	.confirm-btn.clear-mode:not(.disabled) {
-		background: linear-gradient(180deg, #58a0f0 0%, #2a6bd8 100%) !important;
-		color: #0a2a66 !important;
-	}
-	.confirm-btn.disabled {
-		background: linear-gradient(180deg, #e7e6ff73 0%, #e7e6ff73 100%);
-		box-shadow: inset 0 1vw 0.4vw #ffffff2b;
-		color: #9d9cb8;
-		cursor: not-allowed;
-		pointer-events: none;
-	}
-	.confirm-btn.tucked {
-		height: 0 !important;
-		padding-top: 0 !important;
-		margin-bottom: 0 !important;
-		opacity: 0;
-		visibility: hidden;
-		pointer-events: none;
-	}
 </style>
