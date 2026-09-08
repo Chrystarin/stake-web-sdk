@@ -815,6 +815,7 @@
 										class:win
 										class:landed={landed && !win}
 										class:dimmed={shadowed(spot)}
+										class:room={isRoomSpot(spot)}
 										class:locked={bettingOpen && backedCount > 0 && !backed}
 										class:backed
 										style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
@@ -1436,6 +1437,11 @@
 	}
 	.game.portrait .hub-cta {
 		font-size: 3.4vw;
+	}
+	/* Two columns of four: the multipliers take the first two rows and the bonuses the last two,
+	   rather than the board's own alternating order. */
+	.game.portrait .tile.room {
+		order: 1;
 	}
 	.game.portrait .tiles {
 		grid-template-columns: repeat(2, 47.5vw);
