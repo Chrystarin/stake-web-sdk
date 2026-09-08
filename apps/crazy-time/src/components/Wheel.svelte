@@ -14,6 +14,8 @@
 		text: string;
 		/** Draw the label larger (numbers) or smaller and radial (room names). */
 		kind?: 'number' | 'room' | 'value';
+		/** Badge art drawn in place of the text label, upright on the label ring. */
+		image?: { src: string; aspect: number };
 	};
 
 	/**
@@ -186,9 +188,53 @@
 
 	onDestroy(() => cancelAnimationFrame(raf));
 
-	const labelPos = (i: number, kind: WheelSegment['kind']) => {
-		const r = kind === 'room' ? 128 : 160;
-		return polar(r, i * step);
+	const LABEL_R = 160; // the ring the number labels sit on; bonus wedges start their crest here
+	const labelPos = (i: number) => polar(LABEL_R, i * step);
+
+	/**
+	 * Room (bonus) labels are set glyph by glyph down the wedge instead of as one centred word: each
+	 * letter is sized in proportion to its radius, so the word tapers with the wedge — big and a
+	 * little over-wide at the rim, small at the hub — and runs much deeper along the segment. The
+	 * head of the run is a crest, not a letter, and it sits on the numbers' own ring so the outer
+	 * edge of the wheel reads as one band; the name starts underneath it.
+	 */
+	const ROOM_OVERFLOW = 1.32; // glyphs run this much past the wedge's arc width at any radius
+	const ROOM_GLYPH_H = 1.13; // Pieces of Eight ink height, as a fraction of font size (measured)
+	const ROOM_TRACK = 0.7; // advance between glyph centres, likewise
+	const ROOM_CREST_GAP = 10; // clear space between the crest art and the first letter, in units
+
+	/** Arc width of one wedge at radius `r`, in viewBox units. */
+	const wedgeWidth = (r: number) => r * ((step * Math.PI) / 180);
+
+	/**
+	 * Badge art stands upright on the label ring. Number wedges sit just inside their width; a room's
+	 * crest spans the full wedge, with the name lettered below it.
+	 */
+	const BADGE_FILL = 0.95;
+	const CREST_FILL = 1;
+	const badgeBox = (aspect: number, fill: number) => {
+		const w = fill * wedgeWidth(LABEL_R);
+		return { w, h: w / aspect };
+	};
+
+	type RoomGlyph = { ch: string; x: number; y: number; size: number };
+
+	const roomGlyphs = (i: number, label: string, crest?: { aspect: number }): RoomGlyph[] => {
+		const angle = i * step;
+		const perRadius = (ROOM_OVERFLOW * ((step * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
+		const half = (perRadius * ROOM_TRACK) / 2; // half an advance between letters, per unit radius
+
+		// The name starts below the crest art: past its lower edge, the gap, and half its own advance.
+		const crestH = crest ? badgeBox(crest.aspect, CREST_FILL).h : 0;
+		let r = (LABEL_R - crestH / 2 - ROOM_CREST_GAP) / (1 + half);
+
+		const glyphs: RoomGlyph[] = [];
+		for (const ch of label) {
+			const p = polar(r, angle);
+			glyphs.push({ ch, x: p.x, y: p.y, size: perRadius * r });
+			r *= (1 - half) / (1 + half);
+		}
+		return glyphs;
 	};
 </script>
 
@@ -226,16 +272,49 @@
 			{/each}
 			<circle cx={R} cy={R} r={OUTER} fill="url(#rim)" />
 			{#each segments as seg, i (i)}
-				{@const p = labelPos(i, seg.kind)}
-				<text
-					x={p.x}
-					y={p.y}
-					fill={seg.text}
-					class="label {seg.kind ?? 'number'}"
-					transform="rotate({i * step + (seg.kind === 'room' ? 90 : 0)} {p.x} {p.y})"
-					text-anchor="middle"
-					dominant-baseline="central">{seg.label}</text
-				>
+				{#if seg.image}
+					{@const p = labelPos(i)}
+					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' ? CREST_FILL : BADGE_FILL)}
+					<image
+						href={seg.image.src}
+						x={p.x - box.w / 2}
+						y={p.y - box.h / 2}
+						width={box.w}
+						height={box.h}
+						class:crest={seg.kind === 'room'}
+						style={seg.kind === 'room' ? `--glow:${seg.fill}` : null}
+						transform="rotate({i * step} {p.x} {p.y})"
+					/>
+				{:else if seg.kind !== 'room'}
+					{@const p = labelPos(i)}
+					<text
+						x={p.x}
+						y={p.y}
+						fill={seg.text}
+						class="label {seg.kind ?? 'number'}"
+						transform="rotate({i * step} {p.x} {p.y})"
+						text-anchor="middle"
+						dominant-baseline="central">{seg.label}</text
+					>
+				{/if}
+			{/each}
+			{#each segments as seg, i (i)}
+				{#if seg.kind === 'room'}
+					<g class="room-word" style="--glow:{seg.fill}">
+						{#each roomGlyphs(i, seg.label, seg.image) as g, j (j)}
+							<text
+								x={g.x}
+								y={g.y}
+								fill={seg.text}
+								class="label room"
+								style="font-size:{g.size}px"
+								transform="rotate({i * step + 90} {g.x} {g.y})"
+								text-anchor="middle"
+								dominant-baseline="central">{g.ch}</text
+							>
+						{/each}
+					</g>
+				{/if}
 			{/each}
 			{#if !frame && INNER > 4}
 				<circle cx={R} cy={R} r={INNER - 4} class="hub" />
@@ -309,8 +388,8 @@
 		stroke-width: 4;
 	}
 	.wedge {
-		stroke: rgba(255, 255, 255, 0.55);
-		stroke-width: 0.8;
+		stroke: #f0c65a;
+		stroke-width: 1;
 		transition: filter 300ms ease, opacity 300ms ease;
 	}
 	.wedge.lit {
@@ -320,22 +399,24 @@
 		opacity: 0.55;
 	}
 	.label {
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 700;
+		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
+		font-weight: 400;
 		pointer-events: none;
 		paint-order: stroke;
-		stroke: rgba(0, 0, 0, 0.35);
-		stroke-width: 2;
+		stroke: rgba(0, 0, 0, 0.45);
+		stroke-width: 2.4;
 	}
 	.label.number {
-		font-size: 17px;
+		font-size: 21px;
 	}
 	.label.value {
-		font-size: 15px;
+		font-size: 18px;
 	}
-	.label.room {
-		font-size: 9px;
-		letter-spacing: 0.5px;
+	/* Room glyphs are sized inline, per letter — see roomGlyphs(). Each word glows in its own wedge
+	   colour, so where the letters spill onto a neighbour the halo still names the segment. */
+	.room-word,
+	.crest {
+		filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 9px var(--glow));
 	}
 	.hub {
 		fill: #1c1410;
@@ -343,9 +424,9 @@
 		stroke-width: 3;
 	}
 	.hub-label {
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 700;
-		font-size: 18px;
+		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
+		font-weight: 400;
+		font-size: 22px;
 		fill: #ffe14d;
 	}
 	/* The flapper: fixed at 12 o'clock, pointing down into the rim. */

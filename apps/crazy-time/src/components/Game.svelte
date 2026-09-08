@@ -42,19 +42,29 @@
 	// The wooden ring art (static/img/wheel/frame_v2.png, 1911x1925) with its pin at 12 o'clock and
 	// its own ship's-wheel hub. `hole` is the transparent circle, least-squares fitted to the ring's
 	// inner edge: centre (955.7, 972.8) px, radius 758.1 px (residual under 2 px). The wedges run to
-	// the centre point so the hub art covers solid colour, and 1.5% past the hole so no seam shows.
+	// the centre point so the hub art covers solid colour. The ring's inner edge is feathered — the
+	// art only goes fully opaque at r ~= 796 px — so the wedges overscan to ~803 px (6%) and finish
+	// underneath the wood instead of stopping short of it in the soft band.
 	const WHEEL_FRAME: WheelFrame = {
 		src: staticUrl('img/wheel/frame_v2.png'),
 		aspect: 1911 / 1925,
 		hole: { cx: 955.7 / 1911, cy: 972.8 / 1925, r: 758.1 / 1911 },
-		overscan: 0.015,
+		overscan: 0.06,
 	};
 
+	// Every wedge wears badge art on the label ring: number wedges their value (img/wheel/N.png,
+	// 30x48), room wedges the bonus crest (img/wheel/bonus.png, 44x44) with the name lettered down
+	// the wedge below it by the Wheel itself.
+	const BADGE_ASPECT = 30 / 48;
+	const CREST_ASPECT = 1;
 	const WHEEL_SEGMENTS: WheelSegment[] = SEGMENT_LAYOUT.map((spot) => ({
 		label: isRoomSpot(spot) ? SPOT_LABEL[spot].split(' ').at(-1) ?? spot : String(NUMBER_PAY[spot]),
 		fill: SPOT_COLOUR[spot].base,
 		text: SPOT_COLOUR[spot].text,
 		kind: isRoomSpot(spot) ? 'room' : 'number',
+		image: isRoomSpot(spot)
+			? { src: staticUrl('img/wheel/bonus.png'), aspect: CREST_ASPECT }
+			: { src: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`), aspect: BADGE_ASPECT },
 	}));
 
 	// Chip tray comes from the RGS bet template (betLevels). It arrives with authenticate.
@@ -768,9 +778,8 @@
 									onclick={() => toggleSpot(spot)}
 									aria-hidden="true"
 								>
-									<div class="tile-accent"></div>
 									<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
-									<span class="tile-sub">{isRoomSpot(spot) ? 'BONUS GAME' : `PAYS ${NUMBER_PAY[spot]}:1`}</span>
+									<span class="tile-sub">{isRoomSpot(spot) ? 'BONUS' : 'MULTIPLIER'}</span>
 
 									{#if stateGame.resultReady && landed}
 										<div class="result-badge" class:paid={win}>
@@ -899,9 +908,9 @@
 		position: absolute;
 		top: 0;
 		left: 0;
-		width: 3.5vw;
-		height: 3.5vw;
-		margin: -1.75vw 0 0 -1.75vw;
+		width: 2.9vw;
+		height: 2.9vw;
+		margin: -1.45vw 0 0 -1.45vw;
 		z-index: 45;
 		pointer-events: none;
 		filter: drop-shadow(0 0.2vw 0.35vw rgba(0, 0, 0, 0.55));
@@ -1091,11 +1100,22 @@
 		cursor: pointer;
 	}
 	.chips-viewport {
-		--chip-pitch: 4.3vw;
+		--chip-pitch: 3.6vw;
 		width: calc(var(--slots, 5) * var(--chip-pitch));
 		overflow: hidden;
 		padding: 1vw 0.5vw 0.5vw;
 		margin: -1vw -0.5vw -0.5vw;
+	}
+	/* The shared table.scss sizes chips and the round buttons; the tighter panel needs them smaller. */
+	.chips-rail .chip {
+		width: 2.9vw;
+		height: 2.9vw;
+		margin: auto 0.35vw;
+	}
+	.actions-wrap .clear-btn {
+		width: 2.5vw;
+		height: 2.5vw;
+		margin: auto 0.7vw;
 	}
 	.chips-rail {
 		display: flex;
@@ -1118,9 +1138,9 @@
 		pointer-events: none;
 	}
 	.undo-btn {
-		width: 3vw;
-		height: 3vw;
-		margin: auto 1vw;
+		width: 2.5vw;
+		height: 2.5vw;
+		margin: auto 0.7vw;
 		cursor: pointer;
 		border-radius: 50%;
 		background: rgba(88, 88, 88, 0.7);
@@ -1132,7 +1152,7 @@
 	.undo-btn::before {
 		content: '↶';
 		color: #fff;
-		font-size: 1.8vw;
+		font-size: 1.5vw;
 		line-height: 1;
 	}
 	.undo-btn.disabled,
@@ -1161,17 +1181,17 @@
 		pointer-events: none;
 	}
 	.wheel-wrap {
-		width: 31vw;
+		width: 35vw;
 	}
 	/* The Top Slot cabinet sits beside the wheel (there is no room above the frame's pointer). */
 	.topslot-wrap {
 		position: absolute;
-		top: 9vw;
-		left: calc(50% + 17.5vw);
+		top: 10.4vw;
+		left: calc(50% + 19.4vw);
 	}
 	.banner {
 		position: absolute;
-		top: 32.6vw;
+		top: 36vw;
 		padding: 0.35vw 1.4vw;
 		border-radius: 2vw;
 		background: linear-gradient(180deg, var(--b), var(--bd));
@@ -1220,7 +1240,7 @@
 		z-index: 2;
 	}
 	.actions-wrap {
-		height: 4.4vw;
+		height: 3.6vw;
 		transition:
 			height 260ms cubic-bezier(0.4, 0, 0.2, 1),
 			margin-top 260ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -1306,17 +1326,17 @@
 		grid-template-columns: 1fr auto;
 		gap: 0.6vw;
 		align-items: stretch;
-		margin: 0.6vw auto 0;
+		margin: 0.45vw auto 0;
 		width: fit-content;
 	}
 	.tiles {
 		display: grid;
-		grid-template-columns: repeat(4, 12vw);
-		grid-auto-rows: 5.6vw;
+		grid-template-columns: repeat(4, 10.4vw);
+		grid-auto-rows: 4.6vw;
 		gap: 0.25vw 0.3vw;
 	}
-	/* Tiles share the bundle-ticket look: dark plate, gold border, label + sub-label. A thin bar in
-	   the spot's colour along the top ties each tile to its wedges on the wheel. */
+	/* Tiles carry the bundle-ticket frame — gold border, label + sub-label — over a solid fill in the
+	   spot's own colour, the same flat fill its wedges use on the wheel. */
 	.tile {
 		position: relative;
 		isolation: isolate;
@@ -1327,32 +1347,23 @@
 		justify-content: center;
 		gap: 0.15vw;
 		border-radius: 0.35vw;
-		background: linear-gradient(180deg, #3a2f5c, #1e1636);
+		background: var(--tile);
 		border: 0.12vw solid #f0c65a;
 		font-family: 'Alexandria', sans-serif;
-		color: #ffe9b0;
+		color: var(--tile-text);
 		transition: opacity 300ms ease, filter 150ms ease, transform 150ms ease;
 	}
 	.tile:hover {
 		filter: brightness(1.15);
 	}
-	.tile-accent {
-		position: absolute;
-		top: 0;
-		left: 0.6vw;
-		right: 0.6vw;
-		height: 0.28vw;
-		border-radius: 0 0 0.2vw 0.2vw;
-		background: var(--tile);
-	}
 	.tile-lbl {
-		font-size: 1.15vw;
+		font-size: 1vw;
 		font-weight: 700;
 		letter-spacing: 0.08vw;
 		white-space: nowrap;
 	}
 	.tile-sub {
-		font-size: 0.6vw;
+		font-size: 0.55vw;
 		letter-spacing: 0.06vw;
 		opacity: 0.85;
 	}
@@ -1413,8 +1424,8 @@
 		bottom: auto !important;
 		left: 50% !important;
 		transform: translate(-50%, calc(-50% - var(--tier, 0) * var(--rise, 0.5vw)));
-		width: 3.5vw;
-		height: 3.5vw;
+		width: 2.9vw;
+		height: 2.9vw;
 		z-index: calc(12 + var(--tier, 0));
 		margin: 0 !important;
 		pointer-events: none;
@@ -1445,7 +1456,7 @@
 		gap: 0.25vw;
 	}
 	.ticket {
-		width: 7.2vw;
+		width: 6.4vw;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -1472,12 +1483,12 @@
 		pointer-events: none;
 	}
 	.ticket-lbl {
-		font-size: 0.95vw;
+		font-size: 0.85vw;
 		font-weight: 700;
 		letter-spacing: 0.08vw;
 	}
 	.ticket-cost {
-		font-size: 0.65vw;
+		font-size: 0.6vw;
 		opacity: 0.85;
 	}
 
@@ -1487,19 +1498,19 @@
 		align-items: baseline;
 		justify-content: center;
 		gap: 0.4vw;
-		margin-top: 0.5vw;
+		margin-top: 0.35vw;
 		font-family: 'Alexandria', sans-serif;
 		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.8);
 	}
 	.total-bet-lbl {
-		font-size: 0.7vw;
+		font-size: 0.62vw;
 		font-weight: 500;
 		letter-spacing: 0.05vw;
 		text-transform: uppercase;
 		color: #d6c6b4;
 	}
 	.total-bet-val {
-		font-size: 1.1vw;
+		font-size: 0.95vw;
 		font-weight: 700;
 		color: #ffe14d;
 	}
@@ -1516,19 +1527,19 @@
 	/* ---- Play tab (from colour-dice) ---- */
 	.confirm-btn {
 		position: relative;
-		bottom: -0.9vw;
-		margin: auto auto 1vw auto;
-		width: 14vw;
-		height: 2vw;
-		padding-top: 1vw;
+		bottom: -0.75vw;
+		margin: auto auto 0.8vw auto;
+		width: 12vw;
+		height: 1.7vw;
+		padding-top: 0.85vw;
 		background: linear-gradient(180deg, #68d253 0%, #61c741 100%);
 		box-shadow: inset 0 0.2vw 0.5vw #0000003f;
-		border-radius: 1.5vw 1.5vw 0 0;
+		border-radius: 1.3vw 1.3vw 0 0;
 		color: #195b25;
 		font-family: 'Alexandria', sans-serif;
 		font-weight: 600;
-		font-size: 1.8vw;
-		line-height: 1vw;
+		font-size: 1.5vw;
+		line-height: 0.85vw;
 		text-align: center;
 		cursor: pointer;
 		overflow: hidden;
