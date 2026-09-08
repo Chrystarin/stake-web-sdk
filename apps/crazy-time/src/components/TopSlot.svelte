@@ -7,7 +7,16 @@
 	 * DOWN through several copies, then the strip is silently reset to the equivalent position in
 	 * the first copy once the transition has ended.
 	 */
-	import { SPOTS, SPOT_COLOUR, SPOT_LABEL, TOP_SLOT_MULTS, type Spot } from '../game/constants';
+	import {
+		isRoomSpot,
+		NUMBER_PAY,
+		SPOTS,
+		SPOT_COLOUR,
+		SPOT_LABEL,
+		TOP_SLOT_MULTS,
+		type Spot,
+	} from '../game/constants';
+	import { staticUrl } from '../lib/staticUrl';
 
 	type Props = {
 		/** Glow the pair: the wheel landed on the spot the Top Slot picked. */
@@ -16,11 +25,16 @@
 	let { applied = false }: Props = $props();
 
 	const COPIES = 4;
-	const SPIN_MS = 1700;
+	const SPIN_MS = 2300;
 
+	// A number reads as its wheel badge alone; a bonus as the bonus crest plus its name, so a reel
+	// says the same thing the wedge does.
 	const spotItems = SPOTS.map((spot) => ({
 		key: spot,
-		label: SPOT_LABEL[spot].split(' ')[0],
+		label: isRoomSpot(spot) ? SPOT_LABEL[spot].split(' ')[0] : '',
+		icon: isRoomSpot(spot)
+			? staticUrl('img/wheel/bonus.png')
+			: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`),
 		fill: SPOT_COLOUR[spot].base,
 		text: SPOT_COLOUR[spot].text,
 	}));
@@ -29,6 +43,10 @@
 		{ key: `m${m}`, label: `${m}x`, blank: false },
 		{ key: `b${m}`, label: '', blank: true },
 	]);
+
+	/** The multiplier window, so the game can fly a copy of what landed onto the winning tile. */
+	let multReelEl: HTMLElement | undefined = $state();
+	export const multRect = (): DOMRect | undefined => multReelEl?.getBoundingClientRect();
 
 	let spotIndex = $state(0);
 	let multIndex = $state(1);
@@ -72,11 +90,6 @@
 			}, SPIN_MS + 60);
 		});
 	};
-
-	const current = $derived({
-		spot: spotItems[spotIndex],
-		mult: multItems[multIndex],
-	});
 </script>
 
 <div class="topslot" class:applied class:animating>
@@ -84,35 +97,35 @@
 		<div class="reel spot-reel">
 			<div class="strip" style="--offset:{spotOffset}; --ms:{SPIN_MS}ms">
 				{#each spotStrip as item, i (i)}
-					<div class="cell" style="--fill:{item.fill}; --text:{item.text}">{item.label}</div>
+					<div class="cell" style="--fill:{item.fill}; --text:{item.text}">
+						<img class="badge" src={item.icon} alt="" draggable="false" />
+						{#if item.label}<span class="spot-lbl">{item.label}</span>{/if}
+					</div>
 				{/each}
 			</div>
 		</div>
-		<div class="reel mult-reel">
+		<div class="reel mult-reel" bind:this={multReelEl}>
 			<div class="strip" style="--offset:{multOffset}; --ms:{SPIN_MS}ms">
 				{#each multStrip as item, i (i)}
-					<div class="cell mult" class:blank={item.blank}>{item.label}</div>
+					<div class="cell mult" class:blank={item.blank}>
+						{#if !item.blank}
+							<span class="mult-stroke" aria-hidden="true">{item.label}</span>
+							<span class="mult-fill">{item.label}</span>
+						{/if}
+					</div>
 				{/each}
 			</div>
 		</div>
 		<div class="window" aria-hidden="true"></div>
 	</div>
-	<div class="caption">
-		{#if applied}
-			TOP SLOT HIT · {current.spot.label} {current.mult.label}
-		{:else}
-			TOP SLOT
-		{/if}
-	</div>
 </div>
 
 <style>
 	.topslot {
-		--cell: 2.6vw;
+		--cell: 3.4vw;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.25vw;
 	}
 	.cabinet {
 		position: relative;
@@ -124,15 +137,14 @@
 		border: 0.15vw solid #f0c65a;
 		box-shadow: 0 0.4vw 1vw rgba(0, 0, 0, 0.6);
 	}
+	/* Both reels are the same width: the pair reads as one cabinet, and the left one has to hold a
+	   crest and a name without crowding. */
 	.reel {
-		width: 7vw;
+		width: 9vw;
 		height: var(--cell);
 		overflow: hidden;
 		border-radius: 0.4vw;
 		background: #0d0906;
-	}
-	.mult-reel {
-		width: 4.6vw;
 	}
 	.strip {
 		display: flex;
@@ -140,25 +152,73 @@
 		transform: translateY(calc(var(--offset) * var(--cell) * -1));
 	}
 	.animating .strip {
-		transition: transform var(--ms) cubic-bezier(0.15, 0.75, 0.12, 1);
+		/* Most of the travel happens early; the last stretch crawls into place. */
+		transition: transform var(--ms) cubic-bezier(0.1, 0.62, 0.02, 1);
 	}
+	/* The step the strip translates by IS `--cell`, so the cell's border box has to be exactly that:
+	   border-box (the 0.05vw rule rounds up to a whole pixel and would otherwise be added on top) and
+	   a fixed flex basis (a flex item will not shrink below its content without one). Without both,
+	   every cell ran a pixel tall and the landing sat low in the window. */
 	.cell {
+		box-sizing: border-box;
+		flex: 0 0 var(--cell);
 		height: var(--cell);
+		overflow: hidden;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 700;
-		font-size: 1.05vw;
-		letter-spacing: 0.04vw;
+		gap: 0.35vw;
 		color: var(--text, #fff);
 		background: var(--fill, #222);
 		border-bottom: 0.05vw solid rgba(0, 0, 0, 0.4);
 	}
+	.badge {
+		height: 2.3vw;
+		width: auto;
+		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
+	}
+	/* The bonus name in the bet board's own hand. */
+	.spot-lbl {
+		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
+		font-weight: 400;
+		font-size: 0.95vw;
+		letter-spacing: 0.04vw;
+		white-space: nowrap;
+		paint-order: stroke;
+		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
+	}
+	/* The multiplier is set the way Plinko sets the win value on its congratulations screen: the
+	   AustereBlackCapsSSK face, a golden-brown stroke layer carrying the outline, glow and shadows,
+	   and a near-white fill laid over it. Offsets are in em so they scale with the reel. */
 	.cell.mult {
-		background: linear-gradient(180deg, #ffe89a 0%, #f0b429 100%);
-		color: #4a2c00;
-		font-size: 1.25vw;
+		display: inline-grid;
+		place-items: center;
+		background: linear-gradient(180deg, #2a1a0c 0%, #140c06 100%);
+		font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
+		font-size: 1.9vw;
+		line-height: 1.1;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		filter: drop-shadow(0.034em 0.068em 0 #000);
+	}
+	.mult-stroke,
+	.mult-fill {
+		grid-area: 1 / 1;
+		/* trailing letter-spacing pushes the glyphs left of centre — pad the start to re-centre. */
+		padding-left: 0.06em;
+	}
+	.mult-stroke {
+		color: transparent;
+		-webkit-text-stroke: 0.09em #6d460f;
+		paint-order: stroke fill;
+		text-shadow:
+			0 0.05em 0 #6d460f,
+			0.015em 0.09em 0.04em rgba(0, 0, 0, 0.6),
+			0 0 0.42em rgba(255, 196, 62, 0.75),
+			0 0 0.95em rgba(255, 178, 44, 0.45);
+	}
+	.mult-fill {
+		color: #e9e4e4;
 	}
 	.cell.mult.blank {
 		background: #1a120b;
@@ -183,16 +243,5 @@
 		to {
 			filter: brightness(1.35);
 		}
-	}
-	.caption {
-		font-family: 'Alexandria', sans-serif;
-		font-size: 0.7vw;
-		font-weight: 600;
-		letter-spacing: 0.12vw;
-		color: #d6c6b4;
-		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.8);
-	}
-	.applied .caption {
-		color: #ffe14d;
 	}
 </style>

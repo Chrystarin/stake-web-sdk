@@ -90,7 +90,9 @@
 	const HUB_HIT = (2 * 72) / 1911;
 
 	const WHEEL_SEGMENTS: WheelSegment[] = SEGMENT_LAYOUT.map((spot) => ({
-		label: isRoomSpot(spot) ? SPOT_LABEL[spot].split(' ').at(-1) ?? spot : String(NUMBER_PAY[spot]),
+		label: isRoomSpot(spot)
+			? (SPOT_LABEL[spot].split(' ').at(-1) ?? spot)
+			: String(NUMBER_PAY[spot]),
 		fill: SPOT_COLOUR[spot].base,
 		text: SPOT_COLOUR[spot].text,
 		kind: isRoomSpot(spot) ? 'room' : 'number',
@@ -233,9 +235,17 @@
 	 * its pixels are multiplied again on paint. Dividing by the fit undoes the first multiplication,
 	 * so a chip spawns on its tray and lands on its tile at every viewport size.
 	 */
-	const centreIn = (host: DOMRect, rect: DOMRect) => ({
+	type Point = { x: number; y: number };
+
+	const centreIn = (host: DOMRect, rect: DOMRect): Point => ({
 		x: (rect.left - host.left + rect.width / 2) / fitScale,
 		y: (rect.top - host.top + rect.height / 2) / fitScale,
+	});
+
+	/** Any viewport point in the frame's own coordinates — see `centreIn` for why the fit divides. */
+	const pointIn = (host: DOMRect, x: number, y: number): Point => ({
+		x: (x - host.left) / fitScale,
+		y: (y - host.top) / fitScale,
 	});
 
 	const currentChipFace = () => {
@@ -469,7 +479,8 @@
 			landedSpot = null;
 			wheelHighlight = null;
 			topSlotApplied = false;
-			banner = null;
+			tileMult = null;
+			panelDimmed = false;
 		});
 
 		await collecting;
@@ -568,7 +579,9 @@
 		landedSpot = null;
 		wheelHighlight = null;
 		topSlotApplied = false;
-		banner = null;
+		multFlight = null;
+		tileMult = null;
+		panelDimmed = false;
 		stateGame.rolling = true;
 		context.eventEmitter.broadcast({ type: 'bet' });
 	};
@@ -600,24 +613,71 @@
 		if (!stateGame.resultReady) winCash = 0;
 	});
 
+	// --- Top Slot multiplier: flown from the reel onto the spot it applies to -------------------
+	const MULT_FLIGHT_MS = 750;
+	/** How long the Top Slot's pair sits still before the multiplier is carried to the board. */
+	const TOP_SLOT_HOLD_MS = 1000;
+	/** And how long it sits on the tile before the wheel takes over. */
+	const MULT_SETTLE_MS = 1000;
+	/** The board keeps full strength through the Top Slot; it only steps back for the wheel. */
+	let panelDimmed = $state(false);
+	/** In flight, from the Top Slot's multiplier window to the tile's top-right corner. */
+	let multFlight = $state<{ id: number; label: string; from: Point; to: Point } | null>(null);
+	/** Parked on that tile once it lands, until the board clears. */
+	let tileMult = $state<{ spot: Spot; label: string } | null>(null);
+	let multFlightId = 0;
+
+	const flyMultiplier = async (spot: Spot, multiplier: number) => {
+		const box = tileEls[spot];
+		const reel = topSlot?.multRect();
+		if (!gameEl || !box || !reel) {
+			tileMult = { spot, label: `${multiplier}x` };
+			return;
+		}
+		const host = gameEl.getBoundingClientRect();
+		const tile = box.getBoundingClientRect();
+		const id = ++multFlightId;
+		multFlight = {
+			id,
+			label: `${multiplier}x`,
+			from: centreIn(host, reel),
+			// The corner it is going to sit on, not the tile's middle.
+			to: pointIn(host, tile.right, tile.top),
+		};
+		playSound('whoosh');
+		await waitForTimeout(MULT_FLIGHT_MS);
+		if (multFlight?.id !== id) return;
+		multFlight = null;
+		tileMult = { spot, label: `${multiplier}x` };
+		playSound('pop');
+	};
+
 	// --- The stage: Top Slot + wheel ------------------------------------------------------------
 	let wheel: Wheel | undefined = $state();
 	let topSlot: TopSlot | undefined = $state();
 	let wheelHighlight = $state<number | null>(null);
 	let topSlotApplied = $state(false);
-	/** The result strip under the wheel: what landed, and what it pays. */
-	let banner = $state<{ spot: Spot; multiplier: number; covered: boolean } | null>(null);
 
 	context.eventEmitter.subscribeOnMount({
 		topSlotSpin: async (event) => {
 			await topSlot?.spin(event.spot, event.multiplier);
+			// Let the pair be read before anything moves again.
+			await waitForTimeout(TOP_SLOT_HOLD_MS);
+			// A blank is the miss: nothing to carry over to the board.
+			if (event.spot && event.multiplier && event.multiplier > 1) {
+				await flyMultiplier(event.spot, event.multiplier);
+				await waitForTimeout(MULT_SETTLE_MS);
+			}
+			// Only now does the board give the floor to the wheel.
+			panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
 			await wheel?.spinTo(event.segment, { turns: 5, ms: 4600 });
 			wheelHighlight = event.segment;
 			landedSpot = event.spot;
 			topSlotApplied = event.multiplier > 1;
-			banner = { spot: event.spot, multiplier: event.multiplier, covered: event.covered };
+			// The wheel is done; the board comes back to full strength to show what it paid.
+			panelDimmed = false;
 			playSound(event.covered ? 'merge' : 'pop');
 			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
 		},
@@ -630,11 +690,6 @@
 		},
 	});
 
-	const bannerText = (b: NonNullable<typeof banner>) => {
-		if (isRoomSpot(b.spot)) return SPOT_LABEL[b.spot];
-		const pays = NUMBER_PAY[b.spot] * b.multiplier;
-		return `${SPOT_LABEL[b.spot]} · PAYS ${pays}:1`;
-	};
 </script>
 
 {#if online}
@@ -644,233 +699,234 @@
 {/if}
 
 <div class="viewport-fit" style="--fit:{fitScale}">
-<Background />
-<div class="game" bind:this={gameEl}>
-	{#if stateGame.openRoundError || betNotice}
-		<div class="bet-notice" onclick={() => (betNotice = '')} aria-hidden="true">
-			{stateGame.openRoundError || betNotice}
-		</div>
-	{/if}
-
-	<div class="hud">
-		{#key balancePulse}
-			<div class="balance-hud" class:collected={balancePulse > 0}>
-				<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
-				<div class="balance-text">
-					<span class="hud-lbl">Balance</span>
-					<span class="hud-val">{sign}{balanceFormat.format(shownBalance)}</span>
-				</div>
-			</div>
-		{/key}
-	</div>
-
-	<!-- The show: Top Slot over the wheel, result strip under it. -->
-	<div class="stage">
-		<div class="topslot-wrap">
-			<TopSlot bind:this={topSlot} applied={topSlotApplied} />
-		</div>
-		<div class="wheel-wrap">
-			<Wheel
-				bind:this={wheel}
-				segments={WHEEL_SEGMENTS}
-				frame={WHEEL_FRAME}
-				innerRadius={0}
-				highlight={wheelHighlight}
-				onTick={() => playSound('peg', 1.4)}
-			/>
-			<!-- The gem at the middle of the hub is the play button: it spins, or plays again once a
-			     round has settled. It carries the prompt the old tab used to, and pulses while it can
-			     be pressed, since a gem is not self-evidently a button. -->
-			<div
-				class="hub-spin"
-				class:disabled={confirmDisabled}
-				style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{WHEEL_FRAME.hole.cy * 100}%; width:{HUB_HIT *
-					100}%"
-				onclick={onConfirmClick}
-				aria-hidden="true"
-			>
-				<span class="hub-cta">{stateGame.rolling ? '…' : settled ? 'PLAY AGAIN' : 'SPIN'}</span>
-			</div>
-		</div>
-		{#if banner}
-			<div
-				class="banner"
-				class:covered={banner.covered}
-				style="--b:{SPOT_COLOUR[banner.spot].base}; --bd:{SPOT_COLOUR[banner.spot].deep}"
-			>
-				<span class="banner-main">{bannerText(banner)}</span>
-				{#if banner.multiplier > 1}
-					<span class="banner-ts">TOP SLOT x{banner.multiplier}</span>
-				{/if}
-				{#if !banner.covered}
-					<span class="banner-miss">no chip here</span>
-				{/if}
+	<Background />
+	<div class="game" bind:this={gameEl}>
+		{#if stateGame.openRoundError || betNotice}
+			<div class="bet-notice" onclick={() => (betNotice = '')} aria-hidden="true">
+				{stateGame.openRoundError || betNotice}
 			</div>
 		{/if}
-	</div>
 
-	<div class="bottom-panel" class:rolling={stateGame.rolling}>
-		<div class="betting-panel-wrap">
-			<div class="betting-panel">
-				<div class="inner-panel">
-					<!-- Total wager, read straight off the play tab. -->
-					<div class="total-bet">
-						<span class="total-bet-lbl">Total Bet</span>
-						<span class="total-bet-val">{sign}{fmt(total)}</span>
+		<div class="hud">
+			{#key balancePulse}
+				<div class="balance-hud" class:collected={balancePulse > 0}>
+					<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
+					<div class="balance-text">
+						<span class="hud-lbl">Balance</span>
+						<span class="hud-val">{sign}{balanceFormat.format(shownBalance)}</span>
 					</div>
+				</div>
+			{/key}
+		</div>
 
-					<!-- Bet board: LuckyWheel's 4x2 tile grid. -->
-					<div class="board">
-						<div class="tiles">
-							{#each BOARD as spot (spot)}
-								{@const backed = stateGameDerived.isBacked(spot)}
-								{@const win = stateGameDerived.isWinSpot(spot)}
-								{@const landed = stateGameDerived.isLandedSpot(spot)}
-								{@const colour = SPOT_COLOUR[spot]}
-								<div
-									bind:this={tileEls[spot]}
-									class="tile"
-									class:win
-									class:landed={landed && !win}
-									class:dimmed={shadowed(spot)}
-									class:locked={bettingOpen && backedCount > 0 && !backed}
-									class:backed
-									style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
-									onclick={() => toggleSpot(spot)}
-									aria-hidden="true"
-								>
-									<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
-									<span class="tile-sub">{isRoomSpot(spot) ? 'BONUS' : 'MULTIPLIER'}</span>
+		<!-- The show: Top Slot over the wheel. -->
+		<div class="stage">
+			<div class="topslot-wrap">
+				<TopSlot bind:this={topSlot} applied={topSlotApplied} />
+			</div>
+			<div class="wheel-wrap">
+				<Wheel
+					bind:this={wheel}
+					segments={WHEEL_SEGMENTS}
+					frame={WHEEL_FRAME}
+					innerRadius={0}
+					highlight={wheelHighlight}
+					onTick={() => playSound('peg', 1.4)}
+				/>
+				<!-- The gem at the middle of the hub is the play button: it spins, or plays again once a
+			     round has settled. It carries the prompt the old tab used to, and pulses while it can
+			     be pressed, since a gem is not self-evidently a button. -->
+				<div
+					class="hub-spin"
+					class:disabled={confirmDisabled}
+					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{WHEEL_FRAME.hole.cy *
+						100}%; width:{HUB_HIT * 100}%"
+					onclick={onConfirmClick}
+					aria-hidden="true"
+				>
+					<span class="hub-cta">{stateGame.rolling ? '…' : settled ? 'PLAY AGAIN' : 'SPIN'}</span>
+				</div>
+			</div>
+		</div>
 
-									{#if stateGame.resultReady && landed}
-										<div class="result-badge" class:paid={win}>
-											{#if win}
-												x{stateGame.result?.payout}
-											{:else if isRoomSpot(spot)}
-												x{(stateGame.result?.roomValue ?? 0) * (stateGame.result?.multiplier ?? 1)}
-											{:else}
-												x{1 + NUMBER_PAY[spot] * (stateGame.result?.multiplier ?? 1)}
-											{/if}
-										</div>
-									{/if}
-
-									{#if backed && !arrivingSpots.has(spot) && !clearing}
-										{#each Array.from({ length: chipsOnSpot(spot) }, (_, tier) => tier) as tier (tier)}
-											<div
-												class="placed-chip chip"
-												class:won={tier > 0}
-												style="--tier:{tier}; --rise:{TIER_RISE_VW}vw; --pop-ms:{PAYOUT_POP_MS}ms; --chip-hue:{chipHueShift(
-													stakes.indexOf(stateGame.stake),
-												)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
-											>
-												<span>{fmtChip(stateGame.stake)}</span>
-											</div>
-										{/each}
-									{/if}
-								</div>
-							{/each}
+		<div class="bottom-panel" class:dimmed={panelDimmed}>
+			<div class="betting-panel-wrap">
+				<div class="betting-panel">
+					<div class="inner-panel">
+						<!-- Total wager, read straight off the play tab. -->
+						<div class="total-bet">
+							<span class="total-bet-lbl">Total Bet</span>
+							<span class="total-bet-val">{sign}{fmt(total)}</span>
 						</div>
-					</div>
 
-					<div class="actions-wrap" class:hidden={controlsHidden}>
-						<div
-							class="clear-btn"
-							class:disabled={clearDisabled}
-							onclick={onClearClick}
-							title="Clear"
-							aria-hidden="true"
-						></div>
-						<div class="chipandstate-wrap" class:locked={settled || clearing}>
-							{#if stakePanelOpen}
-								<div class="stake-panel">
-									<div class="stake-panel-title">Chip value</div>
-									<div class="stake-panel-grid">
-										{#each stakes as value, i (value)}
-											<div class="stake-option" class:current={stateGame.stake === value}>
-												<div
-													class="chip"
-													class:selected={stateGame.stake === value}
-													style="--chip-hue:{chipHueShift(i)}deg; --chip-text:{chipTextColour(i)}"
-													onclick={() => pickStake(value)}
-													aria-hidden="true"
-												>
-													<span>{fmtChip(value)}</span>
-												</div>
+						<!-- Bet board: LuckyWheel's 4x2 tile grid. -->
+						<div class="board">
+							<div class="tiles">
+								{#each BOARD as spot (spot)}
+									{@const backed = stateGameDerived.isBacked(spot)}
+									{@const win = stateGameDerived.isWinSpot(spot)}
+									{@const landed = stateGameDerived.isLandedSpot(spot)}
+									{@const colour = SPOT_COLOUR[spot]}
+									<div
+										bind:this={tileEls[spot]}
+										class="tile"
+										class:win
+										class:landed={landed && !win}
+										class:dimmed={shadowed(spot)}
+										class:locked={bettingOpen && backedCount > 0 && !backed}
+										class:backed
+										style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
+										onclick={() => toggleSpot(spot)}
+										aria-hidden="true"
+									>
+										<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
+										<span class="tile-sub">{isRoomSpot(spot) ? 'BONUS' : 'MULTIPLIER'}</span>
+
+										{#if tileMult?.spot === spot}
+											<div class="tile-mult mult-badge">
+												<span class="mult-stroke" aria-hidden="true">{tileMult.label}</span>
+												<span class="mult-fill">{tileMult.label}</span>
 											</div>
-										{/each}
+										{/if}
+
+										{#if backed && !arrivingSpots.has(spot) && !clearing}
+											{#each Array.from({ length: chipsOnSpot(spot) }, (_, tier) => tier) as tier (tier)}
+												<div
+													class="placed-chip chip"
+													class:won={tier > 0}
+													style="--tier:{tier}; --rise:{TIER_RISE_VW}vw; --pop-ms:{PAYOUT_POP_MS}ms; --chip-hue:{chipHueShift(
+														stakes.indexOf(stateGame.stake),
+													)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
+												>
+													<span>{fmtChip(stateGame.stake)}</span>
+												</div>
+											{/each}
+										{/if}
 									</div>
-								</div>
-							{/if}
+								{/each}
+							</div>
+						</div>
 
-							<div class="chips-wrap">
-								<div class="chips-viewport" style="--slots:{carousel.windowSize}">
-									<div class="chips-rail" style="--offset:{carousel.start}">
-										{#each carousel.chips as chip (chip.value)}
-											<div class="chip-wrap" class:shown={chip.shown} style="--depth:{chip.depth}">
-												<div
-													bind:this={chipEls[chip.value]}
-													class="chip"
-													class:selected={chip.selected}
-													class:open={chip.selected && stakePanelOpen}
-													style="--chip-hue:{chipHueShift(
-														chip.index,
-													)}deg; --chip-text:{chipTextColour(chip.index)}"
-													onclick={() => onChipClick(chip.value, chip.selected)}
-													aria-hidden="true"
-												>
-													<span>{fmtChip(chip.value)}</span>
+						<div class="actions-wrap" class:hidden={controlsHidden}>
+							<div
+								class="clear-btn"
+								class:disabled={clearDisabled}
+								onclick={onClearClick}
+								title="Clear"
+								aria-hidden="true"
+							></div>
+							<div class="chipandstate-wrap" class:locked={settled || clearing}>
+								{#if stakePanelOpen}
+									<div class="stake-panel">
+										<div class="stake-panel-title">Chip value</div>
+										<div class="stake-panel-grid">
+											{#each stakes as value, i (value)}
+												<div class="stake-option" class:current={stateGame.stake === value}>
+													<div
+														class="chip"
+														class:selected={stateGame.stake === value}
+														style="--chip-hue:{chipHueShift(i)}deg; --chip-text:{chipTextColour(i)}"
+														onclick={() => pickStake(value)}
+														aria-hidden="true"
+													>
+														<span>{fmtChip(value)}</span>
+													</div>
 												</div>
-											</div>
-										{/each}
+											{/each}
+										</div>
+									</div>
+								{/if}
+
+								<div class="chips-wrap">
+									<div class="chips-viewport" style="--slots:{carousel.windowSize}">
+										<div class="chips-rail" style="--offset:{carousel.start}">
+											{#each carousel.chips as chip (chip.value)}
+												<div
+													class="chip-wrap"
+													class:shown={chip.shown}
+													style="--depth:{chip.depth}"
+												>
+													<div
+														bind:this={chipEls[chip.value]}
+														class="chip"
+														class:selected={chip.selected}
+														class:open={chip.selected && stakePanelOpen}
+														style="--chip-hue:{chipHueShift(
+															chip.index,
+														)}deg; --chip-text:{chipTextColour(chip.index)}"
+														onclick={() => onChipClick(chip.value, chip.selected)}
+														aria-hidden="true"
+													>
+														<span>{fmtChip(chip.value)}</span>
+													</div>
+												</div>
+											{/each}
+										</div>
 									</div>
 								</div>
 							</div>
+							<div
+								class="undo-btn"
+								class:disabled={!idle || settled || clearing || backedCount === 0}
+								onclick={undoBet}
+								title="Undo"
+								aria-hidden="true"
+							></div>
 						</div>
-						<div
-							class="undo-btn"
-							class:disabled={!idle || settled || clearing || backedCount === 0}
-							onclick={undoBet}
-							title="Undo"
-							aria-hidden="true"
-						></div>
 					</div>
-
 				</div>
 			</div>
 		</div>
+
+		{#if stakePanelOpen}
+			<div
+				class="stake-panel-backdrop"
+				onclick={() => (stakePanelOpen = false)}
+				aria-hidden="true"
+			></div>
+		{/if}
+
+		{#if multFlight}
+			<div
+				class="mult-flight"
+				style="--from-x:{multFlight.from.x}px; --from-y:{multFlight.from.y}px; --to-x:{multFlight.to
+					.x}px; --to-y:{multFlight.to.y}px; --ms:{MULT_FLIGHT_MS}ms"
+				aria-hidden="true"
+			>
+				<div class="mult-badge">
+					<span class="mult-stroke" aria-hidden="true">{multFlight.label}</span>
+					<span class="mult-fill">{multFlight.label}</span>
+				</div>
+			</div>
+		{/if}
+
+		{#each flights as flight (flight.id)}
+			<div
+				bind:this={flightEls[flight.id]}
+				class="chip flying-chip {flight.kind}"
+				style={flightStyle(flight)}
+				aria-hidden="true"
+			>
+				<span>{flight.label}</span>
+			</div>
+		{/each}
+
+		{#if winFloat}
+			<div
+				class="win-float"
+				style="--float-x:{winFloat.x}px; --float-y:{winFloat.y}px; --float-ms:{WIN_FLOAT_MS}ms"
+				aria-hidden="true"
+			>
+				+{sign}{fmt(winFloat.amount)}
+			</div>
+		{/if}
+
+		<BonusRound chip={stateBet.betAmount} {sign} onOpenChange={(open) => (bonusUp = open)} />
+
+		{#if stateGame.resultReady}
+			<RoundResult amount={winCash} {sign} closing={resultClosing} />
+		{/if}
 	</div>
-
-	{#if stakePanelOpen}
-		<div class="stake-panel-backdrop" onclick={() => (stakePanelOpen = false)} aria-hidden="true"></div>
-	{/if}
-
-	{#each flights as flight (flight.id)}
-		<div
-			bind:this={flightEls[flight.id]}
-			class="chip flying-chip {flight.kind}"
-			style={flightStyle(flight)}
-			aria-hidden="true"
-		>
-			<span>{flight.label}</span>
-		</div>
-	{/each}
-
-	{#if winFloat}
-		<div
-			class="win-float"
-			style="--float-x:{winFloat.x}px; --float-y:{winFloat.y}px; --float-ms:{WIN_FLOAT_MS}ms"
-			aria-hidden="true"
-		>
-			+{sign}{fmt(winFloat.amount)}
-		</div>
-	{/if}
-
-	<BonusRound chip={stateBet.betAmount} {sign} onOpenChange={(open) => (bonusUp = open)} />
-
-	{#if stateGame.resultReady}
-		<RoundResult amount={winCash} {sign} closing={resultClosing} />
-	{/if}
-</div>
 </div>
 
 <style>
@@ -1211,11 +1267,11 @@
 	.topslot-wrap {
 		position: relative;
 	}
-	/* Sized to land the wheel's bottom just short of the frame: 0.4 top + 4.56 cabinet + 0.4 gap
-	   + 48 = 53.4vw of the frame's 56.25vw. */
+	/* Sized to land the wheel's bottom just short of the frame: 0.4 top + the Top Slot cabinet
+	   + 0.4 gap + the wheel has to stay inside the frame's 56.25vw. */
 	.wheel-wrap {
 		position: relative;
-		width: 48vw;
+		width: 47vw;
 	}
 	/* The stage is click-through; this is the one piece of it that answers. */
 	.hub-spin {
@@ -1270,48 +1326,6 @@
 	.hub-spin.disabled .hub-cta {
 		opacity: 0;
 	}
-	.banner {
-		position: absolute;
-		top: 36vw;
-		padding: 0.35vw 1.4vw;
-		border-radius: 2vw;
-		background: linear-gradient(180deg, var(--b), var(--bd));
-		border: 0.12vw solid #f0c65a;
-		box-shadow: 0 0.3vw 1vw rgba(0, 0, 0, 0.6);
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 700;
-		font-size: 1.2vw;
-		color: #fff;
-		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.7);
-		display: flex;
-		gap: 0.8vw;
-		align-items: baseline;
-		animation: banner-in 350ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
-	}
-	.banner.covered {
-		box-shadow:
-			0 0 1.2vw #ffe14d,
-			0 0.3vw 1vw rgba(0, 0, 0, 0.6);
-	}
-	.banner-ts {
-		font-size: 0.85vw;
-		color: #ffe14d;
-	}
-	.banner-miss {
-		font-size: 0.75vw;
-		font-weight: 500;
-		color: rgba(255, 255, 255, 0.75);
-	}
-	@keyframes banner-in {
-		from {
-			opacity: 0;
-			transform: translateY(0.8vw) scale(0.9);
-		}
-		to {
-			opacity: 1;
-			transform: none;
-		}
-	}
 
 	.bottom-panel {
 		left: var(--panel-inset);
@@ -1322,7 +1336,7 @@
 		transition: opacity 300ms ease;
 	}
 	/* The wheel has the floor while it spins; the board steps back until it stops. */
-	.bottom-panel.rolling {
+	.bottom-panel.dimmed {
 		opacity: 0.45;
 	}
 	.actions-wrap {
@@ -1436,7 +1450,10 @@
 		box-shadow: inset 0 0 0 0.11vw #ea9f16;
 		font-family: 'Alexandria', sans-serif;
 		color: var(--tile-text);
-		transition: opacity 300ms ease, filter 150ms ease, transform 150ms ease;
+		transition:
+			opacity 300ms ease,
+			filter 150ms ease,
+			transform 150ms ease;
 	}
 	.tile:hover {
 		filter: brightness(1.15);
@@ -1485,39 +1502,70 @@
 		border-radius: inherit;
 		background: rgba(0, 0, 0, 0.55);
 	}
-	.result-badge {
+	/* The Top Slot's multiplier, in the same hand the reel sets it in: a golden-brown stroke layer
+	   under a near-white fill. Worn by the copy in flight and by the one parked on the tile. */
+	.mult-badge {
+		display: inline-grid;
+		font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
+		line-height: 1.1;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		filter: drop-shadow(0.034em 0.068em 0 #000);
+	}
+	.mult-badge .mult-stroke,
+	.mult-badge .mult-fill {
+		grid-area: 1 / 1;
+		padding-left: 0.06em;
+	}
+	.mult-badge .mult-stroke {
+		color: transparent;
+		-webkit-text-stroke: 0.09em #6d460f;
+		paint-order: stroke fill;
+		text-shadow:
+			0 0.05em 0 #6d460f,
+			0.015em 0.09em 0.04em rgba(0, 0, 0, 0.6),
+			0 0 0.42em rgba(255, 196, 62, 0.75),
+			0 0 0.95em rgba(255, 178, 44, 0.45);
+	}
+	.mult-badge .mult-fill {
+		color: #e9e4e4;
+	}
+	/* Parked: hung off the tile's top-right corner, clear of the payout badge at top centre. */
+	.tile-mult {
 		position: absolute;
-		top: 0.25vw;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 501;
-		padding: 0.1vw 0.5vw;
-		border-radius: 0.9vw;
-		background: rgba(0, 0, 0, 0.65);
-		border: 0.08vw solid rgba(255, 255, 255, 0.5);
-		color: #fff;
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 700;
-		font-size: 0.9vw;
-		line-height: 1.35;
-		white-space: nowrap;
+		top: -0.6vw;
+		right: -0.5vw;
+		z-index: 502;
+		font-size: 1.15vw;
+	}
+	/* In flight: a zero-size box carried between the two points, so `scale` shrinks the reel-sized
+	   copy about the point it is travelling to rather than about a corner. */
+	.mult-flight {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 0;
+		height: 0;
+		z-index: 60;
 		pointer-events: none;
-		animation: badge-in 420ms cubic-bezier(0.22, 1.4, 0.36, 1) both;
+		animation: mult-fly var(--ms) cubic-bezier(0.32, 0.72, 0.24, 1) forwards;
 	}
-	.result-badge.paid {
-		background: linear-gradient(180deg, #fff3b0 0%, #ffc93c 55%, #e59a09 100%);
-		border-color: #fff6cf;
-		color: #4a2c00;
-		font-size: 1.05vw;
+	.mult-flight .mult-badge {
+		position: absolute;
+		left: 0;
+		top: 0;
+		transform: translate(-50%, -50%);
+		font-size: 1.9vw;
+		white-space: nowrap;
 	}
-	@keyframes badge-in {
-		0% {
-			opacity: 0;
-			transform: translateX(-50%) scale(0.4);
+	@keyframes mult-fly {
+		from {
+			translate: var(--from-x) var(--from-y);
+			scale: 1;
 		}
-		100% {
-			opacity: 1;
-			transform: translateX(-50%) scale(1);
+		to {
+			translate: var(--to-x) var(--to-y);
+			scale: 0.6;
 		}
 	}
 	.tile .placed-chip {
@@ -1573,5 +1621,4 @@
 		font-weight: 700;
 		color: #ffe14d;
 	}
-
 </style>
