@@ -1,13 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * TEMPORARY dev-only on-screen audio state overlay (?audioDebug=1).
+ * TEMPORARY on-screen audio state overlay (?audioDebug=1, or localStorage.plinkoAudioDebug = '1').
  *
  * BrowserStack's iOS DevTools are plan-gated, so the only way to read audio state off a real
  * device is to draw it on the page. Shows Howler / AudioContext state, whether the context
  * clock is actually advancing (a "running" context whose clock is frozen is the iOS zombie
  * state), and a rolling log of every audio-relevant event.
  *
- * DELETE (or leave query-gated) once the iOS audio bugs are verified fixed.
+ * Reachable in production builds too (opt-in only — see EnableSound), so QA can read the state
+ * off the exact iPad/iPhone a report comes from: BrowserStack's iPads run an old Chrome for iOS.
+ * Remove once the iOS audio-after-app-switch reports are closed.
  */
 import { Howl, Howler } from 'howler';
 

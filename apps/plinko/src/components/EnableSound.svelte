@@ -93,12 +93,28 @@
 		bonusCongratulations: { sprite: [250, 4750], volume: 0.8 },
 	};
 
+	function audioDebugOverlayRequested(): boolean {
+		if (typeof window === 'undefined') return false;
+		if (new URLSearchParams(location.search).has('audioDebug')) return true;
+		try {
+			return window.localStorage.getItem('plinkoAudioDebug') === '1';
+		} catch {
+			return false;
+		}
+	}
+
 	onMount(() => {
 		for (const [name, url] of Object.entries(soundMap)) {
 			loadPlinkoSound(name as SoundEffectName, url, soundOptions[name as SoundEffectName]);
 		}
-		// TEMP: on-screen audio state overlay for debugging on devices without DevTools (BrowserStack).
-		if (import.meta.env.DEV && new URLSearchParams(location.search).has('audioDebug')) {
+		// TEMP: on-screen audio state overlay for debugging on devices without DevTools (BrowserStack,
+		// QA's own iPads). Opt-in in PRODUCTION builds too, like `?vitals=1` in Game.svelte: `?audioDebug=1`
+		// on the game URL, or `localStorage.plinkoAudioDebug = '1'` set once from the address bar for
+		// launchers that strip the query. It is what turns a "sound never comes back after an app switch"
+		// report into a readable fact (context state, ADVANCING/FROZEN clock, html5 music node state) on
+		// the exact device — BrowserStack's iPads run an old Chrome for iOS and cannot stand in for a
+		// current one. Nothing loads or runs without the flag.
+		if (audioDebugOverlayRequested()) {
 			void import('../lib/devAudioDebug').then(({ installAudioDebugOverlay }) =>
 				installAudioDebugOverlay(),
 			);
