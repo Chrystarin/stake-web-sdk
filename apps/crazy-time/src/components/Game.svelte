@@ -37,20 +37,27 @@
 
 	// Bet board order follows the LuckyWheel reference: X1 X2 bonus bonus / X5 X10 bonus bonus.
 	/**
-	 * The layout is authored in vw against a 16:9 frame, so a viewport of any other shape either
-	 * clips it (short windows) or strands it (tall ones). Scale the whole frame to fit whatever is
-	 * there and centre it, letterboxing the remainder.
+	 * The layout is authored in vw, in two arrangements: landscape puts the wheel beside a wide board,
+	 * portrait stacks a viewport-wide wheel over a viewport-wide board. Either way the game fills the
+	 * viewport — stage pinned to the top, panel to the bottom — and the whole thing scales down when
+	 * the viewport is shorter than the arrangement needs. The design heights below are how much room
+	 * each arrangement wants, measured in vw (the unit everything inside is authored in).
 	 *
 	 * `zoom`, not `transform: scale()`: zoom scales in layout — vw still resolves against the
 	 * viewport and is then multiplied — so the box's rendered size stays honest to the flow, and
 	 * iOS keeps the first paint (a transform-scaled box loses it inside the Stake Engine iframe).
 	 */
+	const LANDSCAPE_DESIGN_VW = 56.25; // 16:9
+	const PORTRAIT_DESIGN_VW = 164;
 	let fitScale = $state(1);
+	let portrait = $state(false);
 	const updateFit = () => {
 		const w = window.innerWidth;
 		const h = window.innerHeight;
 		if (!w || !h) return;
-		fitScale = Math.min(1, h / (w * (9 / 16)));
+		portrait = h > w;
+		const availableVw = (h / w) * 100;
+		fitScale = Math.min(1, availableVw / (portrait ? PORTRAIT_DESIGN_VW : LANDSCAPE_DESIGN_VW));
 	};
 	$effect(() => {
 		updateFit();
@@ -700,12 +707,21 @@
 
 <div class="viewport-fit" style="--fit:{fitScale}">
 	<Background />
-	<div class="game" bind:this={gameEl}>
+	<div class="game" class:portrait bind:this={gameEl}>
 		{#if stateGame.openRoundError || betNotice}
 			<div class="bet-notice" onclick={() => (betNotice = '')} aria-hidden="true">
 				{stateGame.openRoundError || betNotice}
 			</div>
 		{/if}
+
+		<!-- Portrait moves the wager down beside the balance, so both read-outs share the bottom rail;
+		     landscape keeps it at the head of the betting panel. One definition, rendered in place. -->
+		{#snippet totalBet()}
+			<div class="total-bet">
+				<span class="total-bet-lbl">Total Bet</span>
+				<span class="total-bet-val">{sign}{fmt(total)}</span>
+			</div>
+		{/snippet}
 
 		<div class="hud">
 			{#key balancePulse}
@@ -717,6 +733,9 @@
 					</div>
 				</div>
 			{/key}
+			{#if portrait}
+				{@render totalBet()}
+			{/if}
 		</div>
 
 		<!-- The show: Top Slot over the wheel. -->
@@ -753,11 +772,9 @@
 			<div class="betting-panel-wrap">
 				<div class="betting-panel">
 					<div class="inner-panel">
-						<!-- Total wager, read straight off the play tab. -->
-						<div class="total-bet">
-							<span class="total-bet-lbl">Total Bet</span>
-							<span class="total-bet-val">{sign}{fmt(total)}</span>
-						</div>
+						{#if !portrait}
+							{@render totalBet()}
+						{/if}
 
 						<!-- Bet board: LuckyWheel's 4x2 tile grid. -->
 						<div class="board">
@@ -1233,19 +1250,20 @@
 	.viewport-fit {
 		position: fixed;
 		inset: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 		overflow: hidden;
 		background-color: #160b26;
 	}
 	/* Width in vw (not the shared sheet's 100%) so `zoom` scales the box along with its vw interior:
 	   a percentage resolves against the unzoomed parent and would leave the frame full size. The
 	   frame itself is transparent — the backdrop behind it is the whole picture. */
+	/* The frame fills the viewport: `zoom` scales the vw-authored interior, so the box's own height
+	   has to be divided by the same factor to come back out at exactly the viewport's height. The
+	   stage sits at its top edge and the panel at its bottom; any slack falls between them. */
 	.game {
 		--panel-inset: 12.5vw;
 		position: relative;
 		width: 100vw;
+		height: calc(100vh / var(--fit, 1));
 		zoom: var(--fit, 1);
 		background: none;
 	}
@@ -1355,6 +1373,151 @@
 		opacity: 0;
 		visibility: hidden;
 		pointer-events: none;
+	}
+
+
+	/* ---- Portrait ------------------------------------------------------------------------------
+	   A viewport-wide wheel stacked over a viewport-wide board, with the outcomes turned from four
+	   columns of two into two of four. Everything here is a re-scale of the landscape rules: the
+	   frame is 1.78x narrower than in landscape, so type and controls need roughly that much more
+	   vw to come out the same physical size. */
+	.game.portrait {
+		--panel-inset: 0.8vw;
+		--ts-cell: 8vw;
+		--ts-reel: 22vw;
+		--ts-badge: 5.6vw;
+		--ts-label: 2.3vw;
+		--ts-mult: 4.6vw;
+	}
+	.game.portrait .stage {
+		gap: 1vw;
+	}
+	.game.portrait .wheel-wrap {
+		width: 100vw;
+	}
+	.game.portrait .hub-cta {
+		font-size: 3.4vw;
+	}
+	.game.portrait .tiles {
+		grid-template-columns: repeat(2, 47.5vw);
+		grid-auto-rows: 12vw;
+		gap: 0.9vw 1vw;
+	}
+	.game.portrait .tile {
+		border-width: 0.3vw;
+		border-radius: 1vw;
+		box-shadow: inset 0 0 0 0.28vw #ea9f16;
+	}
+	.game.portrait .tile-lbl {
+		font-size: 3.5vw;
+		letter-spacing: 0.12vw;
+		-webkit-text-stroke: 0.32vw rgba(0, 0, 0, 0.55);
+	}
+	.game.portrait .tile-sub {
+		font-size: 2vw;
+		letter-spacing: 0.18vw;
+	}
+	.game.portrait .board {
+		margin-top: 1.2vw;
+	}
+	.game.portrait .total-bet-lbl {
+		font-size: 2vw;
+	}
+	.game.portrait .total-bet-val {
+		font-size: 4vw;
+		/* Same digits as the balance it sits opposite, so neither jitters as the numbers change. */
+		font-variant-numeric: tabular-nums;
+	}
+	.game.portrait .actions-wrap {
+		height: 10vw;
+	}
+	.game.portrait .chips-viewport {
+		--chip-pitch: 10vw;
+	}
+	.game.portrait .chips-rail .chip {
+		width: 8vw;
+		height: 8vw;
+		margin: auto 1vw;
+	}
+	.game.portrait .actions-wrap .clear-btn,
+	.game.portrait .undo-btn {
+		width: 7vw;
+		height: 7vw;
+		margin: auto 1.6vw;
+	}
+	.game.portrait .undo-btn::before {
+		font-size: 4.2vw;
+	}
+	.game.portrait .tile .placed-chip,
+	.game.portrait .flying-chip {
+		width: 8vw;
+		height: 8vw;
+	}
+	.game.portrait .flying-chip {
+		margin: -4vw 0 0 -4vw;
+	}
+	.game.portrait .tile-mult {
+		top: -1.4vw;
+		right: -1vw;
+		font-size: 3vw;
+	}
+	.game.portrait .mult-flight .mult-badge {
+		font-size: 4.6vw;
+	}
+	.game.portrait .bet-notice {
+		top: 10vw;
+		font-size: 2.2vw;
+		padding: 1.2vw 2vw;
+	}
+	/* Everything else that is set in vw and would otherwise come out ~1.78x smaller than it does in
+	   landscape: the HUD, the chip faces, and the round's own read-outs. */
+	/* The rail: balance bottom-left, wager bottom-right, both in the balance's own hand. The panel
+	   is lifted clear of it so the chip tray and the read-outs do not share a line. */
+	.game.portrait .hud {
+		--hud-mark: 7vw;
+		top: auto;
+		bottom: 0;
+		align-items: flex-end;
+		padding: 2.4vw 3vw;
+	}
+	.game.portrait .bottom-panel {
+		bottom: 12vw;
+	}
+	.game.portrait .hud .total-bet {
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0;
+		margin: 0;
+	}
+	.game.portrait .balance-hud {
+		gap: 1.4vw;
+	}
+	.game.portrait .hud-lbl {
+		font-size: 2vw;
+	}
+	.game.portrait .hud-val {
+		font-size: 4vw;
+	}
+	.game.portrait .chip span {
+		font-size: 2.6vw;
+	}
+	.game.portrait .chip.selected {
+		outline-width: 0.6vw;
+	}
+	.game.portrait .win-float {
+		font-size: 3vw;
+	}
+	.game.portrait .stake-panel {
+		max-width: 92vw;
+		padding: 2vw 2.4vw 2.4vw;
+		border-radius: 2.4vw;
+	}
+	.game.portrait .stake-panel-title {
+		font-size: 1.9vw;
+		margin-bottom: 1.4vw;
+	}
+	.game.portrait .stake-panel-grid {
+		gap: 1.2vw;
 	}
 
 	/* ---- HUD ---- */

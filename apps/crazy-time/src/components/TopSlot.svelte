@@ -122,7 +122,8 @@
 
 <style>
 	.topslot {
-		--cell: 3.4vw;
+		/* The game sets these in portrait, where the cabinet has a whole viewport width to fill. */
+		--cell: var(--ts-cell, 3.4vw);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -140,7 +141,7 @@
 	/* Both reels are the same width: the pair reads as one cabinet, and the left one has to hold a
 	   crest and a name without crowding. */
 	.reel {
-		width: 9vw;
+		width: var(--ts-reel, 9vw);
 		height: var(--cell);
 		overflow: hidden;
 		border-radius: 0.4vw;
@@ -173,7 +174,7 @@
 		border-bottom: 0.05vw solid rgba(0, 0, 0, 0.4);
 	}
 	.badge {
-		height: 2.3vw;
+		height: var(--ts-badge, 2.3vw);
 		width: auto;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
 	}
@@ -181,7 +182,7 @@
 	.spot-lbl {
 		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
 		font-weight: 400;
-		font-size: 0.95vw;
+		font-size: var(--ts-label, 0.95vw);
 		letter-spacing: 0.04vw;
 		white-space: nowrap;
 		paint-order: stroke;
@@ -195,7 +196,7 @@
 		place-items: center;
 		background: linear-gradient(180deg, #2a1a0c 0%, #140c06 100%);
 		font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
-		font-size: 1.9vw;
+		font-size: var(--ts-mult, 1.9vw);
 		line-height: 1.1;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
