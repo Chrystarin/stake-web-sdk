@@ -26,6 +26,7 @@
 	import Wheel, { type WheelSegment, type WheelFrame } from './Wheel.svelte';
 	import { staticUrl } from '../lib/staticUrl';
 	import TopSlot from './TopSlot.svelte';
+	import Background from './Background.svelte';
 	import BonusRound from './BonusRound.svelte';
 	import RoundResult from './RoundResult.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
@@ -37,6 +38,32 @@
 	const online = $derived(Boolean(stateUrlDerived.rgsUrl()));
 
 	// Bet board order follows the LuckyWheel reference: X1 X2 bonus bonus / X5 X10 bonus bonus.
+	/**
+	 * The layout is authored in vw against a 16:9 frame, so a viewport of any other shape either
+	 * clips it (short windows) or strands it (tall ones). Scale the whole frame to fit whatever is
+	 * there and centre it, letterboxing the remainder.
+	 *
+	 * `zoom`, not `transform: scale()`: zoom scales in layout — vw still resolves against the
+	 * viewport and is then multiplied — so the box's rendered size stays honest to the flow, and
+	 * iOS keeps the first paint (a transform-scaled box loses it inside the Stake Engine iframe).
+	 */
+	let fitScale = $state(1);
+	const updateFit = () => {
+		const w = window.innerWidth;
+		const h = window.innerHeight;
+		if (!w || !h) return;
+		fitScale = Math.min(1, h / (w * (9 / 16)));
+	};
+	$effect(() => {
+		updateFit();
+		window.addEventListener('resize', updateFit);
+		window.addEventListener('orientationchange', updateFit);
+		return () => {
+			window.removeEventListener('resize', updateFit);
+			window.removeEventListener('orientationchange', updateFit);
+		};
+	});
+
 	const BOARD: Spot[] = ['x1', 'x2', 'plinko', 'wheel', 'x5', 'x10', 'chest', 'tower'];
 
 	// The wooden ring art (static/img/wheel/frame_v2.png, 1911x1925) with its pin at 12 o'clock and
@@ -197,9 +224,15 @@
 	let balanceChipEl: HTMLElement | undefined = $state();
 	let flightEls = $state<Record<number, HTMLElement | undefined>>({});
 
+	/**
+	 * Centre of `rect` in the frame's own coordinates. Client rects are in viewport pixels — already
+	 * multiplied by the frame's `zoom` — while a chip in flight is positioned inside the frame, where
+	 * its pixels are multiplied again on paint. Dividing by the fit undoes the first multiplication,
+	 * so a chip spawns on its tray and lands on its tile at every viewport size.
+	 */
 	const centreIn = (host: DOMRect, rect: DOMRect) => ({
-		x: rect.left - host.left + rect.width / 2,
-		y: rect.top - host.top + rect.height / 2,
+		x: (rect.left - host.left + rect.width / 2) / fitScale,
+		y: (rect.top - host.top + rect.height / 2) / fitScale,
 	});
 
 	const currentChipFace = () => {
@@ -279,7 +312,7 @@
 	const sweepChips = (spots: Spot[], face = currentChipFace()) => {
 		if (!gameEl || !spots.length) return;
 		const host = gameEl.getBoundingClientRect();
-		const floor = host.height + window.innerWidth * 0.035;
+		const floor = host.height / fitScale + window.innerWidth * 0.035;
 		const slot = SWEEP_WINDOW_MS / spots.length;
 		for (const [position, spot] of shuffled(spots).entries()) {
 			const target = tileEls[spot];
@@ -628,6 +661,8 @@
 	<DevHarness />
 {/if}
 
+<div class="viewport-fit" style="--fit:{fitScale}">
+<Background />
 <div class="game" bind:this={gameEl}>
 	{#if stateGame.openRoundError || betNotice}
 		<div class="bet-notice" onclick={() => (betNotice = '')} aria-hidden="true">
@@ -868,6 +903,7 @@
 	{#if stateGame.resultReady}
 		<RoundResult amount={winCash} {sign} closing={resultClosing} />
 	{/if}
+</div>
 </div>
 
 <style>
@@ -1164,10 +1200,27 @@
 	}
 
 	/* ---- Frame ---- */
+	/* Centres the frame in the viewport. <Background> is a sibling of the frame, not a child, so the
+	   scene covers the whole viewport at full size while the frame scales inside it — the letterbox
+	   bands show the backdrop rather than a flat colour. The colour here is only the pre-paint floor. */
+	.viewport-fit {
+		position: fixed;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		background-color: #160b26;
+	}
+	/* Width in vw (not the shared sheet's 100%) so `zoom` scales the box along with its vw interior:
+	   a percentage resolves against the unzoomed parent and would leave the frame full size. The
+	   frame itself is transparent — the backdrop behind it is the whole picture. */
 	.game {
 		--panel-inset: 12.5vw;
-		background:
-			radial-gradient(ellipse at 50% 20%, #3a1d5e 0%, #160b26 55%, #0a0512 100%);
+		position: relative;
+		width: 100vw;
+		zoom: var(--fit, 1);
+		background: none;
 	}
 	.stage {
 		position: absolute;
