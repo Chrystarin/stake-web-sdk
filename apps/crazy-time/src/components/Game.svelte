@@ -1486,21 +1486,28 @@
 		outline: 0.2vw solid rgba(255, 255, 255, 0.7);
 		outline-offset: -0.2vw;
 	}
+	/* Two states cover a tile rather than fade it, so its own colour stays underneath instead of the
+	   backdrop showing through: `locked` while another spot holds the bet, and `dimmed` once the wheel
+	   has stopped on someone else. The result cover is the heavier of the two — the winner should be
+	   the only tile still reading at full strength. */
+	.tile.locked,
 	.tile.dimmed {
-		opacity: 0.3;
+		--cover: rgba(0, 0, 0, 0.55);
 	}
-	/* One bet at a time: once a spot is backed the others are covered over and stop answering. The
-	   cover is a pseudo-element rather than a fade, so the tile's own colour stays underneath. */
+	.tile.dimmed {
+		--cover: rgba(0, 0, 0, 0.68);
+	}
 	.tile.locked {
 		pointer-events: none;
 	}
-	.tile.locked::after {
+	.tile.locked::after,
+	.tile.dimmed::after {
 		content: '';
 		position: absolute;
 		inset: 0;
 		z-index: 20;
 		border-radius: inherit;
-		background: rgba(0, 0, 0, 0.55);
+		background: var(--cover);
 	}
 	/* The Top Slot's multiplier, in the same hand the reel sets it in: a golden-brown stroke layer
 	   under a near-white fill. Worn by the copy in flight and by the one parked on the tile. */
