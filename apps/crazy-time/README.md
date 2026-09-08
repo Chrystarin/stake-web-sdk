@@ -1,7 +1,7 @@
 # Crazy Time (working title) — web client prototype
 
 A single-player RNG money-wheel show for Stake Engine, modelled on Evolution's Crazy Time:
-a 54-segment wheel with four number spots (X1 X2 X5 X10) and four bonus rooms (Plinko, Lucky
+a 54-segment wheel with four number spots (X1 X2 X5 X10) and four bonus rooms (Plinko, Jackpot
 Wheel, Treasure Chest, Dragon Tower), a Top Slot that may attach a multiplier to one spot before
 each spin, and a chip board in the LuckyWheel reference layout. Betting, chips and animations are
 cloned from `apps/colour-dice`.
@@ -79,6 +79,7 @@ scripts/import-math-books.mjs     samples published books into base_books.ts
   translations beyond `en`, sound design (placeholders from colour-dice), real art.
 - Rooms are placeholders for the three still being brainstormed; the Plinko room is a CSS board,
   not the One-Eyed Willy engine.
-- The Plinko room's 400x top slot under a 50x Top Slot puts the 20,000x max win at about
+- The Plinko room's 400x top slot under a 50x Top Slot puts its 20,000x max win at about
   1 in 113 million, below Stake's 1-in-20-million achievability floor. Cap or re-weight before
-  publishing.
+  publishing. (The game's 25,000x max, the Jackpot Wheel's 500x wedge under a 50x Top Slot, is
+  about 1 in 6.4 million, above the floor.)

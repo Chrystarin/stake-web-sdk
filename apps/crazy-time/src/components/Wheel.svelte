@@ -2,7 +2,7 @@
 	/**
 	 * A money wheel drawn in SVG and spun with a CSS transition to an AUTHORED segment.
 	 *
-	 * Generic on purpose: the 54-segment main wheel and the 36-wedge Lucky Wheel room are the same
+	 * Generic on purpose: the 54-segment main wheel and the 36-wedge Jackpot Wheel room are the same
 	 * component with different `segments`. Nothing here decides an outcome — `spinTo(index)` is the
 	 * only way it moves, and the index comes from the book.
 	 */

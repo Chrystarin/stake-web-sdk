@@ -12,7 +12,7 @@ decides every outcome.
 | Value | Plays a book where… |
 | --- | --- |
 | `plinko` | the wheel lands on the Plinko room |
-| `wheel` | the wheel lands on the Lucky Wheel room |
+| `wheel` | the wheel lands on the Jackpot Wheel room |
 | `chest` | the wheel lands on the Treasure Chest room |
 | `tower` | the wheel lands on the Dragon Tower room |
 | `bonus` | the wheel lands on any room |

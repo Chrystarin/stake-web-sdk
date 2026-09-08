@@ -27,7 +27,7 @@ export const SPOT_LABEL: Record<Spot, string> = {
 	x5: 'X5',
 	x10: 'X10',
 	plinko: 'PLINKO',
-	wheel: 'LUCKY WHEEL',
+	wheel: 'JACKPOT WHEEL',
 	chest: 'TREASURE CHEST',
 	tower: 'DRAGON TOWER',
 };
@@ -38,21 +38,31 @@ export const SPOT_COLOUR: Record<Spot, { base: string; deep: string; text: strin
 	x2: { base: '#d9a62a', deep: '#9a6d0c', text: '#fff4cc' },
 	x5: { base: '#d67b91', deep: '#9a3d55', text: '#ffe3ea' },
 	x10: { base: '#7f6ec7', deep: '#4a3b91', text: '#ece6ff' },
-	plinko: { base: '#7a3aa8', deep: '#4b1f6e', text: '#f3e4ff' },
-	wheel: { base: '#2b8fd6', deep: '#135a8f', text: '#e2f3ff' },
+	plinko: { base: '#2b8fd6', deep: '#135a8f', text: '#e2f3ff' },
+	wheel: { base: '#c8352f', deep: '#7d1a17', text: '#ffe6e4' },
 	chest: { base: '#2f9e5b', deep: '#176437', text: '#e3ffe9' },
-	tower: { base: '#c8352f', deep: '#7d1a17', text: '#ffe6e4' },
+	tower: { base: '#7a3aa8', deep: '#4b1f6e', text: '#f3e4ff' },
 };
 
 // ---------------------------------------------------------------------------
 // Wheel
 // ---------------------------------------------------------------------------
-/** Physical order around the rim, clockwise from the flapper. 54 entries. */
+/**
+ * Physical order around the rim, clockwise from the flapper. 54 entries: x1 21, x2 13, x5 7,
+ * x10 4, chest 4, plinko 2, tower 2, wheel 1 (Crazy Time's own split). One room every six
+ * segments, so exactly five numbers sit between any two rooms: chests every 12, plinko and tower
+ * opposite pairs, the jackpot wheel on its own.
+ */
 export const SEGMENT_LAYOUT: readonly Spot[] = [
-	'plinko', 'x1', 'x2', 'x1', 'wheel', 'x1', 'x5', 'x1', 'x2', 'chest', 'x1', 'x10', 'x2',
-	'plinko', 'x1', 'x2', 'x1', 'x5', 'tower', 'x1', 'x2', 'x1', 'wheel', 'x1', 'x10', 'x2', 'x1',
-	'plinko', 'x2', 'x1', 'x5', 'chest', 'x1', 'x2', 'x1', 'tower', 'x1', 'x5', 'x2', 'x1',
-	'plinko', 'x1', 'x10', 'x2', 'x5', 'wheel', 'x1', 'x5', 'x2', 'chest', 'x1', 'x10', 'tower', 'x2',
+	'chest', 'x1', 'x2', 'x1', 'x5', 'x2',
+	'plinko', 'x1', 'x10', 'x1', 'x2', 'x1',
+	'chest', 'x2', 'x1', 'x5', 'x1', 'x2',
+	'tower', 'x1', 'x2', 'x1', 'x5', 'x1',
+	'chest', 'x1', 'x10', 'x2', 'x1', 'x2',
+	'plinko', 'x1', 'x5', 'x1', 'x2', 'x1',
+	'chest', 'x2', 'x1', 'x10', 'x1', 'x5',
+	'tower', 'x1', 'x2', 'x1', 'x5', 'x2',
+	'wheel', 'x1', 'x10', 'x2', 'x1', 'x5',
 ]; // prettier-ignore
 
 export const NUM_SEGMENTS = SEGMENT_LAYOUT.length;
@@ -71,13 +81,13 @@ export const TOP_SLOT_MULTS = [2, 3, 4, 5, 7, 10, 15, 20, 25, 50] as const;
 // Bonus rooms
 // ---------------------------------------------------------------------------
 /** Plinko landing slots, left to right (before any Top Slot multiplier). */
-export const PLINKO_SLOTS = [400, 80, 40, 20, 12, 7, 4, 7, 12, 20, 40, 80, 400] as const;
+export const PLINKO_SLOTS = [400, 100, 50, 30, 20, 12, 7, 12, 20, 30, 50, 100, 400] as const;
 export const PLINKO_ROWS = 12;
 
-/** Lucky Wheel wedge values in rim order. */
+/** Jackpot Wheel wedge values in rim order. */
 export const WHEEL_LAYOUT = [
-	2, 3, 2, 5, 2, 10, 3, 2, 5, 2, 3, 100, 2, 3, 5, 2, 20, 3, 2, 5, 2, 3, 50, 2,
-	3, 5, 2, 10, 3, 2, 200, 2, 5, 3, 20, 10,
+	10, 15, 20, 10, 25, 10, 50, 15, 25, 20, 100, 10, 15, 25, 10, 20, 150, 15, 10, 50, 20, 10, 25, 15,
+	100, 10, 20, 50, 15, 10, 500, 25, 15, 20, 10, 15,
 ] as const; // prettier-ignore
 
 export const NUM_CHESTS = 12;
