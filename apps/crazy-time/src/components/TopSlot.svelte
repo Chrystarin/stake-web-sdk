@@ -39,7 +39,7 @@
 	// says the same thing the wedge does.
 	const spotItems = SPOTS.map((spot) => ({
 		key: spot,
-		label: isRoomSpot(spot) ? SPOT_LABEL[spot].split(' ')[0] : '',
+		label: isRoomSpot(spot) ? SPOT_LABEL[spot] : '',
 		icon: isRoomSpot(spot)
 			? staticUrl('img/wheel/bonus.png')
 			: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`),
@@ -189,9 +189,11 @@
 		height: var(--cell);
 		overflow: hidden;
 		display: flex;
+		/* Same arrangement as a bet tile: the crest over the room's whole name. */
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: calc(var(--cell) * 0.054);
+		gap: calc(var(--cell) * 0.03);
 		color: var(--text, #fff);
 		background: var(--fill, #222);
 		border-bottom: 0.05vw solid rgba(0, 0, 0, 0.4);
@@ -205,15 +207,18 @@
 	/* A number badge has the window to itself; a bonus shares it with its name, so the crest is set
 	   smaller and the pair is sized to clear the frame's opening rather than run under the wood. */
 	.crest {
-		height: calc(var(--cell) * 0.45);
+		height: calc(var(--cell) * 0.42);
 	}
 	/* The bonus name in the bet board's own hand. */
 	.spot-lbl {
 		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
 		font-weight: 400;
-		font-size: calc(var(--cell) * 0.155);
-		letter-spacing: calc(var(--cell) * 0.009);
-		white-space: nowrap;
+		font-size: calc(var(--cell) * 0.145);
+		letter-spacing: calc(var(--cell) * 0.008);
+		line-height: 1.05;
+		text-align: center;
+		/* The window is narrower than a tile, so a two-word name wraps rather than shrinking to fit. */
+		white-space: normal;
 		paint-order: stroke;
 		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
 	}
