@@ -130,8 +130,18 @@
 	};
 
 	let lastTick = -1;
+	/** The segment under the flapper right now, while the disc is moving. Null when it is at rest. */
+	let passing = $state<number | null>(null);
+	/**
+	 * Which segment wears the outline: the one being passed while the disc turns, and then the one it
+	 * came to rest on — `highlight` outlives the spin, so the outline stays through the result and
+	 * goes when the round is cleared.
+	 */
+	const outlined = $derived(passing ?? highlight);
+
 	const track = () => {
 		const idx = indexAt(liveRotation());
+		passing = idx;
 		if (idx !== lastTick) {
 			lastTick = idx;
 			onTick?.(idx);
@@ -175,6 +185,7 @@
 	const finish = (index: number) => {
 		if (!spinning) return;
 		spinning = false;
+		passing = null;
 		cancelAnimationFrame(raf);
 		onLand?.(index);
 		resolveSpin?.();
@@ -318,6 +329,14 @@
 			{#each segments as seg, i (i)}
 				<path d={wedgePath(i)} class="shade" class:on={highlight !== null && highlight !== i} />
 			{/each}
+			{#if outlined !== null}
+				<!-- One wedge outline, rotated onto whichever segment is under the flapper. Rotating a
+				     static path costs one attribute per frame; redrawing its geometry would cost the
+				     whole path, and a blur filter would re-rasterise on every tick. -->
+				<g class="passing" transform="rotate({outlined * step} {R} {R})">
+					<path d={wedgePath(0)} class="passing-edge" />
+				</g>
+			{/if}
 			{#if !frame && INNER > 4}
 				<circle cx={R} cy={R} r={INNER - 4} class="hub" />
 			{/if}
@@ -407,6 +426,14 @@
 	}
 	.shade.on {
 		opacity: 0.55;
+	}
+	/* The segment being pointed at as the wheel turns: one thin light rim on the wedge's own edge. */
+	.passing-edge {
+		fill: none;
+		pointer-events: none;
+		stroke-linejoin: round;
+		stroke: rgba(255, 246, 194, 0.8);
+		stroke-width: 1.6;
 	}
 	.label {
 		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
