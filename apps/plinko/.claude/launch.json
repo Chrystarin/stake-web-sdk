@@ -12,6 +12,13 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "3103"],
       "port": 3103
+    },
+    {
+      "name": "crazy-time",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "crazy-time", "exec", "vite", "dev", "--port", "3021", "--strictPort"],
+      "port": 3021,
+      "autoPort": false
     }
   ]
 }

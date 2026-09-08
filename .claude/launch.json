@@ -9,6 +9,13 @@
       "autoPort": false
     },
     {
+      "name": "crazy-time",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "crazy-time", "exec", "vite", "dev", "--port", "3021", "--strictPort"],
+      "port": 3021,
+      "autoPort": false
+    },
+    {
       "name": "plinko",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "plinko", "exec", "vite", "dev", "--port", "3009", "--strictPort"],
