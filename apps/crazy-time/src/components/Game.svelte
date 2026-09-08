@@ -120,6 +120,7 @@
 	// the wedge below it by the Wheel itself.
 	const BADGE_ASPECT = 30 / 48;
 	const CREST_ASPECT = 1;
+	const CREST_ART = staticUrl('img/wheel/bonus.png');
 	/**
 	 * The play button's diameter as a fraction of the frame box: the gem at the middle of the hub,
 	 * not the whole ship's wheel. The gem and its red ring run to about r=60px in the 1911px frame
@@ -820,8 +821,19 @@
 										onclick={() => toggleSpot(spot)}
 										aria-hidden="true"
 									>
-										<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
-										<span class="tile-sub">{isRoomSpot(spot) ? 'BONUS' : 'MULTIPLIER'}</span>
+										<!-- A tile says what its wedge says: a number wears its badge alone, a bonus its
+										     crest over the room's name. -->
+										{#if isRoomSpot(spot)}
+											<img class="tile-crest" src={CREST_ART} alt="" draggable="false" />
+											<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
+										{:else}
+											<img
+												class="tile-badge"
+												src={staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`)}
+												alt=""
+												draggable="false"
+											/>
+										{/if}
 
 										{#if tileMult?.spot === spot}
 											<div class="tile-mult mult-badge">
@@ -1280,13 +1292,14 @@
 	/* Width in vw (not the shared sheet's 100%) so `zoom` scales the box along with its vw interior:
 	   a percentage resolves against the unzoomed parent and would leave the frame full size. The
 	   frame itself is transparent — the backdrop behind it is the whole picture. */
-	/* The frame fills the viewport: `zoom` scales the vw-authored interior, so the box's own height
-	   has to be divided by the same factor to come back out at exactly the viewport's height. The
-	   stage sits at its top edge and the panel at its bottom; any slack falls between them. */
+	/* The frame fills the viewport: `zoom` scales the vw-authored interior, so BOTH of the box's own
+	   dimensions have to be divided by the same factor to come back out at exactly the viewport's.
+	   (Width included — `100vw` alone renders as `100vw * fit` and leaves a band down one side.)
+	   The stage sits at the top edge and the panel at the bottom; any slack falls between them. */
 	.game {
 		--panel-inset: 12.5vw;
 		position: relative;
-		width: 100vw;
+		width: calc(100vw / var(--fit, 1));
 		height: calc(100vh / var(--fit, 1));
 		zoom: var(--fit, 1);
 		background: none;
@@ -1439,9 +1452,11 @@
 		letter-spacing: 0.12vw;
 		-webkit-text-stroke: 0.32vw rgba(0, 0, 0, 0.55);
 	}
-	.game.portrait .tile-sub {
-		font-size: 2vw;
-		letter-spacing: 0.18vw;
+	.game.portrait .tile-badge {
+		height: 8.5vw;
+	}
+	.game.portrait .tile-crest {
+		height: 4.4vw;
 	}
 	.game.portrait .board {
 		margin-top: 1.2vw;
@@ -1475,9 +1490,9 @@
 		margin: -4vw 0 0 -4vw;
 	}
 	.game.portrait .tile-mult {
-		top: -1.4vw;
-		right: -1vw;
-		font-size: 3vw;
+		top: -0.9vw;
+		right: -0.8vw;
+		font-size: 3.7vw;
 	}
 	.game.portrait .mult-flight .mult-badge {
 		font-size: 4.6vw;
@@ -1657,10 +1672,16 @@
 		paint-order: stroke;
 		-webkit-text-stroke: 0.11vw rgba(0, 0, 0, 0.55);
 	}
-	.tile-sub {
-		font-size: 0.55vw;
-		letter-spacing: 0.06vw;
-		opacity: 0.85;
+	/* A number's badge has the tile to itself; a bonus crest shares it with the room's name. */
+	.tile-badge {
+		height: 3.4vw;
+		width: auto;
+		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
+	}
+	.tile-crest {
+		height: 1.7vw;
+		width: auto;
+		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
 	}
 	.tile.win {
 		outline: 0.3vw solid #ffe14d;
@@ -1722,13 +1743,14 @@
 	.mult-badge .mult-fill {
 		color: #e9e4e4;
 	}
-	/* Parked: hung off the tile's top-right corner, clear of the payout badge at top centre. */
+	/* Parked: sitting on the tile's top-right corner, mostly inside it and overhanging just enough
+	   to read as applied to the tile rather than printed on it. */
 	.tile-mult {
 		position: absolute;
-		top: -0.6vw;
-		right: -0.5vw;
+		top: -0.35vw;
+		right: -0.3vw;
 		z-index: 502;
-		font-size: 1.15vw;
+		font-size: 1.45vw;
 	}
 	/* In flight: a zero-size box carried between the two points, so `scale` shrinks the reel-sized
 	   copy about the point it is travelling to rather than about a corner. */
