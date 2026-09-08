@@ -16,6 +16,7 @@ export type SoundName =
 	| 'click'
 	| 'merge'
 	| 'peg'
+	| 'notify'
 	| 'win'
 	| 'doorClose'
 	| 'doorOpen';
@@ -33,6 +34,8 @@ const SOURCES: Record<SoundName, string> = {
 	// Willy's plinko (apps/plinko/static/sound) so the bonus round sounds like the game it came
 	// from — same samples, and the trims below are that game's too.
 	peg: staticUrl('sound/peg.wav'),
+	// A reel coming to rest in the Top Slot.
+	notify: staticUrl('sound/notify.mp3'),
 	win: staticUrl('sound/win.mp3'),
 	// The jackpot screen arriving and leaving — a door thudding shut and creaking back open, from
 	// the same game's bonus screen. Both are SPRITE windows; see `SPRITES`.
@@ -68,6 +71,8 @@ const MIX: Record<SoundName, number> = {
 	merge: 0.9,
 	// A drop strikes twenty-one of these in under two seconds, so it sits well back.
 	peg: 0.5,
+	// Two of these land per spin, a couple of seconds apart, over the peg ticking.
+	notify: 0.7,
 	win: 1,
 	// Well under the plinko game's own level: there they are the bonus screen's headline moment,
 	// here they are the way into one, and loud they walk over the announcement the screen lands on.
@@ -104,9 +109,11 @@ export const preloadSounds = (): void => {
  * random pitch is what stops the repeats sounding machine-gun identical. Browsers default to
  * correcting pitch when the rate changes, which is exactly backwards here, so that is turned off.
  */
-export const playSound = (name: SoundName, rate?: number): void => {
+export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 	if (typeof Audio === 'undefined') return;
-	const volume = stateSoundDerived.volumeSoundEffect() * MIX[name];
+	// `gain` trims one call rather than the sound: the peg tick is shared by the wheel, the Top Slot
+	// and both bonus rooms, and they do not all want it at the same level.
+	const volume = stateSoundDerived.volumeSoundEffect() * MIX[name] * gain;
 	if (volume <= 0) return;
 	// Cloning the warmed element reuses whatever it has already buffered; falling back to a
 	// fresh Audio covers a play that beats the preload.

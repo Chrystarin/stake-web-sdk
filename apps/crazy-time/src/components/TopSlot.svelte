@@ -7,6 +7,8 @@
 	 * DOWN through several copies, then the strip is silently reset to the equivalent position in
 	 * the first copy once the transition has ended.
 	 */
+	import { onDestroy } from 'svelte';
+
 	import {
 		isRoomSpot,
 		NUMBER_PAY,
@@ -29,11 +31,19 @@
 	type Props = {
 		/** Glow the pair: the wheel landed on the spot the Top Slot picked. */
 		applied?: boolean;
+		/** Fired whenever a cell passes a reel's window, on either reel — the wheel's peg tick. */
+		onTick?: () => void;
+		/** Fired as each reel comes to rest — twice a spin, a couple of seconds apart. */
+		onReelStop?: () => void;
 	};
-	let { applied = false }: Props = $props();
+	let { applied = false, onTick, onReelStop }: Props = $props();
 
-	const COPIES = 4;
-	const SPIN_MS = 2300;
+	/** Copies of the strip to travel through. Enough that the right reel, which runs longest at the
+	 *  shared rate, always finds a copy far enough away to land on. */
+	const COPIES = 10;
+	/** How long the left reel runs. The right one runs two seconds longer, so it lands after it. */
+	const SPIN_MS = 2200;
+	const MULT_EXTRA_MS = 2000;
 
 	// A number reads as its wheel badge alone; a bonus as the bonus crest plus its name, so a reel
 	// says the same thing the wedge does.
@@ -54,13 +64,24 @@
 
 	/** The multiplier window, so the game can fly a copy of what landed onto the winning tile. */
 	let multReelEl: HTMLElement | undefined = $state();
+	let spotStripEl: HTMLElement | undefined = $state();
+	let multStripEl: HTMLElement | undefined = $state();
 	export const multRect = (): DOMRect | undefined => multReelEl?.getBoundingClientRect();
+	/** And the size it is set at, so a copy can leave the reel at the size it is read at. */
+	export const multFontPx = (): number => {
+		const cell = multReelEl?.querySelector('.cell');
+		return cell ? parseFloat(getComputedStyle(cell).fontSize) : 0;
+	};
 
 	let spotIndex = $state(0);
 	let multIndex = $state(1);
 	let animating = $state(false);
 	let spotOffset = $state(0); // in items, within the repeated strip
 	let multOffset = $state(1);
+	/** Set per spin: the right reel travels further because it runs longer at the same rate. */
+	let multMs = $state(SPIN_MS + MULT_EXTRA_MS);
+
+	onDestroy(() => cancelAnimationFrame(raf));
 
 	const strip = <T,>(items: T[]) => Array.from({ length: COPIES }, () => items).flat();
 	const spotStrip = strip(spotItems);
@@ -72,15 +93,61 @@
 		return multItems.findIndex((item) => item.key === `m${m}`);
 	};
 
-	/** Spin both reels to the authored pair. Resolves when they have stopped. */
+	/**
+	 * Spin both reels to the authored pair. Resolves when they have stopped.
+	 *
+	 * Both run at the same rate — cells per second, and the cells are the same height — so the one
+	 * that runs a second longer has to cover a second's more ground. The left reel travels to its
+	 * target in the last copy; the right one lands on the copy whose distance is nearest the rate it
+	 * owes, which is what keeps the two moving together until the left one stops.
+	 */
+	/**
+	 * Cells passing their window, read off the live transform rather than a timer, so the ticks follow
+	 * the eased motion the way the wheel's do. Each reel is counted separately — they run at the same
+	 * rate but stop a couple of seconds apart, so the right one keeps ticking after the left is still.
+	 */
+	let raf = 0;
+	let lastCell = [0, 0];
+	const cellIndex = (el: HTMLElement | undefined, cell: number) => {
+		if (!el || !cell) return null;
+		return Math.round(-new DOMMatrixReadOnly(getComputedStyle(el).transform).f / cell);
+	};
+	const track = () => {
+		const cell = spotStripEl?.firstElementChild?.getBoundingClientRect().height ?? 0;
+		for (const [i, el] of [spotStripEl, multStripEl].entries()) {
+			const at = cellIndex(el, cell);
+			if (at !== null && at !== lastCell[i]) {
+				lastCell[i] = at;
+				onTick?.();
+			}
+		}
+		if (animating) raf = requestAnimationFrame(track);
+	};
+
 	export const spin = (spot: Spot | null, multiplier: number | null): Promise<void> => {
 		const s = targetSpotIndex(spot);
 		const m = targetMultIndex(multiplier);
-		// From the current position in copy 0, travel through the copies to the target in the last.
 		const sTarget = (COPIES - 1) * spotItems.length + s;
-		const mTarget = (COPIES - 1) * multItems.length + m;
+
+		const rate = (sTarget - spotOffset) / SPIN_MS; // cells per ms, shared by both reels
+		multMs = SPIN_MS + MULT_EXTRA_MS;
+		const wanted = rate * multMs;
+		let mTarget = multItems.length + m;
+		for (let copy = 1; copy < COPIES; copy++) {
+			const candidate = copy * multItems.length + m;
+			if (Math.abs(candidate - multOffset - wanted) < Math.abs(mTarget - multOffset - wanted)) {
+				mTarget = candidate;
+			}
+		}
+
 		return new Promise((resolve) => {
 			animating = true;
+			lastCell = [spotOffset, multOffset];
+			cancelAnimationFrame(raf);
+			raf = requestAnimationFrame(track);
+			// Each reel says so as it lands; the second one is still running when the first does.
+			setTimeout(() => onReelStop?.(), SPIN_MS);
+			setTimeout(() => onReelStop?.(), multMs);
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
 					spotOffset = sTarget;
@@ -89,13 +156,14 @@
 			});
 			setTimeout(() => {
 				animating = false;
+				cancelAnimationFrame(raf);
 				// Snap back to the equivalent slot in copy 0 without a transition.
 				spotOffset = s;
 				multOffset = m;
 				spotIndex = s;
 				multIndex = m;
 				resolve();
-			}, SPIN_MS + 60);
+			}, multMs + 60);
 		});
 	};
 </script>
@@ -104,7 +172,7 @@
 	<div class="cabinet">
 		<img class="frame-art" src={FRAME_ART} alt="" draggable="false" />
 		<div class="reel spot-reel">
-			<div class="strip" style="--offset:{spotOffset}; --ms:{SPIN_MS}ms">
+			<div class="strip" bind:this={spotStripEl} style="--offset:{spotOffset}; --ms:{SPIN_MS}ms">
 				{#each spotStrip as item, i (i)}
 					<div class="cell" style="--fill:{item.fill}; --text:{item.text}">
 						<img class="badge" class:crest={Boolean(item.label)} src={item.icon} alt="" draggable="false" />
@@ -114,7 +182,7 @@
 			</div>
 		</div>
 		<div class="reel mult-reel" bind:this={multReelEl}>
-			<div class="strip" style="--offset:{multOffset}; --ms:{SPIN_MS}ms">
+			<div class="strip" bind:this={multStripEl} style="--offset:{multOffset}; --ms:{multMs}ms">
 				{#each multStrip as item, i (i)}
 					<div class="cell mult" class:blank={item.blank}>
 						{#if !item.blank}
@@ -176,8 +244,8 @@
 		transform: translateY(calc(var(--offset) * var(--cell) * -1));
 	}
 	.animating .strip {
-		/* Most of the travel happens early; the last stretch crawls into place. */
-		transition: transform var(--ms) cubic-bezier(0.1, 0.62, 0.02, 1);
+		/* Quick off the mark and a short settle — it decelerates into place rather than crawling. */
+		transition: transform var(--ms) cubic-bezier(0.16, 0.78, 0.28, 1);
 	}
 	/* The step the strip translates by IS `--cell`, so the cell's border box has to be exactly that:
 	   border-box (the 0.05vw rule rounds up to a whole pixel and would otherwise be added on top) and

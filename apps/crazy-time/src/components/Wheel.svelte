@@ -209,10 +209,12 @@
 	 * head of the run is a crest, not a letter, and it sits on the numbers' own ring so the outer
 	 * edge of the wheel reads as one band; the name starts underneath it.
 	 */
-	const ROOM_OVERFLOW = 1.32; // glyphs run this much past the wedge's arc width at any radius
+	const ROOM_OVERFLOW = 1.25; // how far a glyph should spill past the wedge's arc width
 	const ROOM_GLYPH_H = 1.13; // Pieces of Eight ink height, as a fraction of font size (measured)
-	const ROOM_TRACK = 0.7; // advance between glyph centres, likewise
+	const ROOM_TRACK = 0.72; // advance between glyph centres, likewise — a little over the face's
+	const ROOM_TRACK_MIN = 0.52; // and the tightest setting before the letters are shrunk instead
 	const ROOM_CREST_GAP = 10; // clear space between the crest art and the first letter, in units
+	const ROOM_HUB_R = 69; // the last glyph's INK stops here; the frame's hub art starts just below
 
 	/** Arc width of one wedge at radius `r`, in viewBox units. */
 	const wedgeWidth = (r: number) => r * ((step * Math.PI) / 180);
@@ -232,12 +234,38 @@
 
 	const roomGlyphs = (i: number, label: string, crest?: { aspect: number }): RoomGlyph[] => {
 		const angle = i * step;
-		const perRadius = (ROOM_OVERFLOW * ((step * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
-		const half = (perRadius * ROOM_TRACK) / 2; // half an advance between letters, per unit radius
-
-		// The name starts below the crest art: past its lower edge, the gap, and half its own advance.
+		/**
+		 * The whole name has to sit between the crest and the hub, and a long one cannot do that at
+		 * a short one's setting: fourteen glyphs down the span that holds six have to give somewhere.
+		 * They give in tracking first — the letters keep the size that spills them slightly past the
+		 * wedge, and close up towards ROOM_TRACK_MIN — and only shrink once that floor is reached.
+		 *
+		 * `r1` depends on the setting and the setting on `r1`, so it settles over a few passes. The
+		 * crest's gap is measured to the first glyph's OUTER edge, a fixed radius, so it comes out
+		 * identical on every name however the letters end up set.
+		 */
 		const crestH = crest ? badgeBox(crest.aspect, CREST_FILL).h : 0;
-		let r = (LABEL_R - crestH / 2 - ROOM_CREST_GAP) / (1 + half);
+		const outerEdge = LABEL_R - crestH / 2 - ROOM_CREST_GAP;
+		let perRadius = (ROOM_OVERFLOW * ((step * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
+		let track = ROOM_TRACK;
+		for (let pass = 0; pass < 4 && label.length > 1; pass++) {
+			const half = (perRadius * track) / 2;
+			const r1 = outerEdge / (1 + half);
+			// The last glyph's own half-advance has to clear the hub too, so the centre stops short of
+			// it by that much — which is why the limit is scaled rather than a flat radius.
+			const ratio = Math.pow(ROOM_HUB_R / (1 - half) / r1, 1 / (label.length - 1));
+			const neededHalf = (1 - ratio) / (1 + ratio); // half an advance, per unit radius
+			const neededTrack = (2 * neededHalf) / perRadius;
+			if (neededTrack >= ROOM_TRACK) {
+				track = ROOM_TRACK; // it fits at the face's own spacing, with room to spare
+				break;
+			}
+			track = Math.max(ROOM_TRACK_MIN, neededTrack);
+			if (neededTrack < ROOM_TRACK_MIN) perRadius = (2 * neededHalf) / ROOM_TRACK_MIN;
+		}
+
+		const half = (perRadius * track) / 2; // half an advance between letters, per unit radius
+		let r = outerEdge / (1 + half);
 
 		const glyphs: RoomGlyph[] = [];
 		for (const ch of label) {

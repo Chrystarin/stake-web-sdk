@@ -2,7 +2,7 @@
 	import '../styles/global.scss';
 	import '../styles/table.scss';
 
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 
 	import { stateBet } from 'state-shared';
 	import { stateUrlDerived } from 'state-shared';
@@ -129,9 +129,7 @@
 	const HUB_HIT = (2 * 72) / 1911;
 
 	const WHEEL_SEGMENTS: WheelSegment[] = SEGMENT_LAYOUT.map((spot) => ({
-		label: isRoomSpot(spot)
-			? (SPOT_LABEL[spot].split(' ').at(-1) ?? spot)
-			: String(NUMBER_PAY[spot]),
+		label: isRoomSpot(spot) ? SPOT_LABEL[spot] : String(NUMBER_PAY[spot]),
 		fill: SPOT_COLOUR[spot].base,
 		text: SPOT_COLOUR[spot].text,
 		kind: isRoomSpot(spot) ? 'room' : 'number',
@@ -519,6 +517,7 @@
 			wheelHighlight = null;
 			topSlotApplied = false;
 			tileMult = null;
+			multHidden = false;
 			panelDimmed = false;
 		});
 
@@ -620,6 +619,7 @@
 		topSlotApplied = false;
 		multFlight = null;
 		tileMult = null;
+		multHidden = false;
 		panelDimmed = false;
 		stateGame.rolling = true;
 		context.eventEmitter.broadcast({ type: 'bet' });
@@ -661,33 +661,66 @@
 	/** The board keeps full strength through the Top Slot; it only steps back for the wheel. */
 	let panelDimmed = $state(false);
 	/** In flight, from the Top Slot's multiplier window to the tile's top-right corner. */
-	let multFlight = $state<{ id: number; label: string; from: Point; to: Point } | null>(null);
+	let multFlight = $state<{
+		id: number;
+		label: string;
+		from: Point;
+		to: Point;
+		/** The reel's own type size, in the frame's units, and the size it has to end at. */
+		size: number;
+		land: number;
+	} | null>(null);
 	/** Parked on that tile once it lands, until the board clears. */
 	let tileMult = $state<{ spot: Spot; label: string } | null>(null);
+	/** The parked badge, held invisible while the flying copy is on its way to it. */
+	let tileMultEl: HTMLElement | undefined = $state();
+	let multHidden = $state(false);
 	let multFlightId = 0;
 
 	const flyMultiplier = async (spot: Spot, multiplier: number) => {
 		const box = tileEls[spot];
 		const reel = topSlot?.multRect();
+		const label = `${multiplier}x`;
 		if (!gameEl || !box || !reel) {
-			tileMult = { spot, label: `${multiplier}x` };
+			multHidden = false;
+			tileMult = { spot, label };
 			return;
 		}
+		// The badge is parked first but held invisible, so the flight can be aimed at the box it
+		// will actually occupy. Aiming at the tile's corner instead put it half a badge off, which
+		// is what jumped at the hand-off: the parked one hangs off that corner, it isn't centred on
+		// it.
+		multHidden = true;
+		tileMult = { spot, label };
+		await tick();
+		if (multHidden !== true || tileMult?.spot !== spot) return;
 		const host = gameEl.getBoundingClientRect();
-		const tile = box.getBoundingClientRect();
+		const landing = tileMultEl?.getBoundingClientRect();
 		const id = ++multFlightId;
+		// It leaves at the size it is read at on the reel and arrives at the size the parked badge
+		// is set in, so nothing jumps at either end. Both are measured through the frame's `zoom`,
+		// so both are divided back into the frame's own units.
+		const land =
+			(parseFloat(tileMultEl ? getComputedStyle(tileMultEl).fontSize : '') || 0) / fitScale ||
+			((parseFloat(getComputedStyle(gameEl).getPropertyValue('--mult-land')) || 1.45) *
+				window.innerWidth) /
+				100;
+		const size = (topSlot?.multFontPx() ?? 0) / fitScale || land;
 		multFlight = {
 			id,
-			label: `${multiplier}x`,
+			label,
 			from: centreIn(host, reel),
-			// The corner it is going to sit on, not the tile's middle.
-			to: pointIn(host, tile.right, tile.top),
+			to: landing
+				? centreIn(host, landing)
+				: pointIn(host, box.getBoundingClientRect().right, box.getBoundingClientRect().top),
+			size,
+			land,
 		};
 		playSound('whoosh');
 		await waitForTimeout(MULT_FLIGHT_MS);
 		if (multFlight?.id !== id) return;
 		multFlight = null;
-		tileMult = { spot, label: `${multiplier}x` };
+		multHidden = false;
 		playSound('pop');
 	};
 
@@ -770,7 +803,12 @@
 		<!-- The show: Top Slot over the wheel. -->
 		<div class="stage">
 			<div class="topslot-wrap">
-				<TopSlot bind:this={topSlot} applied={topSlotApplied} />
+				<TopSlot
+					bind:this={topSlot}
+					applied={topSlotApplied}
+					onTick={() => playSound('peg', 1.9, 0.5)}
+					onReelStop={() => playSound('notify')}
+				/>
 			</div>
 			<div class="wheel-wrap">
 				<Wheel
@@ -779,7 +817,7 @@
 					frame={WHEEL_FRAME}
 					innerRadius={0}
 					highlight={wheelHighlight}
-					onTick={() => playSound('peg', 1.4)}
+					onTick={() => playSound('peg', 1.4, 0.5)}
 				/>
 				<!-- The gem at the middle of the hub is the play button: it spins, or plays again once a
 			     round has settled. It carries the prompt the old tab used to, and pulses while it can
@@ -837,7 +875,11 @@
 										{/if}
 
 										{#if tileMult?.spot === spot}
-											<div class="tile-mult mult-badge">
+											<div
+												class="tile-mult mult-badge"
+												class:waiting={multHidden}
+												bind:this={tileMultEl}
+											>
 												<span class="mult-stroke" aria-hidden="true">{tileMult.label}</span>
 												<span class="mult-fill">{tileMult.label}</span>
 											</div>
@@ -944,7 +986,8 @@
 			<div
 				class="mult-flight"
 				style="--from-x:{multFlight.from.x}px; --from-y:{multFlight.from.y}px; --to-x:{multFlight.to
-					.x}px; --to-y:{multFlight.to.y}px; --ms:{MULT_FLIGHT_MS}ms"
+					.x}px; --to-y:{multFlight.to.y}px; --ms:{MULT_FLIGHT_MS}ms; --size:{multFlight.size}px; --land-scale:{multFlight.land /
+					multFlight.size}"
 				aria-hidden="true"
 			>
 				<div class="mult-badge">
@@ -1299,6 +1342,8 @@
 	   The stage sits at the top edge and the panel at the bottom; any slack falls between them. */
 	.game {
 		--panel-inset: 12.5vw;
+		/* The size the Top Slot's multiplier settles at on a tile — the flight reads it too. */
+		--mult-land: 1.45vw;
 		position: relative;
 		width: calc(100vw / var(--fit, 1));
 		height: calc(100vh / var(--fit, 1));
@@ -1430,7 +1475,11 @@
 	   frame is 1.78x narrower than in landscape, so type and controls need roughly that much more
 	   vw to come out the same physical size. */
 	.game.portrait {
-		--panel-inset: 0.8vw;
+		--mult-land: 3.7vw;
+		/* The board is held well clear of the viewport's edges: the tiles are sized off this, so the
+		   margin is set here once rather than tuned into the grid. The chip tray is trimmed to
+		   match, since its row would otherwise be the widest thing in the panel. */
+		--panel-inset: 6.5vw;
 	}
 	.game.portrait .stage {
 		gap: 1vw;
@@ -1444,7 +1493,7 @@
 		order: 1;
 	}
 	.game.portrait .tiles {
-		grid-template-columns: repeat(2, 47.5vw);
+		grid-template-columns: repeat(2, calc((100vw / var(--fit, 1) - 2 * var(--panel-inset) - 1vw) / 2));
 		grid-auto-rows: 12vw;
 		gap: 0.9vw 1vw;
 	}
@@ -1471,18 +1520,18 @@
 		height: 10vw;
 	}
 	.game.portrait .chips-viewport {
-		--chip-pitch: 10vw;
+		--chip-pitch: 9vw;
 	}
 	.game.portrait .chips-rail .chip {
-		width: 8vw;
-		height: 8vw;
-		margin: auto 1vw;
+		width: 7.2vw;
+		height: 7.2vw;
+		margin: auto 0.9vw;
 	}
 	.game.portrait .actions-wrap .clear-btn,
 	.game.portrait .undo-btn {
-		width: 7vw;
-		height: 7vw;
-		margin: auto 1.6vw;
+		width: 6.4vw;
+		height: 6.4vw;
+		margin: auto 1.2vw;
 	}
 	.game.portrait .undo-btn::before {
 		font-size: 4.2vw;
@@ -1498,10 +1547,6 @@
 	.game.portrait .tile-mult {
 		top: -0.9vw;
 		right: -0.8vw;
-		font-size: 3.7vw;
-	}
-	.game.portrait .mult-flight .mult-badge {
-		font-size: 4.6vw;
 	}
 	.game.portrait .bet-notice {
 		top: 10vw;
@@ -1756,7 +1801,11 @@
 		top: -0.35vw;
 		right: -0.3vw;
 		z-index: 502;
-		font-size: 1.45vw;
+		font-size: var(--mult-land);
+	}
+	/* Laid out but not shown, while the flying copy is still travelling to where it sits. */
+	.tile-mult.waiting {
+		visibility: hidden;
 	}
 	/* In flight: a zero-size box carried between the two points, so `scale` shrinks the reel-sized
 	   copy about the point it is travelling to rather than about a corner. */
@@ -1775,7 +1824,7 @@
 		left: 0;
 		top: 0;
 		transform: translate(-50%, -50%);
-		font-size: 1.9vw;
+		font-size: var(--size, 1.9vw);
 		white-space: nowrap;
 	}
 	@keyframes mult-fly {
@@ -1785,7 +1834,7 @@
 		}
 		to {
 			translate: var(--to-x) var(--to-y);
-			scale: 0.6;
+			scale: var(--land-scale, 0.6);
 		}
 	}
 	.tile .placed-chip {
