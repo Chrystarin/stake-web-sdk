@@ -1,10 +1,11 @@
 import { MODE_NAMES, RTP, maxWinForMode, modeCost } from './constants';
 
-// Mirrors games/crazy_time/library/configs/config_fe_crazy_time.json (10 modes).
+// Mirrors games/crazy_time/library/configs/config_fe_crazy_time.json (252 modes, one per spot
+// combination).
 //
-// One mode per ticket: `cost` = spots covered, so the player is charged cost x amount, where
-// `amount` is the chip. `max_win` is likewise a multiple of `amount` (math `max_win_for_mode`).
-// Every spot is tuned to the same RTP, so all ten modes certify at one number.
+// `cost` = spots covered, so the player is charged cost x amount, where `amount` is the chip.
+// `max_win` is likewise a multiple of `amount` (math `max_win_for_mode`). Every spot is tuned to
+// the same RTP, so every combination certifies at one number.
 const betModes = Object.fromEntries(
 	MODE_NAMES.map((mode) => [
 		mode,

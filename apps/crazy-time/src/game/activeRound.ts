@@ -58,8 +58,8 @@ export const describeModeMismatch = (mode: string): string | null => {
 	if (!published.length) return null;
 	if (published.includes(mode)) return null;
 	return (
-		`Bet mode "${mode}" is not published on the RGS. It has: ${published.join(', ') || '(none)'}. ` +
-		`This game expects: ${MODE_NAMES.join(', ')}. Re-publish games/crazy_time from stake-math-sdk.`
+		`Bet mode "${mode}" is not published on the RGS (it has ${published.length} modes, ` +
+		`this build expects ${MODE_NAMES.length}). Re-publish games/crazy_time from stake-math-sdk.`
 	);
 };
 

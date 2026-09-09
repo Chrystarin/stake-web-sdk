@@ -18,9 +18,9 @@ decides every outcome.
 | `bonus` | the wheel lands on any room |
 | `number` | the wheel lands on a number |
 | `topslot` | the Top Slot multiplier applied to the spot the wheel landed on |
-| `win` | the ticket paid (any amount) |
-| `loss` | the ticket paid nothing |
-| `maxwin` | the biggest payout in the sampled set for the current ticket |
+| `win` | the bet paid (any amount) |
+| `loss` | the bet paid nothing |
+| `maxwin` | the biggest payout in the sampled set for the current combination |
 
 `?bonus=<room>` is an alias for `?force=<room>`.
 
@@ -32,7 +32,7 @@ nearest kind without the value is used and a warning is logged.
 
 ### Coverage
 
-Whether the room PAYS depends on the ticket on the board, not on the parameter. To see a room pay,
+Whether the room PAYS depends on the spots on the board, not on the parameter. To see a room pay,
 put a chip on it (or use ALL BONUS / FULL BOARD); to see the "you were not in this bonus" preview,
 bet a number and force a room.
 
@@ -42,7 +42,7 @@ bet a number and force a room.
 http://localhost:3021/?force=plinko          # Plinko room, whatever it pays
 http://localhost:3021/?force=chest:250       # Treasure Chest paying its top value
 http://localhost:3021/?force=topslot         # a Top Slot hit on the landed spot
-http://localhost:3021/?force=maxwin          # the biggest sampled book for the ticket
+http://localhost:3021/?force=maxwin          # the biggest sampled book for the combination
 ```
 
 ## Where the books come from
@@ -51,7 +51,7 @@ http://localhost:3021/?force=maxwin          # the biggest sampled book for the 
 (`stake-math-sdk/games/crazy_time/library/publish_files`). The sampler keeps at least one book
 per room, one Top Slot hit and the max-win book per mode, then a weighted spread of ordinary
 rounds, so every `force` value has something to play. If a forced kind is missing for the current
-ticket, raise `--limit` and re-run the sync.
+combination, raise `--limit` and re-run the sync (default 14 books per mode, 252 modes).
 
 ## Balance
 

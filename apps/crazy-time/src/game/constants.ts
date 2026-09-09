@@ -100,36 +100,66 @@ export const TOWER_TILES_PER_FLOOR = 4;
 export const PICK_SECONDS = 8;
 
 // ---------------------------------------------------------------------------
-// Modes
+// Modes: one per combination of spots
 // ---------------------------------------------------------------------------
 export const RTP = 0.965;
 
 /**
- * The ten published tickets. A ticket covers a fixed set of spots at ONE chip each, so
- * `cost` is the number of spots and the RGS charges cost x amount.
- *
- * Any other combination of spots has no book set and cannot be bet: Stake caps a game at
- * 50 modes, and free combination of 8 spots would need 255.
+ * Short code per spot. A mode name is the covered spots' codes joined in SPOTS order, e.g. `x1`
+ * (one spot), `pk_jw_tc_dt` (all four rooms), `x1_x2_x5_x10_pk_jw_tc_dt` (the full board).
+ * The math derives the same name (`crazy_time_data.mode_name`), so the two must never diverge.
  */
-export const MODE_COVERAGE: Record<string, readonly Spot[]> = {
-	x1: ['x1'],
-	x2: ['x2'],
-	x5: ['x5'],
-	x10: ['x10'],
-	plinko: ['plinko'],
-	wheel: ['wheel'],
-	chest: ['chest'],
-	tower: ['tower'],
-	bonuses: ROOM_SPOTS,
-	full_board: SPOTS,
+export const SPOT_CODE: Record<Spot, string> = {
+	x1: 'x1',
+	x2: 'x2',
+	x5: 'x5',
+	x10: 'x10',
+	plinko: 'pk',
+	wheel: 'jw',
+	chest: 'tc',
+	tower: 'dt',
 };
+
+/** Stake wants a base mode to pay at least once in this many spins. */
+export const MIN_HIT_RATE = 20;
+
+/** The mode name for a set of spots, whether or not it is published. */
+export const modeName = (spots: readonly Spot[]): string =>
+	SPOTS.filter((spot) => spots.includes(spot))
+		.map((spot) => SPOT_CODE[spot])
+		.join('_');
+
+const clearsHitRate = (spots: readonly Spot[]): boolean =>
+	spots.reduce((sum, spot) => sum + SEGMENT_COUNT[spot], 0) * MIN_HIT_RATE >= NUM_SEGMENTS;
+
+/**
+ * Every published mode: each non-empty combination of the eight spots that clears the hit-rate
+ * floor, at ONE chip per spot. `cost` is the number of spots and the RGS charges cost x amount.
+ *
+ * 252 of the 255 combinations. The three that are not published are the one-spot bets on the
+ * rooms with 2 or 1 segments (Plinko, Dragon Tower, Jackpot Wheel): fewer than 3 of 54 segments
+ * pays less than once in 20 spins, which Stake does not accept for a base mode. Any combination
+ * that includes one of those rooms with anything else is fine.
+ */
+export const MODE_COVERAGE: Record<string, readonly Spot[]> = (() => {
+	const modes: Record<string, readonly Spot[]> = {};
+	const n = SPOTS.length;
+	for (let mask = 1; mask < 1 << n; mask++) {
+		const spots = SPOTS.filter((_, i) => mask & (1 << i));
+		if (clearsHitRate(spots)) modes[modeName(spots)] = spots;
+	}
+	return modes;
+})();
 
 export const MODE_NAMES: readonly string[] = Object.keys(MODE_COVERAGE);
 
-/** Tickets that cover more than one spot, offered as one-tap buttons on the board. */
+/** Spots that cannot be bet on their own (hit-rate floor); they need company on the board. */
+export const UNPUBLISHED_ALONE: readonly Spot[] = SPOTS.filter((spot) => !clearsHitRate([spot]));
+
+/** Combinations offered as one-tap buttons on the board. */
 export const BUNDLE_MODES: readonly { mode: string; label: string }[] = [
-	{ mode: 'bonuses', label: 'ALL BONUS' },
-	{ mode: 'full_board', label: 'FULL BOARD' },
+	{ mode: modeName([...ROOM_SPOTS]), label: 'ALL BONUS' },
+	{ mode: modeName([...SPOTS]), label: 'FULL BOARD' },
 ];
 
 const PUBLISHED_MODES = new Set(MODE_NAMES);
@@ -138,16 +168,11 @@ export const isPublishedMode = (mode: string): boolean => PUBLISHED_MODES.has(mo
 
 export const modeCost = (mode: string): number => MODE_COVERAGE[mode]?.length ?? 0;
 
-const sameSet = (a: readonly string[], b: readonly string[]) =>
-	a.length === b.length && a.every((item) => b.includes(item));
-
-/** The published mode for a set of backed spots, or null when that set is not a ticket. */
+/** The published mode for a set of backed spots, or null when that set is not published. */
 export const modeForSpots = (spots: readonly Spot[]): string | null => {
 	if (!spots.length) return null;
-	for (const [mode, coverage] of Object.entries(MODE_COVERAGE)) {
-		if (sameSet(spots, coverage)) return mode;
-	}
-	return null;
+	const name = modeName(spots);
+	return PUBLISHED_MODES.has(name) ? name : null;
 };
 
 /** Max win per mode, in units of `amount` (mirror of math `max_win_for_mode`). */

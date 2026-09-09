@@ -806,6 +806,10 @@
 			<div class="total-bet">
 				<span class="total-bet-lbl">Total Bet</span>
 				<span class="total-bet-val">{sign}{fmt(total)}</span>
+				{#if stateGameDerived.selectionIsNotTicket()}
+					<!-- The one-spot bets on the 2- and 1-segment rooms are not published (hit-rate floor). -->
+					<span class="bet-hint">add another spot to bet on this bonus</span>
+				{/if}
 			</div>
 		{/snippet}
 
@@ -876,7 +880,7 @@
 										class:landed={landed && !win}
 										class:dimmed={shadowed(spot)}
 										class:room={isRoomSpot(spot)}
-										class:locked={bettingOpen && backedCount > 0 && !backed}
+										class:locked={bettingOpen && !backed && !stateGameDerived.canBackAnother()}
 										class:backed
 										style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
 										onclick={() => toggleSpot(spot)}
@@ -1896,7 +1900,18 @@
 	}
 
 	/* ---- Total / hint ---- */
+	/* Sits under the wager without taking layout space, so the board does not jump when it appears. */
+	.bet-hint {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		font-size: 0.7vw;
+		font-weight: 600;
+		color: #ff9a8a;
+		white-space: nowrap;
+	}
 	.total-bet {
+		position: relative;
 		display: flex;
 		align-items: baseline;
 		justify-content: center;

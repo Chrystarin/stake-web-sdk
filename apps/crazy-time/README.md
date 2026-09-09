@@ -25,23 +25,25 @@ Offline, the dev harness fakes a session and plays books from `src/stories/data/
 Add `?force=<kind>` to the URL to pick a book of that kind (rooms, `topslot`, `number`, `win`, `loss`,
 `maxwin`, or `plinko:400` for a specific room value): see [docs/dev-debug.md](docs/dev-debug.md).
 
-## Bet modes (10)
+## Bet modes (252): any combination of spots
 
-A bet is a **ticket**: a fixed set of spots at one chip each. `amount` is the chip, `cost` is the
-number of spots covered, the RGS charges `cost x amount`, and payouts are in units of the chip.
+A bet is any set of spots at one chip each. `amount` is the chip, `cost` is the number of spots
+covered, the RGS charges `cost x amount`, and payouts are in units of the chip. Every combination
+of the eight spots is its own mode, named by the covered spots' short codes in board order
+(`x1`, `pk_jw_tc_dt` for all four rooms, `x1_x2_x5_x10_pk_jw_tc_dt` for the full board): the
+board derives the name the same way the math does (`SPOT_CODE`, `modeName`).
 
-| Mode | Covers | Cost |
-| --- | --- | --- |
-| `x1` `x2` `x5` `x10` | that number | 1 |
-| `plinko` `wheel` `chest` `tower` | that room | 1 |
-| `bonuses` | all four rooms | 4 |
-| `full_board` | all eight spots | 8 |
+| Spot | x1 | x2 | x5 | x10 | Plinko | Jackpot Wheel | Treasure Chest | Dragon Tower |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| code | `x1` | `x2` | `x5` | `x10` | `pk` | `jw` | `tc` | `dt` |
 
-Tapping tiles selects a single spot; the ALL BONUS and FULL BOARD buttons place the two bundles.
-Any other combination is refused with a hint. Stake caps a game at 50 modes, and free
-combination of 8 spots would need 255, so the board can only offer published tickets.
+252 of the 255 combinations are published. The three that are not are the one-spot bets on
+Plinko, Dragon Tower and the Jackpot Wheel: with 2, 2 and 1 segments of 54 they pay less than
+once in 20 spins, under Stake's hit-rate floor for a base mode. The board shows a hint and
+disables Spin until another spot is added; those rooms in any company are fine. ALL BONUS and
+FULL BOARD remain as one-tap shortcuts.
 
-Every spot is tuned to 96.5% on its own, so every ticket is 96.5%.
+Every spot is tuned to 96.5% on its own, so every combination is 96.5% with zero spread.
 
 ## Round flow
 
@@ -67,7 +69,7 @@ src/components/TopSlot.svelte     two reels, landed on the authored pair
 src/components/BonusRound.svelte  the bonus screen; hosts one of:
 src/components/rooms/Room*.svelte Plinko, Wheel, Chest, Tower (prototype presentation)
 src/game/constants.ts             mirror of crazy_time_data.py (wheel, tables, modes)
-src/game/stateGame.svelte.ts      board state, ticket → mode, commit/resume
+src/game/stateGame.svelte.ts      board state, spots → mode, commit/resume
 src/game/bookEventHandlerMap.ts   book → emitter events
 src/game/activeRound.ts           open-round handling and resume board reconstruction
 scripts/import-math-books.mjs     samples published books into base_books.ts
