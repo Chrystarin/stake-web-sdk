@@ -293,15 +293,19 @@
 	   shadow rather than under it. `paint-order` keeps the stroke behind the glyph where a
 	   browser honours it; where it does not, an edge this thin still reads as an edge. */
 	.title {
-		/* Laid INSIDE the timber rather than nudged towards it: the plaque's writing surface runs
-		   from 0.173 to 0.757 of the picture, so the text is pinned to that band and centred in it.
-		   The margin this replaces was a percentage, which resolves against the WIDTH — on a 2.27:1
-		   sign that is more than twice the lift it looked like, which is why the text sat high. */
+		/* Laid INSIDE the timber rather than nudged towards it. The dark plank runs from 0.237 to
+		   0.763 of the picture — measured off the file, not guessed — so its middle is 0.5, and this
+		   band is centred 0.012 BELOW that: enough to sit low on the plank, not enough to crowd the
+		   bottom rope. Both edges move together, so the text stays centred in the band and only the
+		   band moves.
+
+		   What this replaced was a percentage MARGIN, which resolves against the WIDTH — on a 2.27:1
+		   sign that is more than twice the lift it looks like, which is why the text once sat high. */
 		position: absolute;
 		left: 14%;
 		right: 14%;
-		top: 17.3%;
-		bottom: 24.3%;
+		top: 22%;
+		bottom: 19.6%;
 		display: flex;
 		align-items: center;
 		justify-content: center;

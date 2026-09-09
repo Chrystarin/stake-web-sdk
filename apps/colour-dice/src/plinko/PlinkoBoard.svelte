@@ -97,6 +97,13 @@
 	 * the one moment the player is watching their own choice leave their hand.
 	 */
 	const ENTRY_ARC_SCALE = 2.4;
+	/**
+	 * The same leg, fired. A shot leaves the muzzle under its own power instead of being let go of,
+	 * so it crosses the empty gap above the board quickly and the slow, watchable part of the fall
+	 * starts where the pegs do. Only this first segment is affected: everything from the first peg
+	 * down keeps the timing it had, because that is the part with something to look at.
+	 */
+	const FIRED_ENTRY_ARC_SCALE = 1;
 	/** The last, into the pocket: a deeper drop, and the one being waited on, so it takes its time. */
 	const POCKET_ARC_SCALE = 1.5;
 	/**
@@ -468,7 +475,12 @@
 		const durations = points.map((point, index) => {
 			const before = index === 0 ? from : points[index - 1];
 			const drop = point.depth - before.depth;
-			if (index === 0) return ARC_MS * ENTRY_ARC_SCALE * Math.sqrt(Math.max(0.2, drop));
+			if (index === 0)
+				return (
+					ARC_MS *
+					(fired ? FIRED_ENTRY_ARC_SCALE : ENTRY_ARC_SCALE) *
+					Math.sqrt(Math.max(0.2, drop))
+				);
 			const scale = index === points.length - 1 ? POCKET_ARC_SCALE : 1;
 			return ARC_MS * scale * arcUnits(bounces[index], drop);
 		});

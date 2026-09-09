@@ -56,8 +56,12 @@
 		cy: 0.5,
 		d: 496 / 512,
 		// Framed, the board is squat: thirteen pockets across a short opening make the row gap small,
-		// and with it the ball. Drawn well over size so the coin still reads as a coin.
-		scale: 2.4,
+		// and with it the ball. Drawn over size so the coin still reads as a coin, but only just: at
+		// this scale it covers about four tenths of a peg pitch, near enough the ball it stands for
+		// that it falls THROUGH the field rather than over the top of it. Everything either side of
+		// this number is measured in host pixels off the board's real box, so the coin tracks the
+		// viewport on its own; this is only how much bigger than its own ball it is drawn.
+		scale: 1.35,
 	};
 	/**
 	 * The glow behind it. Over dark timber a coin can go quiet, so the light is what keeps it
