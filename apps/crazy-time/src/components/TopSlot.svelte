@@ -12,6 +12,7 @@
 	import {
 		isRoomSpot,
 		NUMBER_PAY,
+		ROOM_ICON,
 		SPOTS,
 		SPOT_COLOUR,
 		SPOT_LABEL,
@@ -45,13 +46,13 @@
 	const SPIN_MS = 2200;
 	const MULT_EXTRA_MS = 2000;
 
-	// A number reads as its wheel badge alone; a bonus as the bonus crest plus its name, so a reel
-	// says the same thing the wedge does.
+	// A number reads as its wheel badge alone; a bonus as the room's own icon plus its name, so a
+	// reel says the same thing the wedge does.
 	const spotItems = SPOTS.map((spot) => ({
 		key: spot,
 		label: isRoomSpot(spot) ? SPOT_LABEL[spot] : '',
 		icon: isRoomSpot(spot)
-			? staticUrl('img/wheel/bonus.png')
+			? staticUrl(ROOM_ICON[spot].src)
 			: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`),
 		fill: SPOT_COLOUR[spot].base,
 		text: SPOT_COLOUR[spot].text,
@@ -175,7 +176,13 @@
 			<div class="strip" bind:this={spotStripEl} style="--offset:{spotOffset}; --ms:{SPIN_MS}ms">
 				{#each spotStrip as item, i (i)}
 					<div class="cell" style="--fill:{item.fill}; --text:{item.text}">
-						<img class="badge" class:crest={Boolean(item.label)} src={item.icon} alt="" draggable="false" />
+						<img
+							class="badge"
+							class:crest={Boolean(item.label)}
+							src={item.icon}
+							alt=""
+							draggable="false"
+						/>
 						{#if item.label}<span class="spot-lbl">{item.label}</span>{/if}
 					</div>
 				{/each}

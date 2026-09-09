@@ -15,6 +15,7 @@
 	import {
 		NUMBER_PAY,
 		NUMBER_SPOTS,
+		ROOM_ICON,
 		ROOM_SPOTS,
 		SEGMENT_LAYOUT,
 		SPOT_COLOUR,
@@ -184,11 +185,9 @@
 	};
 
 	// Every wedge wears badge art on the label ring: number wedges their value (img/wheel/N.png,
-	// 30x48), room wedges the bonus crest (img/wheel/bonus.png, 44x44) with the name lettered down
-	// the wedge below it by the Wheel itself.
+	// 30x48), room wedges its own icon (ROOM_ICON) with the name lettered down the wedge below it
+	// by the Wheel itself.
 	const BADGE_ASPECT = 30 / 48;
-	const CREST_ASPECT = 1;
-	const CREST_ART = staticUrl('img/wheel/bonus.png');
 	/**
 	 * The play button's diameter as a fraction of the frame box: the gem at the middle of the hub,
 	 * not the whole ship's wheel. The gem and its red ring run to about r=60px in the 1911px frame
@@ -202,7 +201,7 @@
 		text: SPOT_COLOUR[spot].text,
 		kind: isRoomSpot(spot) ? 'room' : 'number',
 		image: isRoomSpot(spot)
-			? { src: staticUrl('img/wheel/bonus.png'), aspect: CREST_ASPECT }
+			? { src: staticUrl(ROOM_ICON[spot].src), aspect: ROOM_ICON[spot].aspect }
 			: { src: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`), aspect: BADGE_ASPECT },
 	}));
 
@@ -959,10 +958,15 @@
 										onclick={() => toggleSpot(spot)}
 										aria-hidden="true"
 									>
-										<!-- A tile says what its wedge says: a number wears its badge alone, a bonus its
-										     crest over the room's name. -->
+										<!-- A tile says what its wedge says: a number wears its badge alone, a room its
+										     own icon over its name. -->
 										{#if isRoomSpot(spot)}
-											<img class="tile-crest" src={CREST_ART} alt="" draggable="false" />
+											<img
+												class="tile-crest"
+												src={staticUrl(ROOM_ICON[spot].src)}
+												alt=""
+												draggable="false"
+											/>
 											<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
 										{:else}
 											<img
@@ -1100,7 +1104,8 @@
 			<div
 				class="mult-flight"
 				style="--from-x:{multFlight.from.x}px; --from-y:{multFlight.from.y}px; --to-x:{multFlight.to
-					.x}px; --to-y:{multFlight.to.y}px; --ms:{MULT_FLIGHT_MS}ms; --size:{multFlight.size}px; --land-scale:{multFlight.land /
+					.x}px; --to-y:{multFlight.to
+					.y}px; --ms:{MULT_FLIGHT_MS}ms; --size:{multFlight.size}px; --land-scale:{multFlight.land /
 					multFlight.size}"
 				aria-hidden="true"
 			>
@@ -1585,7 +1590,6 @@
 		visibility: hidden;
 		pointer-events: none;
 	}
-
 
 	/* ---- Portrait ------------------------------------------------------------------------------
 	   A viewport-wide wheel stacked over a viewport-wide board, with the outcomes turned from four
