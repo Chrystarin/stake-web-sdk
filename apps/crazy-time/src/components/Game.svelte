@@ -1174,7 +1174,12 @@
 			</div>
 		{/if}
 
-		<BonusRound chip={stateBet.betAmount} {sign} onOpenChange={(open) => (bonusUp = open)} />
+		<BonusRound
+			chip={stateBet.betAmount}
+			{sign}
+			{portrait}
+			onOpenChange={(open) => (bonusUp = open)}
+		/>
 
 		{#if stateGame.resultReady}
 			<RoundResult amount={winCash} {sign} closing={resultClosing} />
@@ -2030,32 +2035,6 @@
 	}
 	/* The Top Slot's multiplier, in the same hand the reel sets it in: a golden-brown stroke layer
 	   under a near-white fill. Worn by the copy in flight and by the one parked on the tile. */
-	.mult-badge {
-		display: inline-grid;
-		font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
-		line-height: 1.1;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		filter: drop-shadow(0.034em 0.068em 0 #000);
-	}
-	.mult-badge .mult-stroke,
-	.mult-badge .mult-fill {
-		grid-area: 1 / 1;
-		padding-left: 0.06em;
-	}
-	.mult-badge .mult-stroke {
-		color: transparent;
-		-webkit-text-stroke: 0.09em #6d460f;
-		paint-order: stroke fill;
-		text-shadow:
-			0 0.05em 0 #6d460f,
-			0.015em 0.09em 0.04em rgba(0, 0, 0, 0.6),
-			0 0 0.42em rgba(255, 196, 62, 0.75),
-			0 0 0.95em rgba(255, 178, 44, 0.45);
-	}
-	.mult-badge .mult-fill {
-		color: #e9e4e4;
-	}
 	/* Parked: sitting on the tile's top-right corner, mostly inside it and overhanging just enough
 	   to read as applied to the tile rather than printed on it. */
 	.tile-mult {

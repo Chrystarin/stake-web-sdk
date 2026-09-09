@@ -1321,3 +1321,37 @@ app-dice-box {
   }
 
 }
+
+/* The multiplier, in the game's own hand: a brown-stroked, warmly lit numeral over a hard shadow.
+   Global rather than scoped to the table, because the bonus screen writes multipliers too and the
+   whole point of a house style is that it is the same one. Every measurement is in `em`, so the
+   badge takes its size from whatever sets `font-size` on it. */
+.mult-badge {
+	display: inline-grid;
+	font-family: 'AustereBlackCapsSSK', 'Arial Black', sans-serif;
+	line-height: 1.1;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	filter: drop-shadow(0.034em 0.068em 0 #000);
+}
+
+.mult-badge .mult-stroke,
+.mult-badge .mult-fill {
+	grid-area: 1 / 1;
+	padding-left: 0.06em;
+}
+
+.mult-badge .mult-stroke {
+	color: transparent;
+	-webkit-text-stroke: 0.09em #6d460f;
+	paint-order: stroke fill;
+	text-shadow:
+		0 0.05em 0 #6d460f,
+		0.015em 0.09em 0.04em rgba(0, 0, 0, 0.6),
+		0 0 0.42em rgba(255, 196, 62, 0.75),
+		0 0 0.95em rgba(255, 178, 44, 0.45);
+}
+
+.mult-badge .mult-fill {
+	color: #e9e4e4;
+}

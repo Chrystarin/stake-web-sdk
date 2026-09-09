@@ -12,6 +12,6 @@ export { buildPocketLadder, pocketForAward, pocketOffset, pocketHeat } from './p
 export type { PocketLadder } from './pockets';
 
 export { shapeForPockets, layoutBoard, pegsFor, pegsInRow, planDrop } from './board';
-export type { BoardShape, BoardLayout, BoardPeg } from './board';
+export type { BoardShape, BoardLayout, BoardPeg, BoardFrame } from './board';
 
 export type { PlinkoBoardApi } from './types';

@@ -15,7 +15,7 @@
 	 * choosing where to drop from is now the player's job.
 	 */
 	import { PlinkoBoard, buildPocketLadder, pocketForAward, shapeForPockets } from '../../plinko';
-	import type { PlinkoBoardApi } from '../../plinko';
+	import type { BoardFrame, PlinkoBoardApi } from '../../plinko';
 	import type { BookEventPlinkoBonus } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
@@ -24,33 +24,103 @@
 		room: BookEventPlinkoBonus;
 		/** False when the player was not in this bonus: the ball lets itself go. */
 		interactive?: boolean;
+		/** True when the player was on this room, so the win is theirs rather than a tease. */
+		covered?: boolean;
+		/** The multiplier the round paid, once it has. Null until then. */
+		result?: number | null;
+		/** That multiplier in money, already formatted and signed by the screen. */
+		cash?: string;
+		/** Tall viewport: the whole cabinet turns on its side and the room re-scales with it. */
+		portrait?: boolean;
 	};
-	let { room, interactive = true }: Props = $props();
+	let {
+		room,
+		interactive = true,
+		covered = true,
+		result = null,
+		cash = '',
+		portrait = false,
+	}: Props = $props();
 
 	/** How long the ball waits for a player who is there, and for one who is only watching. */
 	const HELD_MS = 12000;
 	const TEASE_MS = 700;
 
 	/**
-	 * A lit bomb falls instead of a ball. `cx`/`cy`/`d` are the sphere inside `bomb.png`, measured
-	 * off the file (centre 206.5, 304.5 of 512; 414 across), so the bomb strikes the pegs on its
-	 * body while the fuse and its sparks hang off the top-right without pushing it around.
+	 * A coin falls instead of a ball. It is drawn as a disc filling its own file — centred, and
+	 * 496 of 512 across — so unlike the bomb it needs no correction: the picture IS the ball.
 	 */
-	const BOMB = {
-		src: staticPath('img/plinko/bomb.png'),
-		cx: 0.403,
-		cy: 0.595,
-		d: 0.809,
-		// The board is sized by its 13 pockets, which leaves a ball too small to read a drawing in.
-		scale: 1.9,
+	const COIN = {
+		src: staticPath('img/plinko/coin.png'),
+		cx: 0.5,
+		cy: 0.5,
+		d: 496 / 512,
+		// Framed, the board is squat: thirteen pockets across a short opening make the row gap small,
+		// and with it the ball. Drawn well over size so the coin still reads as a coin.
+		scale: 2.4,
 	};
 	/**
-	 * The glow behind it. The bomb is nearly black on a dark field over a dark video, so the light
-	 * is what makes it findable — an ember, in the colour of the fuse rather than of the room.
+	 * The glow behind it. Over dark timber a coin can go quiet, so the light is what keeps it
+	 * findable all the way down — gold, taken off the coin itself.
 	 */
-	const GLOW = '#ff8a1f';
-	/** Solid enough to read as a board, open enough to know the video is still back there. */
-	const FIELD_OPACITY = 0.72;
+	const GLOW = '#f5b431';
+
+	/**
+	 * The cabinet the board is played in: `board.png`, and where its picture says the pegs and the
+	 * pockets go. Read off the art as fractions of its own box — the opening between the four
+	 * riveted rails, and the bottom rail itself, which is the ledge the pocket cards sit on.
+	 *
+	 * The board element is given the art's aspect ratio, so these fractions stay true at any size
+	 * and the frame is never stretched.
+	 */
+	const BOARD_ART = staticPath('img/plinko/board.png');
+	const BOARD_ASPECT = 3148 / 2147;
+	/** Upright: the opening between the four rails, and the bottom rail the pockets rest on. */
+	const FRAME_LANDSCAPE: BoardFrame = {
+		field: { left: 0.132, right: 0.868, top: 0.2, bottom: 0.795 },
+		// Sat on the LOWER part of the rail rather than filling it: the rail's own top edge and rivets
+		// stay visible above the cards, which is what makes them read as sitting on it.
+		pockets: { top: 0.838, bottom: 0.891 },
+	};
+	/**
+	 * On its side. The picture is turned a quarter CLOCKWISE, which maps a point (u, v) in the
+	 * art to (1 - v, u) in the box — so the opening's width comes from the art's height, and the
+	 * rail that ends up along the bottom is the one that used to be the art's RIGHT edge. A
+	 * quarter turn can never leave the original bottom rail at the bottom; it can only choose
+	 * which side rail takes over, and this is the one that does.
+	 */
+	const FRAME_PORTRAIT: BoardFrame = {
+		field: { left: 0.205, right: 0.8, top: 0.14, bottom: 0.862 },
+		pockets: { top: 0.898, bottom: 0.939 },
+	};
+	const FRAME = $derived(portrait ? FRAME_PORTRAIT : FRAME_LANDSCAPE);
+	/** Turned, the cabinet is as tall as it was wide. */
+	const boardRatio = $derived(portrait ? 1 / BOARD_ASPECT : BOARD_ASPECT);
+
+	/**
+	 * The cabinet is fitted to whatever the column has left, keeping its ratio exactly — measured
+	 * rather than left to CSS, because `aspect-ratio` against two max constraints gives up on one
+	 * of them and quietly stretches, and the fractions the pegs and pockets are placed by only
+	 * hold while the box matches the picture.
+	 */
+	let wrapEl: HTMLElement | undefined = $state();
+	let bayEl: HTMLElement | undefined = $state();
+	let wrap = $state({ w: 0, h: 0 });
+	const fit = $derived.by(() => {
+		const w = Math.max(0, Math.min(wrap.w, wrap.h * boardRatio));
+		return { w, h: w / boardRatio };
+	});
+	$effect(() => {
+		const el = wrapEl;
+		const bay = bayEl;
+		if (!el) return;
+		const measure = () => (wrap = { w: el.clientWidth, h: el.clientHeight });
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		if (bay) observer.observe(bay);
+		return () => observer.disconnect();
+	});
 
 	/**
 	 * The cannon the ball is fired from, standing over the board with a gap under it.
@@ -61,17 +131,26 @@
 	 */
 	const CANNON = staticPath('img/plinko/cannon.png');
 	/**
-	 * How far the cannon may swing either side of straight down. Full deflection is the edge of the
-	 * drop zone, so the barrel reaching its stop and the shot reaching the board's limit are the
-	 * same moment — which is what stops a player aiming at something they cannot have.
+	 * How far the cannon may swing either side of straight down.
+	 *
+	 * Worked out from the geometry rather than picked: it is the angle from the breech to the far
+	 * edge of the drop zone, so the barrel points at exactly the place the ball will enter and runs
+	 * out of travel at exactly the moment the shot runs out of board. A fixed figure cannot do that
+	 * once the cabinet can be wide OR tall — the same 38 degrees that undershot a landscape board
+	 * would overshoot a portrait one.
 	 */
-	const MAX_AIM_DEG = 38;
+	const aimLimitDeg = (pivotY: number, host: DOMRect): number => {
+		const halfSpan = ((FRAME.field.right - FRAME.field.left) / 2) * host.width;
+		const entryY = host.top + FRAME.field.top * host.height;
+		return (Math.atan2(halfSpan, Math.max(1, entryY - pivotY)) * 180) / Math.PI;
+	};
 	/**
-	 * How far the muzzle sits from the trunnions, as a share of the cannon's height: the mouth is
-	 * at the very bottom of the drawing, the trunnions a little under a third of the way down. It
-	 * is what puts the ball at the end of the barrel rather than at the middle of the picture.
+	 * How far the muzzle sits from the trunnions, as a share of the cannon's height: the mouth is at
+	 * the very bottom of the drawing (0.97), the wheels it hangs between centred at 0.4. It is what
+	 * puts the ball at the end of the barrel rather than at the middle of the picture. Both are read
+	 * off the file, so they have to be read again whenever the art is replaced.
 	 */
-	const MUZZLE_FROM_PIVOT = 0.99 - 0.29;
+	const MUZZLE_FROM_PIVOT = 0.97 - 0.4;
 	/** How far the gun jumps back up its own barrel when it fires, as a share of its height. */
 	const RECOIL = 0.13;
 	/** Long enough to see the kick and the return; the ball is clear of the muzzle well before. */
@@ -115,17 +194,18 @@
 		const py = pivot.top;
 		// Only ever downward: a pointer level with or above the breech would otherwise flip the aim.
 		const down = Math.max(1, clientY - py);
+		if (!boardEl) return;
+		const host = boardEl.getBoundingClientRect();
+		const limit = aimLimitDeg(py, host);
 		const raw = (Math.atan2(clientX - px, down) * 180) / Math.PI;
-		aimDeg = Math.max(-MAX_AIM_DEG, Math.min(MAX_AIM_DEG, raw));
-		board?.aim(aimDeg / MAX_AIM_DEG);
+		aimDeg = Math.max(-limit, Math.min(limit, raw));
+		board?.aim(aimDeg / limit);
 
 		// And where the ball will come out: the end of the barrel, swung to wherever it now points.
 		// Handed over in the board's own pixels, which above the board means a negative y — the
 		// board has no row up here to name the height by.
-		if (!boardEl) return;
 		const barrel = MUZZLE_FROM_PIVOT * cannonHeight();
 		const rad = (aimDeg * Math.PI) / 180;
-		const host = boardEl.getBoundingClientRect();
 		board?.launchFrom({
 			x: px + barrel * Math.sin(rad) - host.left,
 			y: py + barrel * Math.cos(rad) - host.top,
@@ -196,7 +276,7 @@
 </script>
 
 <div class="plinko">
-	<div class="cannon-bay">
+	<div class="cannon-bay" bind:this={bayEl}>
 		<!-- Two elements, because a recoil and a swing are two different transforms and CSS applies
 		     its own in a fixed order: the mount takes the kick, the barrel takes the aim. -->
 		<div
@@ -221,29 +301,54 @@
 		<span class="cannon-pivot" bind:this={pivotEl}></span>
 	</div>
 
-	<div class="board" bind:this={boardEl}>
-		<PlinkoBoard
-			bind:this={board}
-			{shape}
-			{ladder}
-			accent={GLOW}
-			art={BOMB}
-			fieldOpacity={FIELD_OPACITY}
-			format={label}
-			launcher="aimed"
-			autoDropAfterMs={interactive ? HELD_MS : TEASE_MS}
-			sounds={{
-				// The board tells us the moment the ball leaves, which is the moment the gun should
-				// jump — and it covers the unattended shot too, which is fired from inside the board
-				// and never passes through a pointer handler at all.
-				drop: () => {
-					playSound('whoosh');
-					recoil();
-				},
-				peg: () => playSound('peg', 0.9 + Math.random() * 0.2),
-				land: () => playSound('merge'),
-			}}
-		/>
+	<div class="board-wrap" bind:this={wrapEl}>
+		<div class="board" bind:this={boardEl} style="width:{fit.w}px; height:{fit.h}px">
+			<!-- The cabinet itself. Turned a quarter for a tall screen, which means it is sized to
+			     the box TRANSPOSED and then rotated over it. -->
+			<img
+				class="board-art"
+				class:turned={portrait}
+				src={BOARD_ART}
+				alt=""
+				draggable="false"
+				style="width:{portrait ? fit.h : fit.w}px; height:{portrait ? fit.w : fit.h}px"
+			/>
+			<PlinkoBoard
+				bind:this={board}
+				{shape}
+				{ladder}
+				accent={GLOW}
+				art={COIN}
+				frame={FRAME}
+				format={label}
+				launcher="aimed"
+				autoDropAfterMs={interactive ? HELD_MS : TEASE_MS}
+				sounds={{
+					// The board tells us the moment the ball leaves, which is the moment the gun should
+					// jump — and it covers the unattended shot too, which is fired from inside the board
+					// and never passes through a pointer handler at all.
+					drop: () => {
+						playSound('whoosh');
+						recoil();
+					},
+					peg: () => playSound('peg', 0.9 + Math.random() * 0.2),
+					land: () => playSound('merge'),
+				}}
+			/>
+
+			<!-- What it paid, over the middle of the board. It comes up only once the ball is in a
+		     pocket, so it never covers the fall it is reporting on. -->
+			{#if result !== null}
+				<div class="win">
+					<div class="win-mult">x{result}</div>
+					{#if covered}
+						<div class="win-cash">WIN {cash}</div>
+					{:else}
+						<div class="win-cash muted">would have paid {cash} per chip</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
 	<div class="hint" class:shown={armed && interactive}>Aim the cannon and click to fire.</div>
 </div>
@@ -254,14 +359,28 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		width: 46vw;
+		/* Room for the screen's title above the cannon, and for the cannon above the board. The
+		   cabinet takes whatever is left after those and keeps its own ratio, so the whole room
+		   grows and shrinks with the viewport rather than being pinned to one size. */
+		width: 56vw;
 		height: 100%;
+		/* Stretched, not merely tall: the room has to START at the plaque, or the cannon hung off
+		   its top edge has nothing to be hidden behind. */
+		align-self: stretch;
+		/* The cannon takes the top and the cabinet the bottom; whatever is left over opens up
+		   between them rather than being shared out. */
+		justify-content: space-between;
 		cursor: crosshair;
 		/* The cannon's height, where along it the barrel turns, and the air under the muzzle. Set
 		   here once because three rules and one measured marker all have to agree on them. */
-		--cannon-h: 9vw;
-		--cannon-pivot: 0.29;
-		--cannon-gap: 2.4vw;
+		/* Trimmed to give the board its height back: the bay is mostly air, and with the win line off
+		   the footer the board is the only thing left that wants the room. */
+		--cannon-h: 8.5vw;
+		--cannon-pivot: 0.4;
+		--cannon-gap: 1.2vw;
+		/* How much of the barrel goes up behind the title plaque. The bay only reserves what is left,
+		   so whatever is hidden costs the board nothing. */
+		--cannon-tuck: 0.55;
 	}
 	/* The cannon's own row, above the board. Its height is the gap: the bay is short, the cannon is
 	   taller than the bay and hangs out of the bottom of it, so what sits between the muzzle and the
@@ -271,15 +390,19 @@
 	   its breech — so the gap only ever opens up. */
 	.cannon-bay {
 		position: relative;
+		/* Fixed, like the hint: with the board sized off its own width, anything left flexible in
+		   this column gets squeezed instead — which is what was quietly shrinking the cannon. */
+		flex: none;
 		width: 100%;
-		height: calc(var(--cannon-h) + var(--cannon-gap));
+		height: calc(var(--cannon-h) * (1 - var(--cannon-tuck)) + var(--cannon-gap));
 		overflow: visible;
 		pointer-events: none;
 	}
 	.cannon-pivot {
 		position: absolute;
 		left: 50%;
-		top: calc(var(--cannon-h) * var(--cannon-pivot));
+		/* Follows the mount up, or the barrel would swing about a point it no longer turns on. */
+		top: calc(var(--cannon-h) * (var(--cannon-pivot) - var(--cannon-tuck)));
 		width: 0;
 		height: 0;
 	}
@@ -292,7 +415,10 @@
 	   recoil the moment it ran. */
 	.cannon-mount {
 		position: absolute;
-		inset: 0 0 auto 0;
+		/* Lifted by the tucked share, so the top of the barrel runs up behind the plaque. */
+		top: calc(-1 * var(--cannon-tuck) * var(--cannon-h));
+		left: 0;
+		right: 0;
 		display: flex;
 		justify-content: center;
 	}
@@ -326,20 +452,92 @@
 		filter: drop-shadow(0 0.25vw 0.5vw rgba(0, 0, 0, 0.65))
 			drop-shadow(0 0 0.7vw rgba(255, 138, 31, 0.75));
 	}
-	/* The board fills whatever it is given, in both directions — see `layoutBoard`. The hint keeps
-	   its line below it whether or not it is showing, so the board does not resize when it does. */
+	/* The cabinet. Its height is whatever the column has left and its width follows from the art's
+	   own ratio (set inline, off the file's real size), so the frame is never stretched and the
+	   fractions the pegs and pockets are placed by stay true at every size. Fully opaque: this is a
+	   board, not a window. */
+	/* The space the cabinet is fitted into: everything the column has left once the cannon and
+	   the hint have taken theirs. The cabinet is sized in script, to the pixel — see `fit`. */
+	.board-wrap {
+		flex: 1;
+		min-height: 0;
+		width: 100%;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+	}
 	.board {
 		position: relative;
-		flex: 1;
-		width: 100%;
-		min-height: 0;
+		flex: none;
+	}
+	/* Under everything the board draws, and never in the way of a pointer aiming through it. */
+	.board-art {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		translate: -50% -50%;
+		pointer-events: none;
+		user-select: none;
+	}
+	.board-art.turned {
+		rotate: 90deg;
+	}
+	/* What the round paid, over the middle of the board. Above the pegs and the pockets, and
+	   with a soft ground of its own so it reads over timber rather than fighting the grain. */
+	.win {
+		position: absolute;
+		inset: 0;
+		z-index: 50;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3vw;
+		font-family: 'Alexandria', sans-serif;
+		pointer-events: none;
+		animation: win-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+	}
+	@keyframes win-in {
+		from {
+			opacity: 0;
+			scale: 0.86;
+		}
+		to {
+			opacity: 1;
+			scale: 1;
+		}
+	}
+	.win-mult {
+		font-size: 4.6vw;
+		font-weight: 700;
+		line-height: 1;
+		color: #ffe14d;
+		text-shadow:
+			0 0.2vw 0.5vw rgba(0, 0, 0, 0.9),
+			0 0 1.6vw rgba(0, 0, 0, 0.85);
+	}
+	.win-cash {
+		font-size: 1.5vw;
+		font-weight: 600;
+		color: #fff;
+		text-shadow:
+			0 0.15vw 0.4vw rgba(0, 0, 0, 0.9),
+			0 0 1.2vw rgba(0, 0, 0, 0.85);
+	}
+	.win-cash.muted {
+		color: #cbb9a4;
+		font-weight: 400;
 	}
 	.hint {
-		height: 1.6vw;
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: -1.5vw;
+		height: 1.1vw;
 		display: flex;
 		align-items: center;
 		font-family: 'Alexandria', sans-serif;
-		font-size: 0.8vw;
+		font-size: 0.75vw;
 		color: #d6c6b4;
 		text-align: center;
 		opacity: 0;
@@ -347,5 +545,25 @@
 	}
 	.hint.shown {
 		opacity: 1;
+	}
+
+	/* ---- Portrait ----------------------------------------------------------------------
+	   A tall screen gets the cabinet on its side: nearly the full width, and everything that is
+	   authored in vw scaled up to match, because a portrait vw is about a third of a landscape
+	   one. The board's own geometry needs no rules here — it follows the frame it is given. */
+	:global(.game.portrait) .plinko {
+		width: 92vw;
+		--cannon-h: 30vw;
+		--cannon-gap: 3vw;
+	}
+	:global(.game.portrait) .hint {
+		height: 3vw;
+		font-size: 2.1vw;
+	}
+	:global(.game.portrait) .win-mult {
+		font-size: 11vw;
+	}
+	:global(.game.portrait) .win-cash {
+		font-size: 3.6vw;
 	}
 </style>

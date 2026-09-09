@@ -141,6 +141,22 @@ const POCKET_ROWS = 2.2;
 const ROW_GAP_MIN = 0.3;
 const ROW_GAP_MAX = 0.7;
 
+/**
+ * A picture the board has to sit inside: where in the host box the pegs may stand, and where
+ * the pockets belong. Fractions of the host, 0 to 1.
+ *
+ * Without one the board sizes itself and centres in whatever it is given, which is what a board
+ * drawn by the module wants. With one, a cabinet has been painted behind it and the geometry is
+ * no longer the board's to choose: the pegs go in the frame's opening and the pockets go on the
+ * ledge under it, wherever the artist put them.
+ */
+export type BoardFrame = {
+	/** The opening the pegs stand in. */
+	field: { left: number; right: number; top: number; bottom: number };
+	/** The band the pockets sit on, usually just below the opening. */
+	pockets: { top: number; bottom: number };
+};
+
 export type BoardLayout = {
 	pitch: number;
 	rowGap: number;
@@ -164,9 +180,11 @@ export const layoutBoard = (
 	shape: BoardShape,
 	hostWidth: number,
 	hostHeight: number,
+	frame?: BoardFrame,
 ): BoardLayout => {
 	// One spare pitch across, so the outermost pockets have a wall to sit against.
 	const columns = shape.pockets + 1;
+	if (frame) return layoutInFrame(shape, hostWidth, hostHeight, columns, frame);
 	const verticalRows = DROP_ZONE_ROWS + (shape.rows - 1) + POCKET_GAP_ROWS + POCKET_ROWS;
 
 	// Fill the box in BOTH directions: the pitch comes off the width and the row gap off the
@@ -196,6 +214,48 @@ export const layoutBoard = (
 		topY: top + DROP_ZONE_ROWS * rowGap,
 		pocketTop: top + (DROP_ZONE_ROWS + shape.rows - 1 + POCKET_GAP_ROWS) * rowGap,
 		pocketHeight: POCKET_ROWS * rowGap,
+		width,
+		height,
+		left,
+		top,
+	};
+};
+
+/**
+ * The same board, but told where to go.
+ *
+ * Nothing is centred and nothing is clamped: the opening sets the pitch and the row gap, and
+ * the ledge sets the pockets. The fall comes out at whatever angle the picture implies, which
+ * is the artist's business rather than the module's — a frame is a decision already made.
+ *
+ * The drop zone shrinks to a single row, because with a frame the ball comes from something
+ * OUTSIDE the board and the airspace a rail needed is just wasted opening.
+ */
+const FRAMED_DROP_ZONE_ROWS = 1;
+
+const layoutInFrame = (
+	shape: BoardShape,
+	hostWidth: number,
+	hostHeight: number,
+	columns: number,
+	frame: BoardFrame,
+): BoardLayout => {
+	const left = frame.field.left * hostWidth;
+	const width = (frame.field.right - frame.field.left) * hostWidth;
+	const top = frame.field.top * hostHeight;
+	const height = (frame.field.bottom - frame.field.top) * hostHeight;
+	const pitch = Math.max(0, width / columns);
+	const rowGap = Math.max(0, height / (FRAMED_DROP_ZONE_ROWS + shape.rows - 1));
+	return {
+		pitch,
+		rowGap,
+		pegRadius: Math.min(pitch * 0.082, rowGap * 0.26),
+		ballRadius: Math.min(pitch * 0.3, rowGap * 0.5),
+		centreX: left + width / 2,
+		railY: top + rowGap * (FRAMED_DROP_ZONE_ROWS / 2),
+		topY: top + FRAMED_DROP_ZONE_ROWS * rowGap,
+		pocketTop: frame.pockets.top * hostHeight,
+		pocketHeight: (frame.pockets.bottom - frame.pockets.top) * hostHeight,
 		width,
 		height,
 		left,

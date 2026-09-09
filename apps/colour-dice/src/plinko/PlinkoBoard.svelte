@@ -20,6 +20,7 @@
 		planDrop,
 		snapStartOffset,
 		startOffsets,
+		type BoardFrame,
 		type BoardShape,
 	} from './board';
 	import { ballPalette } from './colour';
@@ -73,6 +74,12 @@
 		 * until then the ball is in whatever the host is pointing.
 		 */
 		launcher?: 'rail' | 'aimed';
+		/**
+		 * A cabinet painted behind the board: where the pegs may stand and where the pockets go,
+		 * as fractions of the host. Given one, the board stops drawing a field of its own — the
+		 * picture IS the field — and stops choosing its own proportions.
+		 */
+		frame?: BoardFrame;
 	};
 
 	const props: Props = $props();
@@ -121,7 +128,7 @@
 	let hostEl = $state<HTMLDivElement>();
 	let box = $state({ width: 0, height: 0 });
 
-	const layout = $derived(layoutBoard(props.shape, box.width, box.height));
+	const layout = $derived(layoutBoard(props.shape, box.width, box.height, props.frame));
 	const pegs = $derived(pegsFor(props.shape, layout));
 
 	/**
@@ -607,12 +614,15 @@
 <div class="pb-host" bind:this={hostEl} style="--pb-field-alpha:{props.fieldOpacity ?? 1}">
 	{#if layout.pitch > 0}
 		<!-- The field the pegs stand in. Purely a backdrop — it gives the board an edge to end at,
-		     so the pockets read as the bottom of something rather than as a floating row. -->
-		<div
-			class="pb-field"
-			style="left:{layout.left}px; top:{layout.top}px; width:{layout.width}px; height:{layout.height}px; border-radius:{layout.pitch *
-				0.5}px;"
-		></div>
+		     so the pockets read as the bottom of something rather than as a floating row. Skipped
+		     under a frame, where the host has painted something better behind it. -->
+		{#if !props.frame}
+			<div
+				class="pb-field"
+				style="left:{layout.left}px; top:{layout.top}px; width:{layout.width}px; height:{layout.height}px; border-radius:{layout.pitch *
+					0.5}px;"
+			></div>
+		{/if}
 
 		<!-- The slider the ball is held on: a thin pill spanning the drop zone, with the ball riding
 		     it as the knob. The element itself is a taller, invisible hit area, so the ball can be
