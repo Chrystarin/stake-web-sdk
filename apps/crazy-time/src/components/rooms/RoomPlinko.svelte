@@ -1,155 +1,133 @@
 <script lang="ts">
 	/**
-	 * Plinko room, prototype grade: a pegged board drawn in CSS and a ball animated with the Web
-	 * Animations API from the authored drop zone to the authored slot. The bounces are decoration;
-	 * the slot is the book's.
+	 * Plinko room: Colour Dice's jackpot plinko board (`src/plinko`), played inside the bonus
+	 * screen this game already has.
+	 *
+	 * The board is the whole room — no title, no HUD, no slide of its own — because `BonusRound`
+	 * supplies all of that. What comes over is the part that matters: a real Galton fall onto a
+	 * ladder of pockets, with the player choosing where to let the ball go.
+	 *
+	 * The award is still the book's. `room.board` is the paytable with the Top Slot already in it,
+	 * and the math writes it as a palindrome — cheapest in the middle, dearest at both edges — so
+	 * it rebuilds as exactly the ladder the module wants. The pocket the ball is sent to is chosen
+	 * from `room.total` and the side the player dropped from, which is the mirror twin of the
+	 * book's own `slot` at worst: same value, shorter path. `room.dropZone` goes unused, because
+	 * choosing where to drop from is now the player's job.
 	 */
-	import { PLINKO_ROWS } from '../../game/constants';
+	import { PlinkoBoard, buildPocketLadder, pocketForAward, shapeForPockets } from '../../plinko';
+	import type { PlinkoBoardApi } from '../../plinko';
 	import type { BookEventPlinkoBonus } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
+	import { staticPath } from '../../lib/staticUrl';
 
-	type Props = { room: BookEventPlinkoBonus };
-	let { room }: Props = $props();
+	type Props = {
+		room: BookEventPlinkoBonus;
+		/** False when the player was not in this bonus: the ball lets itself go. */
+		interactive?: boolean;
+	};
+	let { room, interactive = true }: Props = $props();
 
-	const cols = $derived(room.board.length); // 13
-	let ballEl: HTMLDivElement | undefined = $state();
-	let boardEl: HTMLDivElement | undefined = $state();
-	let landed = $state<number | null>(null);
-	let ballShown = $state(false);
+	/** How long the ball waits for a player who is there, and for one who is only watching. */
+	const HELD_MS = 12000;
+	const TEASE_MS = 700;
 
-	/** x centre of slot `c` and y of row `r`, as fractions of the board box. */
-	const slotX = (c: number) => (c + 0.5) / cols;
-	const rowY = (r: number) => 0.06 + (r / PLINKO_ROWS) * 0.8;
+	/**
+	 * A lit bomb falls instead of a ball. `cx`/`cy`/`d` are the sphere inside `bomb.png`, measured
+	 * off the file (centre 206.5, 304.5 of 512; 414 across), so the bomb strikes the pegs on its
+	 * body while the fuse and its sparks hang off the top-right without pushing it around.
+	 */
+	const BOMB = {
+		src: staticPath('img/plinko/bomb.png'),
+		cx: 0.403,
+		cy: 0.595,
+		d: 0.809,
+		// The board is sized by its 13 pockets, which leaves a ball too small to read a drawing in.
+		scale: 1.9,
+	};
+	/**
+	 * The glow behind it. The bomb is nearly black on a dark field over a dark video, so the light
+	 * is what makes it findable — an ember, in the colour of the fuse rather than of the room.
+	 */
+	const GLOW = '#ff8a1f';
+	/** Open enough for the video to read through, closed enough for the pegs to stay legible. */
+	const FIELD_OPACITY = 0.42;
+
+	/**
+	 * A pocket card is about five characters wide, and the Top Slot can put a x15 in front of a
+	 * 400 — so the thousands are written the way the rest of the game writes them, as `k`.
+	 */
+	const label = (value: number): string =>
+		value >= 1000 ? `x${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : `x${value}`;
+
+	const ladder = $derived(buildPocketLadder(room.board));
+	const shape = $derived(shapeForPockets(ladder.count));
+
+	let board = $state<PlinkoBoardApi>();
+	let armed = $state(false);
 
 	export const play = async (): Promise<number> => {
-		if (!ballEl || !boardEl) return room.total;
-		const box = boardEl.getBoundingClientRect();
-		const from = Math.max(0, Math.min(cols - 1, room.dropZone));
-		const to = room.slot;
-		// One waypoint per row: drift from the drop column to the slot with an alternating kick
-		// that dies out towards the bottom, so it reads as pinballing rather than sliding.
-		const frames = [];
-		for (let r = 0; r <= PLINKO_ROWS; r++) {
-			const t = r / PLINKO_ROWS;
-			const drift = from + (to - from) * t;
-			const kick = r === 0 || r === PLINKO_ROWS ? 0 : (r % 2 === 0 ? 0.42 : -0.42) * (1 - t * 0.6);
-			frames.push({
-				transform: `translate(${slotX(drift + kick) * box.width}px, ${rowY(r) * box.height}px)`,
-				offset: t,
-				easing: 'cubic-bezier(0.4, 0, 0.6, 1)',
-			});
-		}
-		frames.push({
-			transform: `translate(${slotX(to) * box.width}px, ${0.93 * box.height}px)`,
-			offset: 1,
-		});
-		ballShown = true;
-		const ms = 2200;
-		const anim = ballEl.animate(frames, { duration: ms, fill: 'forwards' });
-		// A peg tick per row, pitched a little differently each time.
-		for (let r = 1; r < PLINKO_ROWS; r++) {
-			setTimeout(() => playSound('peg', 0.9 + Math.random() * 0.2), (ms * r) / PLINKO_ROWS);
-		}
-		await anim.finished.catch(() => undefined);
-		landed = to;
-		playSound('merge');
+		const active = board;
+		if (!active) return room.total;
+		armed = true;
+		const startStep = await active.arm();
+		armed = false;
+		await active.drop(pocketForAward(ladder, room.total, startStep));
 		return room.total;
 	};
 </script>
 
 <div class="plinko">
-	<div class="board" bind:this={boardEl}>
-		{#each Array.from({ length: PLINKO_ROWS }, (_, r) => r) as r (r)}
-			<div class="row" style="--y:{rowY(r) * 100}%">
-				{#each Array.from({ length: cols - 1 }, (_, c) => c) as c (c)}
-					<div class="peg" style="--x:{((c + 1) / cols) * 100}%"></div>
-				{/each}
-			</div>
-		{/each}
-		<div class="ball" class:shown={ballShown} bind:this={ballEl}></div>
+	<div class="board">
+		<PlinkoBoard
+			bind:this={board}
+			{shape}
+			{ladder}
+			accent={GLOW}
+			art={BOMB}
+			fieldOpacity={FIELD_OPACITY}
+			format={label}
+			autoDropAfterMs={interactive ? HELD_MS : TEASE_MS}
+			sounds={{
+				drop: () => playSound('whoosh'),
+				peg: () => playSound('peg', 0.9 + Math.random() * 0.2),
+				land: () => playSound('merge'),
+			}}
+		/>
 	</div>
-	<div class="slots" style="--cols:{cols}">
-		{#each room.board as value, i (i)}
-			<div class="slot" class:lit={landed === i} class:big={value >= 100}>{value}x</div>
-		{/each}
+	<div class="hint" class:shown={armed && interactive}>
+		Hold the ball and slide to choose where it drops from — let go to release.
 	</div>
 </div>
 
 <style>
 	.plinko {
+		position: relative;
 		display: flex;
 		flex-direction: column;
-		width: 34vw;
+		align-items: center;
+		width: 46vw;
+		height: 100%;
 	}
+	/* The board fills whatever it is given, in both directions — see `layoutBoard`. The hint keeps
+	   its line below it whether or not it is showing, so the board does not resize when it does. */
 	.board {
 		position: relative;
-		height: 20vw;
-		background: radial-gradient(ellipse at top, #4a2a6e 0%, #1c1030 70%);
-		border-radius: 0.8vw 0.8vw 0 0;
-		border: 0.12vw solid #9b6cff;
-		border-bottom: none;
-		overflow: hidden;
+		flex: 1;
+		width: 100%;
+		min-height: 0;
 	}
-	.row {
-		position: absolute;
-		top: var(--y);
-		left: 0;
-		right: 0;
-	}
-	.peg {
-		position: absolute;
-		left: var(--x);
-		width: 0.55vw;
-		height: 0.55vw;
-		margin-left: -0.275vw;
-		border-radius: 50%;
-		background: radial-gradient(circle at 35% 35%, #fff, #b9b9d6 60%, #6d6d8f);
-	}
-	.ball {
-		position: absolute;
-		top: 0;
-		left: 0;
-		width: 1vw;
-		height: 1vw;
-		margin: -0.5vw 0 0 -0.5vw;
-		border-radius: 50%;
-		background: radial-gradient(circle at 35% 35%, #fff6c8, #ffc42e 55%, #b57200);
-		box-shadow: 0 0.1vw 0.4vw rgba(0, 0, 0, 0.7);
-		opacity: 0;
-	}
-	.ball.shown {
-		opacity: 1;
-	}
-	.slots {
-		display: grid;
-		grid-template-columns: repeat(var(--cols), 1fr);
-		gap: 0.15vw;
-		padding: 0.25vw;
-		background: #12091f;
-		border: 0.12vw solid #9b6cff;
-		border-top: none;
-		border-radius: 0 0 0.8vw 0.8vw;
-	}
-	.slot {
-		height: 2.4vw;
+	.hint {
+		height: 1.6vw;
 		display: flex;
 		align-items: center;
-		justify-content: center;
 		font-family: 'Alexandria', sans-serif;
-		font-size: 0.85vw;
-		font-weight: 700;
-		color: #fff;
-		background: linear-gradient(180deg, #6a3fb0, #3f2470);
-		border-radius: 0.3vw;
-		transition: transform 200ms ease, filter 200ms ease;
+		font-size: 0.8vw;
+		color: #d6c6b4;
+		text-align: center;
+		opacity: 0;
+		transition: opacity 250ms ease;
 	}
-	.slot.big {
-		background: linear-gradient(180deg, #ffbe3c, #c46b00);
-		color: #3a2000;
-	}
-	.slot.lit {
-		transform: scale(1.12);
-		filter: brightness(1.4);
-		box-shadow: 0 0 0.8vw #ffe14d;
+	.hint.shown {
+		opacity: 1;
 	}
 </style>

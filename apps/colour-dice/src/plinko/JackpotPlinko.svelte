@@ -315,7 +315,12 @@
 		inset: 0;
 		background:
 			radial-gradient(ellipse at 50% 42%, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.72) 100%),
-			linear-gradient(180deg, rgba(6, 3, 0, 0.55) 0%, rgba(6, 3, 0, 0.3) 40%, rgba(6, 3, 0, 0.7) 100%);
+			linear-gradient(
+				180deg,
+				rgba(6, 3, 0, 0.55) 0%,
+				rgba(6, 3, 0, 0.3) 40%,
+				rgba(6, 3, 0, 0.7) 100%
+			);
 	}
 
 	/* HUD, matching the table's: balance top-left, menu top-right, on one shared mark size. */

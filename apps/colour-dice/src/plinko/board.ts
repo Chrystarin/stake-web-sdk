@@ -160,7 +160,11 @@ export type BoardLayout = {
 	top: number;
 };
 
-export const layoutBoard = (shape: BoardShape, hostWidth: number, hostHeight: number): BoardLayout => {
+export const layoutBoard = (
+	shape: BoardShape,
+	hostWidth: number,
+	hostHeight: number,
+): BoardLayout => {
 	// One spare pitch across, so the outermost pockets have a wall to sit against.
 	const columns = shape.pockets + 1;
 	const verticalRows = DROP_ZONE_ROWS + (shape.rows - 1) + POCKET_GAP_ROWS + POCKET_ROWS;
@@ -172,14 +176,8 @@ export const layoutBoard = (shape: BoardShape, hostWidth: number, hostHeight: nu
 	const pitchByWidth = hostWidth / columns;
 	const rowGapByHeight = hostHeight / verticalRows;
 	const ratio = pitchByWidth > 0 ? rowGapByHeight / pitchByWidth : ROW_GAP_MAX;
-	const pitch = Math.max(
-		0,
-		ratio < ROW_GAP_MIN ? rowGapByHeight / ROW_GAP_MIN : pitchByWidth,
-	);
-	const rowGap = Math.max(
-		0,
-		ratio > ROW_GAP_MAX ? pitch * ROW_GAP_MAX : rowGapByHeight,
-	);
+	const pitch = Math.max(0, ratio < ROW_GAP_MIN ? rowGapByHeight / ROW_GAP_MIN : pitchByWidth);
+	const rowGap = Math.max(0, ratio > ROW_GAP_MAX ? pitch * ROW_GAP_MAX : rowGapByHeight);
 	const width = columns * pitch;
 	const height = verticalRows * rowGap;
 	const left = (hostWidth - width) / 2;

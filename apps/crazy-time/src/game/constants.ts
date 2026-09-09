@@ -82,6 +82,11 @@ export const TOP_SLOT_MULTS = [2, 3, 4, 5, 7, 10, 15, 20, 25, 50] as const;
 // ---------------------------------------------------------------------------
 /** Plinko landing slots, left to right (before any Top Slot multiplier). */
 export const PLINKO_SLOTS = [400, 100, 50, 30, 20, 12, 7, 12, 20, 30, 50, 100, 400] as const;
+/**
+ * Rows the math walks the ball down. The front end no longer draws them — the jackpot board
+ * derives its own row count from the pocket ladder (see `src/plinko`) — but this stays because
+ * the file mirrors the math, and the math still has them.
+ */
 export const PLINKO_ROWS = 12;
 
 /** Jackpot Wheel wedge values in rim order. */

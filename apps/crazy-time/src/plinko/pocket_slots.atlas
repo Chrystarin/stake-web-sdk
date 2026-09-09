@@ -1,0 +1,72 @@
+skeleton.png
+size:186,944
+filter:Linear,Linear
+pma:true
+0.2/0.2
+bounds:110,37,62,41
+0.2/Rectangle 240647903
+bounds:2,694,82,125
+rotate:90
+0.2/Rectangle 240647907
+bounds:129,579,74,55
+rotate:90
+0.5/0.5
+bounds:110,80,64,41
+0.5/Rectangle 240647903
+bounds:2,610,82,125
+rotate:90
+0.5/Rectangle 240647907
+bounds:129,503,74,55
+rotate:90
+10/10
+bounds:2,2,47,40
+10/Rectangle 240647903
+bounds:2,442,82,125
+rotate:90
+10/Rectangle 240647907
+bounds:129,351,74,55
+rotate:90
+100/100
+bounds:68,120,68,40
+rotate:90
+100/Rectangle 240647903
+bounds:2,526,82,125
+rotate:90
+100/Rectangle 240647907
+bounds:129,427,74,55
+rotate:90
+2/2
+bounds:110,2,33,40
+rotate:90
+2/Rectangle 240647903
+bounds:2,274,82,125
+rotate:90
+2/Rectangle 240647907
+bounds:129,199,74,55
+rotate:90
+20/20
+bounds:68,9,53,40
+rotate:90
+20/Rectangle 240647903
+bounds:2,358,82,125
+rotate:90
+20/Rectangle 240647907
+bounds:129,275,74,55
+rotate:90
+50/50
+bounds:68,64,54,40
+rotate:90
+50/Rectangle 240647903
+bounds:2,190,82,125
+rotate:90
+50/Rectangle 240647907
+bounds:129,123,74,55
+rotate:90
+Spin/Rectangle 240647904
+bounds:2,778,170,164
+Spin/Rectangle 240647908
+bounds:2,44,144,64
+rotate:90
+Spin/spin
+bounds:129,655,121,51
+rotate:90

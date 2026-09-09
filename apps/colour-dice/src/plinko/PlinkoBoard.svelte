@@ -33,6 +33,32 @@
 		accent?: string;
 		/** Written before the value on a pocket label, e.g. `x` for `x200`. */
 		prefix?: string;
+		/**
+		 * How a pocket's value is written, when `prefix` is not enough. A host whose awards run into
+		 * the thousands needs to shorten them — the label has one pocket's width to fit in, and a
+		 * card is only ever about five characters wide.
+		 */
+		format?: (value: number) => string;
+		/**
+		 * A picture to fall instead of the painted ball.
+		 *
+		 * `cx`, `cy` and `d` say which part of the image IS the ball — its centre and diameter, as
+		 * fractions of the image's width — so a drawing with something sticking out of it (a fuse, a
+		 * tail) still strikes the pegs on its round part and not on its bounding box. The painted
+		 * ball stays underneath as the glow: the halo is drawn in `accent`, and with art it is lit
+		 * the whole way down rather than only while the ball is waiting to be picked up.
+		 *
+		 * `scale` draws the picture bigger than the ball it stands for, without moving the ball: a
+		 * board sized for its pockets can leave a ball too small to recognise a drawing in, and
+		 * overlapping the pegs slightly is what a real object of that size would do anyway. The
+		 * contacts, and the fall, are unchanged.
+		 */
+		art?: { src: string; cx: number; cy: number; d: number; scale?: number };
+		/**
+		 * How opaque the playfield is, 0-1. Below 1 the screen behind reads through it — which is
+		 * only worth doing over a background worth seeing.
+		 */
+		fieldOpacity?: number;
 		/** Fired as the ball is let go, on every peg contact, and as it lands. */
 		sounds?: { peg?: () => void; drop?: () => void; land?: () => void };
 		/** Let go for the player if they never do, so a round can never hang. 0 disables. */
@@ -48,6 +74,17 @@
 	const POCKET_ROW_SCALE = 1.25;
 	/** How long the ball stays squashed after a contact, and a struck peg stays lit. */
 	const CONTACT_MS = 130;
+	/**
+	 * Spin. A peg adds to the ball's turn in the direction it deflected it, and the ball keeps most
+	 * of the turn it already had — so a zig-zag rocks, and a run of deflections the same way winds
+	 * up into a tumble. Rates are degrees per millisecond; `MAX` is a little under two turns a row,
+	 * past which a picture stops reading as an object and starts reading as a blur.
+	 */
+	const SPIN_RETAIN = 0.82;
+	const SPIN_KICK = 0.5;
+	const SPIN_MAX = 1.8;
+	/** How long the ball takes to right itself once it is in the pocket. */
+	const SPIN_SETTLE_MS = 280;
 	const PEG_LIT_MS = 320;
 	/** Ball glide when the board is resized under it, or when it is first put on the rail. */
 	const SNAP_MS = 140;
@@ -57,6 +94,21 @@
 
 	const layout = $derived(layoutBoard(props.shape, box.width, box.height));
 	const pegs = $derived(pegsFor(props.shape, layout));
+
+	/**
+	 * Where `art` sits inside the ball's own box, in host pixels, so the round part of the picture
+	 * lands exactly on the ball's centre and is exactly the ball's size.
+	 */
+	const artBox = $derived.by(() => {
+		const art = props.art;
+		if (!art || art.d <= 0) return null;
+		const size = ((layout.ballRadius * 2) / art.d) * (art.scale ?? 1);
+		return {
+			size,
+			left: layout.ballRadius - art.cx * size,
+			top: layout.ballRadius - art.cy * size,
+		};
+	});
 
 	/**
 	 * Where the ball sits on the rail, in pitches from centre. CONTINUOUS: the player is left
@@ -79,6 +131,10 @@
 	let ballY = $state(0);
 	/** 1 at a peg contact, decaying to 0 — what deforms the ball on the hit. */
 	let squash = $state(0);
+	/** How far the ball has turned, in degrees. Only art can show it — see `.pb-ball-art`. */
+	let spin = $state(0);
+	/** True while the landed ball is turning back upright in its pocket. */
+	let settling = $state(false);
 	let landedPocket = $state<number | null>(null);
 	/** Pegs currently flashing, by index into `pegs`. */
 	let litPegs = $state(new Set<number>());
@@ -209,6 +265,8 @@
 		landedPocket = null;
 		litPegs = new Set();
 		squash = 0;
+		spin = 0;
+		settling = false;
 		// The middle of the track sits between the two innermost start pegs, so the ball opens on
 		// the one just right of centre rather than on a position that does not exist.
 		railOffset = 0.5;
@@ -283,6 +341,7 @@
 	export const drop = (pocketIndex: number): Promise<void> => {
 		cancelAnimation();
 		phase = 'dropping';
+		settling = false;
 
 		const targetOffset = pocketOffset(props.ladder, pocketIndex);
 		const offsets = planDrop(props.shape, startStep, targetOffset);
@@ -307,6 +366,25 @@
 					: ROW_MS,
 		);
 
+		/**
+		 * The turn is planned segment by segment, the same way the path is: one rate and one
+		 * starting angle each, so a throttled tab serving three frames instead of thirty still
+		 * turns the ball by exactly the same amount. `dir` is the way the peg at the top of the
+		 * segment sent it, which is the way it leaves that peg spinning.
+		 */
+		const spinRates: number[] = [];
+		const spinAngles: number[] = [];
+		let rate = 0;
+		let angle = 0;
+		for (let index = 0; index < points.length; index++) {
+			const before = index === 0 ? from : points[index - 1];
+			const dir = Math.sign(points[index].offset - before.offset);
+			rate = Math.max(-SPIN_MAX, Math.min(SPIN_MAX, rate * SPIN_RETAIN + dir * SPIN_KICK));
+			spinRates.push(rate);
+			spinAngles.push(angle);
+			angle += rate * durations[index];
+		}
+
 		return new Promise<void>((resolve) => {
 			let segment = 0;
 			let segmentStart = 0;
@@ -326,6 +404,9 @@
 				ballX = layout.centreX + (start.offset + (end.offset - start.offset) * t) * layout.pitch;
 				ballY = layout.topY + (start.depth + (end.depth - start.depth) * fall) * layout.rowGap;
 				squash = Math.max(0, 1 - (now - lastContact) / CONTACT_MS);
+				// Off `t` rather than the clock, so the angle at the end of a segment is exactly the
+				// angle the next one starts from however few frames were served in between.
+				spin = spinAngles[segment] + spinRates[segment] * span * t;
 
 				if (t >= 1) {
 					lastContact = now;
@@ -339,6 +420,10 @@
 						squash = 1;
 						phase = 'landed';
 						landedPocket = pocketIndex;
+						// A bomb lying on its side in the pocket reads as broken rather than as landed,
+						// so the last of the turn is spent standing it back up the short way.
+						spin = Math.round(spin / 360) * 360;
+						settling = true;
 						props.sounds?.land?.();
 						// Let the squash relax rather than snapping flat the instant it lands.
 						setTimeout(() => (squash = 0), CONTACT_MS * 2);
@@ -362,6 +447,8 @@
 		landedPocket = null;
 		litPegs = new Set();
 		squash = 0;
+		spin = 0;
+		settling = false;
 		railOffset = 0.5;
 	};
 
@@ -384,7 +471,7 @@
 	const ball = $derived(ballPalette(props.accent ?? '#ffe14d'));
 </script>
 
-<div class="pb-host" bind:this={hostEl}>
+<div class="pb-host" bind:this={hostEl} style="--pb-field-alpha:{props.fieldOpacity ?? 1}">
 	{#if layout.pitch > 0}
 		<!-- The field the pegs stand in. Purely a backdrop — it gives the board an edge to end at,
 		     so the pockets read as the bottom of something rather than as a floating row. -->
@@ -417,7 +504,9 @@
 					<div
 						class="pb-tick"
 						class:on={tick === startStep && phase !== 'idle'}
-						style="left:{railLimit() + layout.ballRadius + tick * layout.pitch}px; width:{layout.ballRadius *
+						style="left:{railLimit() +
+							layout.ballRadius +
+							tick * layout.pitch}px; width:{layout.ballRadius *
 							0.26}px; height:{layout.ballRadius * 0.26}px;"
 					></div>
 				{/each}
@@ -447,8 +536,8 @@
 			<div
 				class="pb-peg"
 				class:hit={litPegs.has(index)}
-				style="left:{peg.x}px; top:{peg.y}px; width:{layout.pegRadius * 2}px; height:{layout.pegRadius *
-					2}px;"
+				style="left:{peg.x}px; top:{peg.y}px; width:{layout.pegRadius *
+					2}px; height:{layout.pegRadius * 2}px;"
 			></div>
 		{/each}
 
@@ -458,11 +547,19 @@
 				class="pb-pocket"
 				class:won={landedPocket === index}
 				class:dimmed={pocketDimmed(index)}
-				style="left:{pocketX(index)}px; top:{layout.pocketTop}px; width:{width}px; height:{layout.pocketHeight}px; font-size:{layout.pitch *
+				style="left:{pocketX(
+					index,
+				)}px; top:{layout.pocketTop}px; width:{width}px; height:{layout.pocketHeight}px; font-size:{layout.pitch *
 					0.3}px;"
 			>
-				<i style={regionStyle(SLOT_CARDS[slotTier(pocketHeat(props.ladder, index))], width, layout.pocketHeight)}></i>
-				<span>{props.prefix ?? ''}{value}</span>
+				<i
+					style={regionStyle(
+						SLOT_CARDS[slotTier(pocketHeat(props.ladder, index))],
+						width,
+						layout.pocketHeight,
+					)}
+				></i>
+				<span>{props.format ? props.format(value) : `${props.prefix ?? ''}${value}`}</span>
 			</div>
 		{/each}
 
@@ -472,9 +569,22 @@
 				class:snapping
 				class:beckoning
 				class:held={dragging}
-				style="left:{ballX}px; top:{ballY}px; width:{layout.ballRadius * 2}px; height:{layout.ballRadius *
+				class:has-art={Boolean(props.art)}
+				style="left:{ballX}px; top:{ballY}px; width:{layout.ballRadius *
+					2}px; height:{layout.ballRadius *
 					2}px; --squash:{squash}; --snap-ms:{SNAP_MS}ms; --sheen:{ball.sheen}; --face:{ball.face}; --shade:{ball.shade}; --edge:{ball.edge};"
-			></div>
+			>
+				{#if props.art && artBox}
+					<i
+						class="pb-ball-art"
+						class:settling
+						style="background-image:url('{props.art
+							.src}'); width:{artBox.size}px; height:{artBox.size}px; left:{artBox.left}px; top:{artBox.top}px; transform-origin:{props
+							.art.cx * 100}% {props.art.cy *
+							100}%; rotate:{spin}deg; --settle-ms:{SPIN_SETTLE_MS}ms;"
+					></i>
+				{/if}
+			</div>
 		{/if}
 	{/if}
 </div>
@@ -496,11 +606,16 @@
 	.pb-field {
 		position: absolute;
 		box-sizing: border-box;
-		/* Opaque, so the screen behind does not read through the playfield. The sheen on top stays
-		   translucent — it is a highlight ON the box, not a window through it. */
+		/* Opaque by default, so the screen behind does not read through the playfield — `fieldOpacity`
+		   is what opens it up for a host with a background worth showing. The sheen on top stays
+		   translucent either way: it is a highlight ON the box, not a window through it. */
 		background:
 			radial-gradient(ellipse at 50% 0%, rgba(255, 240, 200, 0.09) 0%, rgba(0, 0, 0, 0) 62%),
-			linear-gradient(180deg, #1a1209 0%, #0c0803 100%);
+			linear-gradient(
+				180deg,
+				rgba(26, 18, 9, var(--pb-field-alpha, 1)) 0%,
+				rgba(12, 8, 3, var(--pb-field-alpha, 1)) 100%
+			);
 		border: 0.12em solid rgba(255, 225, 77, 0.22);
 		box-shadow:
 			inset 0 0 1.6em rgba(0, 0, 0, 0.6),
@@ -795,5 +910,40 @@
 	.pb-ball.held::after {
 		animation: none;
 		opacity: 0;
+	}
+	/* --- Art in place of the ball ----------------------------------------------------------- */
+	/* The painted ball steps aside and becomes the light behind the picture: no fill, no rim, but
+	   the halo stays lit for the whole fall so a dark drawing still reads against a dark field. It
+	   is on the pseudo-element, so it pulses and glows without being squashed by the contacts. */
+	.pb-ball.has-art {
+		background: none;
+		box-shadow: none;
+	}
+	.pb-ball.has-art::after {
+		inset: -140%;
+		opacity: 0.7;
+	}
+	.pb-ball.has-art.held::after {
+		opacity: 0.95;
+	}
+	/* Above the halo — both are children of a stacking context the ball's own transform opens.
+	   The turn is on the picture and not on the ball beneath it: a featureless gradient sphere has
+	   nothing to show a rotation with, and spinning it would only send its highlight round the
+	   outside, which is the one thing on a lit ball that should stay put. `transform-origin` is set
+	   inline to the round part of the image, so a bomb turns about its body and not about the
+	   middle of a box its fuse pushed off-centre. */
+	.pb-ball-art {
+		position: absolute;
+		z-index: 1;
+		background-repeat: no-repeat;
+		background-position: center;
+		background-size: contain;
+		filter: drop-shadow(0 0.12em 0.3em rgba(0, 0, 0, 0.75));
+		pointer-events: none;
+	}
+	/* Only in the pocket: through the fall the angle is set every frame and must not be smoothed,
+	   or the picture would lag the ball it is drawn on. */
+	.pb-ball-art.settling {
+		transition: rotate var(--settle-ms) cubic-bezier(0.2, 0.9, 0.3, 1);
 	}
 </style>

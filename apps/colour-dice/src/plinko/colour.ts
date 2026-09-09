@@ -23,7 +23,13 @@ const parseHex = (hex: string): Rgb => {
 };
 
 const toHex = (rgb: Rgb): string =>
-	`#${rgb.map((channel) => Math.round(Math.max(0, Math.min(255, channel))).toString(16).padStart(2, '0')).join('')}`;
+	`#${rgb
+		.map((channel) =>
+			Math.round(Math.max(0, Math.min(255, channel)))
+				.toString(16)
+				.padStart(2, '0'),
+		)
+		.join('')}`;
 
 const mix = (rgb: Rgb, towards: Rgb, amount: number): string =>
 	toHex(rgb.map((channel, index) => channel + (towards[index] - channel) * amount) as Rgb);

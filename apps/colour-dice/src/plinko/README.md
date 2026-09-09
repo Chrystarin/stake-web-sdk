@@ -10,19 +10,23 @@ three integration points listed at the bottom.
 
 ```svelte
 <script lang="ts">
-  import { JackpotPlinko, type JackpotPlinkoApi } from '../plinko';
+	import { JackpotPlinko, type JackpotPlinkoApi } from '../plinko';
 
-  let jackpot = $state<JackpotPlinkoApi>();
+	let jackpot = $state<JackpotPlinkoApi>();
 
-  // …somewhere in the round sequence, awaited so the book waits for the player:
-  await jackpot?.play(multiplier, { accent: '#43b047' });
+	// …somewhere in the round sequence, awaited so the book waits for the player:
+	await jackpot?.play(multiplier, { accent: '#43b047' });
 </script>
 
 <JackpotPlinko
-  bind:this={jackpot}
-  awards={[4, 10, 20, 50, 100, 200]}
-  balance="$1,240.00"
-  sounds={{ drop: () => playSound('whoosh'), peg: () => playSound('pop'), land: () => playSound('merge') }}
+	bind:this={jackpot}
+	awards={[4, 10, 20, 50, 100, 200]}
+	balance="$1,240.00"
+	sounds={{
+		drop: () => playSound('whoosh'),
+		peg: () => playSound('pop'),
+		land: () => playSound('merge'),
+	}}
 />
 ```
 
@@ -32,19 +36,22 @@ screen should cover; it positions itself absolutely against the nearest position
 
 ### Props
 
-| Prop               | Default                              | Notes                                                    |
-| ------------------ | ------------------------------------ | -------------------------------------------------------- |
-| `awards`           | —                                    | The multipliers this round can pay, in any order.          |
-| `balance`          | —                                    | Already formatted and signed by the host.                  |
-| `balanceLabel`     | `Balance`                            |                                                            |
-| `title`            | `JACKPOT`                            | Top centre.                                                |
-| `background`       | `/img/background.png`                | Panel backdrop.                                            |
-| `accent`           | `#ffe14d`                            | Paints the ball and the title glow. `play()` overrides per round. |
-| `prefix`           | `x`                                  | Written before a pocket's value — `x200`.                  |
-| `hint`             | "Hold ball then slide…"              | Caption under the title, while the ball is held.           |
-| `sounds`           | —                                    | `{ drop, peg, land, screenIn, screenOut }` — the host owns its own audio. |
-| `autoDropAfterMs`  | `20000`                              | Lets go for an absent player. `0` disables.                |
-| `onMenu`           | —                                    | Menu button.                                               |
+| Prop              | Default                 | Notes                                                                                                                                                                                                                                                   |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `awards`          | —                       | The multipliers this round can pay, in any order.                                                                                                                                                                                                       |
+| `balance`         | —                       | Already formatted and signed by the host.                                                                                                                                                                                                               |
+| `balanceLabel`    | `Balance`               |                                                                                                                                                                                                                                                         |
+| `title`           | `JACKPOT`               | Top centre.                                                                                                                                                                                                                                             |
+| `background`      | `/img/background.png`   | Panel backdrop.                                                                                                                                                                                                                                         |
+| `accent`          | `#ffe14d`               | Paints the ball and the title glow. `play()` overrides per round.                                                                                                                                                                                       |
+| `prefix`          | `x`                     | Written before a pocket's value — `x200`.                                                                                                                                                                                                               |
+| `format`          | `prefix + value`        | Whole label, for awards too long to write out — `x1.5k`.                                                                                                                                                                                                |
+| `art`             | —                       | `{ src, cx, cy, d, scale? }` — a picture to fall instead of the painted ball. `cx`/`cy`/`d` are the round part of the image, as fractions of its width; `scale` draws it bigger than the ball without moving it. The ball stays underneath as the glow. |
+| `fieldOpacity`    | `1`                     | Below 1 the screen behind reads through the playfield.                                                                                                                                                                                                  |
+| `hint`            | "Hold ball then slide…" | Caption under the title, while the ball is held.                                                                                                                                                                                                        |
+| `sounds`          | —                       | `{ drop, peg, land, screenIn, screenOut }` — the host owns its own audio.                                                                                                                                                                               |
+| `autoDropAfterMs` | `20000`                 | Lets go for an absent player. `0` disables.                                                                                                                                                                                                             |
+| `onMenu`          | —                       | Menu button.                                                                                                                                                                                                                                            |
 
 ## How a fixed result stays honest
 
@@ -72,18 +79,18 @@ half-pitch steps needs to land on a whole-offset pocket centre.
 
 `layoutBoard` then fills its container in both directions — pitch from the width, row gap from the
 height — clamped only by the band that keeps the fall looking like a fall. The row-gap-to-pitch
-ratio *is* the angle the ball falls at: half a pitch sideways per row, so 0.5 is a 45° zig-zag.
+ratio _is_ the angle the ball falls at: half a pitch sideways per row, so 0.5 is a 45° zig-zag.
 
 ## Files
 
-| File                  | What it is                                                |
-| --------------------- | --------------------------------------------------------- |
+| File                   | What it is                                                |
+| ---------------------- | --------------------------------------------------------- |
 | `JackpotPlinko.svelte` | The screen: slide, HUD, title, and the round sequence.    |
-| `PlinkoBoard.svelte`   | Pegs, pockets, the ball, the drag, and the fall.           |
-| `board.ts`             | Geometry and drop planning. Pure — no DOM, no framework.   |
-| `pockets.ts`           | The award ladder and which pocket an award maps to.        |
-| `slots.ts`             | Pocket art: atlas regions, tiers, and the CSS crop.        |
-| `colour.ts`            | Turns the accent hex into the ball's four gradient stops.  |
+| `PlinkoBoard.svelte`   | Pegs, pockets, the ball, the drag, and the fall.          |
+| `board.ts`             | Geometry and drop planning. Pure — no DOM, no framework.  |
+| `pockets.ts`           | The award ladder and which pocket an award maps to.       |
+| `slots.ts`             | Pocket art: atlas regions, tiers, and the CSS crop.       |
+| `colour.ts`            | Turns the accent hex into the ball's four gradient stops. |
 
 ## Pocket art
 
@@ -100,7 +107,7 @@ animation is fifteen identical, in-phase slot-alpha timelines — 1.0 at 0s, 0x4
 2s — with no bone movement at all. `@keyframes pocket-glow` is that, keyframe for keyframe, which
 avoids pulling Pixi and a Spine runtime into a game that is otherwise DOM and CSS. If the art is
 ever re-authored with real motion, that is the point at which the runtime earns its place.
-| `types.ts`             | The imperative handles (`bind:this`).                      |
+| `types.ts` | The imperative handles (`bind:this`). |
 
 ## Integration points in Colour Dice
 

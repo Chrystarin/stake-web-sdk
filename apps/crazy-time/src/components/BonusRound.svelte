@@ -14,6 +14,7 @@
 	import { SPOT_LABEL, SPOT_COLOUR, type Spot } from '../game/constants';
 	import type { BookEventRoom } from '../game/typesBookEvent';
 	import { playSound } from '../game/sound';
+	import { staticUrl } from '../lib/staticUrl';
 
 	import RoomPlinko from './rooms/RoomPlinko.svelte';
 	import RoomWheel from './rooms/RoomWheel.svelte';
@@ -35,6 +36,18 @@
 	let closing = $state(false);
 	let result = $state<number | null>(null);
 	let roomApi = $state<{ play: () => Promise<number> } | undefined>();
+
+	/**
+	 * A room can bring its own moving backdrop, which then shows through whatever it plays on. Only
+	 * Plinko has one; the rest keep the flat room-tinted gradient, and a room with no entry here
+	 * simply gets no video element.
+	 *
+	 * `muted` and `playsinline` are what let it start on its own — see `Background.svelte` for why.
+	 * Nothing depends on playback: a browser that refuses leaves the gradient underneath showing.
+	 */
+	const ROOM_VIDEO: Partial<Record<Spot, string>> = {
+		plinko: staticUrl('videos/animated_background_plinko.mp4'),
+	};
 
 	const spotFor = (room: BookEventRoom): Spot =>
 		room.type === 'plinkoBonus'
@@ -75,7 +88,14 @@
 {#if current}
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
+	{@const video = ROOM_VIDEO[spot]}
 	<div class="screen" class:closing style="--room-base:{colour.base}; --room-deep:{colour.deep}">
+		{#if video}
+			<!-- svelte-ignore a11y_media_has_caption -- decor: the file carries no audio track -->
+			<video class="room-video" src={video} autoplay muted loop playsinline preload="auto"></video>
+			<div class="room-scrim"></div>
+		{/if}
+
 		<div class="header">
 			<div class="title">{SPOT_LABEL[spot]}</div>
 			{#if current.room.topSlotMultiplier > 1}
@@ -88,7 +108,7 @@
 
 		<div class="stage">
 			{#if current.room.type === 'plinkoBonus'}
-				<RoomPlinko bind:this={roomApi} room={current.room} />
+				<RoomPlinko bind:this={roomApi} room={current.room} interactive={current.covered} />
 			{:else if current.room.type === 'wheelBonus'}
 				<RoomWheel bind:this={roomApi} room={current.room} />
 			{:else if current.room.type === 'chestBonus'}
@@ -122,12 +142,53 @@
 		justify-content: space-between;
 		padding: 1.2vw 2vw 1.4vw;
 		background:
-			radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--room-base) 55%, transparent) 0%, transparent 60%),
+			radial-gradient(
+				ellipse at 50% 30%,
+				color-mix(in srgb, var(--room-base) 55%, transparent) 0%,
+				transparent 60%
+			),
 			linear-gradient(180deg, #120a18 0%, #05030a 100%);
 		animation: screen-in 650ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
 	}
 	.screen.closing {
 		animation: screen-out 450ms ease-in both;
+	}
+	/* A room's own backdrop, over the flat gradient and under everything else. The scrim is what
+	   keeps the title, the win line and the pocket labels readable over moving footage — without it
+	   the video decides, frame by frame, how legible the round is. */
+	.room-video {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: center;
+		pointer-events: none;
+	}
+	.room-scrim {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background:
+			radial-gradient(
+				ellipse at 50% 40%,
+				rgba(0, 0, 0, 0.15) 0%,
+				rgba(0, 0, 0, 0.55) 70%,
+				rgba(0, 0, 0, 0.75) 100%
+			),
+			linear-gradient(
+				180deg,
+				color-mix(in srgb, var(--room-deep) 35%, transparent) 0%,
+				transparent 45%
+			);
+	}
+	/* The round's own furniture sits above the backdrop. A positioned element paints over static
+	   ones whatever the DOM order, so these have to be positioned too rather than merely later. */
+	.header,
+	.stage,
+	.footer {
+		position: relative;
+		z-index: 1;
 	}
 	@keyframes screen-in {
 		from {
