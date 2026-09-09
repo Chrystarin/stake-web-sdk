@@ -171,14 +171,14 @@
 		return `conic-gradient(from -90deg, ${sectors})`;
 	};
 
-	// The wooden ring art (static/img/wheel/frame_v2.png, 1911x1925) with its pin at 12 o'clock and
+	// The wooden ring art (static/img/wheel/frame.png, 1911x1925) with its pin at 12 o'clock and
 	// its own ship's-wheel hub. `hole` is the transparent circle, least-squares fitted to the ring's
 	// inner edge: centre (955.7, 972.8) px, radius 758.1 px (residual under 2 px). The wedges run to
 	// the centre point so the hub art covers solid colour. The ring's inner edge is feathered — the
 	// art only goes fully opaque at r ~= 796 px — so the wedges overscan to ~803 px (6%) and finish
 	// underneath the wood instead of stopping short of it in the soft band.
 	const WHEEL_FRAME: WheelFrame = {
-		src: staticUrl('img/wheel/frame_v2.png'),
+		src: staticUrl('img/wheel/frame.png'),
 		aspect: 1911 / 1925,
 		hole: { cx: 955.7 / 1911, cy: 972.8 / 1925, r: 758.1 / 1911 },
 		overscan: 0.06,
@@ -1648,6 +1648,10 @@
 		border-width: 0.3vw;
 		border-radius: 1vw;
 	}
+	.game.portrait .tile.backed {
+		outline-width: 0.28vw;
+		outline-offset: 0.06vw;
+	}
 	.game.portrait .tile-lbl {
 		font-size: 3.5vw;
 		letter-spacing: 0.12vw;
@@ -1941,6 +1945,15 @@
 		width: auto;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
 	}
+	/* A tile with a chip on it wears the same gold ring a covered group button does, so the two ways
+	   of backing a spot read as one state. It sits OUTSIDE the tile — the win ring is inset, and the
+	   two have to be told apart at a glance — which is why it is thin: the outline has half a grid
+	   gap to live in before it meets its neighbour's. Declared ahead of `win` and `landed` so those
+	   heavier rings replace it once the wheel has stopped. */
+	.tile.backed {
+		outline: 0.1vw solid #ffe14d;
+		outline-offset: 0.02vw;
+	}
 	.tile.win {
 		outline: 0.3vw solid #ffe14d;
 		outline-offset: -0.3vw;
@@ -1949,6 +1962,11 @@
 	.tile.landed {
 		outline: 0.2vw solid rgba(255, 255, 255, 0.7);
 		outline-offset: -0.2vw;
+	}
+	/* The cover that shadows a losing tile is inside its box, and an outline is not — so the ring has
+	   to be taken off by hand, or a spot that just lost would still be wearing the gold. */
+	.tile.dimmed.backed {
+		outline: none;
 	}
 	/* Two states cover a tile rather than fade it, so its own colour stays underneath instead of the
 	   backdrop showing through: `locked` while another spot holds the bet, and `dimmed` once the wheel

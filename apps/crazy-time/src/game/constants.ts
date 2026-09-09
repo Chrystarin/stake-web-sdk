@@ -34,15 +34,18 @@ export const SPOT_LABEL: Record<Spot, string> = {
 
 /**
  * Badge art per bonus room, drawn on the wheel's label ring, on the bet tile and on the Top Slot's
- * reel — so a room is the same picture everywhere it appears. Paths are relative to `static/`; the
- * caller wraps them, because this file is plain data and knows nothing about how assets resolve.
- * `aspect` is width over height of the file, which is what the wheel sizes its badge box from.
+ * reel — so a room is the same picture everywhere it appears. Each file is named for the room it
+ * belongs to rather than for what it happens to be a picture of, so swapping the art is a swap of
+ * one file and nothing else. Paths are relative to `static/`; the caller wraps them, because this
+ * file is plain data and knows nothing about how assets resolve. `aspect` is width over height of
+ * the file, which is what the wheel sizes its badge box from — so it has to be re-read whenever the
+ * art is. All four are square today.
  */
 export const ROOM_ICON: Record<RoomSpot, { src: string; aspect: number }> = {
-	plinko: { src: 'img/wheel/bomb.png', aspect: 1 },
-	wheel: { src: 'img/wheel/center.png', aspect: 577 / 586 },
-	chest: { src: 'img/wheel/treasure.png', aspect: 1 },
-	tower: { src: 'img/wheel/dragon.png', aspect: 1 },
+	plinko: { src: 'img/wheel/plinko.png', aspect: 1 },
+	wheel: { src: 'img/wheel/wheel.png', aspect: 1 },
+	chest: { src: 'img/wheel/chest.png', aspect: 1 },
+	tower: { src: 'img/wheel/tower.png', aspect: 1 },
 };
 
 /** Tile / segment palette. Number spots follow the LuckyWheel reference art (steel, gold, rose, violet). */

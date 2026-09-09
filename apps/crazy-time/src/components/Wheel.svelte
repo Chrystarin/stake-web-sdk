@@ -319,8 +319,6 @@
 						y={p.y - box.h / 2}
 						width={box.w}
 						height={box.h}
-						class:crest={seg.kind === 'room'}
-						style={seg.kind === 'room' ? `--glow:${seg.fill}` : null}
 						transform="rotate({i * step} {p.x} {p.y})"
 					/>
 				{:else if seg.kind !== 'room'}
@@ -479,8 +477,7 @@
 	}
 	/* Room glyphs are sized inline, per letter — see roomGlyphs(). Each word glows in its own wedge
 	   colour, so where the letters spill onto a neighbour the halo still names the segment. */
-	.room-word,
-	.crest {
+	.room-word {
 		filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 9px var(--glow));
 	}
 	.hub {
