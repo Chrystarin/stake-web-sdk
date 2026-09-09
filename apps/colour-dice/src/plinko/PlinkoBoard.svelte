@@ -63,6 +63,16 @@
 		sounds?: { peg?: () => void; drop?: () => void; land?: () => void };
 		/** Let go for the player if they never do, so a round can never hang. 0 disables. */
 		autoDropAfterMs?: number;
+		/**
+		 * How the ball is launched.
+		 *
+		 * `rail` hands it to the player on a slider to drag and let go of, which is what a board with
+		 * nothing above it wants. `aimed` takes its orders from outside instead: the host points
+		 * something of its own at the board — a cannon, a chute — and drives `aim()` and `fire()`.
+		 * The board then draws no rail, and keeps the ball out of sight until it is fired, because
+		 * until then the ball is in whatever the host is pointing.
+		 */
+		launcher?: 'rail' | 'aimed';
 	};
 
 	const props: Props = $props();
@@ -163,6 +173,16 @@
 
 	/** The track runs to the outermost start position, not to the wall past it. */
 	const railLimit = () => (props.shape.startSteps - 0.5) * layout.pitch;
+
+	const aimed = $derived(props.launcher === 'aimed');
+	/**
+	 * Where an aimed shot starts, in host pixels — the muzzle of whatever the host is pointing.
+	 * Normally ABOVE the board, so its y is negative, which is why it is given in pixels rather
+	 * than in the board's own rows: up there the board has no row to name.
+	 */
+	let launchPoint = $state<{ x: number; y: number } | null>(null);
+	/** The furthest the ball can enter from centre, in pitches. Both launchers answer to it. */
+	const startLimit = $derived(props.shape.startSteps - 0.5);
 
 	/** Put the ball where the rail says it is. Also what keeps it there through a resize. */
 	const restBall = () => {
@@ -286,9 +306,11 @@
 		squash = 0;
 		spin = 0;
 		settling = false;
-		// The middle of the track sits between the two innermost start pegs, so the ball opens on
-		// the one just right of centre rather than on a position that does not exist.
-		railOffset = 0.5;
+		// On the rail the middle of the track sits between the two innermost start pegs, so the ball
+		// opens on the one just right of centre rather than on a position that does not exist. An
+		// aimed launcher starts level instead, pointing at the middle of the board.
+		railOffset = aimed ? 0 : 0.5;
+		launchPoint = null;
 		phase = 'armed';
 		restBall();
 		return new Promise<number>((resolve) => {
@@ -296,6 +318,32 @@
 			armAutoDrop();
 		});
 	};
+
+	/**
+	 * Point the shot, for a host driving an `aimed` launcher. `fraction` is where the ball will
+	 * enter: -1 at the far left of the drop zone, 0 dead centre, 1 at the far right. It is CLAMPED
+	 * here, so a host that hands over a wilder number still gets a shot that lands on the board —
+	 * which is the whole reason the range is normalised rather than in pixels the host has to know.
+	 */
+	export const aim = (fraction: number) => {
+		if (phase !== 'armed') return;
+		const clamped = Math.max(-1, Math.min(1, Number.isFinite(fraction) ? fraction : 0));
+		railOffset = clamped * startLimit;
+		restBall();
+		armAutoDrop();
+	};
+
+	/**
+	 * Where the shot comes FROM, in host pixels, for a host with something to fire it out of.
+	 * Left unset, the ball simply appears on the drop-zone line, which is where a rail would have
+	 * been holding it; set, the ball leaves that point and flies into the board.
+	 */
+	export const launchFrom = (point: { x: number; y: number } | null) => {
+		launchPoint = point;
+	};
+
+	/** Fire, for an `aimed` launcher. The same thing as letting go of the rail. */
+	export const fire = () => release();
 
 	// --- The fall ---------------------------------------------------------------------------
 
@@ -375,8 +423,18 @@
 			peg: row < props.shape.rows ? { row, col: pegColumnAt(props.shape, row, offset) } : null,
 		}));
 		// The fall starts where the ball ACTUALLY is, not on the peg it is about to strike — the
-		// first segment is what carries it from one to the other.
-		const from = { offset: railOffset, depth: railDepth };
+		// first segment is what carries it from one to the other. Fired, that is the muzzle it came
+		// out of, off the top of the board; otherwise it is the drop-zone line.
+		// A fired ball leaves the barrel at speed; a dropped one starts from rest. It changes the
+		// shape of the first leg, so the answer is taken here rather than read off `launchPoint`
+		// again mid-fall.
+		const fired = launchPoint !== null;
+		const from = launchPoint
+			? {
+					offset: (launchPoint.x - layout.centreX) / layout.pitch,
+					depth: (launchPoint.y - layout.topY) / layout.rowGap,
+				}
+			: { offset: railOffset, depth: railDepth };
 		/**
 		 * How high the ball comes off each peg, in row gaps. Rolled ONCE, here, rather than per frame:
 		 * a tab that is only served three frames has to replay the same fall as one served thirty.
@@ -464,10 +522,15 @@
 				const bounce = bounces[segment];
 				const rise = riseShare[segment];
 				const drop = end.depth - start.depth;
+				// The shot out of a barrel is the exception: constant speed, so with x already linear
+				// the ball travels a STRAIGHT line along the barrel. Everything after it is falling,
+				// and falls on the arc above.
 				const depth =
-					t < rise
-						? start.depth - bounce * (1 - (1 - t / rise) ** 2)
-						: start.depth - bounce + (bounce + drop) * ((t - rise) / (1 - rise)) ** 2;
+					fired && segment === 0
+						? start.depth + drop * t
+						: t < rise
+							? start.depth - bounce * (1 - (1 - t / rise) ** 2)
+							: start.depth - bounce + (bounce + drop) * ((t - rise) / (1 - rise)) ** 2;
 
 				ballX = layout.centreX + (start.offset + (end.offset - start.offset) * t) * layout.pitch;
 				ballY = layout.topY + depth * layout.rowGap;
@@ -517,7 +580,8 @@
 		squash = 0;
 		spin = 0;
 		settling = false;
-		railOffset = 0.5;
+		railOffset = aimed ? 0 : 0.5;
+		launchPoint = null;
 	};
 
 	/**
@@ -533,8 +597,9 @@
 
 	/** Glides only when the board moves under it; a drag and a release both leave it exactly. */
 	const snapping = $derived(phase === 'armed' && !dragging);
-	/** Waiting to be picked up: the ball pulses until a hand is actually on it. */
-	const beckoning = $derived(phase === 'armed' && !dragging);
+	/** Waiting to be picked up: the ball pulses until a hand is actually on it. Only on the rail —
+	 *  an aimed ball is loaded, not offered, and there is nothing on the board to reach for. */
+	const beckoning = $derived(!aimed && phase === 'armed' && !dragging);
 	const ticks = $derived(startOffsets(props.shape));
 	const ball = $derived(ballPalette(props.accent ?? '#ffe14d'));
 </script>
@@ -551,35 +616,38 @@
 
 		<!-- The slider the ball is held on: a thin pill spanning the drop zone, with the ball riding
 		     it as the knob. The element itself is a taller, invisible hit area, so the ball can be
-		     grabbed by aiming near the track rather than exactly at it. -->
-		<div
-			class="pb-rail"
-			class:live={phase === 'armed'}
-			style="left:{layout.centreX - railLimit() - layout.ballRadius}px; top:{layout.railY -
-				layout.rowGap * 1.2}px; width:{railLimit() * 2 +
-				layout.ballRadius * 2}px; height:{layout.rowGap * 2.4}px;"
-			onpointerdown={onRailDown}
-			onpointermove={onRailMove}
-			onpointerup={onRailUp}
-			onpointercancel={onRailUp}
-			aria-hidden="true"
-		>
+		     grabbed by aiming near the track rather than exactly at it. An aimed board has no rail:
+		     the thing being pointed lives outside, and this space is the gap under it. -->
+		{#if !aimed}
 			<div
-				class="pb-track"
-				style="height:{layout.ballRadius * 0.42}px; border-radius:{layout.ballRadius}px;"
+				class="pb-rail"
+				class:live={phase === 'armed'}
+				style="left:{layout.centreX - railLimit() - layout.ballRadius}px; top:{layout.railY -
+					layout.rowGap * 1.2}px; width:{railLimit() * 2 +
+					layout.ballRadius * 2}px; height:{layout.rowGap * 2.4}px;"
+				onpointerdown={onRailDown}
+				onpointermove={onRailMove}
+				onpointerup={onRailUp}
+				onpointercancel={onRailUp}
+				aria-hidden="true"
 			>
-				{#each ticks as tick (tick)}
-					<div
-						class="pb-tick"
-						class:on={tick === startStep && phase !== 'idle'}
-						style="left:{railLimit() +
-							layout.ballRadius +
-							tick * layout.pitch}px; width:{layout.ballRadius *
-							0.26}px; height:{layout.ballRadius * 0.26}px;"
-					></div>
-				{/each}
+				<div
+					class="pb-track"
+					style="height:{layout.ballRadius * 0.42}px; border-radius:{layout.ballRadius}px;"
+				>
+					{#each ticks as tick (tick)}
+						<div
+							class="pb-tick"
+							class:on={tick === startStep && phase !== 'idle'}
+							style="left:{railLimit() +
+								layout.ballRadius +
+								tick * layout.pitch}px; width:{layout.ballRadius *
+								0.26}px; height:{layout.ballRadius * 0.26}px;"
+						></div>
+					{/each}
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<!-- The glow columns go in FIRST, so they rise behind the pegs rather than over them. All
 		     eleven pulse together and in phase, which is exactly how the source skeleton animates
@@ -631,7 +699,9 @@
 			</div>
 		{/each}
 
-		{#if phase !== 'idle'}
+		<!-- An aimed ball is inside whatever the host is pointing until it is fired, so the board
+		     shows nothing until then. On the rail it is on the board the whole time. -->
+		{#if phase !== 'idle' && !(aimed && phase === 'armed')}
 			<div
 				class="pb-ball"
 				class:snapping
