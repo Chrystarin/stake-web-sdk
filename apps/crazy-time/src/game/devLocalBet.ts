@@ -65,6 +65,26 @@ const readForce = (): Force => {
 	return { kind, value: value !== undefined && value !== '' ? Number(value) : null };
 };
 
+/**
+ * The room a `?force=` names, or null. `bonus` counts, since it means “any room”.
+ *
+ * Only the dev auto-start reads this: getting to a room by hand means placing a bet and spinning
+ * every single time, which is a lot of clicking to look at one screen. A live session never gets
+ * here — the parameters do nothing with an `rgs_url`, and the caller checks that too.
+ */
+/**
+ * True when a `?force=` of any kind is in play. The wind-up before a result is there to build a
+ * moment, and a forced round is being LOOKED at rather than played — twelve seconds of reels and
+ * wheel between a reload and the thing you are checking is just twelve seconds in the way.
+ */
+export const isForcedRound = (): boolean => readForce() !== null;
+
+export const forcedRoomKind = (): string | null => {
+	const force = readForce();
+	if (!force) return null;
+	return force.kind === 'bonus' || ROOM_EVENT[force.kind] ? force.kind : null;
+};
+
 const eventsOf = (book: RawBook): BookEvent[] => (book.events ?? book.state ?? []) as BookEvent[];
 
 const roomOf = (book: RawBook) =>
@@ -103,13 +123,18 @@ const pickBook = (modeBooks: RawBook[], force: Force): RawBook => {
 
 	let pool = modeBooks.filter((book) => matches(book, force.kind));
 	if (!pool.length) {
-		console.warn(`[crazy-time] ?force=${force.kind}: no sampled book of that kind for this ticket; playing a random one`);
+		console.warn(
+			`[crazy-time] ?force=${force.kind}: no sampled book of that kind for this ticket; playing a random one`,
+		);
 		return random(modeBooks);
 	}
 	if (force.value !== null && ROOM_EVENT[force.kind]) {
 		const exact = pool.filter((book) => roomOf(book)?.multiplier === force.value);
 		if (exact.length) pool = exact;
-		else console.warn(`[crazy-time] ?force=${force.kind}:${force.value}: no sampled book with that value; playing any ${force.kind}`);
+		else
+			console.warn(
+				`[crazy-time] ?force=${force.kind}:${force.value}: no sampled book with that value; playing any ${force.kind}`,
+			);
 	}
 	return random(pool);
 };

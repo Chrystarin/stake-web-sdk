@@ -9,18 +9,18 @@ decides every outcome.
 
 ## `?force=<kind>`
 
-| Value | Plays a book where… |
-| --- | --- |
-| `plinko` | the wheel lands on the Plinko room |
-| `wheel` | the wheel lands on the Jackpot Wheel room |
-| `chest` | the wheel lands on the Treasure Chest room |
-| `tower` | the wheel lands on the Dragon Tower room |
-| `bonus` | the wheel lands on any room |
-| `number` | the wheel lands on a number |
-| `topslot` | the Top Slot multiplier applied to the spot the wheel landed on |
-| `win` | the bet paid (any amount) |
-| `loss` | the bet paid nothing |
-| `maxwin` | the biggest payout in the sampled set for the current combination |
+| Value     | Plays a book where…                                               |
+| --------- | ----------------------------------------------------------------- |
+| `plinko`  | the wheel lands on the Plinko room                                |
+| `wheel`   | the wheel lands on the Jackpot Wheel room                         |
+| `chest`   | the wheel lands on the Treasure Chest room                        |
+| `tower`   | the wheel lands on the Dragon Tower room                          |
+| `bonus`   | the wheel lands on any room                                       |
+| `number`  | the wheel lands on a number                                       |
+| `topslot` | the Top Slot multiplier applied to the spot the wheel landed on   |
+| `win`     | the bet paid (any amount)                                         |
+| `loss`    | the bet paid nothing                                              |
+| `maxwin`  | the biggest payout in the sampled set for the current combination |
 
 `?bonus=<room>` is an alias for `?force=<room>`.
 
@@ -30,11 +30,32 @@ Append `:<value>` to a room to ask for a specific room multiplier (before the To
 `?force=plinko:400`, `?force=tower:250`, `?force=chest:2`. If no sampled book matches, the
 nearest kind without the value is used and a warning is logged.
 
+### Straight into the room
+
+Forcing a ROOM (`plinko`, `wheel`, `chest`, `tower`, or `bonus` for any of them) also starts the
+round for you: on load the whole board goes down and the wheel is sent off, so the page arrives in
+the bonus without a click. The full board is what makes a published ticket out of any single room
+and covers whichever one the book holds, so the room plays its real interactive version.
+
+It happens once per load. After that the board is yours again, bet and spun by hand like any other
+round. The other kinds — `win`, `loss`, `number`, `topslot`, `maxwin` — do not auto-start, because
+what you want to look at there is usually a board you chose yourself.
+
+### A shorter wind-up
+
+Any forced round — every kind, not just the rooms — also skips most of its own build-up. The reels
+turn, the wheel turns and the multiplier flies exactly as they always do, in the same order, but at
+a fraction of the length: a forced round is being looked at rather than played, and twelve seconds
+of ceremony between a reload and the thing you are checking is twelve seconds in the way. Loading
+`?force=plinko` puts you in the room about three and a half seconds after the page does.
+
+Drop the parameter and the round plays at full length again.
+
 ### Coverage
 
-Whether the room PAYS depends on the spots on the board, not on the parameter. To see a room pay,
-put a chip on it (or use ALL BONUS / FULL BOARD); to see the "you were not in this bonus" preview,
-bet a number and force a room.
+Whether the room PAYS depends on the spots on the board, not on the parameter. Left to the
+auto-start every room is covered; bet by hand and it is the chips that decide. To see the "you were
+not in this bonus" preview, bet a number and force a room.
 
 ## Examples
 

@@ -11,6 +11,7 @@
 	import { getContext } from '../game/context';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
+	import { forcedRoomKind, isForcedRound } from '../game/devLocalBet';
 	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
 	import {
 		NUMBER_PAY,
@@ -113,7 +114,8 @@
 	let panelTop = $state(0);
 	const measurePanel = () => {
 		if (!gameEl || !panelEl) return;
-		panelTop = (panelEl.getBoundingClientRect().top - gameEl.getBoundingClientRect().top) / fitScale;
+		panelTop =
+			(panelEl.getBoundingClientRect().top - gameEl.getBoundingClientRect().top) / fitScale;
 	};
 	$effect(() => {
 		// Read the fit so a resize re-measures too: the panel moves with it.
@@ -678,6 +680,30 @@
 		if (moved) playSound('click');
 	};
 
+	/**
+	 * `?force=<room>` offline: put the round on by itself.
+	 *
+	 * The parameter exists to look at a bonus room, and reaching one by hand costs a bet and a spin
+	 * every time. So the whole board goes down — which both makes a published ticket out of any
+	 * room and covers whichever one the book holds, so it plays its real interactive version rather
+	 * than the “you were not in this bonus” preview — and the wheel is sent off.
+	 *
+	 * Once per load. Afterwards the board belongs to whoever is sitting at it, so a second round is
+	 * bet and spun by hand like any other.
+	 */
+	let autoStarted = false;
+	$effect(() => {
+		if (autoStarted || online || !forcedRoomKind()) return;
+		// Everything has to be ready: the machine idle, a chip value in from the bet template, and
+		// enough balance to cover a board. Otherwise wait for the next run of this effect.
+		if (!bettingOpen || !stakes.length || !stateGame.stake) return;
+		if (!stateGameDerived.canBackAnother()) return;
+		autoStarted = true;
+		toggleBundle(SPOTS);
+		// A tick, so the board's new state has reached `canSpin` before the spin asks it.
+		void tick().then(spin);
+	});
+
 	const undoBet = () => {
 		const last = stateGameDerived.backedSpots().at(-1);
 		stateGameDerived.undoBet();
@@ -752,6 +778,12 @@
 	const TOP_SLOT_HOLD_MS = 1000;
 	/** And how long it sits on the tile before the wheel takes over. */
 	const MULT_SETTLE_MS = 1000;
+	/**
+	 * A forced round skips most of its own wind-up. Everything still happens, in the same order
+	 * and visibly — the reels turn, the wheel turns, the multiplier flies — just at a fraction of
+	 * the length, because a debug reload is not a moment being built for anybody.
+	 */
+	const hurried = $derived(!online && isForcedRound());
 	/** The board keeps full strength through the Top Slot; it only steps back for the wheel. */
 	let panelDimmed = $state(false);
 	/** In flight, from the Top Slot's multiplier window to the tile's top-right corner. */
@@ -828,24 +860,24 @@
 		topSlotSpin: async (event) => {
 			await topSlot?.spin(event.spot, event.multiplier);
 			// Let the pair be read before anything moves again.
-			await waitForTimeout(TOP_SLOT_HOLD_MS);
+			await waitForTimeout(hurried ? 200 : TOP_SLOT_HOLD_MS);
 			// A blank is the miss: nothing to carry over to the board.
 			if (event.spot && event.multiplier && event.multiplier > 1) {
 				await flyMultiplier(event.spot, event.multiplier);
-				await waitForTimeout(MULT_SETTLE_MS);
+				await waitForTimeout(hurried ? 200 : MULT_SETTLE_MS);
 			}
 			// Only now does the board give the floor to the wheel.
 			panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
-			await wheel?.spinTo(event.segment, { turns: 5, ms: 4600 });
+			await wheel?.spinTo(event.segment, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
 			wheelHighlight = event.segment;
 			landedSpot = event.spot;
 			topSlotApplied = event.multiplier > 1;
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
 			playSound(event.covered ? 'merge' : 'pop');
-			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
+			await waitForTimeout(hurried ? 250 : isRoomSpot(event.spot) ? 900 : 700);
 		},
 		winShow: async (emitterEvent) => {
 			// Book amounts are x100 in units of the chip, so cash scales by betAmount.
@@ -855,7 +887,6 @@
 			await waitForTimeout(multiplier >= 20 ? 2600 : 1600);
 		},
 	});
-
 </script>
 
 {#if online}
@@ -866,7 +897,12 @@
 
 <div class="viewport-fit" style="--fit:{fitScale}">
 	<Background />
-	<div class="game" class:portrait style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px" bind:this={gameEl}>
+	<div
+		class="game"
+		class:portrait
+		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px"
+		bind:this={gameEl}
+	>
 		{#if stateGame.openRoundError || betNotice}
 			<div class="bet-notice" onclick={() => (betNotice = '')} aria-hidden="true">
 				{stateGame.openRoundError || betNotice}
@@ -904,6 +940,7 @@
 				<TopSlot
 					bind:this={topSlot}
 					applied={topSlotApplied}
+					hurry={hurried}
 					onTick={() => playSound('peg', 1.9, 0.5)}
 					onReelStop={() => playSound('notify')}
 				/>
