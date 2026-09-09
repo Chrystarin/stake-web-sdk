@@ -14,9 +14,12 @@
 	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
 	import {
 		NUMBER_PAY,
+		NUMBER_SPOTS,
+		ROOM_SPOTS,
 		SEGMENT_LAYOUT,
 		SPOT_COLOUR,
 		SPOT_LABEL,
+		SPOTS,
 		isRoomSpot,
 		type Spot,
 	} from '../game/constants';
@@ -123,6 +126,49 @@
 	});
 
 	const BOARD: Spot[] = ['x1', 'x2', 'plinko', 'wheel', 'x5', 'x10', 'chest', 'tower'];
+
+	/**
+	 * One-tap group bets, sat on the seams of the board rather than in a row of their own: the board
+	 * reads as multipliers then bonuses in both arrangements, so each seam already names a group.
+	 * Landscape splits the tiles into columns (x1/x5 | x2/x10 | plinko/chest | wheel/tower), so the
+	 * three vertical gaps are "inside the multipliers", "between the halves" and "inside the
+	 * bonuses"; portrait stacks the same halves in rows, and the three horizontal gaps say the same
+	 * thing. `seam` is which gap the button sits on, counting from the board's leading edge.
+	 *
+	 * `face` is the order the colours are painted in, clockwise from the top-left quadrant. It holds
+	 * the same spots as `spots` but is set by eye rather than by the board's order, so a pair that
+	 * sits badly next to its neighbour can be swapped without touching what the button bets.
+	 */
+	const BUNDLES: {
+		key: string;
+		label: string;
+		seam: number;
+		spots: readonly Spot[];
+		face: readonly Spot[];
+	}[] = [
+		{ key: 'multi', label: 'MULTI', seam: 1, spots: NUMBER_SPOTS, face: ['x1', 'x2', 'x10', 'x5'] },
+		{ key: 'all', label: 'ALL', seam: 2, spots: SPOTS, face: SPOTS },
+		{
+			key: 'bonus',
+			label: 'BONUS',
+			seam: 3,
+			spots: ROOM_SPOTS,
+			face: ['plinko', 'wheel', 'tower', 'chest'],
+		},
+	];
+
+	/**
+	 * A button wears the colours of what it buys: an equal-sector pie of the tile fills, cut from the
+	 * top and running clockwise. Four spots make the 2x2 the multiplier and bonus buttons want; all
+	 * eight make the wheel the ALL button wants.
+	 */
+	const bundleFace = (face: readonly Spot[]) => {
+		const step = 100 / face.length;
+		const sectors = face
+			.map((spot, i) => `${SPOT_COLOUR[spot].base} ${i * step}% ${(i + 1) * step}%`)
+			.join(', ');
+		return `conic-gradient(from -90deg, ${sectors})`;
+	};
 
 	// The wooden ring art (static/img/wheel/frame_v2.png, 1911x1925) with its pin at 12 o'clock and
 	// its own ship's-wheel hub. `hole` is the transparent circle, least-squares fitted to the ring's
@@ -326,7 +372,7 @@
 		flights = flights.filter((flight) => flight.id !== id);
 	};
 
-	const flyChip = (spot: Spot, kind: 'place' | 'return') => {
+	const flyChip = (spot: Spot, kind: 'place' | 'return', delay = 0) => {
 		const tray = chipEls[stateGame.stake];
 		const box = tileEls[spot];
 		if (!gameEl || !tray || !box) return;
@@ -341,14 +387,14 @@
 				...currentChipFace(),
 				from: centreIn(host, tray.getBoundingClientRect()),
 				to: centreIn(host, box.getBoundingClientRect()),
-				delay: 0,
+				delay,
 				spin: 0,
 				turned: false,
 			},
 		];
-		schedule(id, () => playSound('whoosh'), GROW_MS);
-		schedule(id, () => playSound('pop'), GROW_MS + TRAVEL_MS);
-		schedule(id, () => dropFlight(id), FLIGHT_MS);
+		schedule(id, () => playSound('whoosh'), delay + GROW_MS);
+		schedule(id, () => playSound('pop'), delay + GROW_MS + TRAVEL_MS);
+		schedule(id, () => dropFlight(id), delay + FLIGHT_MS);
 	};
 
 	const turnBack = (flight: ChipFlight) => {
@@ -366,10 +412,10 @@
 		schedule(flight.id, () => dropFlight(flight.id), elapsed);
 	};
 
-	const recallChip = (spot: Spot) => {
+	const recallChip = (spot: Spot, delay = 0) => {
 		const arriving = flights.find((f) => f.kind === 'place' && !f.turned && f.spot === spot);
 		if (arriving) turnBack(arriving);
-		else flyChip(spot, 'return');
+		else flyChip(spot, 'return', delay);
 	};
 
 	const shuffled = (spots: Spot[]): Spot[] => {
@@ -564,6 +610,7 @@
 
 	const flightStyle = (flight: ChipFlight) =>
 		[
+			`--place-delay:${flight.delay}ms`,
 			`--from-x:${flight.from.x}px`,
 			`--from-y:${flight.from.y}px`,
 			`--to-x:${flight.to.x}px`,
@@ -604,6 +651,32 @@
 		if (!stateGameDerived.toggleSpot(spot)) return;
 		if (wasBacked) recallChip(spot);
 		else flyChip(spot, 'place');
+	};
+
+	/** Gap between a bundle's chips, so a group lands as a run rather than a single thud. */
+	const BUNDLE_STEP_MS = 90;
+
+	/** True once every spot a bundle covers is already backed — the button is showing, not offering. */
+	const bundleOn = (spots: readonly Spot[]) =>
+		spots.every((spot) => stateGameDerived.isBacked(spot));
+
+	/**
+	 * One tap covers the whole group; a second tap on a group that is already fully covered lifts it
+	 * back off. Bets are added to what is on the board rather than replacing it, so MULTI then BONUS
+	 * comes out the same as ALL. Anything the balance will not stretch to is simply not placed.
+	 */
+	const toggleBundle = (spots: readonly Spot[]) => {
+		if (!bettingOpen) return;
+		const lifting = bundleOn(spots);
+		const wanted = lifting ? [...spots] : spots.filter((spot) => !stateGameDerived.isBacked(spot));
+		let moved = 0;
+		for (const spot of wanted) {
+			if (!stateGameDerived.toggleSpot(spot)) continue;
+			if (lifting) recallChip(spot, moved * BUNDLE_STEP_MS);
+			else flyChip(spot, 'place', moved * BUNDLE_STEP_MS);
+			moved++;
+		}
+		if (moved) playSound('click');
 	};
 
 	const undoBet = () => {
@@ -927,6 +1000,21 @@
 									</div>
 								{/each}
 							</div>
+
+							<!-- Group bets, parked on the seams between the halves of the board. -->
+							{#each BUNDLES as bundle (bundle.key)}
+								<div
+									class="bundle-btn"
+									class:on={bundleOn(bundle.spots)}
+									class:hidden={controlsHidden}
+									style="--seam:{bundle.seam}; --face:{bundleFace(bundle.face)}"
+									onclick={() => toggleBundle(bundle.spots)}
+									title={bundle.label}
+									aria-hidden="true"
+								>
+									<span class="bundle-lbl">{bundle.label}</span>
+								</div>
+							{/each}
 						</div>
 
 						<div class="actions-wrap" class:hidden={controlsHidden}>
@@ -1097,11 +1185,12 @@
 		pointer-events: none;
 		filter: drop-shadow(0 0.2vw 0.35vw rgba(0, 0, 0, 0.55));
 	}
+	/* A group bet lays its chips down as a run, so `place` carries a delay the single bets leave at 0. */
 	.flying-chip.place {
-		animation: chip-flight var(--flight-ms) both;
+		animation: chip-flight var(--flight-ms) var(--place-delay, 0ms) both;
 	}
 	.flying-chip.return {
-		animation: chip-flight var(--flight-ms) reverse forwards;
+		animation: chip-flight var(--flight-ms) var(--place-delay, 0ms) reverse both;
 	}
 	.flying-chip.sweep {
 		animation: chip-sweep var(--sweep-ms) var(--sweep-delay) ease-in both;
@@ -1523,15 +1612,37 @@
 	.game.portrait .tile.room {
 		order: 1;
 	}
+	.game.portrait .board {
+		--tile-w: calc((100vw / var(--fit, 1) - 2 * var(--panel-inset) - 1vw) / 2);
+		--tile-h: 12vw;
+		--tile-gap-x: 1vw;
+		--tile-gap-y: 0.9vw;
+	}
 	.game.portrait .tiles {
-		grid-template-columns: repeat(2, calc((100vw / var(--fit, 1) - 2 * var(--panel-inset) - 1vw) / 2));
-		grid-auto-rows: 12vw;
-		gap: 0.9vw 1vw;
+		grid-template-columns: repeat(2, var(--tile-w));
+	}
+	/* Two columns of four turns the board's seams from vertical into horizontal: the group buttons
+	   ride the row gaps instead, on the one column seam, and grow with the rest of the portrait UI. */
+	.game.portrait .bundle-btn {
+		top: calc(var(--seam) * var(--tile-h) + (var(--seam) - 0.5) * var(--tile-gap-y));
+		left: 50%;
+		width: 10.4vw;
+		height: 10.4vw;
+		border-width: 0.3vw;
+		box-shadow: 0 0.4vw 0.9vw rgba(0, 0, 0, 0.55);
+	}
+	.game.portrait .bundle-btn.on {
+		outline-width: 0.5vw;
+		outline-offset: 0.15vw;
+	}
+	.game.portrait .bundle-lbl {
+		font-size: 2vw;
+		letter-spacing: 0.04vw;
+		-webkit-text-stroke: 0.4vw rgba(0, 0, 0, 0.75);
 	}
 	.game.portrait .tile {
 		border-width: 0.3vw;
 		border-radius: 1vw;
-		box-shadow: inset 0 0 0 0.28vw #ea9f16;
 	}
 	.game.portrait .tile-lbl {
 		font-size: 3.5vw;
@@ -1703,15 +1814,79 @@
 	}
 
 	/* ---- Bet board ---- */
+	/* The tile metrics live on the board rather than in the grid, because the group buttons are
+	   placed on the gaps between tiles and have to be able to work out where those gaps are. */
 	.board {
+		position: relative;
 		margin: 0.45vw auto 0;
 		width: fit-content;
+		--tile-w: 10.4vw;
+		--tile-h: 4.6vw;
+		--tile-gap-x: 0.3vw;
+		--tile-gap-y: 0.25vw;
 	}
 	.tiles {
 		display: grid;
-		grid-template-columns: repeat(4, 10.4vw);
-		grid-auto-rows: 4.6vw;
-		gap: 0.25vw 0.3vw;
+		grid-template-columns: repeat(4, var(--tile-w));
+		grid-auto-rows: var(--tile-h);
+		gap: var(--tile-gap-y) var(--tile-gap-x);
+	}
+	/* ---- Group bets ----
+	   A coin sat astride a seam of the board: the spots it buys, painted as equal sectors of a pie,
+	   with the group's name over a dark core so it still reads against eight colours. Landscape
+	   counts seams across the columns; portrait counts them down the rows (see the portrait block).
+	   Sizes are held off the tile metrics so the button keeps its proportion at any fit. */
+	.bundle-btn {
+		position: absolute;
+		top: 50%;
+		left: calc(var(--seam) * var(--tile-w) + (var(--seam) - 0.5) * var(--tile-gap-x));
+		translate: -50% -50%;
+		width: 3.35vw;
+		height: 3.35vw;
+		z-index: 30;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		border: 0.12vw solid #4c2813;
+		background-image:
+			radial-gradient(circle at 50% 50%, #1c0f06 0 36%, rgba(28, 15, 6, 0) 37%), var(--face);
+		box-shadow: 0 0.15vw 0.35vw rgba(0, 0, 0, 0.55);
+		transition:
+			opacity 180ms ease,
+			filter 150ms ease,
+			transform 150ms ease,
+			visibility 260ms;
+	}
+	.bundle-btn:hover {
+		filter: brightness(1.15);
+		transform: scale(1.06);
+	}
+	/* Already fully covered: the tap that follows lifts the group back off, so say so. */
+	.bundle-btn.on {
+		outline: 0.2vw solid #ffe14d;
+		outline-offset: 0.06vw;
+		filter: brightness(1.12);
+	}
+	.bundle-btn.hidden {
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+	}
+	/* The name sits over the core but is free to run onto the ring — a stroke keeps it legible where
+	   it does, and the alternative is type too small to read. */
+	.bundle-lbl {
+		font-family: 'Alexandria', sans-serif;
+		font-weight: 700;
+		font-size: 0.7vw;
+		letter-spacing: 0.01vw;
+		line-height: 1;
+		color: #fff6d8;
+		white-space: nowrap;
+		pointer-events: none;
+		paint-order: stroke;
+		-webkit-text-stroke: 0.14vw rgba(0, 0, 0, 0.75);
 	}
 	/* Tiles carry a gold border and a label + sub-label over a solid fill in the
 	   spot's own colour, the same flat fill its wedges use on the wheel. */
@@ -1727,9 +1902,6 @@
 		border-radius: 0.35vw;
 		background: var(--tile);
 		border: 0.12vw solid #4c2813;
-		/* A second, brighter edge just inside the brown one — inset rather than a real border, so
-		   it follows the same corner radius without changing the tile's box. */
-		box-shadow: inset 0 0 0 0.11vw #ea9f16;
 		font-family: 'Alexandria', sans-serif;
 		color: var(--tile-text);
 		transition:
