@@ -67,11 +67,30 @@
 
 	const props: Props = $props();
 
-	/** Time the ball spends falling one row. Everything else is a multiple of it. */
-	const ROW_MS = 100;
-	/** The rail is a longer, bounce-free fall, and the drop into a pocket a deeper one. */
-	const ENTRY_ROW_SCALE = 1.35;
-	const POCKET_ROW_SCALE = 1.25;
+	/**
+	 * Time the ball spends on one ARC UNIT — the time a projectile takes to rise or fall one row gap
+	 * under this board's gravity. A segment is as many units long as its arc is tall, so the clock
+	 * follows the shape of the fall instead of ticking evenly: a glancing hop is quick, a rebound
+	 * that goes back up over the row above hangs. That variation is most of what makes the drop read
+	 * as a ball rather than as a marker being stepped down a grid.
+	 */
+	const ARC_MS = 72;
+	/**
+	 * The first fall, off the rail. No bounce — it has not hit anything yet — and slow, because it is
+	 * the one moment the player is watching their own choice leave their hand.
+	 */
+	const ENTRY_ARC_SCALE = 2.4;
+	/** The last, into the pocket: a deeper drop, and the one being waited on, so it takes its time. */
+	const POCKET_ARC_SCALE = 1.5;
+	/**
+	 * How high the ball comes off a peg, in row gaps. Most strikes are glancing; roughly one in five
+	 * is a real rebound that carries it back up past the row above before it comes down. The tail is
+	 * the point — a fall where every bounce is the same height is a fall nobody watches twice.
+	 */
+	const BOUNCE_MIN = 0.12;
+	const BOUNCE_SPREAD = 0.5;
+	const BIG_BOUNCE_ODDS = 0.22;
+	const BOUNCE_BIG = 1.35;
 	/** How long the ball stays squashed after a contact, and a struck peg stays lit. */
 	const CONTACT_MS = 130;
 	/**
@@ -81,8 +100,8 @@
 	 * past which a picture stops reading as an object and starts reading as a blur.
 	 */
 	const SPIN_RETAIN = 0.82;
-	const SPIN_KICK = 0.5;
-	const SPIN_MAX = 1.8;
+	const SPIN_KICK = 0.3;
+	const SPIN_MAX = 1.1;
 	/** How long the ball takes to right itself once it is in the pocket. */
 	const SPIN_SETTLE_MS = 280;
 	const PEG_LIT_MS = 320;
@@ -358,13 +377,50 @@
 		// The fall starts where the ball ACTUALLY is, not on the peg it is about to strike — the
 		// first segment is what carries it from one to the other.
 		const from = { offset: railOffset, depth: railDepth };
-		const durations = points.map((_, index) =>
-			index === 0
-				? ROW_MS * ENTRY_ROW_SCALE
-				: index === points.length - 1
-					? ROW_MS * POCKET_ROW_SCALE
-					: ROW_MS,
-		);
+		/**
+		 * How high the ball comes off each peg, in row gaps. Rolled ONCE, here, rather than per frame:
+		 * a tab that is only served three frames has to replay the same fall as one served thirty.
+		 * Bounces grow a little towards the bottom, which is both true — the ball is moving fastest
+		 * there — and the right place for them, since the last few are the ones being waited on.
+		 */
+		const bounces = points.map((_, index) => {
+			if (index === 0) return 0;
+			const height =
+				Math.random() < BIG_BOUNCE_ODDS
+					? BOUNCE_BIG * (0.7 + Math.random() * 0.6)
+					: BOUNCE_MIN + Math.random() * BOUNCE_SPREAD;
+			return height * (0.85 + (index / points.length) * 0.4);
+		});
+
+		/**
+		 * A hop that rises `up` and then falls `up + drop` takes time in proportion to the square
+		 * roots of the two heights — which is just what gravity does, and what makes a tall rebound
+		 * hang instead of merely travelling further.
+		 */
+		const arcUnits = (up: number, drop: number) =>
+			Math.sqrt(Math.max(0, up)) + Math.sqrt(Math.max(0, up + drop));
+
+		const durations = points.map((point, index) => {
+			const before = index === 0 ? from : points[index - 1];
+			const drop = point.depth - before.depth;
+			if (index === 0) return ARC_MS * ENTRY_ARC_SCALE * Math.sqrt(Math.max(0.2, drop));
+			const scale = index === points.length - 1 ? POCKET_ARC_SCALE : 1;
+			return ARC_MS * scale * arcUnits(bounces[index], drop);
+		});
+
+		/**
+		 * The share of a segment spent going up, so the two halves of the arc meet at the apex. Zero
+		 * where there is no bounce, which collapses the whole thing back to a plain accelerating
+		 * fall — that is the first segment, off the rail.
+		 */
+		const riseShare = points.map((point, index) => {
+			const bounce = bounces[index];
+			if (bounce <= 0) return 0;
+			const before = index === 0 ? from : points[index - 1];
+			const drop = point.depth - before.depth;
+			const up = Math.sqrt(bounce);
+			return Math.min(0.9, up / (up + Math.sqrt(Math.max(0.001, bounce + drop))));
+		});
 
 		/**
 		 * The turn is planned segment by segment, the same way the path is: one rate and one
@@ -397,12 +453,24 @@
 				const span = durations[segment];
 				const t = Math.min(1, (now - segmentStart) / span);
 
-				// Off the rail the ball starts from rest; off a peg it starts with an upward kick, so
-				// the arc lifts before it falls. Both land exactly on the next contact at t = 1.
-				const fall = segment === 0 ? t * t : 2.5 * t * t - 1.5 * t;
+				/**
+				 * A real hop, in two parabolas that meet at the apex: up off the peg, decelerating to
+				 * a stop, then down onto the next one, accelerating. Both are exact at their ends, so
+				 * the ball leaves one contact and arrives at the next however coarsely it is sampled.
+				 *
+				 * Across, it moves at a constant rate — which is what a projectile does, and why a
+				 * tall rebound drifts slowly at the top and quickly at the two ends.
+				 */
+				const bounce = bounces[segment];
+				const rise = riseShare[segment];
+				const drop = end.depth - start.depth;
+				const depth =
+					t < rise
+						? start.depth - bounce * (1 - (1 - t / rise) ** 2)
+						: start.depth - bounce + (bounce + drop) * ((t - rise) / (1 - rise)) ** 2;
 
 				ballX = layout.centreX + (start.offset + (end.offset - start.offset) * t) * layout.pitch;
-				ballY = layout.topY + (start.depth + (end.depth - start.depth) * fall) * layout.rowGap;
+				ballY = layout.topY + depth * layout.rowGap;
 				squash = Math.max(0, 1 - (now - lastContact) / CONTACT_MS);
 				// Off `t` rather than the clock, so the angle at the end of a segment is exactly the
 				// angle the next one starts from however few frames were served in between.
