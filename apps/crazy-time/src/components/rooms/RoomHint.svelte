@@ -292,9 +292,28 @@
 		--ink-bottom: 81.5%;
 	}
 	/* The drain's own copy. It shares the cell with the other two, so it wraps and centres exactly as
-	   they do and the clip below is measured against the same box. */
+	   they do and the clip below is measured against the same box.
+
+	   The white is DISHED rather than flat: grey down the sides of every stroke, white through the
+	   middle, so the uncovered words read as cut into the sign rather than laid on it — the solidity
+	   the gold below the seam already gets from its ramp.
+
+	   It is a stroke and not a shadow because a `text-shadow` cannot do it. A shadow is the whole
+	   glyph over again, offset and blurred, so it covers the MIDDLE of a stroke as surely as the
+	   edge — anything strong enough to read as depth turns the letter grey and leaves a white sliver
+	   at one edge, which is the wrong way round. A stroke straddles the outline instead, and with the
+	   default paint order it is drawn over the fill: the inner half is the grey rim, and the middle
+	   is never touched.
+
+	   The outer half is spent on `.hint-edge`'s brown, which carries 0.06em outside the outline —
+	   about twice this stroke's reach — so nothing of it lands on the room. Widening it much past
+	   here starts to grey that brown from the inside.
+
+	   In `em`, like the rest of this file, so a rim of the same weight lands on the tower's caption
+	   and on Plinko's landscape line alike. */
 	.hint-fill {
 		color: #ffffff;
+		-webkit-text-stroke: 0.055em rgba(122, 122, 132, 0.42);
 		clip-path: inset(0 0 calc(100% - var(--ink-bottom)) 0);
 	}
 	.hint-fill.draining {
