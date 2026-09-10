@@ -148,9 +148,10 @@
 		seam: number;
 		spots: readonly Spot[];
 		face: readonly Spot[];
+		halved?: boolean;
 	}[] = [
 		{ key: 'multi', label: 'MULTI', seam: 1, spots: NUMBER_SPOTS, face: ['x1', 'x2', 'x10', 'x5'] },
-		{ key: 'all', label: 'ALL', seam: 2, spots: SPOTS, face: SPOTS },
+		{ key: 'all', label: 'ALL', seam: 2, spots: SPOTS, face: SPOTS, halved: true },
 		{
 			key: 'bonus',
 			label: 'BONUS',
@@ -161,17 +162,28 @@
 	];
 
 	/**
-	 * A button wears the colours of what it buys: an equal-sector pie of the tile fills, cut from the
-	 * top and running clockwise. Four spots make the 2x2 the multiplier and bonus buttons want; all
+	 * A button wears the colours of what it buys: an equal-sector pie of the tile fills, running
+	 * clockwise from `fromDeg`. Four spots make the 2x2 the multiplier and bonus buttons want; all
 	 * eight make the wheel the ALL button wants.
 	 */
-	const bundleFace = (face: readonly Spot[]) => {
+	const bundleFace = (face: readonly Spot[], fromDeg = -90) => {
 		const step = 100 / face.length;
 		const sectors = face
 			.map((spot, i) => `${SPOT_COLOUR[spot].base} ${i * step}% ${(i + 1) * step}%`)
 			.join(', ');
-		return `conic-gradient(from -90deg, ${sectors})`;
+		return `conic-gradient(from ${fromDeg}deg, ${sectors})`;
 	};
+
+	/**
+	 * ALL wears both halves of the board, so its pie has to split the way the board does: the four
+	 * multipliers on one side of the cut, the four bonuses on the other. `face` runs multipliers
+	 * first, so where the first sector starts decides which side they take. A conic gradient's angle
+	 * is measured from 12 o'clock, clockwise: -90deg starts the run at 9 o'clock, so the first half
+	 * sweeps 9 -> 12 -> 3 and the multipliers fill the TOP half; 180deg starts it at 6 o'clock, so
+	 * the first half sweeps 6 -> 9 -> 12 and they fill the LEFT half. Portrait stacks the board's
+	 * halves in rows, landscape sets them in columns; the button follows.
+	 */
+	const bundleFaceFrom = (bundle: { halved?: boolean }) => (bundle.halved && !portrait ? 180 : -90);
 
 	// The wooden ring art (static/img/wheel/frame.png, 1911x1925) with its pin at 12 o'clock and
 	// its own ship's-wheel hub. `hole` is the transparent circle, least-squares fitted to the ring's
@@ -1048,7 +1060,10 @@
 									class="bundle-btn"
 									class:on={bundleOn(bundle.spots)}
 									class:hidden={controlsHidden}
-									style="--seam:{bundle.seam}; --face:{bundleFace(bundle.face)}"
+									style="--seam:{bundle.seam}; --face:{bundleFace(
+										bundle.face,
+										bundleFaceFrom(bundle),
+									)}"
 									onclick={() => toggleBundle(bundle.spots)}
 									title={bundle.label}
 									aria-hidden="true"
