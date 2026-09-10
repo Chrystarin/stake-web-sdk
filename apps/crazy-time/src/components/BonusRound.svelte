@@ -40,9 +40,9 @@
 	let roomApi = $state<{ play: () => Promise<number> } | undefined>();
 
 	/**
-	 * A room can bring its own moving backdrop, which then shows through whatever it plays on. Only
-	 * Plinko has one; the rest keep the flat room-tinted gradient, and a room with no entry here
-	 * simply gets no video element.
+	 * A room can bring its own moving backdrop, which then shows through whatever it plays on. All
+	 * four rooms have one; a room with no entry here simply gets no video element and keeps the
+	 * flat room-tinted gradient.
 	 *
 	 * `muted` and `playsinline` are what let it start on its own — see `Background.svelte` for why.
 	 * Nothing depends on playback: a browser that refuses leaves the gradient underneath showing.
@@ -71,6 +71,9 @@
 
 	const ROOM_VIDEO: Partial<Record<Spot, string>> = {
 		plinko: staticUrl('videos/animated_background_plinko.mp4'),
+		wheel: staticUrl('videos/animated_background_jackpot_wheel.mp4'),
+		tower: staticUrl('videos/animated_background_dragon_tower.mp4'),
+		chest: staticUrl('videos/animated_background_treasure_chest.mp4'),
 	};
 
 	const spotFor = (room: BookEventRoom): Spot =>
@@ -176,7 +179,7 @@
 					cash={result === null ? '' : `${sign}${fmt(result * chip)}`}
 				/>
 			{:else if current.room.type === 'wheelBonus'}
-				<RoomWheel bind:this={roomApi} room={current.room} />
+				<RoomWheel bind:this={roomApi} room={current.room} interactive={current.covered} />
 			{:else if current.room.type === 'chestBonus'}
 				<RoomChest bind:this={roomApi} room={current.room} interactive={current.covered} />
 			{:else}
@@ -389,6 +392,11 @@
 		font-family: 'Alexandria', sans-serif;
 		opacity: 0;
 		transition: opacity 300ms ease;
+		/* The Jackpot Wheel's frame runs down behind this line, and gold lettering on gilded wood is
+		   nothing at all. A soft plate of the room's own dark, faded out rather than boxed in, so it
+		   is invisible over the rooms that leave the footer on empty air. */
+		padding: 0 2vw;
+		background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 70%);
 	}
 	.footer.shown {
 		opacity: 1;

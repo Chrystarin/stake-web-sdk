@@ -40,6 +40,12 @@
 		 * overscan hides the anti-aliased seam between wedge edge and ring; the ring covers it.
 		 */
 		overscan?: number;
+		/**
+		 * The radius the frame's own art reaches IN to over the disc — its pointer, its rope wraps,
+		 * whatever hangs past the ring — as a fraction of the image WIDTH, the same units as
+		 * `hole.r`. Label ink outside this is liable to be covered by it. Omit if nothing overhangs.
+		 */
+		overhang?: number;
 	};
 
 	type Props = {
@@ -212,29 +218,72 @@
 	const labelPos = (i: number) => polar(LABEL_R, i * step);
 
 	/**
-	 * Room (bonus) labels and Jackpot Wheel multipliers are set glyph by glyph down the wedge instead
-	 * of as one centred word: each letter is sized in proportion to its radius, so the word tapers
-	 * with the wedge — big and a little over-wide at the rim, small at the hub — and runs much deeper
-	 * along the segment. The letters of a run touch, at the face's own advance, so it reads as one
-	 * continuous piece of lettering rather than a column of separate characters. A room's run is
-	 * headed by a crest, not a letter, and the crest sits on the numbers' own ring so the outer edge
-	 * of the wheel reads as one band; the name starts underneath it. A crest-less run has nothing
-	 * above it, so it starts at the rim itself.
+	 * Labels that run down the wedge, glyph by glyph, instead of sitting on it as one centred word:
+	 * a room's name (roomGlyphs) and a Jackpot Wheel multiplier (uprightGlyphs). Both taper towards
+	 * the hub as the wedge narrows, and in both the glyphs touch, so a run reads as one piece of
+	 * lettering rather than a column of separate characters — but they are set at right angles to
+	 * each other, and that is the whole difference between the two functions.
+	 *
+	 * A room's name is turned on its side: reading runs down the wedge, so a glyph's ADVANCE is its
+	 * radial extent and its ink HEIGHT is what has to fit across the wedge. It is also headed by a
+	 * crest, which sits on the numbers' own ring so the outer edge of the wheel reads as one band,
+	 * with the name starting underneath it. A multiplier is left upright and stacked, so those two
+	 * dimensions swap over, and with nothing above it, it starts at the rim itself.
 	 */
-	const ROOM_OVERFLOW = 1.25; // how far a glyph should spill past the wedge's arc width
-	const RUN_OVERFLOW = 0.95; // digits stay inside theirs: a wedge either side is a number too, and
+	const ROOM_OVERFLOW = 1.25; // how far a letter should spill past the wedge's arc width
+	const RUN_OVERFLOW = 0.6; // a digit stays inside it: the wedge either side is a number too, and
 	// two runs of figures that touch are two numbers that cannot be told apart at a glance
+	const RUN_TAPER = 0.93; // one digit's size over the one above it — see uprightGlyphs()
+	const RUN_LEAD = 1.7; // and how far apart they are set, as a multiple of their own ink height
+	const RUN_PREFIX = 0.72; // the leading `x` is a marker, not a figure, and is cut down to this
 	const ROOM_GLYPH_H = 1.13; // Pieces of Eight ink height, as a fraction of font size (measured)
 	const ROOM_TRACK = 0.72; // advance between glyph centres, likewise — a little over the face's
 	const ROOM_TRACK_MIN = 0.52; // and the tightest setting before the letters are shrunk instead
 	const ROOM_CREST_GAP = 10; // clear space between the crest art and the first letter, in units
-	const RUN_RIM_GAP = 4; // clear space between a crest-less run and the disc's visible rim
+	const RUN_RIM_GAP = 4; // clear space between a multiplier's first glyph and a bare rim
+	const RUN_TUCK = 3; // and how far a frame's overhang is let over that glyph when there is one
+
+	/**
+	 * Alexandria Bold — the face the balance and the wager are set in — measured off the file: each
+	 * glyph's INK box as fractions of the font size. A run is only as big as its most awkward glyph
+	 * allows, and these are not an even set: `1` is two thirds the width of `0`, and the `x` is a
+	 * true lowercase, three quarters the height of the figures it stands in front of. Sizing a whole
+	 * number off one worst case would cost a third of the type, so every glyph is measured.
+	 *
+	 * A multiplier is `x${value}`, so these eleven are the whole alphabet a run can draw on.
+	 */
+	const RUN_INK: Record<string, { w: number; h: number }> = {
+		'0': { w: 0.703, h: 0.713 },
+		'1': { w: 0.419, h: 0.701 },
+		'2': { w: 0.605, h: 0.708 },
+		'3': { w: 0.603, h: 0.709 },
+		'4': { w: 0.608, h: 0.701 },
+		'5': { w: 0.625, h: 0.709 },
+		'6': { w: 0.63, h: 0.716 },
+		'7': { w: 0.589, h: 0.701 },
+		'8': { w: 0.631, h: 0.716 },
+		'9': { w: 0.629, h: 0.716 },
+		x: { w: 0.611, h: 0.54 },
+	};
+	const RUN_INK_FALLBACK = { w: 0.703, h: 0.716 };
+	const runInk = (ch: string) => RUN_INK[ch] ?? RUN_INK_FALLBACK;
 
 	/**
 	 * The disc's visible rim: the wedges themselves run out to OUTER, but a frame's overscan tucks
 	 * that last sliver under the ring art, so ink placed past this radius would disappear under wood.
 	 */
 	const RIM_R = $derived(frame ? OUTER / (1 + (frame.overscan ?? 0)) : OUTER);
+	/**
+	 * Where a run puts the outer ink edge of its first glyph, which is not the rim: a frame's pointer
+	 * and its rope wraps hang over the disc well inside the ring, and a number set against the rim
+	 * spends its whole first character underneath them. It is set to where that art ends, and then
+	 * RUN_TUCK back out again — the overhang takes a bite out of the top of the first glyph rather
+	 * than the number shying away from it, which reads as one piece of art instead of two. With no
+	 * overhang declared there is nothing to tuck under and it simply keeps clear of the rim.
+	 */
+	const RUN_TOP = $derived(
+		frame?.overhang ? RIM_R * (frame.overhang / frame.hole.r) + RUN_TUCK : RIM_R - RUN_RIM_GAP,
+	);
 
 	/** Arc width of one wedge at radius `r`, in viewBox units. */
 	const wedgeWidth = (r: number) => r * ((step * Math.PI) / 180);
@@ -255,26 +304,21 @@
 	/** Labels set glyph by glyph down the wedge rather than as one centred word. */
 	const isRun = (seg: WheelSegment) => seg.kind === 'room' || seg.kind === 'value';
 
-	const roomGlyphs = (i: number, label: string, crest?: { aspect: number }): RoomGlyph[] => {
+	const roomGlyphs = (i: number, label: string, crest: { aspect: number }): RoomGlyph[] => {
 		const angle = i * step;
 		/**
-		 * A name has to sit between the crest and the hub, and a long one cannot do that at a short
-		 * one's setting: fourteen glyphs down the span that holds six have to give somewhere. They
-		 * give in tracking first — the letters keep the size that spills them slightly past the
+		 * The whole name has to sit between the crest and the hub, and a long one cannot do that at
+		 * a short one's setting: fourteen glyphs down the span that holds six have to give somewhere.
+		 * They give in tracking first — the letters keep the size that spills them slightly past the
 		 * wedge, and close up towards ROOM_TRACK_MIN — and only shrink once that floor is reached.
-		 * The setting depends on the first glyph's radius and that radius on the setting, so it is
-		 * settled over a few passes; the crest's gap is measured to a fixed radius, the first
-		 * glyph's OUTER edge, so it comes out identical on every name however the letters end up.
 		 *
-		 * A crest-less run — a multiplier — differs only in where it starts and how wide its glyphs
-		 * are cut: it begins at the rim, and it keeps its digits inside the wedge rather than
-		 * spilling them, because the wedge either side of it is a number too and two runs of figures
-		 * that touch are two numbers that cannot be told apart at a glance.
+		 * `r1` depends on the setting and the setting on `r1`, so it settles over a few passes. The
+		 * crest's gap is measured to the first glyph's OUTER edge, a fixed radius, so it comes out
+		 * identical on every name however the letters end up set.
 		 */
-		const crestH = crest ? badgeBox(crest.aspect, CREST_FILL).h : 0;
-		const outerEdge = crest ? LABEL_R - crestH / 2 - ROOM_CREST_GAP : RIM_R - RUN_RIM_GAP;
-		const arcPerRadius = (step * Math.PI) / 180;
-		let perRadius = ((crest ? ROOM_OVERFLOW : RUN_OVERFLOW) * arcPerRadius) / ROOM_GLYPH_H;
+		const crestH = badgeBox(crest.aspect, CREST_FILL).h;
+		const outerEdge = LABEL_R - crestH / 2 - ROOM_CREST_GAP;
+		let perRadius = (ROOM_OVERFLOW * ((step * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
 		let track = ROOM_TRACK;
 		for (let pass = 0; pass < 4 && label.length > 1; pass++) {
 			const half = (perRadius * track) / 2;
@@ -302,6 +346,74 @@
 			r *= (1 - half) / (1 + half);
 		}
 		return glyphs;
+	};
+
+	/**
+	 * A multiplier, set upright and stacked from the rim down the wedge — each digit's ink resting
+	 * directly on the one below, so the number reads as a single column rather than four loose
+	 * characters.
+	 *
+	 * The sizing is the one thing that could not be carried over from a name. Scaling every glyph by
+	 * its own radius, which is what tapers a name so nicely, is far more violent on a digit standing
+	 * up: an upright glyph is about half as wide again in the radial direction as a sideways one, so
+	 * a run of four covers the same ground in far bigger steps and ends with an `x` a quarter the
+	 * size of the first digit — a mistake rather than a taper. So the taper is set directly instead,
+	 * at RUN_TAPER a step, and the run is sized as one block.
+	 *
+	 * That block has a closed form. With the first glyph's size S the sizes are S·f^j, and stacking
+	 * puts each centre at `outerEdge - S·c[j]` — every radius affine in S — so each constraint (every
+	 * glyph inside the wedge's width at its OWN radius, in its OWN cut, and the last one's ink clear
+	 * of the hub) is one division, and the setting is the smallest S they all allow. Whichever binds
+	 * decides how the run behaves: a short number is held by the width and stops above the hub, a
+	 * long one is held by the hub and shrinks to reach it.
+	 */
+	const uprightGlyphs = (i: number, label: string): RoomGlyph[] => {
+		if (!label) return [];
+		const angle = i * step;
+		const outerEdge = RUN_TOP;
+		const chars = [...label];
+		const last = chars.length - 1;
+		/**
+		 * Glyph j's size, per unit of S: the taper, and then the leading `x` cut down again — it
+		 * introduces the number rather than being part of it, and left at the head of the taper it
+		 * would be the biggest thing on the wedge, which is not what an `x50` says.
+		 */
+		const weights = chars.map(
+			(ch, j) => Math.pow(RUN_TAPER, j) * (j === 0 && ch === 'x' ? RUN_PREFIX : 1),
+		);
+		const scale = (j: number) => weights[j];
+
+		/**
+		 * c[j]: how far glyph j's centre sits below the run's outer ink edge, per unit of S. Half of
+		 * the first glyph's own ink to reach its centre, then a leaded line to each one after it —
+		 * measured off the two glyphs it runs between, since they are neither the same size nor, with
+		 * a lowercase `x` in front of the figures, the same height.
+		 */
+		const c: number[] = [];
+		let drop = (runInk(chars[0]).h * scale(0)) / 2;
+		for (let j = 0; j <= last; j++) {
+			c.push(drop);
+			if (j < last) {
+				drop +=
+					(RUN_LEAD * (runInk(chars[j]).h * scale(j) + runInk(chars[j + 1]).h * scale(j + 1))) / 2;
+			}
+		}
+
+		// How much of the wedge a glyph's ink may take across it, per unit radius.
+		const allowed = (RUN_OVERFLOW * (step * Math.PI)) / 180;
+		let size = Infinity;
+		for (let j = 0; j <= last; j++) {
+			// inkW·size_j <= allowed·r_j, with r_j written out in terms of the first glyph's size.
+			const across = runInk(chars[j]).w * scale(j) + allowed * c[j];
+			size = Math.min(size, (allowed * outerEdge) / across);
+		}
+		const reach = c[last] + (runInk(chars[last]).h * scale(last)) / 2;
+		size = Math.min(size, (outerEdge - hubRadius) / reach);
+
+		return chars.map((ch, j) => {
+			const p = polar(outerEdge - size * c[j], angle);
+			return { ch, x: p.x, y: p.y, size: size * scale(j) };
+		});
 	};
 </script>
 
@@ -364,15 +476,20 @@
 			{/each}
 			{#each segments as seg, i (i)}
 				{#if isRun(seg)}
-					<g class="run" class:glow={seg.kind === 'room'} style="--glow:{seg.fill}">
-						{#each roomGlyphs(i, seg.label, seg.image) as g, j (j)}
+					{@const run =
+						seg.kind === 'room' && seg.image
+							? roomGlyphs(i, seg.label, seg.image)
+							: uprightGlyphs(i, seg.label)}
+					<g class="run" class:glow={seg.kind === 'room'} style="--wedge:{seg.fill}">
+						{#each run as g, j (j)}
 							<text
 								x={g.x}
 								y={g.y}
 								fill={seg.text}
 								class="label"
+								class:upright={seg.kind !== 'room'}
 								style="font-size:{g.size}px"
-								transform="rotate({i * step + 90} {g.x} {g.y})"
+								transform="rotate({i * step + (seg.kind === 'room' ? 90 : 0)} {g.x} {g.y})"
 								text-anchor="middle"
 								dominant-baseline="central">{g.ch}</text
 							>
@@ -500,11 +617,35 @@
 	.label.number {
 		font-size: 21px;
 	}
+	/* A multiplier is a figure, not a name: it is set in the balance's own face rather than the ship's
+	   lettering the room names wear, so a x50 on the wheel and the x50 in the read-out below are
+	   recognisably the same number. Its metrics are measured — see RUN_INK — so this is not a free
+	   swap; and the stroke is lighter than a name's, because these are lighter letterforms and the
+	   room names' 2.4 closes up Alexandria's counters. */
+	.label.upright {
+		font-family: 'Alexandria', sans-serif;
+		font-weight: 700;
+		/*
+		 * Cut out of the wedge rather than laid on top of it: the outline and the shadow are both
+		 * the wedge's OWN colour taken down towards black, so a number reads as something stamped
+		 * into the paint. Flat black around all thirty-six of them put a dark ring through the
+		 * middle of the disc and flattened the palette the wedges are there to show off.
+		 *
+		 * Half of `stroke-width` shows, `paint-order` keeping the rest under the fill, so 2.2 draws
+		 * a 1.1 line. The shadow's offset is in viewBox units and every glyph carries its own
+		 * filter, so it falls below the character as it is SET — down the wedge, whichever way round
+		 * the disc has turned it — rather than down the screen, which would light the numbers from
+		 * thirty-six directions at once.
+		 */
+		stroke: color-mix(in srgb, var(--wedge) 45%, #000);
+		stroke-width: 2.2;
+		filter: drop-shadow(0 1.5px 1.4px color-mix(in srgb, var(--wedge) 30%, rgba(0, 0, 0, 0.72)));
+	}
 	/* Run glyphs are sized inline, per letter — see roomGlyphs(). A room name also glows in its own
 	   wedge colour, so where the letters spill onto a neighbour the halo still names the segment;
 	   a multiplier is a short run on a big wedge and reads on its stroke alone. */
 	.run.glow {
-		filter: drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 9px var(--glow));
+		filter: drop-shadow(0 0 3px var(--wedge)) drop-shadow(0 0 9px var(--wedge));
 	}
 	.hub {
 		fill: #1c1410;

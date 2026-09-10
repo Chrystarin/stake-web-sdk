@@ -1,9 +1,17 @@
 <script lang="ts">
-	/** Jackpot Wheel room: the generic wheel with 36 multiplier wedges, spun to the authored wedge. */
+	/**
+	 * Jackpot Wheel room: the generic wheel with 36 multiplier wedges, spun to the authored wedge.
+	 *
+	 * The player starts it. Nothing about the outcome is theirs — the wedge is the book's, and the
+	 * countdown spins it for them if they sit on their hands — but a wheel that goes off on its own
+	 * is a wheel that happened TO them, and the whole point of the room is the pull of the handle.
+	 */
 	import Wheel, { type WheelSegment, type WheelFrame } from '../Wheel.svelte';
+	import { PICK_SECONDS } from '../../game/constants';
 	import type { BookEventWheelBonus } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticUrl } from '../../lib/staticUrl';
+	import { waitForTimeout } from 'utils-shared/wait';
 
 	/**
 	 * The gilded ring art (static/img/jackpot-wheel/frame.png, 1971x2109), gem pointer at 12 o'clock,
@@ -18,14 +26,26 @@
 		aspect: 1971 / 2109,
 		hole: { cx: 985.8 / 1971, cy: 1115.5 / 2109, r: 752.0 / 1971 },
 		overscan: 0.04,
+		// A good deal of this frame hangs over the disc: at 733 px the art still covers 270° of the
+		// circle — 27 wedges of 36 — because of the rope wraps and the side plates, and the two gem
+		// pointers carry on past those. The top one, the marker a spin is read against, bottoms out
+		// at 681.5 px, so a multiplier that starts inside that is clear of everything but the tip of
+		// the bottom gem, which only ever covers the wedge nobody is reading.
+		overhang: 681.5 / 1971,
 	};
 	// The hub art ends at r ~= 290 px, which is 70.5 of the disc's 190 units at this scale; the
 	// multiplier runs stop their ink just clear of it. The wedges themselves run to the centre
 	// (innerRadius 0) so the hub covers solid colour rather than a hole.
 	const HUB_R = 71;
+	/** The hub art's own width, as a fraction of the frame box: what the glow is drawn around. */
+	const HUB_WIDTH = (2 * 290) / 1971;
 
-	type Props = { room: BookEventWheelBonus };
-	let { room }: Props = $props();
+	type Props = {
+		room: BookEventWheelBonus;
+		/** False when the player was not in this bonus: it is a tease, so it plays itself. */
+		interactive?: boolean;
+	};
+	let { room, interactive = true }: Props = $props();
 
 	// Keyed by the wedge's base value (before the Top Slot) — one entry per value in WHEEL_TABLE.
 	const PALETTE: Record<number, [string, string]> = {
@@ -46,14 +66,47 @@
 	const segments: WheelSegment[] = $derived(
 		room.wedges.map((value) => {
 			const [fill, text] = colourFor(value);
-			return { label: `${value}x`, fill, text, kind: 'value' as const };
+			// Written the way the table writes every other multiplier — `x50`, not `50x`.
+			return { label: `x${value}`, fill, text, kind: 'value' as const };
 		}),
 	);
 
 	let wheel: Wheel | undefined = $state();
 	let highlight = $state<number | null>(null);
 
+	let waiting = $state(false);
+	let secondsLeft = $state(PICK_SECONDS);
+	let clock: ReturnType<typeof setInterval> | undefined;
+	let release: (() => void) | null = null;
+
+	/**
+	 * Let go of the wheel — from the player's press, or from the clock running out on them. Guarded
+	 * on `release` rather than on `waiting`, so the pointer and the keyboard both landing on the
+	 * same press start one spin.
+	 */
+	const start = () => {
+		if (!release) return;
+		clearInterval(clock);
+		waiting = false;
+		const go = release;
+		release = null;
+		go();
+	};
+
 	export const play = async (): Promise<number> => {
+		if (interactive) {
+			secondsLeft = PICK_SECONDS;
+			waiting = true;
+			await new Promise<void>((resolve) => {
+				release = resolve;
+				clock = setInterval(() => {
+					secondsLeft -= 1;
+					if (secondsLeft <= 0) start();
+				}, 1000);
+			});
+		} else {
+			await waitForTimeout(900);
+		}
 		await wheel?.spinTo(room.wedge, { turns: 4, ms: 3800 });
 		highlight = room.wedge;
 		playSound('merge');
@@ -71,6 +124,22 @@
 		{highlight}
 		onTick={() => playSound('peg', 1.6)}
 	/>
+	{#if waiting}
+		<!-- The whole wheel is the button, not the hub: this is a thumb on a phone, and a target the
+		     size of the ship's wheel is a target that gets missed. The glow is drawn on the hub all
+		     the same, since that is where a wheel is grabbed. `pointerdown` so a touch fires on
+		     contact rather than on release; `click` is what Enter and Space arrive as. -->
+		<button class="start" onpointerdown={start} onclick={start} aria-label="Spin the Jackpot Wheel">
+			<span
+				class="hub-glow"
+				style="left:{FRAME.hole.cx * 100}%; top:{FRAME.hole.cy * 100}%; width:{HUB_WIDTH * 100}%"
+			></span>
+			<span class="cta" style="left:{FRAME.hole.cx * 100}%; top:{FRAME.hole.cy * 100}%">
+				<span class="cta-line">Tap to spin</span>
+				<span class="cta-clock">{secondsLeft}s</span>
+			</span>
+		</button>
+	{/if}
 </div>
 
 <style>
@@ -91,5 +160,66 @@
 		 * short viewport, where the box is taller than the stage between the sign and the footer.
 		 */
 		margin-bottom: calc(var(--wheel-w, 44.5vw) * 0.062);
+		position: relative;
+	}
+	.start {
+		position: absolute;
+		inset: 0;
+		border: none;
+		background: none;
+		padding: 0;
+		cursor: pointer;
+	}
+	/* Around the hub art, not on it: the skull is the nicest thing on the frame and a halo behind it
+	   says "press" without putting anything over it. */
+	.hub-glow {
+		position: absolute;
+		translate: -50% -50%;
+		aspect-ratio: 1;
+		border-radius: 50%;
+		animation: hub-pulse 1.7s ease-in-out infinite;
+	}
+	@keyframes hub-pulse {
+		0%,
+		100% {
+			box-shadow: 0 0 0.6vw 0.1vw rgba(255, 225, 77, 0.35);
+		}
+		50% {
+			box-shadow: 0 0 1.4vw 0.35vw rgba(255, 225, 77, 0.7);
+		}
+	}
+	.start:hover .hub-glow {
+		animation: none;
+		box-shadow: 0 0 1.6vw 0.45vw rgba(255, 225, 77, 0.75);
+	}
+	.start:active .hub-glow {
+		scale: 0.96;
+	}
+	/* Under the hub rather than across it, on the band of colour the multipliers stop short of —
+	   the same voice the table's own play button uses. */
+	.cta {
+		position: absolute;
+		translate: -50% 0;
+		margin-top: calc(var(--wheel-w, 44.5vw) * 0.085);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.2vw;
+		white-space: nowrap;
+		font-family: 'PotatoSans', 'Alexandria', sans-serif;
+		color: #fff;
+		paint-order: stroke;
+		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
+		text-shadow: 0 0 0.5vw rgba(0, 0, 0, 0.85);
+	}
+	.cta-line {
+		font-size: 1.4vw;
+		letter-spacing: 0.08vw;
+	}
+	/* Big enough to actually read: at 1vw the stroke on it is half the letter. */
+	.cta-clock {
+		font-size: 1.15vw;
+		color: #ffe14d;
+		-webkit-text-stroke-width: 0.06vw;
 	}
 </style>
