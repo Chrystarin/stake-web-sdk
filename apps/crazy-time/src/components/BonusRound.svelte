@@ -82,6 +82,17 @@
 					? 'chest'
 					: 'tower';
 
+	/**
+	 * The two beats at the end of a round: the landing on its own, and then the win line.
+	 *
+	 * Both are the same for a round the player was in and one they were only watching. The tease
+	 * used to be cut shorter than the real thing, on the grounds that there is less to take in — but
+	 * the win line reads the same either way, and hurrying it only made the two look like different
+	 * screens.
+	 */
+	const SETTLE_MS = 1000;
+	const WIN_HOLD_MS = 3000;
+
 	const fmt = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
 
@@ -95,8 +106,14 @@
 			await tick();
 			await waitForTimeout(700); // screen slide-in
 			try {
-				result = (await roomApi?.play()) ?? event.room.total;
-				await waitForTimeout(event.covered ? 2200 : 1400);
+				// A room resolves the moment it settles — for Plinko that is the frame the ball drops
+				// into the pocket, with the card lit and the land sound going. The number is held back
+				// from that frame rather than printed over it: the landing gets a beat of its own,
+				// then the win comes up, then it is left up long enough to actually be read.
+				const paid = (await roomApi?.play()) ?? event.room.total;
+				await waitForTimeout(SETTLE_MS);
+				result = paid;
+				await waitForTimeout(WIN_HOLD_MS);
 			} finally {
 				closing = true;
 				playSound('doorOpen');

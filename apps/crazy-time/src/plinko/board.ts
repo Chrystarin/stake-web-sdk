@@ -3,11 +3,13 @@
  * so the shape of a board and the path of a ball can both be reasoned about (and tested) on
  * their own.
  *
- * THE ONE RULE THIS FILE EXISTS TO KEEP: the ball hits exactly one peg per row and leaves it half
- * a peg-pitch to one side. Every position it ever occupies is therefore a real peg, and the path
- * is a genuine Galton walk rather than a curve drawn to a destination. The result is still fixed
- * before the ball is released — the walk is planned backwards from the pocket the RGS settled on
- * (see `planDrop`) — but nothing in the animation has to cheat to land it there.
+ * THE ONE RULE THIS FILE EXISTS TO KEEP: the ball hits exactly one peg per row, and leaves it on
+ * an ODD multiple of half a peg-pitch to one side — usually the half-pitch itself, sometimes a
+ * harder ricochet of one and a half or two and a half (see `DEFLECTIONS`). Every position it ever
+ * occupies is therefore a real peg, and the path is a genuine walk rather than a curve drawn to a
+ * destination. The result is still fixed before the ball is released — the walk is planned
+ * backwards from the pocket the RGS settled on (see `planDrop`) — but nothing in the animation has
+ * to cheat to land it there.
  */
 
 export type BoardShape = {
@@ -75,10 +77,157 @@ const spanAfterRow = (shape: BoardShape, row: number): number =>
 	row + 1 < shape.rows ? rowHalfSpan(shape, row + 1) : (shape.pockets - 1) / 2;
 
 /**
+ * The shape of one hop, shared by the renderer that draws it and the test that checks it clears the
+ * pegs. Both MUST read the same curve: a clearance test run against a different parabola from the
+ * one on screen guarantees nothing at all.
+ *
+ * Two parabolas meeting at the apex — up off the peg decelerating, then down onto the next one
+ * accelerating — with `rise` the share of the segment spent climbing. A hop with no bounce collapses
+ * to a plain accelerating fall.
+ */
+export const arcRise = (bounce: number, drop: number): number => {
+	if (bounce <= 0) return 0;
+	const up = Math.sqrt(bounce);
+	return Math.min(0.9, up / (up + Math.sqrt(Math.max(0.001, bounce + drop))));
+};
+
+export const arcDepth = (
+	fromDepth: number,
+	drop: number,
+	bounce: number,
+	rise: number,
+	t: number,
+): number => {
+	if (bounce <= 0) return fromDepth + drop * t * t;
+	return t < rise
+		? fromDepth - bounce * (1 - (1 - t / rise) ** 2)
+		: fromDepth - bounce + (bounce + drop) * ((t - rise) / (1 - rise)) ** 2;
+};
+
+/** What a board looks like in pixels, for the one piece of maths here that needs to know. */
+export type ArcGeometry = {
+	pitch: number;
+	rowGap: number;
+	ballRadius: number;
+	pegRadius: number;
+};
+
+/**
+ * How much of the ball may lie over a peg before it stops reading as a graze and starts reading as
+ * the ball passing through it.
+ *
+ * It cannot be zero. On this board the ball is as wide as the gap between rows — a diameter of one
+ * row gap, measured — so a ball anywhere between two rows is already overlapping the pegs on both
+ * of them, and demanding daylight would reject every path there is. What can be demanded is that
+ * the ball's CENTRE stays out of the peg and most of the way clear of it, which is the difference
+ * between clipping the shoulder of one and swallowing it whole.
+ */
+const CLEARANCE = 0.55;
+/** How finely an arc is sampled when testing it. Enough to catch a peg at the ball's own width. */
+const ARC_SAMPLES = 28;
+
+/**
+ * Whether the ball can fly from one peg to another at this height without passing through a THIRD.
+ *
+ * The two pegs the hop belongs to are exempt — it leaves one and lands on the other, and those are
+ * contacts rather than collisions. Everything else within reach of the arc counts.
+ */
+export const arcClears = (
+	shape: BoardShape,
+	geometry: ArcGeometry,
+	from: { row: number; offset: number },
+	to: { row: number; offset: number },
+	bounce: number,
+): boolean => {
+	const drop = to.row - from.row;
+	const rise = arcRise(bounce, drop);
+	const reach = geometry.pegRadius + geometry.ballRadius * CLEARANCE;
+	for (let sample = 1; sample < ARC_SAMPLES; sample++) {
+		const t = sample / ARC_SAMPLES;
+		const offset = from.offset + (to.offset - from.offset) * t;
+		const depth = arcDepth(from.row, drop, bounce, rise, t);
+		for (let row = Math.floor(depth) - 2; row <= Math.ceil(depth) + 1; row++) {
+			if (row < 0 || row >= shape.rows) continue;
+			// Where the pegs of this row stand: half-pitches on the wide rows, whole ones between.
+			const wide = pegsInRow(shape, row) % 2 === 0;
+			const nearest = wide ? Math.round(offset - 0.5) + 0.5 : Math.round(offset);
+			for (let step = -1; step <= 1; step++) {
+				const pegOffset = nearest + step;
+				if (row === from.row && Math.abs(pegOffset - from.offset) < 1e-9) continue;
+				if (row === to.row && Math.abs(pegOffset - to.offset) < 1e-9) continue;
+				const dx = (offset - pegOffset) * geometry.pitch;
+				const dy = (depth - row) * geometry.rowGap;
+				if (dx * dx + dy * dy < reach * reach) return false;
+			}
+		}
+	}
+	return true;
+};
+
+/**
+ * The heights a hop may be flown at, tallest first, in row gaps.
+ *
+ * A fixed set rather than a free number, because the same list is walked twice — once to ask whether
+ * a deflection is flyable at all, and again to pick the height it is actually flown at. Two
+ * different sets would let the planner approve a step the renderer then cannot fly cleanly.
+ */
+export const BOUNCE_CHOICES = [2.6, 2.1, 1.7, 1.35, 1.05, 0.8, 0.6, 0.45, 0.32, 0.22, 0.14, 0];
+
+/**
+ * How hard a peg may throw the ball sideways, in pitches, and how often.
+ *
+ * The sizes are ODD multiples of half a pitch, and that is not a matter of taste. Rows alternate
+ * between `pockets + 1` pegs standing on half-pitches and `pockets` standing on whole ones, so going
+ * down one row flips which of the two a legal position sits on. An odd multiple of half a pitch
+ * flips it back; an even one would land the ball between two pegs, and the walk would stop being a
+ * walk. Every size here, at every row, therefore still puts the ball on a real peg.
+ *
+ * The opening contact is allowed to throw hardest. That is the ricochet off the first peg — the one
+ * that can carry the ball right across the board before it has settled — and the arc it flies is a
+ * real projectile, because the renderer draws every segment as one: across at a constant rate, up
+ * and down under gravity. After that the board settles into ordinary half-pitch deflections with the
+ * occasional harder one, which is what keeps the rest of the fall reading as a Galton walk rather
+ * than as a pinball table.
+ */
+const OPENING_DEFLECTIONS = [
+	{ size: 2.5, weight: 4 },
+	{ size: 1.5, weight: 4 },
+	{ size: 0.5, weight: 2 },
+];
+const DEFLECTIONS = [
+	{ size: 1.5, weight: 1 },
+	{ size: 0.5, weight: 5 },
+];
+
+/**
+ * The sizes to try, heaviest-weighted most often, as an order rather than a single pick — a size
+ * that turns out to be illegal has to fall through to the next one rather than to a default, or the
+ * board would quietly bias every blocked ricochet the same way.
+ */
+const deflectionOrder = (
+	choices: readonly { size: number; weight: number }[],
+	random: () => number,
+): number[] => {
+	const pool = choices.map((choice) => ({ ...choice }));
+	const order: number[] = [];
+	while (pool.length) {
+		let ticket = random() * pool.reduce((sum, choice) => sum + choice.weight, 0);
+		let index = 0;
+		while (index < pool.length - 1 && (ticket -= pool[index].weight) > 0) index++;
+		order.push(pool[index].size);
+		pool.splice(index, 1);
+	}
+	return order;
+};
+
+/**
  * Plan the walk from a starting peg to the pocket the round has already been settled on.
  *
- * Each row is a coin flip that is only allowed to come up a way that (a) keeps the ball on the
- * board and (b) leaves enough rows to still reach the target. Inside those two bounds the choice
+ * Each row is a coin flip — over HOW FAR as well as which way, see `DEFLECTIONS` — that is only
+ * allowed to come up a way that (a) keeps the ball on the board and (b) leaves enough rows to still
+ * reach the target. Reachability is measured at half a pitch per remaining row, the smallest step
+ * there is, so it is a floor: a ball that passes the check can always still get there, whatever
+ * sizes the rows below it happen to roll. Inside those two bounds the choice
  * is genuinely random, which is what stops every drop to a given pocket from tracing the same
  * line — and because feasibility is checked BEFORE the step is taken rather than corrected after,
  * the walk never has to slide sideways to make up ground it lost.
@@ -91,6 +240,15 @@ export const planDrop = (
 	startOffset: number,
 	targetOffset: number,
 	random: () => number = Math.random,
+	/**
+	 * Whether the ball can actually FLY a step without going through a peg on the way. Given one,
+	 * a deflection has to be both legal and flyable to be taken, and the fall stops phasing.
+	 *
+	 * Optional because the geometry is the host's: this module knows how many pegs there are and
+	 * where they stand in pitches, but not how big they are in pixels. Left out, the planner is the
+	 * pure walk it always was.
+	 */
+	canFly?: (from: { row: number; offset: number }, to: { row: number; offset: number }) => boolean,
 ): number[] => {
 	const offsets = [startOffset];
 	let current = startOffset;
@@ -98,15 +256,22 @@ export const planDrop = (
 	for (let row = 0; row < shape.rows; row++) {
 		const rowsLeft = shape.rows - row - 1;
 		const limit = spanAfterRow(shape, row);
-		// Try both ways, in a random order, and take the first that is still legal.
-		const steps = random() < 0.5 ? [-0.5, 0.5] : [0.5, -0.5];
+		// The hardest deflection this peg is allowed to send, taken in a weighted-random order and
+		// the first legal one kept. Both ways round, also in a random order, so a ball with the room
+		// to go either way is not quietly biased toward one of them.
 		let chosen: number | undefined;
-		for (const step of steps) {
-			const next = current + step;
-			if (Math.abs(next) > limit + 1e-9) continue;
-			if (Math.abs(targetOffset - next) > rowsLeft * 0.5 + 1e-9) continue;
-			chosen = step;
-			break;
+		for (const size of deflectionOrder(row === 0 ? OPENING_DEFLECTIONS : DEFLECTIONS, random)) {
+			const ways = random() < 0.5 ? [-1, 1] : [1, -1];
+			for (const way of ways) {
+				const step = way * size;
+				const next = current + step;
+				if (Math.abs(next) > limit + 1e-9) continue;
+				if (Math.abs(targetOffset - next) > rowsLeft * 0.5 + 1e-9) continue;
+				if (canFly && !canFly({ row, offset: current }, { row: row + 1, offset: next })) continue;
+				chosen = step;
+				break;
+			}
+			if (chosen !== undefined) break;
 		}
 		// Unreachable for a shape from `shapeForPockets` — every start can reach every pocket with
 		// rows to spare. A hand-tuned shape that cannot is still better served by a ball that heads

@@ -14,6 +14,10 @@
 	import { onMount } from 'svelte';
 
 	import {
+		arcClears,
+		arcDepth,
+		arcRise,
+		BOUNCE_CHOICES,
 		layoutBoard,
 		pegColumnAt,
 		pegsFor,
@@ -91,7 +95,7 @@
 	 * that goes back up over the row above hangs. That variation is most of what makes the drop read
 	 * as a ball rather than as a marker being stepped down a grid.
 	 */
-	const ARC_MS = 72;
+	const ARC_MS = 95;
 	/**
 	 * The first fall, off the rail. No bounce — it has not hit anything yet — and slow, because it is
 	 * the one moment the player is watching their own choice leave their hand.
@@ -111,10 +115,20 @@
 	 * is a real rebound that carries it back up past the row above before it comes down. The tail is
 	 * the point — a fall where every bounce is the same height is a fall nobody watches twice.
 	 */
-	const BOUNCE_MIN = 0.12;
-	const BOUNCE_SPREAD = 0.5;
-	const BIG_BOUNCE_ODDS = 0.22;
-	const BOUNCE_BIG = 1.35;
+	const BOUNCE_MIN = 0.18;
+	const BOUNCE_SPREAD = 0.72;
+	const BIG_BOUNCE_ODDS = 0.3;
+	const BOUNCE_BIG = 1.8;
+	/**
+	 * How much of a HARD deflection goes into height rather than across.
+	 *
+	 * A peg that throws the ball two and a half pitches sideways instead of half a one did not do it
+	 * by rolling it — it caught it on the shoulder and flung it. Tying the arc to the deflection is
+	 * what keeps that reading as a ricochet: the ball leaves fast, climbs, hangs, and comes down a
+	 * long way over. Without it the same sideways distance is covered flat and at speed, which looks
+	 * like the ball was dragged rather than struck.
+	 */
+	const KICK_ARC = 0.62;
 	/** How long the ball stays squashed after a contact, and a struck peg stays lit. */
 	const CONTACT_MS = 130;
 	/**
@@ -425,7 +439,36 @@
 		settling = false;
 
 		const targetOffset = pocketOffset(props.ladder, pocketIndex);
-		const offsets = planDrop(props.shape, startStep, targetOffset);
+		/**
+		 * The board in pixels, which is what turns "does this hop clear the pegs" from a question
+		 * about pitches into one that can actually be answered — the pegs are 12px across and the
+		 * ball is as wide as the gap between rows, and neither of those is knowable in board units.
+		 */
+		const geometry = {
+			pitch: layout.pitch,
+			rowGap: layout.rowGap,
+			ballRadius: layout.ballRadius,
+			pegRadius: layout.pegRadius,
+		};
+		/** The tallest height this hop can be flown at without going through a peg, or null. */
+		const flyableBounce = (
+			from: { row: number; offset: number },
+			to: { row: number; offset: number },
+			ceiling = Infinity,
+		) =>
+			BOUNCE_CHOICES.find(
+				(bounce) => bounce <= ceiling && arcClears(props.shape, geometry, from, to, bounce),
+			) ?? null;
+		// A deflection is only offered to the walk if there is SOME height it can be flown at
+		// cleanly. The hard ricochets are the ones this turns away: a ball thrown two pitches
+		// sideways in one row has to arc right over its neighbours to get there, and often cannot.
+		const offsets = planDrop(
+			props.shape,
+			startStep,
+			targetOffset,
+			Math.random,
+			(from, to) => flyableBounce(from, to) !== null,
+		);
 		const pocketDepth =
 			(layout.pocketTop + layout.pocketHeight * 0.5 - layout.topY) / layout.rowGap;
 		const railDepth = (layout.railY - layout.topY) / layout.rowGap;
@@ -455,13 +498,30 @@
 		 * Bounces grow a little towards the bottom, which is both true — the ball is moving fastest
 		 * there — and the right place for them, since the last few are the ones being waited on.
 		 */
-		const bounces = points.map((_, index) => {
+		const bounces = points.map((point, index) => {
 			if (index === 0) return 0;
+			const before = points[index - 1];
 			const height =
 				Math.random() < BIG_BOUNCE_ODDS
 					? BOUNCE_BIG * (0.7 + Math.random() * 0.6)
 					: BOUNCE_MIN + Math.random() * BOUNCE_SPREAD;
-			return height * (0.85 + (index / points.length) * 0.4);
+			// How hard the peg above threw it, in half-pitches: 1 is an ordinary glance, 5 is the
+			// opening ricochet at full stretch. The arc grows with it, so the ball that travels
+			// furthest is also the one that goes highest and hangs longest.
+			const kick = Math.abs(point.offset - before.offset) / 0.5;
+			const wanted = height * (0.85 + (index / points.length) * 0.4) * (1 + (kick - 1) * KICK_ARC);
+			// And then the tallest arc no higher than that which actually clears the pegs. The last
+			// hop is into the pocket, below the field, where there is nothing left to clear.
+			if (index === points.length - 1) return wanted;
+			const hop = {
+				from: { row: index - 1, offset: before.offset },
+				to: { row: index, offset: point.offset },
+			};
+			// Falling back to a FLAT hop would be the one way left to phase: a ball thrown wide and
+			// not allowed to arc goes straight through whatever stands between. Where nothing under
+			// the wanted height is clean, take the clean arc that is taller instead — the planner
+			// only offered this step because one exists.
+			return flyableBounce(hop.from, hop.to, wanted) ?? flyableBounce(hop.from, hop.to) ?? 0;
 		});
 
 		/**
@@ -491,12 +551,8 @@
 		 * fall — that is the first segment, off the rail.
 		 */
 		const riseShare = points.map((point, index) => {
-			const bounce = bounces[index];
-			if (bounce <= 0) return 0;
 			const before = index === 0 ? from : points[index - 1];
-			const drop = point.depth - before.depth;
-			const up = Math.sqrt(bounce);
-			return Math.min(0.9, up / (up + Math.sqrt(Math.max(0.001, bounce + drop))));
+			return arcRise(bounces[index], point.depth - before.depth);
 		});
 
 		/**
@@ -547,9 +603,7 @@
 				const depth =
 					fired && segment === 0
 						? start.depth + drop * t
-						: t < rise
-							? start.depth - bounce * (1 - (1 - t / rise) ** 2)
-							: start.depth - bounce + (bounce + drop) * ((t - rise) / (1 - rise)) ** 2;
+						: arcDepth(start.depth, drop, bounce, rise, t);
 
 				ballX = layout.centreX + (start.offset + (end.offset - start.offset) * t) * layout.pitch;
 				ballY = layout.topY + depth * layout.rowGap;
@@ -604,15 +658,16 @@
 	};
 
 	/**
-	 * Pockets with nothing to say, the way the colour boxes go dark on the table below.
+	 * How brightly the ladder is lit, which is a different answer at each of the three moments a
+	 * round has: offered, in flight, decided.
 	 *
-	 * All of them once the ball is falling — it is the only thing worth watching, and the ladder
-	 * has already been read by then — and then all but the one that took it, so the result is the
-	 * only thing lit. They stay up while the ball is still in hand: that is when the player is
-	 * choosing, and the ladder is what they are choosing between.
+	 * Held back while the ball still is — the board is waiting, and nothing on the ladder has
+	 * happened yet. Full the instant the shot leaves, because from there every pocket is live and
+	 * the whole row is what the ball is being watched against. Then all but the one that took it,
+	 * so the result is the only thing lit: the board has finished offering and is now reporting.
 	 */
-	const pocketDimmed = (index: number) =>
-		phase === 'dropping' || (landedPocket !== null && landedPocket !== index);
+	const pocketWaiting = $derived(phase === 'idle' || phase === 'armed');
+	const pocketDimmed = (index: number) => landedPocket !== null && landedPocket !== index;
 
 	/** Glides only when the board moves under it; a drag and a release both leave it exactly. */
 	const snapping = $derived(phase === 'armed' && !dragging);
@@ -680,6 +735,7 @@
 			<div
 				class="pb-pocket-glow"
 				class:won={landedPocket === index}
+				class:waiting={pocketWaiting}
 				class:dimmed={pocketDimmed(index)}
 				style="left:{pocketX(index)}px; top:{layout.pocketTop +
 					layout.pocketHeight -
@@ -694,8 +750,7 @@
 			<div
 				class="pb-peg"
 				class:hit={litPegs.has(index)}
-				style="left:{peg.x}px; top:{peg.y}px; width:{layout.pegRadius *
-					2}px; height:{layout.pegRadius * 2}px;"
+				style="left:{peg.x}px; top:{peg.y}px; --peg:{layout.pegRadius * 2}px;"
 			></div>
 		{/each}
 
@@ -704,6 +759,7 @@
 			<div
 				class="pb-pocket"
 				class:won={landedPocket === index}
+				class:waiting={pocketWaiting}
 				class:dimmed={pocketDimmed(index)}
 				style="left:{pocketX(
 					index,
@@ -730,7 +786,7 @@
 				class:beckoning
 				class:held={dragging}
 				class:has-art={Boolean(props.art)}
-				style="left:{ballX}px; top:{ballY}px; width:{layout.ballRadius *
+				style="--x:{ballX}px; --y:{ballY}px; width:{layout.ballRadius *
 					2}px; height:{layout.ballRadius *
 					2}px; --squash:{squash}; --snap-ms:{SNAP_MS}ms; --sheen:{ball.sheen}; --face:{ball.face}; --shade:{ball.shade}; --edge:{ball.edge};"
 			>
@@ -836,16 +892,76 @@
 	/* --- Pegs ----------------------------------------------------------------------------- */
 	/* Above the pocket glows, so a glow column rises BEHIND the pegs it passes and leaves them
 	   crisp — the glows are additive, and would otherwise wash out the bottom rows. */
+	/* A stud standing off the timber, not a dot printed on it.
+	
+	   Everything is measured in `--peg`, the peg's own diameter, because a peg is about six pixels
+	   across on a laptop and half as much again on a phone — a shadow fixed in pixels is a different
+	   shadow at every size, and at this scale a pixel either way is the whole effect. */
 	.pb-peg {
 		position: absolute;
 		z-index: 2;
+		width: var(--peg);
+		height: var(--peg);
 		transform: translate(-50%, -50%);
 		border-radius: 50%;
-		/* Each stop is the original taken 25% darker, rather than a brightness filter on the whole
-		   peg — the strike animation already drives `filter`, and would drop the dimming the moment
-		   it ran. */
-		background: radial-gradient(circle at 35% 30%, #bfbfbf 0%, #9ba1ab 45%, #5c6572 100%);
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+		/* Two layers: the ball, and the bloom around the glint that stops the specular reading as a
+		   disc stuck on the front of it.
+		
+		   The value RANGE is what does the work. At six pixels there is no room for detail, so the
+		   only thing that says "sphere" is how far the surface travels from lit to unlit. Most of that
+		   travel is spent on the LIT side on purpose: the peg has to stay a bright dot on dark
+		   timber, so the shadow is a rim turning the edge under rather than a wash over the whole
+		   ball. Kept as literal stops rather than a
+		   brightness filter: the strike animation already drives `filter` and would wipe anything
+		   built with one the moment it ran.
+		
+		   `farthest-side` is load-bearing. Left at the default `farthest-corner` the ramp is sized to
+		   a corner of the square box, and the peg is a CIRCLE — everything past about 78% of that
+		   radius falls outside the disc and is clipped away by the border-radius, taking the dark end
+		   of the ramp with it and leaving a flat pale button. Sizing to the farthest SIDE lands the
+		   last stop on the rim, where it can be seen. */
+		background:
+			radial-gradient(circle at 33% 24%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 30%),
+			radial-gradient(
+				circle farthest-side at 33% 25%,
+				#ffffff 0%,
+				#f1f4f8 14%,
+				#cbd2dc 34%,
+				#9aa3b1 56%,
+				#68717f 76%,
+				#3d4653 92%,
+				#2a323e 100%
+			);
+		/* Read from the inside out: the top lifted where the light lands, the bottom sunk where it
+		   does not, then the contact where the peg meets the timber and the shadow it throws below
+		   that. The two cast shadows are separate on purpose — one tight and dark to sit the peg
+		   down, one wide and offset to give it height. Without both it reads as a blur, not a
+		   shadow. */
+		box-shadow:
+			inset 0 calc(var(--peg) * 0.1) calc(var(--peg) * 0.1) rgba(255, 255, 255, 0.45),
+			inset calc(var(--peg) * -0.07) calc(var(--peg) * -0.12) calc(var(--peg) * 0.16)
+				rgba(0, 0, 0, 0.5),
+			0 calc(var(--peg) * 0.09) calc(var(--peg) * 0.07) rgba(0, 0, 0, 0.8),
+			0 calc(var(--peg) * 0.3) calc(var(--peg) * 0.32) rgba(0, 0, 0, 0.65);
+	}
+	/* The glint, kept small and high and off to the same side the gradient is lit from. A specular
+	   is a fraction of the surface or it stops reading as a shine and starts reading as a hole —
+	   the bloom that sells it is the first background layer above, not this. */
+	.pb-peg::before {
+		content: '';
+		position: absolute;
+		left: 25%;
+		top: 12%;
+		width: 34%;
+		height: 26%;
+		border-radius: 50%;
+		background: linear-gradient(
+			180deg,
+			#ffffff 0%,
+			rgba(255, 255, 255, 0.35) 60%,
+			rgba(255, 255, 255, 0) 100%
+		);
+		pointer-events: none;
 	}
 	/* Struck. The ring is on a pseudo-element so the flash can outgrow the peg without disturbing
 	   anything around it. */
@@ -932,17 +1048,45 @@
 	.pb-pocket.won i {
 		filter: brightness(1.5) saturate(1.15);
 	}
-	/* Every pocket the ball did NOT take, once it has landed. Pulled right down so the ladder stops
-	   competing with the one result on it — the board has finished offering and is now reporting. */
+	/* The ladder held back, at the two moments it is not the thing being watched. Both fade rather
+	   than switch, so the row comes up as the shot leaves and settles again as it lands. */
+	.pb-pocket.waiting,
+	.pb-pocket-glow.waiting,
 	.pb-pocket.dimmed,
 	.pb-pocket-glow.dimmed {
 		transition:
 			opacity 320ms ease,
 			filter 320ms ease;
 	}
+	/* Before the shot: down, but only enough to read as not-yet-live. The ladder is still what the
+	   player is choosing between, so it is held back rather than put out — the numbers have to stay
+	   legible while they are being aimed at. */
+	/* Held back by turning the light down on the card, not by fading it out. The card stays solid —
+	   a faded one lets the timber read through the ladder, which makes the row look like it is
+	   dissolving rather than waiting. Done as a `brightness` filter rather than as a dark panel laid
+	   over the top, because the filter follows the card art's own alpha: the cards have rounded,
+	   cut-away corners, and a rectangle of black would sit in those corners against the wood.
+	
+	   Down, but only enough to read as not-yet-live. The ladder is still what the player is choosing
+	   between, so the numbers have to stay legible while they are being aimed at. */
+	.pb-pocket.waiting {
+		filter: brightness(0.5) saturate(0.8);
+	}
+	/* The columns are the one thing here that still FADES rather than darkens: they are light rather
+	   than an object, and a light turned black is just a black shape. Their own pulse animates
+	   opacity, so it has to be stopped before an opacity of ours can be seen at all — an animation
+	   outranks a plain declaration. */
+	.pb-pocket-glow.waiting {
+		animation: none;
+		opacity: 0.18;
+		filter: grayscale(0.35) brightness(0.85);
+	}
+	/* Every pocket the ball did NOT take, once it has landed. Taken further down than the waiting
+	   state and most of the colour with it, because now there IS something to look at and the rest
+	   of the ladder has to stop competing with it. The board has finished offering and is now
+	   reporting. Still solid, for the same reason as above. */
 	.pb-pocket.dimmed {
-		opacity: 0.42;
-		filter: grayscale(0.55) brightness(0.65);
+		filter: brightness(0.32) saturate(0.45);
 	}
 	.pb-pocket-glow.dimmed {
 		animation: none;
@@ -1006,10 +1150,20 @@
 	   deforms it on the hit and lets it recover on the way down instead of falling as a rigid disc. */
 	/* Above the pegs it strikes — both sit on 2, and this comes later in the DOM — but below the
 	   pockets, so the fall reads over the field and the landing reads inside the slot. */
+	/* Moved by TRANSFORM, not by `left`/`top`.
+	
+	   The fall recomputes the ball's position every frame, and box offsets are layout: each frame
+	   was re-laying-out the host and repainting whatever the ball and its halo happened to be over,
+	   which on this board is a field of several hundred pegs. A transform is composited instead —
+	   the layer is moved, nothing under it is touched. `will-change` is what gets it that layer up
+	   front rather than on the first frame it moves, which is the frame the drop starts on. */
 	.pb-ball {
 		position: absolute;
+		left: 0;
+		top: 0;
 		border-radius: 50%;
 		z-index: 2;
+		will-change: transform;
 		pointer-events: none;
 		background: radial-gradient(
 			circle at 33% 28%,
@@ -1021,15 +1175,13 @@
 		box-shadow:
 			0 0.15em 0.4em rgba(0, 0, 0, 0.55),
 			inset -0.1em -0.12em 0.25em rgba(0, 0, 0, 0.35);
-		transform: translate(-50%, -50%)
+		transform: translate3d(var(--x, 0px), var(--y, 0px), 0) translate(-50%, -50%)
 			scale(calc(1 + var(--squash, 0) * 0.16), calc(1 - var(--squash, 0) * 0.16));
 	}
 	/* Slides onto the peg it was released over — at most half a pitch, so it reads as the ball
 	   settling into the gap rather than being repositioned. */
 	.pb-ball.snapping {
-		transition:
-			left var(--snap-ms) cubic-bezier(0.22, 0.61, 0.36, 1),
-			top var(--snap-ms) cubic-bezier(0.22, 0.61, 0.36, 1);
+		transition: transform var(--snap-ms) cubic-bezier(0.22, 0.61, 0.36, 1);
 	}
 	/* A halo in the ball's own colour, breathing while the ball is waiting to be picked up — the
 	   only thing on the screen asking to be touched, so it says so. It sits on a pseudo-element so
@@ -1080,7 +1232,7 @@
 		box-shadow: none;
 	}
 	.pb-ball.has-art::after {
-		inset: -140%;
+		inset: -62%;
 		opacity: 0.7;
 	}
 	.pb-ball.has-art.held::after {

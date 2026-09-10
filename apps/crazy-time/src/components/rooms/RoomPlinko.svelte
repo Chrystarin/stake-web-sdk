@@ -498,7 +498,7 @@
 		   here once because three rules and one measured marker all have to agree on them. */
 		/* Trimmed to give the board its height back: the bay is mostly air, and with the win line off
 		   the footer the board is the only thing left that wants the room. */
-		--cannon-h: 8.5vw;
+		--cannon-h: 10.6vw;
 		--cannon-pivot: 0.4;
 		--cannon-gap: 1.2vw;
 		/* How much of the barrel goes up behind the title plaque. The bay only reserves what is left,
@@ -782,7 +782,7 @@
 	   one. The board's own geometry needs no rules here — it follows the frame it is given. */
 	:global(.game.portrait) .plinko {
 		width: 92vw;
-		--cannon-h: 30vw;
+		--cannon-h: 37.5vw;
 		--cannon-gap: 3vw;
 	}
 	:global(.game.portrait) .hint-body {
