@@ -126,8 +126,8 @@
 					{SPOT_LABEL[spot]}
 				</div>
 				{#if current.room.topSlotMultiplier > 1}
-					<!-- Pinned to the corner of the sign, written the way every other multiplier in the
-					     game is written rather than announced in a pill of its own. -->
+					<!-- Struck over the skull at the top of the sign, written the way every other
+					     multiplier in the game is written rather than announced in a pill of its own. -->
 					<div class="ts mult-badge">
 						<span class="mult-stroke" aria-hidden="true">{current.room.topSlotMultiplier}x</span>
 						<span class="mult-fill">{current.room.topSlotMultiplier}x</span>
@@ -336,15 +336,20 @@
 		align-items: center;
 		gap: 0.3vw;
 	}
-	/* Perched on the sign's top-right corner, half on the rope and half off it. Only the size is
-	   set here — the badge is `em`-based, and everything else about how a multiplier looks lives
-	   in table.scss so the table and this screen cannot drift apart. */
+	/* Laid over the skull at the top of the sign, dead centre. Only the size is set here — the badge
+	   is `em`-based, and everything else about how a multiplier looks lives in table.scss so the
+	   table and this screen cannot drift apart. */
 	.ts {
 		position: absolute;
-		/* On the rope corner, not floating above the file's empty top margin: the sign's own top edge
-		   is at 0.117 of the picture, so anything anchored to 0 lands in the glow above it. */
-		top: 10%;
-		right: 2%;
+		/* The head's own middle, read off the file: the bandana crosses it at 0.155 of the picture and
+		   the jaw ends at 0.315, so the centre is 0.235 and this rounds it. The CROSSBONES are not
+		   what to centre on — they spread wider and sit higher (knobs at 0.115), and aiming at them
+		   lands the numeral up on the cranium. Both axes are shifted by half the badge rather than by
+		   a guess, so the number stays on the skull whatever it is: `15x` and `2x` are not the same
+		   width. */
+		top: 24%;
+		left: 50%;
+		translate: -50% -50%;
 		font-size: 2.4vw;
 	}
 	.not-in {

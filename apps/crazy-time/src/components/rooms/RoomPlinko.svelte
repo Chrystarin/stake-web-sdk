@@ -30,7 +30,7 @@
 		result?: number | null;
 		/** That multiplier in money, already formatted and signed by the screen. */
 		cash?: string;
-		/** Tall viewport: the whole cabinet turns on its side and the room re-scales with it. */
+		/** Tall viewport: the cabinet swaps to its upright drawing and the room re-scales with it. */
 		portrait?: boolean;
 	};
 	let {
@@ -70,36 +70,68 @@
 	const GLOW = '#f5b431';
 
 	/**
-	 * The cabinet the board is played in: `board.png`, and where its picture says the pegs and the
-	 * pockets go. Read off the art as fractions of its own box — the opening between the four
-	 * riveted rails, and the bottom rail itself, which is the ledge the pocket cards sit on.
+	 * The cabinet the board is played in: a roped timber sign, and where its picture says the pegs
+	 * and the pockets go. Read off the art as fractions of its own box.
 	 *
 	 * The board element is given the art's aspect ratio, so these fractions stay true at any size
 	 * and the frame is never stretched.
+	 *
+	 * There are two drawings rather than one turned on its side. The sign is not symmetric under a
+	 * quarter turn — the wood grain runs across it, the gem crest sits at the middle of the BOTTOM
+	 * rail, and the treasure spills into the two bottom corners — so a rotated landscape board reads
+	 * as a picture that fell over. Each orientation gets the art that was drawn for it.
 	 */
-	const BOARD_ART = staticPath('img/plinko/board.png');
-	const BOARD_ASPECT = 3148 / 2147;
-	/** Upright: the opening between the four rails, and the bottom rail the pockets rest on. */
-	const FRAME_LANDSCAPE: BoardFrame = {
-		field: { left: 0.132, right: 0.868, top: 0.2, bottom: 0.795 },
-		// Sat on the LOWER part of the rail rather than filling it: the rail's own top edge and rivets
-		// stay visible above the cards, which is what makes them read as sitting on it.
-		pockets: { top: 0.838, bottom: 0.891 },
+	const BOARD_LANDSCAPE = {
+		src: staticPath('img/plinko/board_v2.png'),
+		ratio: 1519 / 1036,
+		/**
+		 * Placed off a reference drawn over the art, not derived: the pegs fill the timber panel wall
+		 * to wall, starting a plank below its top edge and running a row past the bottom of the
+		 * marked box, and the ladder sits under them as a deep row that reaches down over the top of
+		 * the ornamented rail and out across the treasure heaped into both bottom corners.
+		 *
+		 * `field` is NOT the peg extent: the layout keeps a spare half-pitch of wall at each side, so
+		 * the box is a pitch wider than the outermost pegs. These numbers are what puts those pegs on
+		 * the marked edges — read the peg span, not this box, when matching the art.
+		 *
+		 * Pulled in from the marked edges, and started a little higher, to steepen the fall. The two
+		 * are the same knob: the pitch comes off the width and the row gap off the height, so a
+		 * narrower, deeper box raises the ratio between them — which IS the angle the ball falls at.
+		 * At the reference's full width that ratio was 0.24, flat enough to read as a skitter; these
+		 * numbers put it at 0.27, most of the way to the old cabinet's 0.31, and hand the coin back
+		 * the best part of the four tenths of a pitch it is drawn to fill. Widen the sides to flatten
+		 * it again; raising `top` buys back some of the angle that costs.
+		 */
+		frame: {
+			field: { left: 0.105, right: 0.895, top: 0.145, bottom: 0.748 },
+			// Drawn taller than the card art's own proportion, which is what the reference asks for:
+			// a deep ladder standing on the rail rather than a strip of labels resting above it. The
+			// bottom stays pinned over the rail's top edge; the top has since come down to hand the
+			// two extra peg rows their space, which lands the card near the proportion it was drawn
+			// at rather than the taller one it was marked at.
+			pockets: { top: 0.762, bottom: 0.822 },
+		} satisfies BoardFrame,
 	};
 	/**
-	 * On its side. The picture is turned a quarter CLOCKWISE, which maps a point (u, v) in the
-	 * art to (1 - v, u) in the box — so the opening's width comes from the art's height, and the
-	 * rail that ends up along the bottom is the one that used to be the art's RIGHT edge. A
-	 * quarter turn can never leave the original bottom rail at the bottom; it can only choose
-	 * which side rail takes over, and this is the one that does.
+	 * The same sign stood upright, which is a drawing of its own rather than this one turned.
+	 *
+	 * The panel is far taller than it is wide here, so the pegs are inset LESS across than in
+	 * landscape and the field still comes out steep — a tall board is a tall fall, and pinching it
+	 * narrower to flatten the angle would only waste the timber.
 	 */
-	const FRAME_PORTRAIT: BoardFrame = {
-		field: { left: 0.205, right: 0.8, top: 0.14, bottom: 0.862 },
-		pockets: { top: 0.898, bottom: 0.939 },
+	const BOARD_PORTRAIT = {
+		src: staticPath('img/plinko/board_v2_portrait.png'),
+		ratio: 1024 / 1536,
+		frame: {
+			field: { left: 0.185, right: 0.815, top: 0.075, bottom: 0.735 },
+			// Low enough that the cards read as sitting on the panel's bottom edge, and still above
+			// the treasure heaped into both corners.
+			pockets: { top: 0.77, bottom: 0.8 },
+		} satisfies BoardFrame,
 	};
-	const FRAME = $derived(portrait ? FRAME_PORTRAIT : FRAME_LANDSCAPE);
-	/** Turned, the cabinet is as tall as it was wide. */
-	const boardRatio = $derived(portrait ? 1 / BOARD_ASPECT : BOARD_ASPECT);
+	const BOARD = $derived(portrait ? BOARD_PORTRAIT : BOARD_LANDSCAPE);
+	const FRAME = $derived(BOARD.frame);
+	const boardRatio = $derived(BOARD.ratio);
 
 	/**
 	 * The cabinet is fitted to whatever the column has left, keeping its ratio exactly — measured
@@ -168,7 +200,23 @@
 		value >= 1000 ? `x${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : `x${value}`;
 
 	const ladder = $derived(buildPocketLadder(room.board));
-	const shape = $derived(shapeForPockets(ladder.count));
+	/**
+	 * Peg rows past the ladder's own count, to fill the space taken back off the pocket cards.
+	 *
+	 * TWO, not one: the walk moves half a pitch per row and starts on a half-offset, so only an ODD
+	 * row count lands the ball on a pocket centre rather than between two. The pair is free — it
+	 * costs the fall a row's worth of time and nothing else, since the pocket is settled before the
+	 * ball is released and `planDrop` only ever gains slack from having more rows to reach it in.
+	 *
+	 * Not per-orientation, though only the landscape frame was drawn for it: the plan is built from
+	 * this shape when the ball is released, and a row count that changed under a viewport turning
+	 * mid-fall would leave that plan describing a board that no longer exists.
+	 */
+	const EXTRA_PEG_ROWS = 2;
+	const shape = $derived.by(() => {
+		const base = shapeForPockets(ladder.count);
+		return { ...base, rows: base.rows + EXTRA_PEG_ROWS };
+	});
 
 	let board = $state<PlinkoBoardApi>();
 	let armed = $state(false);
@@ -307,15 +355,14 @@
 
 	<div class="board-wrap" bind:this={wrapEl}>
 		<div class="board" bind:this={boardEl} style="width:{fit.w}px; height:{fit.h}px">
-			<!-- The cabinet itself. Turned a quarter for a tall screen, which means it is sized to
-			     the box TRANSPOSED and then rotated over it. -->
+			<!-- The cabinet itself, drawn at the box it was fitted to. Nothing is turned: a tall screen
+			     is handed the upright drawing instead. -->
 			<img
 				class="board-art"
-				class:turned={portrait}
-				src={BOARD_ART}
+				src={BOARD.src}
 				alt=""
 				draggable="false"
-				style="width:{portrait ? fit.h : fit.w}px; height:{portrait ? fit.w : fit.h}px"
+				style="width:{fit.w}px; height:{fit.h}px"
 			/>
 			<PlinkoBoard
 				bind:this={board}
@@ -483,9 +530,6 @@
 		pointer-events: none;
 		user-select: none;
 	}
-	.board-art.turned {
-		rotate: 90deg;
-	}
 	/* What the round paid, over the middle of the board. Above the pegs and the pockets, and
 	   with a soft ground of its own so it reads over timber rather than fighting the grain. */
 	.win {
@@ -552,7 +596,7 @@
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------
-	   A tall screen gets the cabinet on its side: nearly the full width, and everything that is
+	   A tall screen gets the upright cabinet: nearly the full width, and everything that is
 	   authored in vw scaled up to match, because a portrait vw is about a third of a landscape
 	   one. The board's own geometry needs no rules here — it follows the frame it is given. */
 	:global(.game.portrait) .plinko {
