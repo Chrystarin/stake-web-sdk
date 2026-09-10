@@ -42,9 +42,42 @@
 		portrait = false,
 	}: Props = $props();
 
-	/** How long the ball waits for a player who is there, and for one who is only watching. */
-	const HELD_MS = 12000;
+	/**
+	 * How long the ball waits for a player who is there, and for one who is only watching.
+	 *
+	 * `AIM_MS` is drawn as well as counted — it is the length of the drain across the hint — so it
+	 * has to be a clock the player can trust: one that starts when the shot is offered and runs
+	 * straight through to the shot being taken.
+	 */
+	const AIM_MS = 15000;
 	const TEASE_MS = 700;
+
+	/**
+	 * What to tell the player, which is not the same instruction on the two kinds of device.
+	 *
+	 * The handlers are one set — `pointermove` aims and `pointerup` fires — but they are lived very
+	 * differently: a mouse hovers and the shot goes off on a click, a finger has to be held down to
+	 * aim at all and the shot goes off when it lifts. Asked of pointer CAPABILITY rather than of
+	 * screen width, because that is the thing that actually differs: a narrow desktop window still
+	 * has a cursor, and a large tablet still has none.
+	 */
+	/**
+	 * Broken into lines HERE rather than left to wrap, because each line drains on a clock of its
+	 * own and a line the layout invented has no clock to give it.
+	 */
+	const HINT_FINE = ['Move to aim', 'Click to fire'];
+	const HINT_COARSE = ['Hold to aim', 'Release to fire'];
+	let finePointer = $state(true);
+	$effect(() => {
+		const query = window.matchMedia('(hover: hover) and (pointer: fine)');
+		const sync = () => (finePointer = query.matches);
+		sync();
+		query.addEventListener('change', sync);
+		return () => query.removeEventListener('change', sync);
+	});
+	const hintLines = $derived(finePointer ? HINT_FINE : HINT_COARSE);
+	/** Each line gets an equal share of the clock, and starts where the line above it finished. */
+	const drainMs = $derived(AIM_MS / hintLines.length);
 
 	/**
 	 * A coin falls instead of a ball. It is drawn as a disc filling its own file — centred, and
@@ -320,7 +353,19 @@
 		if (!active) return room.total;
 		aimDeg = 0;
 		armed = true;
+		/**
+		 * The clock the hint is drawing, and the one that actually takes the shot.
+		 *
+		 * The board keeps an unattended-drop timer of its own, but that one is pushed back by every
+		 * aim — deliberately, so it only ever lets go of a player who has stopped. A bar drawn off
+		 * THAT would refill every time the pointer moved and never finish on a desktop, so the
+		 * visible clock is owned here and never reset. It is set before `arm()` is called, so on a
+		 * player who never moves at all it is the one that fires; the board's is left in place
+		 * behind it, where it can only ever go off later and finds the round already released.
+		 */
+		const deadline = interactive ? setTimeout(() => active.fire(), AIM_MS) : undefined;
 		const startStep = await active.arm();
+		clearTimeout(deadline);
 		armed = false;
 		await active.drop(pocketForAward(ladder, room.total, startStep));
 		return room.total;
@@ -373,7 +418,7 @@
 				frame={FRAME}
 				format={label}
 				launcher="aimed"
-				autoDropAfterMs={interactive ? HELD_MS : TEASE_MS}
+				autoDropAfterMs={interactive ? AIM_MS : TEASE_MS}
 				sounds={{
 					// The board tells us the moment the ball leaves, which is the moment the gun should
 					// jump — and it covers the unattended shot too, which is fired from inside the board
@@ -386,6 +431,34 @@
 					land: () => playSound('merge'),
 				}}
 			/>
+
+			<!-- The instruction, over the middle of the board and above everything the board draws.
+			     It doubles as the shot clock: see `.hint-line` for how the drain is done.
+			
+			     Three nested boxes, and each is doing a job. The outer one centres and fades. The
+			     middle one is text-sized, which is what keeps the shadow's buffer off the whole
+			     board and gives the breath something to scale about. The lines are separate because
+			     the drain is measured against the height of the box it is painted on: one box around
+			     both lines would spend a third of the clock crossing the air between them, and
+			     against the board it would cross the letters in a single frame. -->
+			{#if interactive}
+				<div class="hint" class:shown={armed}>
+					<span class="hint-body">
+						{#each hintLines as line, index (line)}
+							<span
+								class="hint-line"
+								style="--drain-ms:{drainMs}ms; --drain-delay:{index * drainMs}ms"
+							>
+								<span class="hint-ink">{line}</span>
+								<!-- The same words again, in white, laid exactly over the blue and clipped back to
+								     nothing. Uncovering it is the drain. Hidden from a reader, which would
+								     otherwise be given the line twice. -->
+								<span class="hint-fill" aria-hidden="true">{line}</span>
+							</span>
+						{/each}
+					</span>
+				</div>
+			{/if}
 
 			<!-- What it paid, over the middle of the board. It comes up only once the ball is in a
 		     pocket, so it never covers the fall it is reporting on. -->
@@ -401,7 +474,6 @@
 			{/if}
 		</div>
 	</div>
-	<div class="hint" class:shown={armed && interactive}>Aim the cannon and click to fire.</div>
 </div>
 
 <style>
@@ -576,23 +648,132 @@
 		color: #cbb9a4;
 		font-weight: 400;
 	}
+	/* The instruction, laid across the middle of the board — and the shot clock as well. This
+	   layer only centres it and fades it; the drain lives on `.hint-line`. */
 	.hint {
 		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: -1.5vw;
-		height: 1.1vw;
+		inset: 0;
+		/* Over the pegs, the pockets and the ball, all of which the board draws below 10. Under the
+		   win line, which comes up only once this is long gone. */
+		z-index: 40;
 		display: flex;
 		align-items: center;
-		font-family: 'Alexandria', sans-serif;
-		font-size: 0.75vw;
-		color: #d6c6b4;
-		text-align: center;
+		justify-content: center;
+		/* The pointer aims through this: the handlers are on the window, but the board is what the
+		   crosshair is over and a box across the middle of it would take the cursor off. */
+		pointer-events: none;
 		opacity: 0;
 		transition: opacity 250ms ease;
 	}
 	.hint.shown {
 		opacity: 1;
+	}
+	/* The block of writing: text-sized, which is what the shadow and the breath both want.
+	
+	   The shadow is three passes, and a filter rather than a `text-shadow` so it takes the shape of
+	   what was actually painted THROUGH the glyphs — a text-shadow would be cast by the letters,
+	   which are transparent here, and the drain would have no shadow at all below the seam. The
+	   first pass is unblurred and offset, which is what reads as a shadow rather than as a glow; the
+	   other two are the soft cast and the ambient darkening that lift the letters off the grain.
+	
+	   It sits here rather than on each line so the filter runs once over the whole block, and so the
+	   two lines breathe together instead of scaling about their own centres and drifting apart. */
+	.hint-body {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		max-width: 88%;
+		font-family: 'PotatoSans', 'Alexandria', sans-serif;
+		font-size: 2.6vw;
+		/* Tight, and tighter than it reads on paper. Two things want it that way: the drain hands
+		   over from one line to the next, and the further apart they sit the more that handover looks
+		   like a jump rather than a continuation — the eye loses the fill between them. And these are
+		   caps with no descenders, which carry close leading far better than mixed case would.
+		
+		   There is a floor. Below about 0.9 the half-leading goes negative enough to push the caps
+		   out of the top of the line box, and `.hint-fill` is clipped to that box — the tops of the
+		   letters would never be uncovered. Anything changed here has to be re-measured against the
+		   ink percentages on `.hint-line`. */
+		line-height: 0.95;
+		text-align: center;
+		filter: drop-shadow(0 0.16vw 0 rgba(12, 7, 2, 0.95))
+			drop-shadow(0 0.3vw 0.35vw rgba(0, 0, 0, 0.85)) drop-shadow(0 0 0.9vw rgba(0, 0, 0, 0.6));
+	}
+	/* Small on purpose. This sits over a field of pegs the player is aiming at, so it has to catch
+	   the eye without becoming the thing being watched. */
+	.hint.shown .hint-body {
+		animation: hint-breathe 1.5s ease-in-out infinite;
+	}
+	@keyframes hint-breathe {
+		0%,
+		100% {
+			scale: 1;
+		}
+		50% {
+			scale: 1.06;
+		}
+	}
+	/* One line, and its share of the clock.
+	
+	   The drain is TWO copies of the line, blue underneath and white on top, with the white one
+	   clipped away and given back a little at a time. The edge between them stays hard — it is the
+	   boundary of a clip, not a blend — and it moves smoothly, which is the pair of things a
+	   gradient slid behind the glyphs could not do at once. A background position is snapped to
+	   whole device pixels when it is painted, and at a line's height over fifteen seconds the seam
+	   crawls about a pixel and a half a second: slow enough that the snapping IS the motion, one
+	   visible jump per second. A clip is geometry rather than an image origin, so it lands on
+	   fractional pixels and the edge glides.
+	
+	   `both` rather than `forwards`, because a line whose turn has not come yet has to HOLD the
+	   opening frame — without it the second line would sit finished until its delay elapsed. The
+	   unanimated state is still the finished one, fully uncovered, which is what every line falls
+	   back to when the class comes off at the moment of firing: the last thing seen through the fade
+	   is where the drain ended rather than a flash of it refilling. */
+	.hint-line {
+		position: relative;
+		display: block;
+		color: #35b6ff;
+	}
+	/*
+	 * Where the GLYPHS are inside the line box, top and bottom, as shares of it.
+	 *
+	 * The clip is walked between these two rather than from 0 to 100%, and that is the difference
+	 * between a fill that moves and one that stalls. A line box is taller than the writing in it,
+	 * and travelling the full box spends the difference revealing nothing — the empty tail of one
+	 * line running straight into the empty head of the next, which is a pause in the middle of the
+	 * drain right where the eye is following it.
+	 *
+	 * Measured by drawing the words to a canvas at eight times size and scanning for the first and
+	 * last row with any ink in it. NOT off `actualBoundingBox*`, which Chrome rounds to whole pixels
+	 * — a whole pixel is two percent of this box, and it reported the descent of a line of caps as a
+	 * flat zero. The scan says 5.13% and 80.46%; these are those, opened by a fifth of a pixel so a
+	 * rasteriser rounding the other way at another size cannot leave a sliver of blue behind.
+	 *
+	 * Re-measure both if the font, the `line-height` above, or the case of the words ever changes.
+	 */
+	.hint-line {
+		--ink-top: 4.8%;
+		--ink-bottom: 81.5%;
+	}
+	/* Pinned to the line's own box, so the copy wraps and centres exactly as the original did and
+	   the two sit glyph on glyph. */
+	.hint-fill {
+		position: absolute;
+		inset: 0;
+		color: #ffffff;
+		clip-path: inset(0 0 calc(100% - var(--ink-bottom)) 0);
+	}
+	.hint.shown .hint-fill {
+		animation: hint-drain var(--drain-ms) var(--drain-delay) linear both;
+	}
+	/* Across the writing and no further. See `.hint-line` for both halves of why. */
+	@keyframes hint-drain {
+		from {
+			clip-path: inset(0 0 calc(100% - var(--ink-top)) 0);
+		}
+		to {
+			clip-path: inset(0 0 calc(100% - var(--ink-bottom)) 0);
+		}
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------
@@ -604,9 +785,10 @@
 		--cannon-h: 30vw;
 		--cannon-gap: 3vw;
 	}
-	:global(.game.portrait) .hint {
-		height: 3vw;
-		font-size: 2.1vw;
+	:global(.game.portrait) .hint-body {
+		font-size: 7.4vw;
+		filter: drop-shadow(0 0.45vw 0 rgba(12, 7, 2, 0.95))
+			drop-shadow(0 0.85vw 1vw rgba(0, 0, 0, 0.85)) drop-shadow(0 0 2.5vw rgba(0, 0, 0, 0.6));
 	}
 	:global(.game.portrait) .win-mult {
 		font-size: 11vw;
