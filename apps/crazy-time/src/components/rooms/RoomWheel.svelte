@@ -11,7 +11,9 @@
 	import type { BookEventWheelBonus } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticUrl } from '../../lib/staticUrl';
+	import { finePointer } from '../../lib/pointer.svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
+	import RoomHint from './RoomHint.svelte';
 
 	/**
 	 * The gilded ring art (static/img/jackpot-wheel/frame.png, 1971x2109), gem pointer at 12 o'clock,
@@ -74,9 +76,27 @@
 	let wheel: Wheel | undefined = $state();
 	let highlight = $state<number | null>(null);
 
+	/**
+	 * The clock the player is spinning against, as one span rather than as a count of ticks.
+	 *
+	 * It used to be a `setInterval` printing the seconds under the hub. The instruction now IS the
+	 * clock — `RoomHint` drains the words over exactly this long, the way Plinko's shot clock runs
+	 * across its aiming hint — so nothing needs the number, and a single timeout cannot drift away
+	 * from the drain the way a run of ticks could.
+	 */
+	const SPIN_MS = PICK_SECONDS * 1000;
+
+	/**
+	 * What to tell the player, which is not the same instruction on the two kinds of device — the
+	 * same split Plinko makes, asked of pointer capability rather than of screen width. Broken into
+	 * lines here because each line drains on a clock of its own.
+	 */
+	const HINT_FINE = ['Click the wheel', 'to spin it'];
+	const HINT_COARSE = ['Tap the wheel', 'to spin it'];
+	const hintLines = $derived(finePointer() ? HINT_FINE : HINT_COARSE);
+
 	let waiting = $state(false);
-	let secondsLeft = $state(PICK_SECONDS);
-	let clock: ReturnType<typeof setInterval> | undefined;
+	let clock: ReturnType<typeof setTimeout> | undefined;
 	let release: (() => void) | null = null;
 
 	/**
@@ -86,7 +106,7 @@
 	 */
 	const start = () => {
 		if (!release) return;
-		clearInterval(clock);
+		clearTimeout(clock);
 		waiting = false;
 		const go = release;
 		release = null;
@@ -95,14 +115,10 @@
 
 	export const play = async (): Promise<number> => {
 		if (interactive) {
-			secondsLeft = PICK_SECONDS;
 			waiting = true;
 			await new Promise<void>((resolve) => {
 				release = resolve;
-				clock = setInterval(() => {
-					secondsLeft -= 1;
-					if (secondsLeft <= 0) start();
-				}, 1000);
+				clock = setTimeout(start, SPIN_MS);
 			});
 		} else {
 			await waitForTimeout(900);
@@ -134,9 +150,17 @@
 				class="hub-glow"
 				style="left:{FRAME.hole.cx * 100}%; top:{FRAME.hole.cy * 100}%; width:{HUB_WIDTH * 100}%"
 			></span>
+			<!-- The instruction and the clock, in the game's one voice — see `RoomHint`. The words drain
+			     over `SPIN_MS`, so the wheel going off on its own is something the player watched
+			     coming rather than something that happened to them. Sized off the wheel's own width,
+			     which is what carries it up to a phone: the wheel is 44.5vw across in landscape and the
+			     whole viewport in portrait, and this rides that without a second rule. -->
 			<span class="cta" style="left:{FRAME.hole.cx * 100}%; top:{FRAME.hole.cy * 100}%">
-				<span class="cta-line">Tap to spin</span>
-				<span class="cta-clock">{secondsLeft}s</span>
+				<RoomHint
+					lines={hintLines}
+					durationMs={SPIN_MS}
+					size="calc(var(--wheel-w, 44.5vw) * 0.058)"
+				/>
 			</span>
 		</button>
 	{/if}
@@ -195,31 +219,14 @@
 	.start:active .hub-glow {
 		scale: 0.96;
 	}
-	/* Under the hub rather than across it, on the band of colour the multipliers stop short of —
-	   the same voice the table's own play button uses. */
+	/* Under the hub rather than across it, on the band of colour the multipliers stop short of.
+	   Only a place now: the writing itself is `RoomHint`'s, which is what put this room in the same
+	   voice as the other three. */
 	.cta {
 		position: absolute;
 		translate: -50% 0;
 		margin-top: calc(var(--wheel-w, 44.5vw) * 0.085);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.2vw;
+		display: block;
 		white-space: nowrap;
-		font-family: 'PotatoSans', 'Alexandria', sans-serif;
-		color: #fff;
-		paint-order: stroke;
-		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
-		text-shadow: 0 0 0.5vw rgba(0, 0, 0, 0.85);
-	}
-	.cta-line {
-		font-size: 1.4vw;
-		letter-spacing: 0.08vw;
-	}
-	/* Big enough to actually read: at 1vw the stroke on it is half the letter. */
-	.cta-clock {
-		font-size: 1.15vw;
-		color: #ffe14d;
-		-webkit-text-stroke-width: 0.06vw;
 	}
 </style>

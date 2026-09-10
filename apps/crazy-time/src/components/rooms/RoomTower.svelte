@@ -7,9 +7,17 @@
 	import type { BookEventTowerBonus } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { waitForTimeout } from 'utils-shared/wait';
+	import RoomHint from './RoomHint.svelte';
 
 	type Props = { room: BookEventTowerBonus };
 	let { room }: Props = $props();
+
+	/**
+	 * The caption, cut as a share of the tower's own width — the same knob everything else in the
+	 * room is drawn off (see `--tower-w`), so it grows with the tower on a tall screen instead of
+	 * needing a portrait rule of its own.
+	 */
+	const HINT_SIZE = 'calc(var(--tower-w) * 0.0727)';
 
 	const floors = $derived(room.floors.length);
 	let reached = $state(0); // floors revealed so far
@@ -51,30 +59,46 @@
 			</div>
 		</div>
 	{/each}
+	<!-- What the climb is doing, in the same voice the other three rooms speak in — see `RoomHint`.
+	     No drain on any of these: the tower is the one room with nothing to decide, so there is no
+	     clock running against the player to draw. Cut smaller than Plinko's because the tower is a
+	     narrow column and these lines are sentences rather than two-word orders. -->
 	<div class="caption">
 		{#if dragonShown}
-			The dragon woke on floor {room.climbed + 1}. You keep floor {room.climbed}: <b>{room.total}x</b>
+			<RoomHint size={HINT_SIZE}>
+				Dragon on floor {room.climbed + 1}<br />You keep <b>{room.total}x</b>
+			</RoomHint>
 		{:else if reached >= floors}
-			Top of the tower! <b>{room.total}x</b>
+			<RoomHint size={HINT_SIZE}>Top of the tower <b>{room.total}x</b></RoomHint>
 		{:else}
-			Climbing…
+			<RoomHint lines={['Climbing']} size={HINT_SIZE} />
 		{/if}
 	</div>
 </div>
 
 <style>
+	/*
+	 * Everything about the tower is a share of its own width, and the width is the one number that
+	 * changes between a wide screen and a tall one. It was ten sets of vw before, which meant a
+	 * portrait pass would have been ten more of them, each free to drift out of proportion with the
+	 * rest; now there is a single knob and the drawing follows it.
+	 *
+	 * The shares are the old landscape numbers over the old landscape width of 22vw, so a wide
+	 * screen still gets exactly the tower it had.
+	 */
 	.tower {
+		--tower-w: 22vw;
 		display: flex;
 		flex-direction: column;
-		gap: 0.18vw;
-		width: 22vw;
+		gap: calc(var(--tower-w) * 0.0082);
+		width: var(--tower-w);
 	}
 	.floor {
 		display: flex;
 		align-items: center;
-		gap: 0.5vw;
-		padding: 0.12vw 0.4vw;
-		border-radius: 0.3vw;
+		gap: calc(var(--tower-w) * 0.0227);
+		padding: calc(var(--tower-w) * 0.0055) calc(var(--tower-w) * 0.0182);
+		border-radius: calc(var(--tower-w) * 0.0136);
 		background: rgba(60, 20, 20, 0.55);
 		transition: background 250ms ease;
 	}
@@ -83,28 +107,30 @@
 	}
 	.floor.current {
 		background: rgba(200, 80, 40, 0.85);
-		box-shadow: 0 0 0.6vw rgba(255, 180, 80, 0.7);
+		box-shadow: 0 0 calc(var(--tower-w) * 0.0273) rgba(255, 180, 80, 0.7);
 	}
 	.mult {
-		width: 3vw;
+		width: calc(var(--tower-w) * 0.136);
 		font-family: 'Alexandria', sans-serif;
 		font-weight: 700;
-		font-size: 0.85vw;
+		font-size: calc(var(--tower-w) * 0.0386);
 		color: #ffd27a;
 		text-align: right;
 	}
 	.tiles {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		gap: 0.25vw;
+		gap: calc(var(--tower-w) * 0.0114);
 		flex: 1;
 	}
 	.tile {
-		height: 1.55vw;
-		border-radius: 0.25vw;
+		height: calc(var(--tower-w) * 0.0705);
+		border-radius: calc(var(--tower-w) * 0.0114);
 		background: linear-gradient(180deg, #6b3b2a, #3e2118);
-		border: 0.06vw solid rgba(255, 200, 120, 0.35);
-		transition: background 250ms ease, transform 250ms ease;
+		border: calc(var(--tower-w) * 0.0027) solid rgba(255, 200, 120, 0.35);
+		transition:
+			background 250ms ease,
+			transform 250ms ease;
 	}
 	.tile.safe {
 		background: radial-gradient(circle at 50% 40%, #fff7d6 0%, #f4c542 40%, #b8860b 100%);
@@ -122,14 +148,21 @@
 			transform: scale(1.1);
 		}
 	}
+	/* Only a place: what the line looks like is `RoomHint`'s. */
 	.caption {
-		margin-top: 0.4vw;
-		text-align: center;
-		font-family: 'Alexandria', sans-serif;
-		font-size: 1vw;
-		color: #ffe9b0;
+		margin-top: calc(var(--tower-w) * 0.0182);
 	}
-	.caption b {
-		color: #ffe14d;
+
+	/* ---- Portrait ----------------------------------------------------------------------
+	   The one number, given a taller screen.
+
+	   Bound by HEIGHT as much as by width, which is what makes this room different from the other
+	   three: ten floors stacked make the tower very nearly square — it comes out at 0.97 of its own
+	   width tall — and a phone's bonus screen has about 60 to 77 vh of stage between the sign and
+	   the win line, depending on how long the handset is. `min()` takes whichever runs out first:
+	   the width on a long phone, the height on a squat one. The vh share is measured against the
+	   shortest of them (h/w = 1.3, where the stage is about 62vh) with a little air left over. */
+	:global(.game.portrait) .tower {
+		--tower-w: min(86vw, 58vh);
 	}
 </style>
