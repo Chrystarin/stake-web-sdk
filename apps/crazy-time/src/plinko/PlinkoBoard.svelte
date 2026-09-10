@@ -119,16 +119,6 @@
 	const BOUNCE_SPREAD = 0.72;
 	const BIG_BOUNCE_ODDS = 0.3;
 	const BOUNCE_BIG = 1.8;
-	/**
-	 * How much of a HARD deflection goes into height rather than across.
-	 *
-	 * A peg that throws the ball two and a half pitches sideways instead of half a one did not do it
-	 * by rolling it — it caught it on the shoulder and flung it. Tying the arc to the deflection is
-	 * what keeps that reading as a ricochet: the ball leaves fast, climbs, hangs, and comes down a
-	 * long way over. Without it the same sideways distance is covered flat and at speed, which looks
-	 * like the ball was dragged rather than struck.
-	 */
-	const KICK_ARC = 0.62;
 	/** How long the ball stays squashed after a contact, and a struck peg stays lit. */
 	const CONTACT_MS = 130;
 	/**
@@ -459,9 +449,10 @@
 			BOUNCE_CHOICES.find(
 				(bounce) => bounce <= ceiling && arcClears(props.shape, geometry, from, to, bounce),
 			) ?? null;
-		// A deflection is only offered to the walk if there is SOME height it can be flown at
-		// cleanly. The hard ricochets are the ones this turns away: a ball thrown two pitches
-		// sideways in one row has to arc right over its neighbours to get there, and often cannot.
+		// A step is only offered to the walk if there is SOME height it can be flown at cleanly. With
+		// the ball going no further than the next peg along, that is nearly always true — what this
+		// still catches is a bounce tall enough to carry it up into the row above and through a peg
+		// standing there.
 		const offsets = planDrop(
 			props.shape,
 			startStep,
@@ -505,11 +496,7 @@
 				Math.random() < BIG_BOUNCE_ODDS
 					? BOUNCE_BIG * (0.7 + Math.random() * 0.6)
 					: BOUNCE_MIN + Math.random() * BOUNCE_SPREAD;
-			// How hard the peg above threw it, in half-pitches: 1 is an ordinary glance, 5 is the
-			// opening ricochet at full stretch. The arc grows with it, so the ball that travels
-			// furthest is also the one that goes highest and hangs longest.
-			const kick = Math.abs(point.offset - before.offset) / 0.5;
-			const wanted = height * (0.85 + (index / points.length) * 0.4) * (1 + (kick - 1) * KICK_ARC);
+			const wanted = height * (0.85 + (index / points.length) * 0.4);
 			// And then the tallest arc no higher than that which actually clears the pegs. The last
 			// hop is into the pocket, below the field, where there is nothing left to clear.
 			if (index === points.length - 1) return wanted;
