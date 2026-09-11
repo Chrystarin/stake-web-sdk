@@ -2,7 +2,7 @@ import { API_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 import { stateBet, stateConfig, stateUrlDerived } from 'state-shared';
 import { requestEndRound } from 'rgs-requests';
 
-import { MODE_COVERAGE, MODE_NAMES, isSpot, type Spot } from './constants';
+import { ALL_MODE_NAMES, coverageOf, isBuyMode, isSpot, type Spot } from './constants';
 import type { BookEvent } from './typesBookEvent';
 
 /** The open round authenticate reported, if any. */
@@ -59,7 +59,7 @@ export const describeModeMismatch = (mode: string): string | null => {
 	if (published.includes(mode)) return null;
 	return (
 		`Bet mode "${mode}" is not published on the RGS (it has ${published.length} modes, ` +
-		`this build expects ${MODE_NAMES.length}). Re-publish games/crazy_time from stake-math-sdk.`
+		`this build expects ${ALL_MODE_NAMES.length}). Re-publish games/crazy_time from stake-math-sdk.`
 	);
 };
 
@@ -113,9 +113,15 @@ const landingFromBook = (state: unknown): { spot: Spot; covered: boolean } | nul
  * Prefers the mode the RGS reports for the round (its coverage IS the board), then the stashed
  * selection, and only as a last resort infers from the book which spot was covered.
  */
+/** The buy mode of the open round, if it was a buy. */
+export const buyModeForResume = (): string | null => {
+	const mode = activeRound()?.mode;
+	return mode && isBuyMode(mode) ? mode : null;
+};
+
 export const backedSpotsForResume = (state: unknown): Spot[] => {
 	const mode = activeRound()?.mode;
-	if (mode && MODE_COVERAGE[mode]) return [...MODE_COVERAGE[mode]];
+	if (mode && coverageOf(mode).length) return [...coverageOf(mode)];
 	const remembered = recallCommittedSpots();
 	if (remembered) return remembered;
 	const landing = landingFromBook(state);

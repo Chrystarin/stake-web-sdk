@@ -1,6 +1,6 @@
 import { stateBet, stateConfig } from 'state-shared';
 
-import { MODE_COVERAGE, SPOTS, modeCost, modeForSpots, type Spot } from './constants';
+import { BUY_MODES, MODE_COVERAGE, SPOTS, buyPrice, modeCost, modeForSpots, type Spot } from './constants';
 import { rememberCommittedSpots } from './activeRound';
 import type { GameType } from './types';
 import type { RoundResult } from './typesEmitterEvent';
@@ -13,7 +13,17 @@ import type { RoundResult } from './typesEmitterEvent';
  * submitted unscaled (one chip per covered spot, cost does the multiplying), so any option
  * here is bettable.
  */
-const stakeOptions = (): number[] => [...(stateConfig.betAmountOptions ?? [])].sort((a, b) => a - b);
+const stakeOptions = (): number[] => {
+	const grid = [...(stateConfig.betAmountOptions ?? [])].sort((a, b) => a - b);
+	// The grid is the template; minBet/maxBet normally just echo its ends. If the RGS ever sends
+	// a tighter maxBet than the grid (e.g. a chip trimmed to keep top win x bet under the
+	// exposure cap), honour it rather than offer a chip the server would refuse.
+	const { minBet, maxBet } = stateConfig;
+	const within = grid.filter(
+		(value) => (minBet > 0 ? value >= minBet : true) && (maxBet > 0 ? value <= maxBet : true),
+	);
+	return within.length ? within : grid;
+};
 
 const noneBacked = (): Record<Spot, boolean> =>
 	Object.fromEntries(SPOTS.map((spot) => [spot, false])) as Record<Spot, boolean>;
@@ -36,6 +46,10 @@ export const stateGame = $state({
 	result: null as RoundResult | null,
 	rolling: false,
 	resultReady: false,
+	// The buy-bonus mode in flight / just resolved, or null for a board bet. A buy has no chips on
+	// the board: the round is the room, and `backedOrder` holds the rooms it can open so the
+	// landed room reads as covered.
+	buying: null as string | null,
 	// Set when an RGS round is stuck open and the server refuses to close it.
 	openRoundError: '',
 });
@@ -93,6 +107,32 @@ const resetBoard = () => {
 	stateGame.resultReady = false;
 	stateGame.result = null;
 	stateGame.topSlot = null;
+	stateGame.buying = null;
+};
+
+/** Total charged for one buy of `mode` at the current chip. */
+const buyTotal = (mode: string): number => buyPrice(mode) * stateGame.stake;
+
+const canBuy = (mode: string): boolean =>
+	!stateGame.rolling && mode in BUY_MODES && buyTotal(mode) <= stateBet.balanceAmount;
+
+/**
+ * Commit a buy: no chips on the board, the rooms the buy can open stand in as the covered spots,
+ * and the RGS is told the buy mode with the chip as `amount` (the price is the mode's cost).
+ */
+const beginBuy = (mode: string): boolean => {
+	if (!canBuy(mode)) return false;
+	stateGame.backed = noneBacked();
+	stateGame.selectionOrder = [];
+	stateGame.backedOrder = [...BUY_MODES[mode].rooms];
+	rememberCommittedSpots(stateGame.backedOrder);
+	stateGame.resultReady = false;
+	stateGame.result = null;
+	stateGame.topSlot = null;
+	stateGame.buying = mode;
+	stateBet.activeBetModeKey = mode;
+	stateBet.betAmount = stateGame.stake;
+	return true;
 };
 
 /**
@@ -187,6 +227,7 @@ const beginSpin = (): boolean => {
 	stateGame.resultReady = false;
 	stateGame.result = null;
 	stateGame.topSlot = null;
+	stateGame.buying = null;
 	stateBet.activeBetModeKey = bet.mode;
 	stateBet.betAmount = bet.amount;
 	return true;
@@ -204,7 +245,7 @@ const isWinSpot = (spot: Spot): boolean =>
  * Put the board into the state a resumed round was played with, so the replay lights up the
  * right tiles. Called before playback; the wager is already settled at this point.
  */
-const applyResumedSelection = (spots: Spot[]) => {
+const applyResumedSelection = (spots: Spot[], buying: string | null = null) => {
 	stateGame.backed = noneBacked();
 	for (const spot of spots) stateGame.backed[spot] = true;
 	stateGame.selectionOrder = [...spots];
@@ -212,6 +253,7 @@ const applyResumedSelection = (spots: Spot[]) => {
 	stateGame.resultReady = false;
 	stateGame.result = null;
 	stateGame.topSlot = null;
+	stateGame.buying = buying;
 };
 
 export const stateGameDerived = {
@@ -232,6 +274,9 @@ export const stateGameDerived = {
 	clearBets,
 	repeatBets,
 	beginSpin,
+	buyTotal,
+	canBuy,
+	beginBuy,
 	currentBet,
 	selectionIsNotTicket,
 	currentBackedOrder,

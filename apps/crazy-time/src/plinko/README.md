@@ -12,7 +12,7 @@ runs (`PlinkoBoard.svelte`, `board.ts`, `pockets.ts`, `slots.ts`, `colour.ts`) i
 so a fix in either game is a straight copy across.
 
 Nothing here imports from the game around it. To remove the feature, delete this folder, the art
-under `static/img/plinko/`, and put `RoomPlinko.svelte` back to a board of its own.
+under `static/img/pirate-plinko/`, and put `RoomPiratePlinko.svelte` back to a board of its own.
 
 ## Plugging it in
 
@@ -34,7 +34,7 @@ under `static/img/plinko/`, and put `RoomPlinko.svelte` back to a board of its o
 ```
 
 `PlinkoBoard` is `position: absolute; inset: 0`, so it wants a sized, positioned parent — see
-`RoomPlinko.svelte`.
+`RoomPiratePlinko.svelte`.
 
 ### Props
 
@@ -91,7 +91,7 @@ ratio _is_ the angle the ball falls at: half a pitch sideways per row, so 0.5 is
 ## Pocket art
 
 The pockets are the `glow_numbers` Spine skeleton from One-Eyed Willy's plinko board
-(`apps/plinko/static/spine/glow_numbers`), copied in as `static/img/plinko/pocket_slots.webp` —
+(`apps/plinko/static/spine/glow_numbers`), copied in as `static/img/pirate-plinko/pocket_slots.webp` —
 the same atlas image byte for byte. Its `.atlas` is kept next to `slots.ts` rather than in
 `static/` — it is what the region tables were read off, but nothing loads it, so it does not ship.
 Each pocket is two of its regions: a
@@ -109,7 +109,7 @@ ever re-authored with real motion, that is the point at which the runtime earns 
 
 One, and it is the room itself:
 
-`src/components/rooms/RoomPlinko.svelte` — builds the ladder from `room.board`, arms the board, and
+`src/components/rooms/RoomPiratePlinko.svelte` — builds the ladder from `room.board`, arms the board, and
 drops to `pocketForAward(ladder, room.total, startStep)`. `BonusRound.svelte` mounts it and awaits
 its `play()` like any other room, passing `interactive={covered}` so a room the player was not in
 lets the ball go on its own.

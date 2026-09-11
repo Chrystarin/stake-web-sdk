@@ -34,6 +34,9 @@
 	import RoundResult from './RoundResult.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
+	import BuyBonusModal from './BuyBonusModal.svelte';
+	import ConfirmPromptModal from './ConfirmPromptModal.svelte';
+	import { requestConfirmPrompt } from '../game/confirmPrompt.svelte';
 
 	const context = getContext();
 
@@ -128,12 +131,34 @@
 		return () => observer.disconnect();
 	});
 
-	const BOARD: Spot[] = ['x1', 'x2', 'plinko', 'wheel', 'x5', 'x10', 'chest', 'tower'];
+	/**
+	 * How tall the balance/wager rail is, in the frame's own units. The rail is drawn over the bonus
+	 * screen as well as over the board, so the room's own read-out has to know how much of the bottom
+	 * edge is already spoken for. Measured rather than restated, because the two are written in
+	 * different places and a rail that grew would silently start covering the room's footer.
+	 */
+	let hudEl: HTMLElement | undefined = $state();
+	let railH = $state(0);
+	const measureRail = () => {
+		if (!hudEl) return;
+		railH = hudEl.getBoundingClientRect().height / fitScale;
+	};
+	$effect(() => {
+		void fitScale;
+		void portrait;
+		if (!hudEl) return;
+		measureRail();
+		const observer = new ResizeObserver(measureRail);
+		observer.observe(hudEl);
+		return () => observer.disconnect();
+	});
+
+	const BOARD: Spot[] = ['x1', 'x2', 'piratePlinko', 'bonusWheel', 'x5', 'x10', 'chest', 'oceanVoyage'];
 
 	/**
 	 * One-tap group bets, sat on the seams of the board rather than in a row of their own: the board
 	 * reads as multipliers then bonuses in both arrangements, so each seam already names a group.
-	 * Landscape splits the tiles into columns (x1/x5 | x2/x10 | plinko/chest | wheel/tower), so the
+	 * Landscape splits the tiles into columns (x1/x5 | x2/x10 | plinko/chest | wheel/voyage), so the
 	 * three vertical gaps are "inside the multipliers", "between the halves" and "inside the
 	 * bonuses"; portrait stacks the same halves in rows, and the three horizontal gaps say the same
 	 * thing. `seam` is which gap the button sits on, counting from the board's leading edge.
@@ -157,7 +182,7 @@
 			label: 'BONUS',
 			seam: 3,
 			spots: ROOM_SPOTS,
-			face: ['plinko', 'wheel', 'tower', 'chest'],
+			face: ['piratePlinko', 'bonusWheel', 'oceanVoyage', 'chest'],
 		},
 	];
 
@@ -275,7 +300,9 @@
 	};
 
 	const backedCount = $derived(stateGameDerived.backedCount());
-	const total = $derived(stateGameDerived.totalStake());
+	const total = $derived(
+		stateGame.buying ? stateGameDerived.buyTotal(stateGame.buying) : stateGameDerived.totalStake(),
+	);
 	const currentBet = $derived(stateGameDerived.currentBet());
 	const idle = $derived(context.stateXstateDerived.isIdle() && !stateGame.rolling);
 	const settled = $derived(stateGame.resultReady);
@@ -759,6 +786,65 @@
 
 	let betNotice = $state('');
 
+	// --- Buy bonus ----------------------------------------------------------------------------
+	// The Buy Bonus screen (ported from the Plinko): pick a room, or any bonus, at the current chip.
+	// Activate raises the Yes/No prompt; Yes commits the buy mode as the round's mode.
+	let buyBonusOpen = $state(false);
+	const buyDisabled = $derived(!bettingOpen || Boolean(stateGame.openRoundError));
+
+	const openBuyBonus = () => {
+		if (buyDisabled) return;
+		playSound('click');
+		stakePanelOpen = false;
+		buyBonusOpen = true;
+	};
+
+	const handleBuyActivate = (mode: string) => {
+		requestConfirmPrompt('buyBonus', () => startBuy(mode));
+	};
+
+	const startBuy = (mode: string) => {
+		buyBonusOpen = false;
+		// Re-checked here: the prompt was open for a while and the round may have moved on.
+		if (buyDisabled) {
+			betNotice = 'Finishing the current round…';
+			return;
+		}
+		balanceHold = null;
+		if (online && hasActiveRoundToResume()) {
+			betNotice = 'Finishing your previous round…';
+			stateGame.rolling = true;
+			context.eventEmitter.broadcast({ type: 'resumeBet' });
+			return;
+		}
+		// Any chips on the board go back to the tray: a buy is its own round.
+		const placed = stateGameDerived.backedSpots();
+		const face = currentChipFace();
+		committedStake = stateGameDerived.buyTotal(mode);
+		if (!stateGameDerived.beginBuy(mode)) {
+			betNotice = 'Not enough balance for this buy.';
+			return;
+		}
+		sweepChips(placed, face);
+		const mismatch = online ? describeModeMismatch(stateBet.activeBetModeKey) : null;
+		if (mismatch) {
+			console.error(`[crazy-time] ${mismatch}`);
+			betNotice = mismatch;
+			stateGame.rolling = false;
+			stateGame.buying = null;
+			return;
+		}
+		landedSpot = null;
+		wheelHighlight = null;
+		topSlotApplied = false;
+		multFlight = null;
+		tileMult = null;
+		multHidden = false;
+		panelDimmed = false;
+		stateGame.rolling = true;
+		context.eventEmitter.broadcast({ type: 'bet' });
+	};
+
 	$effect(() => {
 		if (controlsHidden) stakePanelOpen = false;
 	});
@@ -912,7 +998,7 @@
 	<div
 		class="game"
 		class:portrait
-		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px"
+		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
 		bind:this={gameEl}
 	>
 		{#if stateGame.openRoundError || betNotice}
@@ -933,7 +1019,17 @@
 			</div>
 		{/snippet}
 
-		<div class="hud">
+		<button
+			type="button"
+			class="buy-bonus-trigger"
+			disabled={buyDisabled}
+			onclick={openBuyBonus}
+			aria-label="Buy bonus"
+		>
+			<img src={staticUrl('img/buy-bonus/buy-bonus-btn.webp')} alt="" aria-hidden="true" />
+		</button>
+
+		<div class="hud" bind:this={hudEl}>
 			{#key balancePulse}
 				<div class="balance-hud" class:collected={balancePulse > 0}>
 					<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
@@ -1202,6 +1298,14 @@
 	</div>
 </div>
 
+<BuyBonusModal
+	open={buyBonusOpen}
+	disabled={buyDisabled}
+	onClose={() => (buyBonusOpen = false)}
+	onActivate={handleBuyActivate}
+/>
+<ConfirmPromptModal />
+
 <style>
 	/* ---- Chips (same skin as colour-dice: chip_base.svg tinted by --chip-hue) ---- */
 	.chip {
@@ -1414,6 +1518,37 @@
 		inset: 0;
 		z-index: 35;
 	}
+	/* Buy Bonus badge (art from the Plinko), top-left of the table. */
+	.buy-bonus-trigger {
+		position: absolute;
+		top: 1.2vw;
+		left: 1.2vw;
+		z-index: 25;
+		width: 6.25vw;
+		height: 6.25vw;
+		padding: 0;
+		border: none;
+		background: none;
+		cursor: pointer;
+		transition:
+			transform 0.12s ease,
+			filter 0.12s ease;
+	}
+	.buy-bonus-trigger img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		pointer-events: none;
+		filter: drop-shadow(0 0.15vw 0.45vw rgba(0, 0, 0, 0.5));
+	}
+	.buy-bonus-trigger:hover:not(:disabled) {
+		transform: scale(1.06);
+	}
+	.buy-bonus-trigger:disabled {
+		cursor: not-allowed;
+		filter: grayscale(0.7) brightness(0.55);
+	}
+
 	.bet-notice {
 		position: absolute;
 		top: 4vw;
@@ -1813,7 +1948,10 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		z-index: 20;
+		/* Over the bonus screen (30), which covers the rest of the game: what a player has and what
+		   they staked has to read the same in a room as on the board, in the same corners. Still
+		   under the stake panel's backdrop (35), so choosing a chip dims it like everything else. */
+		z-index: 33;
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;

@@ -94,7 +94,7 @@ for mode, path in spec:
         if b["id"] not in seen:
             seen.add(b["id"]); picked.append(b)
     # one of each kind, preferring books that were covered (so the room actually pays)
-    for want in ("plinkoBonus", "wheelBonus", "chestBonus", "towerBonus", "topslot"):
+    for want in ("piratePlinkoRoom", "bonusWheelRoom", "chestRoom", "oceanVoyageRoom", "topslot"):
         cands = [b for b in books if want in kinds(b)]
         cands.sort(key=lambda b: -b["payoutMultiplier"])
         covered = [b for b in cands if b["payoutMultiplier"] > 0]

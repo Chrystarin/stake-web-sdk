@@ -2,7 +2,7 @@
  * Pocket art, lifted whole from One-Eyed Willy's plinko board.
  *
  * The source is that game's `glow_numbers` Spine skeleton (apps/plinko/static/spine/glow_numbers),
- * copied here as `static/img/plinko/pocket_slots.webp` — the same atlas image, byte for byte. Its
+ * copied here as `static/img/pirate-plinko/pocket_slots.webp` — the same atlas image, byte for byte. Its
  * `.atlas` sits next to this file rather than in `static/`: it is what the region tables below were
  * read off, and it is worth keeping for the next person who has to change them, but nothing loads
  * it at runtime and there is no reason to ship it. Each pocket is two of its regions: a solid CARD,
@@ -19,7 +19,7 @@
  * why its width and height read swapped.
  */
 
-export const SLOT_ATLAS = { src: 'img/plinko/pocket_slots.webp', width: 186, height: 944 };
+export const SLOT_ATLAS = { src: 'img/pirate-plinko/pocket_slots.webp', width: 186, height: 944 };
 
 /** `x`/`y` locate the packed area; `width`/`height` are the region's ORIGINAL, upright size. */
 export type SlotRegion = { x: number; y: number; width: number; height: number };

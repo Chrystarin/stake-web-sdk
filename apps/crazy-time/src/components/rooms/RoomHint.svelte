@@ -3,13 +3,13 @@
 	 * What a bonus room says to the player, and how long they have to act on it — one block of
 	 * writing shared by all four rooms.
 	 *
-	 * It began as Plinko's, where the instruction IS the shot clock: the words are laid down in
+	 * It began as Pirate Plinko's, where the instruction IS the shot clock: the words are laid down in
 	 * gold and uncovered in white at the speed of the countdown, so the player reads how long is
 	 * left off the thing they are already looking at rather than off a number beside it. Every room
 	 * now speaks the same way, because a bonus that changes voice from screen to screen reads as
 	 * four games rather than as four rooms of one.
 	 *
-	 * A room with nothing to wait for — the tower climbs itself, a chest opens itself for a player
+	 * A room with nothing to wait for — the voyage dives itself, a chest opens itself for a player
 	 * who was not in the bonus — leaves `durationMs` off and gets the same writing with no drain,
 	 * which is simply the finished state: white all through.
 	 */
@@ -28,7 +28,7 @@
 		 * no clock: the words simply stand there, finished.
 		 */
 		durationMs?: number | null;
-		/** Lay it across the parent instead of taking a place in its flow (Plinko covers its board). */
+		/** Lay it across the parent instead of taking a place in its flow (Pirate Plinko covers its board). */
 		overlay?: boolean;
 		/**
 		 * Type size, as any CSS length. The rooms are not the same size on the screen, so the writing
@@ -100,14 +100,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		/* Nothing here is ever the thing being pressed: the chests, the wheel and Plinko's board all
+		/* Nothing here is ever the thing being pressed: the chests, the wheel and Pirate Plinko's board all
 		   take the pointer straight through it. */
 		pointer-events: none;
 		opacity: 0;
 		transition: opacity 250ms ease;
 	}
 	/* Laid across the room rather than stacked above it. Over the pegs, the pockets and the ball,
-	   all of which Plinko's board draws below 10 — and under the win line, which comes up only once
+	   all of which Pirate Plinko's board draws below 10 — and under the win line, which comes up only once
 	   this is long gone. */
 	.hint.overlay {
 		position: absolute;
@@ -126,7 +126,7 @@
 	   other two are the soft cast and the ambient darkening that lift the letters off whatever they
 	   happen to be lying on.
 
-	   In `em`, so one rule serves a room of any size: these are the numbers Plinko was carrying in
+	   In `em`, so one rule serves a room of any size: these are the numbers Pirate Plinko was carrying in
 	   vw, which had to be written out a second time for portrait to come out the same weight.
 
 	   It sits here rather than on each line so the filter runs once over the whole block, and so the
@@ -225,7 +225,7 @@
 	 * through `background-clip: text` and a stroke on the same box is filled by the gradient rather
 	 * than drawn over it.
 	 *
-	 * In `em`, so it holds its weight against type cut anywhere from the tower's caption to Plinko's
+	 * In `em`, so it holds its weight against type cut anywhere from the voyage's caption to Pirate Plinko's
 	 * portrait board.
 	 */
 	.hint-edge {
@@ -309,8 +309,8 @@
 	   about twice this stroke's reach — so nothing of it lands on the room. Widening it much past
 	   here starts to grey that brown from the inside.
 
-	   In `em`, like the rest of this file, so a rim of the same weight lands on the tower's caption
-	   and on Plinko's landscape line alike. */
+	   In `em`, like the rest of this file, so a rim of the same weight lands on the voyage's caption
+	   and on Pirate Plinko's landscape line alike. */
 	.hint-fill {
 		color: #ffffff;
 		-webkit-text-stroke: 0.055em rgba(122, 122, 132, 0.42);

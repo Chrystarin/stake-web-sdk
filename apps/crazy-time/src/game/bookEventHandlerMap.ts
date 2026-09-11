@@ -56,10 +56,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		};
 	},
 
-	plinkoBonus: playRoom,
-	wheelBonus: playRoom,
-	chestBonus: playRoom,
-	towerBonus: playRoom,
+	piratePlinkoRoom: playRoom,
+	bonusWheelRoom: playRoom,
+	chestRoom: playRoom,
+	oceanVoyageRoom: playRoom,
 
 	winInfo: async (bookEvent: BookEventOfType<'winInfo'>) => {
 		const result = {

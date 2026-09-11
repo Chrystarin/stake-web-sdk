@@ -2,7 +2,7 @@
 	/**
 	 * A money wheel drawn in SVG and spun with a CSS transition to an AUTHORED segment.
 	 *
-	 * Generic on purpose: the 54-segment main wheel and the 36-wedge Jackpot Wheel room are the same
+	 * Generic on purpose: the 54-segment main wheel and the 36-wedge Bonus Wheel room are the same
 	 * component with different `segments`. Nothing here decides an outcome — `spinTo(index)` is the
 	 * only way it moves, and the index comes from the book.
 	 */
@@ -14,7 +14,7 @@
 		text: string;
 		/**
 		 * How the label is set: `number` is one centred word, while `room` (bonus names) and `value`
-		 * (Jackpot Wheel multipliers) are lettered down the wedge glyph by glyph — see roomGlyphs().
+		 * (Bonus Wheel multipliers) are lettered down the wedge glyph by glyph — see roomGlyphs().
 		 */
 		kind?: 'number' | 'room' | 'value';
 		/** Badge art drawn in place of the text label, upright on the label ring. */
@@ -219,7 +219,7 @@
 
 	/**
 	 * Labels that run down the wedge, glyph by glyph, instead of sitting on it as one centred word:
-	 * a room's name (roomGlyphs) and a Jackpot Wheel multiplier (uprightGlyphs). Both taper towards
+	 * a room's name (roomGlyphs) and a Bonus Wheel multiplier (uprightGlyphs). Both taper towards
 	 * the hub as the wedge narrows, and in both the glyphs touch, so a run reads as one piece of
 	 * lettering rather than a column of separate characters — but they are set at right angles to
 	 * each other, and that is the whole difference between the two functions.

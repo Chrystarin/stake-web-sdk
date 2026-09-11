@@ -4,4 +4,4 @@ export type { Spot };
 export type GameType = 'basegame';
 
 /** Which bonus room a book event describes. */
-export type RoomKind = 'plinko' | 'wheel' | 'chest' | 'tower';
+export type RoomKind = 'piratePlinko' | 'bonusWheel' | 'chest' | 'oceanVoyage';

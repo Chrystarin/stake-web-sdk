@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * Plinko room: Colour Dice's jackpot plinko board (`src/plinko`), played inside the bonus
+	 * Pirate Plinko room: Colour Dice's jackpot plinko board (`src/plinko`), played inside the bonus
 	 * screen this game already has.
 	 *
 	 * The board is the whole room — no title, no HUD, no slide of its own — because `BonusRound`
@@ -16,14 +16,14 @@
 	 */
 	import { PlinkoBoard, buildPocketLadder, pocketForAward, shapeForPockets } from '../../plinko';
 	import type { BoardFrame, PlinkoBoardApi } from '../../plinko';
-	import type { BookEventPlinkoBonus } from '../../game/typesBookEvent';
+	import type { BookEventPiratePlinko } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
 	import { finePointer } from '../../lib/pointer.svelte';
 	import RoomHint from './RoomHint.svelte';
 
 	type Props = {
-		room: BookEventPlinkoBonus;
+		room: BookEventPiratePlinko;
 		/** False when the player was not in this bonus: the ball lets itself go. */
 		interactive?: boolean;
 		/** True when the player was on this room, so the win is theirs rather than a tease. */
@@ -75,7 +75,7 @@
 	 * 496 of 512 across — so unlike the bomb it needs no correction: the picture IS the ball.
 	 */
 	const COIN = {
-		src: staticPath('img/plinko/coin.png'),
+		src: staticPath('img/pirate-plinko/coin.png'),
 		cx: 0.5,
 		cy: 0.5,
 		d: 496 / 512,
@@ -106,7 +106,7 @@
 	 * as a picture that fell over. Each orientation gets the art that was drawn for it.
 	 */
 	const BOARD_LANDSCAPE = {
-		src: staticPath('img/plinko/board_v2.png'),
+		src: staticPath('img/pirate-plinko/board_v2.png'),
 		ratio: 1519 / 1036,
 		/**
 		 * Placed off a reference drawn over the art, not derived: the pegs fill the timber panel wall
@@ -139,23 +139,48 @@
 	/**
 	 * The same sign stood upright, which is a drawing of its own rather than this one turned.
 	 *
-	 * The panel is far taller than it is wide here, so the pegs are inset LESS across than in
-	 * landscape and the field still comes out steep — a tall board is a tall fall, and pinching it
-	 * narrower to flatten the angle would only waste the timber.
+	 * The panel is far taller than it is wide here, so the field takes the timber wall to wall and
+	 * the fall still comes out steep — a tall board is a tall fall, and pinching it narrower to
+	 * flatten the angle would only waste the timber.
 	 */
 	const BOARD_PORTRAIT = {
-		src: staticPath('img/plinko/board_v2_portrait.png'),
+		src: staticPath('img/pirate-plinko/board_v2_portrait.png'),
 		ratio: 1024 / 1536,
 		frame: {
-			field: { left: 0.185, right: 0.815, top: 0.075, bottom: 0.735 },
-			// Low enough that the cards read as sitting on the panel's bottom edge, and still above
-			// the treasure heaped into both corners.
-			pockets: { top: 0.77, bottom: 0.8 },
+			// Read off the upright drawing the same way the landscape one was: the timber panel runs
+			// from 0.14 to 0.855 across and from 0.076 to 0.845 down, and the box is set to its two
+			// side walls exactly, so the half-pitch of spare the layout keeps is the only margin
+			// between the outermost pegs and the rope. Down the panel the field is inset — a row's
+			// worth of plank above the first row of pegs, and a shade under the last — so the pegs
+			// read as standing IN the panel rather than pressed against its edges, and the last row
+			// hands straight over to the cards instead of leaving a strip of bare wood between them.
+			field: { left: 0.14, right: 0.855, top: 0.108, bottom: 0.802 },
+			// Standing on the panel's bottom edge and reaching over the top of the ornamented rail,
+			// which is what makes a card deep enough to read at this width — thirteen of them across
+			// a narrow opening is the tightest the ladder ever gets. The outermost pair does clip
+			// the treasure heaped into the two bottom corners; that is the price of a legible card,
+			// and going shallower to avoid it is what left the row unreadable before.
+			pockets: { top: 0.812, bottom: 0.868 },
 		} satisfies BoardFrame,
 	};
 	const BOARD = $derived(portrait ? BOARD_PORTRAIT : BOARD_LANDSCAPE);
 	const FRAME = $derived(BOARD.frame);
 	const boardRatio = $derived(BOARD.ratio);
+
+	/**
+	 * How many page pixels one of the room's own pixels is worth.
+	 *
+	 * The game is drawn inside a CSS `zoom`, which the two ways of measuring an element do not agree
+	 * about: `getBoundingClientRect` answers in the page's pixels, `clientWidth` and `offsetHeight`
+	 * in the room's. On a screen wide enough to be drawn at full size they are the same number and
+	 * nothing here matters; on a short one they differ by a fifth. Anything that subtracts one kind
+	 * from the other has to bring them into one space first, and the room's is the one the board is
+	 * laid out in.
+	 */
+	const zoomOf = (el: HTMLElement): number => {
+		const own = el.clientWidth;
+		return own > 0 ? el.getBoundingClientRect().width / own : 1;
+	};
 
 	/**
 	 * The cabinet is fitted to whatever the column has left, keeping its ratio exactly — measured
@@ -166,15 +191,62 @@
 	let wrapEl: HTMLElement | undefined = $state();
 	let bayEl: HTMLElement | undefined = $state();
 	let wrap = $state({ w: 0, h: 0 });
+	/**
+	 * How far the muzzle stands above the floor the cabinet is built up from, in pixels.
+	 *
+	 * This is what caps the board in portrait, where it is allowed to grow past the top of its own
+	 * column: the cabinet rises from a fixed floor, the first row of pegs rises with it, and what
+	 * runs out first is the air the shot needs — not the room the picture has. Measured off the
+	 * pivot marker rather than the cannon's own box, which is rotated and so measures wider and
+	 * taller than the barrel really is.
+	 */
+	let muzzleDrop = $state(0);
+	/**
+	 * The air kept between the muzzle and the top row of pegs, as a share of the column's width.
+	 *
+	 * A share rather than a length, because everything either side of it is a share: the gun, the
+	 * cabinet and the gap between them all come off the same column, so a fixed figure would be
+	 * generous on a phone and invisible on a tablet.
+	 */
+	const MUZZLE_AIR = 0.035;
+	/**
+	 * Portrait lets the cabinet overflow the top of its column, behind the hanging sign.
+	 *
+	 * Landscape fits it into the column and stops, because there the board is bound by width long
+	 * before it is bound by height. A tall screen is the opposite: the column has width to spare
+	 * and the cabinet is starved of height, so held inside it the board comes out well short of the
+	 * room's own width and leaves a band of empty screen down each side. Letting it grow upwards
+	 * spends the only space there is — the stretch behind the plaque, which is already where the
+	 * cannon stands — and the shot's own air is what says when to stop.
+	 */
 	const fit = $derived.by(() => {
-		const w = Math.max(0, Math.min(wrap.w, wrap.h * boardRatio));
-		return { w, h: w / boardRatio };
+		if (!portrait) {
+			const w = Math.max(0, Math.min(wrap.w, wrap.h * boardRatio));
+			return { w, h: w / boardRatio };
+		}
+		// The cabinet's top rail is the part that rises past the muzzle; the field below it is what
+		// has to stay clear, so the cap is read at the field rather than at the picture's edge.
+		const clear = muzzleDrop - wrap.w * MUZZLE_AIR;
+		const cap = muzzleDrop > 0 ? clear / (1 - FRAME.field.top) : wrap.h;
+		const h = Math.max(0, Math.min(wrap.w / boardRatio, cap));
+		return { w: h * boardRatio, h };
 	});
 	$effect(() => {
 		const el = wrapEl;
 		const bay = bayEl;
 		if (!el) return;
-		const measure = () => (wrap = { w: el.clientWidth, h: el.clientHeight });
+		const measure = () => {
+			wrap = { w: el.clientWidth, h: el.clientHeight };
+			const pivot = pivotEl?.getBoundingClientRect();
+			// Both ends of this come off the same layout pass, so the pair survives the screen
+			// sliding in underneath them — what is wanted is the distance, not either end's place.
+			// Taken in page pixels and brought back into the room's own, because the barrel it is
+			// then measured against is an element's height rather than a rect.
+			muzzleDrop = pivot
+				? (el.getBoundingClientRect().bottom - pivot.top) / zoomOf(el) -
+					MUZZLE_FROM_PIVOT * cannonHeight()
+				: 0;
+		};
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(el);
@@ -189,7 +261,7 @@
 	 * open, banded mouth at the bottom, so the muzzle points at the board with no flipping at all.
 	 * It swings about the two orange trunnions on its flanks, which is where a gun is hung.
 	 */
-	const CANNON = staticPath('img/plinko/cannon.png');
+	const CANNON = staticPath('img/pirate-plinko/cannon.png');
 	/**
 	 * How far the cannon may swing either side of straight down.
 	 *
@@ -282,9 +354,12 @@
 		// board has no row up here to name the height by.
 		const barrel = MUZZLE_FROM_PIVOT * cannonHeight();
 		const rad = (aimDeg * Math.PI) / 180;
+		// The pivot's offset from the board's corner is measured in page pixels and the barrel in the
+		// room's, so the first is converted before the second is added to it — see `zoomOf`.
+		const zoom = zoomOf(boardEl);
 		board?.launchFrom({
-			x: px + barrel * Math.sin(rad) - host.left,
-			y: py + barrel * Math.cos(rad) - host.top,
+			x: (px - host.left) / zoom + barrel * Math.sin(rad),
+			y: (py - host.top) / zoom + barrel * Math.cos(rad),
 		});
 	};
 
@@ -490,6 +565,10 @@
 	   its breech — so the gap only ever opens up. */
 	.cannon-bay {
 		position: relative;
+		/* Over the cabinet, not under it. In portrait the board rises past the top of the column and
+		   the muzzle ends up standing over its top rail, so DOM order — which would paint the timber
+		   across the barrel — is not what should decide this. */
+		z-index: 2;
 		/* Fixed, like the hint: with the board sized off its own width, anything left flexible in
 		   this column gets squeezed instead — which is what was quietly shrinking the cannon. */
 		flex: none;
@@ -631,8 +710,13 @@
 	   one. The board's own geometry needs no rules here — it follows the frame it is given. */
 	:global(.game.portrait) .plinko {
 		width: 92vw;
-		--cannon-h: 37.5vw;
-		--cannon-gap: 3vw;
+		/* Trimmed from 37.5vw, and the air under it with it. The gun and the cabinet are bidding for
+		   the same stretch of screen: every pixel the barrel gives up here is one the board takes,
+		   multiplied by its own ratio into two thirds of a pixel of width — and on a tall screen the
+		   board is what the round is played on. What is left still reads as a cannon because the
+		   part that was surrendered is mostly the part that stands BEHIND the plaque. */
+		--cannon-h: 33vw;
+		--cannon-gap: 2.5vw;
 	}
 	:global(.game.portrait) .win-mult {
 		font-size: 11vw;

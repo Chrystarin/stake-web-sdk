@@ -1,3 +1,14 @@
+@font-face { font-family: 'Noto Sans'; font-style: normal; font-weight: 400 900; src: url('fonts/NotoSans/NotoSans-latin.woff2') format('woff2'); }
+/* --ui-px: "one pixel of the 1024x576 reference frame", capped at 1px, so the Buy Bonus screen
+   (ported from the Plinko, which states its layout in this unit) scales down with a small
+   landscape viewport instead of overflowing it. Portrait keeps 1px; the modal re-points the unit
+   for itself there. */
+:root { --ui-px: 1px; }
+@media (min-aspect-ratio: 1/1) { :root { --ui-px: min(1px, calc(100vw / 1024), calc(100vh / 576)); } }
+@supports (height: 100svh) {
+  @media (min-aspect-ratio: 1/1) { :root { --ui-px: min(1px, calc(100vw / 1024), calc(100svh / 576)); } }
+}
+
 @font-face {
   font-family: 'PingFang';
   font-style: normal;

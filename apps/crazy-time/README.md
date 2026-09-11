@@ -1,8 +1,8 @@
 # Crazy Time (working title) — web client prototype
 
 A single-player RNG money-wheel show for Stake Engine, modelled on Evolution's Crazy Time:
-a 54-segment wheel with four number spots (X1 X2 X5 X10) and four bonus rooms (Plinko, Jackpot
-Wheel, Treasure Chest, Dragon Tower), a Top Slot that may attach a multiplier to one spot before
+a 54-segment wheel with four number spots (X1 X2 X5 X10) and four bonus rooms (Pirate Plinko,
+Bonus Wheel, Treasure Chest, Ocean Voyage), a Top Slot that may attach a multiplier to one spot before
 each spin, and a chip board in the LuckyWheel reference layout. Betting, chips and animations are
 cloned from `apps/colour-dice`.
 
@@ -30,25 +30,42 @@ Add `?force=<kind>` to the URL to pick a book of that kind (rooms, `topslot`, `n
 A bet is any set of spots at one chip each. `amount` is the chip, `cost` is the number of spots
 covered, the RGS charges `cost x amount`, and payouts are in units of the chip. Every combination
 of the eight spots is its own mode, named by the covered spots' short codes in board order
-(`x1`, `pk_jw_tc_dt` for all four rooms, `x1_x2_x5_x10_pk_jw_tc_dt` for the full board): the
+(`x1`, `pp_bw_tc_ov` for all four rooms, `x1_x2_x5_x10_pp_bw_tc_ov` for the full board): the
 board derives the name the same way the math does (`SPOT_CODE`, `modeName`).
 
-| Spot | x1 | x2 | x5 | x10 | Plinko | Jackpot Wheel | Treasure Chest | Dragon Tower |
+| Spot | x1 | x2 | x5 | x10 | Pirate Plinko | Bonus Wheel | Treasure Chest | Ocean Voyage |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| code | `x1` | `x2` | `x5` | `x10` | `pk` | `jw` | `tc` | `dt` |
+| key | `x1` | `x2` | `x5` | `x10` | `piratePlinko` | `bonusWheel` | `chest` | `oceanVoyage` |
+| code | `x1` | `x2` | `x5` | `x10` | `pp` | `bw` | `tc` | `ov` |
 
 252 of the 255 combinations are published. The three that are not are the one-spot bets on
-Plinko, Dragon Tower and the Jackpot Wheel: with 2, 2 and 1 segments of 54 they pay less than
+Pirate Plinko, Ocean Voyage and the Bonus Wheel: with 2, 2 and 1 segments of 54 they pay less than
 once in 20 spins, under Stake's hit-rate floor for a base mode. The board shows a hint and
 disables Spin until another spot is added; those rooms in any company are fine. ALL BONUS and
 FULL BOARD remain as one-tap shortcuts.
 
-Every spot is tuned to 96.5% on its own, so every combination is 96.5% with zero spread.
+Every spot is tuned to 96.7% on its own, so every combination is 96.7% with zero spread.
+
+### Buy Bonus (5 more modes)
+
+The Buy Bonus badge (top-left; button and screen ported from the One-Eyed Willy Plinko) opens a
+screen with five cards: ANY BONUS and the four rooms. A buy skips the wait for the wheel and goes
+straight into a room, keeping the room's natural odds of also carrying a Top Slot multiplier.
+Prices are in chips and mirror the math (`buyPrice`): Any Bonus 24, Treasure Chest 13.5, Pirate
+Plinko 27, Ocean Voyage 27, Bonus Wheel 54; the chip can be stepped on the screen itself, and every
+card re-prices live. Activate raises a Yes/No prompt; Yes commits the buy mode (`buy_any`, `buy_tc`,
+`buy_pp`, `buy_ov`, `buy_bw`) with the chip as `amount`, so the RGS charges price x chip.
+
+A bought round plays like a natural one: the wheel is authored to stop on the room, the room
+plays its interactive version, and the win badge lands on the room's tile. No chips are on the
+board during a buy; `stateGame.buying` names the mode and `backedOrder` holds the rooms it could
+open, which is what makes the landed room read as covered.
 
 ## Round flow
 
-Book events, in order: `topSlot` → `wheelSpin` → (`plinkoBonus` | `wheelBonus` | `chestBonus` |
-`towerBonus`, only when the wheel lands on a room, and even when the player was not in it) →
+Book events, in order: `topSlot` → `wheelSpin` → (`piratePlinkoRoom` | `bonusWheelRoom` |
+`chestRoom` | `oceanVoyageRoom`, only when the wheel lands on a room, and even when the player was
+not in it) →
 `winInfo` → `setTotalWin` → `finalWin`. `src/game/bookEventHandlerMap.ts` maps them to awaited
 emitter events; `Game.svelte`, `TopSlot.svelte`, `Wheel.svelte` and `BonusRound.svelte` animate
 them.
@@ -67,7 +84,7 @@ src/components/Wheel.svelte       generic SVG wheel, spun to an authored index; 
 docs/dev-debug.md                 offline outcome forcing (?force=...)
 src/components/TopSlot.svelte     two reels, landed on the authored pair
 src/components/BonusRound.svelte  the bonus screen; hosts one of:
-src/components/rooms/Room*.svelte Plinko, Wheel, Chest, Tower (prototype presentation)
+src/components/rooms/Room*.svelte PiratePlinko, BonusWheel, Chest, OceanVoyage (presentation)
 src/game/constants.ts             mirror of crazy_time_data.py (wheel, tables, modes)
 src/game/stateGame.svelte.ts      board state, spots → mode, commit/resume
 src/game/bookEventHandlerMap.ts   book → emitter events
@@ -79,9 +96,9 @@ scripts/import-math-books.mjs     samples published books into base_books.ts
 
 - Portrait / mobile layout (fixed 16:9 stage like colour-dice), autoplay, turbo, rules page,
   translations beyond `en`, sound design (placeholders from colour-dice), real art.
-- Rooms are placeholders for the three still being brainstormed; the Plinko room is a CSS board,
-  not the One-Eyed Willy engine.
-- The Plinko room's 400x top slot under a 50x Top Slot puts its 20,000x max win at about
+- Rooms are placeholders for the three still being brainstormed; the Pirate Plinko room is a CSS
+  board, not the One-Eyed Willy engine.
+- The Pirate Plinko room's 400x top slot under a 50x Top Slot puts its 20,000x max win at about
   1 in 113 million, below Stake's 1-in-20-million achievability floor. Cap or re-weight before
-  publishing. (The game's 25,000x max, the Jackpot Wheel's 500x wedge under a 50x Top Slot, is
+  publishing. (The game's 50,000x max, the Bonus Wheel's 1,000x wedge under a 50x Top Slot, is
   about 1 in 6.4 million, above the floor.)

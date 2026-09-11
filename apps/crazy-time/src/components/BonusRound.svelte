@@ -16,10 +16,10 @@
 	import { playSound } from '../game/sound';
 	import { staticUrl } from '../lib/staticUrl';
 
-	import RoomPlinko from './rooms/RoomPlinko.svelte';
-	import RoomWheel from './rooms/RoomWheel.svelte';
+	import RoomPiratePlinko from './rooms/RoomPiratePlinko.svelte';
+	import RoomBonusWheel from './rooms/RoomBonusWheel.svelte';
 	import RoomChest from './rooms/RoomChest.svelte';
-	import RoomTower from './rooms/RoomTower.svelte';
+	import RoomOceanVoyage from './rooms/RoomOceanVoyage.svelte';
 
 	type Props = {
 		/** Cash value of one chip, for the win line. */
@@ -56,7 +56,8 @@
 	/**
 	 * How big the room's name can be cut and still fit the timber.
 	 *
-	 * The names are not the same length — PLINKO is six characters and TREASURE CHEST fourteen — and
+	 * The names are not the same length — BONUS WHEEL is eleven characters and TREASURE CHEST
+	 * fourteen — and
 	 * one size for all of them either wastes the plaque or runs the long ones off it, which is what
 	 * it was doing. So the short names take the cap and the long ones are stepped down to whatever
 	 * the board will take. `0.7em` a character is measured off PiecesOfEight, rounded up a little so
@@ -70,20 +71,20 @@
 	};
 
 	const ROOM_VIDEO: Partial<Record<Spot, string>> = {
-		plinko: staticUrl('videos/animated_background_plinko.mp4'),
-		wheel: staticUrl('videos/animated_background_jackpot_wheel.mp4'),
-		tower: staticUrl('videos/animated_background_dragon_tower.mp4'),
+		piratePlinko: staticUrl('videos/animated_background_pirate_plinko.mp4'),
+		bonusWheel: staticUrl('videos/animated_background_bonus_wheel.mp4'),
+		oceanVoyage: staticUrl('videos/animated_background_ocean_voyage.mp4'),
 		chest: staticUrl('videos/animated_background_treasure_chest.mp4'),
 	};
 
 	const spotFor = (room: BookEventRoom): Spot =>
-		room.type === 'plinkoBonus'
-			? 'plinko'
-			: room.type === 'wheelBonus'
-				? 'wheel'
-				: room.type === 'chestBonus'
+		room.type === 'piratePlinkoRoom'
+			? 'piratePlinko'
+			: room.type === 'bonusWheelRoom'
+				? 'bonusWheel'
+				: room.type === 'chestRoom'
 					? 'chest'
-					: 'tower';
+					: 'oceanVoyage';
 
 	/**
 	 * The two beats at the end of a round: the landing on its own, and then the win line.
@@ -109,7 +110,7 @@
 			await tick();
 			await waitForTimeout(700); // screen slide-in
 			try {
-				// A room resolves the moment it settles — for Plinko that is the frame the ball drops
+				// A room resolves the moment it settles — for Pirate Plinko that is the frame the ball drops
 				// into the pocket, with the card lit and the land sound going. The number is held back
 				// from that frame rather than printed over it: the landing gets a beat of its own,
 				// then the win comes up, then it is left up long enough to actually be read.
@@ -165,11 +166,11 @@
 		</div>
 
 		<div class="stage">
-			{#if current.room.type === 'plinkoBonus'}
-				<!-- Plinko shows what it paid in the middle of its own board rather than on the
+			{#if current.room.type === 'piratePlinkoRoom'}
+				<!-- Pirate Plinko shows what it paid in the middle of its own board rather than on the
 				     screen's footer: the board is the biggest thing on the screen and the last place
 				     anyone is looking is under it. -->
-				<RoomPlinko
+				<RoomPiratePlinko
 					bind:this={roomApi}
 					room={current.room}
 					interactive={current.covered}
@@ -178,21 +179,21 @@
 					{result}
 					cash={result === null ? '' : `${sign}${fmt(result * chip)}`}
 				/>
-			{:else if current.room.type === 'wheelBonus'}
-				<RoomWheel bind:this={roomApi} room={current.room} interactive={current.covered} />
-			{:else if current.room.type === 'chestBonus'}
+			{:else if current.room.type === 'bonusWheelRoom'}
+				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={current.covered} />
+			{:else if current.room.type === 'chestRoom'}
 				<RoomChest bind:this={roomApi} room={current.room} interactive={current.covered} />
 			{:else}
-				<RoomTower bind:this={roomApi} room={current.room} />
+				<RoomOceanVoyage bind:this={roomApi} room={current.room} />
 			{/if}
 		</div>
 
 		<div
 			class="footer"
-			class:shown={result !== null && current.room.type !== 'plinkoBonus'}
-			class:folded={current.room.type === 'plinkoBonus'}
+			class:shown={result !== null && current.room.type !== 'piratePlinkoRoom'}
+			class:folded={current.room.type === 'piratePlinkoRoom'}
 		>
-			{#if result !== null && current.room.type !== 'plinkoBonus'}
+			{#if result !== null && current.room.type !== 'piratePlinkoRoom'}
 				<div class="mult">x{result}</div>
 				{#if current.covered}
 					<div class="cash">WIN {sign}{fmt(result * chip)}</div>
@@ -263,7 +264,7 @@
 		position: relative;
 		z-index: 1;
 	}
-	/* Above the stage, not merely after it: Plinko stands its cannon up behind the plaque and
+	/* Above the stage, not merely after it: Pirate Plinko stands its cannon up behind the plaque and
 	   the top of the barrel is meant to disappear under the timber. */
 	.header {
 		z-index: 2;
@@ -337,7 +338,7 @@
 		color: #f7c948;
 		paint-order: stroke;
 		/* In `em`, so it holds the same weight whatever size the name was cut at — a stroke fixed in vw
-		   came out nearly twice as heavy on TREASURE CHEST as on PLINKO. */
+		   came out nearly twice as heavy on TREASURE CHEST as on BONUS WHEEL. */
 		-webkit-text-stroke: 0.12em #3a1c07;
 		text-shadow:
 			0 0 0.55vw rgba(255, 216, 77, 0.85),
@@ -392,7 +393,7 @@
 		font-family: 'Alexandria', sans-serif;
 		opacity: 0;
 		transition: opacity 300ms ease;
-		/* The Jackpot Wheel's frame runs down behind this line, and gold lettering on gilded wood is
+		/* The Bonus Wheel's frame runs down behind this line, and gold lettering on gilded wood is
 		   nothing at all. A soft plate of the room's own dark, faded out rather than boxed in, so it
 		   is invisible over the rooms that leave the footer on empty air. */
 		padding: 0 2vw;
@@ -401,7 +402,7 @@
 	.footer.shown {
 		opacity: 1;
 	}
-	/* Plinko says it on its own board, so the footer gives its height back to the stage. */
+	/* Pirate Plinko says it on its own board, so the footer gives its height back to the stage. */
 	.footer.folded {
 		height: 0;
 	}
@@ -439,6 +440,16 @@
 	}
 	:global(.game.portrait) .footer {
 		height: 11vw;
+		/* The balance and the wager keep their corners over this screen, and a portrait frame is not
+		   wide enough for a centred line to pass between them: `would have paid $37,500.00 per chip`
+		   runs the width of the rail. So the footer gives the rail its line back and takes the one
+		   above, which the rooms have to spare in portrait. Landscape needs none of this — there the
+		   footer clears both read-outs by a couple of hundred pixels. */
+		margin-bottom: var(--rail-h, 0px);
+	}
+	/* Pirate Plinko folds its footer away entirely, so there is nothing to lift off the rail. */
+	:global(.game.portrait) .footer.folded {
+		margin-bottom: 0;
 	}
 	:global(.game.portrait) .mult {
 		font-size: 6.4vw;

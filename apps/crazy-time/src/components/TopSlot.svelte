@@ -304,7 +304,7 @@
 		paint-order: stroke;
 		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
 	}
-	/* The multiplier is set the way Plinko sets the win value on its congratulations screen: the
+	/* The multiplier is set the way Pirate Plinko sets the win value on its congratulations screen: the
 	   AustereBlackCapsSSK face, a golden-brown stroke layer carrying the outline, glow and shadows,
 	   and a near-white fill laid over it. Offsets are in em so they scale with the reel. */
 	.cell.mult {

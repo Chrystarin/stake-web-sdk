@@ -14,14 +14,14 @@
 	 * of the moment — a board that opened the pick first would be asking nobody to look at the rest.
 	 */
 	import { PICK_SECONDS } from '../../game/constants';
-	import type { BookEventChestBonus } from '../../game/typesBookEvent';
+	import type { BookEventChest } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
 	import { finePointer } from '../../lib/pointer.svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
 	import RoomHint from './RoomHint.svelte';
 
-	type Props = { room: BookEventChestBonus; interactive: boolean };
+	type Props = { room: BookEventChest; interactive: boolean };
 	let { room, interactive }: Props = $props();
 
 	/**
@@ -59,7 +59,7 @@
 
 	/**
 	 * What to tell the player, which is not the same instruction on the two kinds of device — the
-	 * same split Plinko makes, asked of pointer capability rather than of screen width. Broken into
+	 * same split Pirate Plinko makes, asked of pointer capability rather than of screen width. Broken into
 	 * lines here because each line drains on a clock of its own.
 	 */
 	const HINT_FINE = ['Click a chest', 'to open it'];

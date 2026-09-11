@@ -35,45 +35,45 @@ type RoomCommon = {
 	total: number;
 };
 
-export type BookEventPlinkoBonus = RoomCommon & {
-	type: 'plinkoBonus';
+export type BookEventPiratePlinko = RoomCommon & {
+	type: 'piratePlinkoRoom';
 	/** Slot values with the Top Slot already applied. */
 	board: number[];
 	dropZone: number;
 	slot: number;
 };
 
-export type BookEventWheelBonus = RoomCommon & {
-	type: 'wheelBonus';
+export type BookEventBonusWheel = RoomCommon & {
+	type: 'bonusWheelRoom';
 	wedges: number[];
 	wedge: number;
 };
 
-export type BookEventChestBonus = RoomCommon & {
-	type: 'chestBonus';
+export type BookEventChest = RoomCommon & {
+	type: 'chestRoom';
 	/** Value behind every chest; `chests[opened]` is the awarded one. */
 	chests: number[];
 	opened: number;
 	chestCount: number;
 };
 
-export type BookEventTowerBonus = RoomCommon & {
-	type: 'towerBonus';
-	floors: number[];
-	tilesPerFloor: number;
-	/** Floors reached, 1-based. Pays floors[climbed - 1]. */
-	climbed: number;
-	/** Safe tile per climbed floor. */
+export type BookEventOceanVoyage = RoomCommon & {
+	type: 'oceanVoyageRoom';
+	depths: number[];
+	tilesPerDepth: number;
+	/** Depths reached, 1-based. Pays depths[dived - 1]. */
+	dived: number;
+	/** Safe tile per dived depth. */
 	path: number[];
-	/** The dragon on the floor that ended the climb, or null at the top. */
-	dragonTile: number | null;
+	/** The kraken at the depth that ended the dive, or null on a clean surfacing. */
+	krakenTile: number | null;
 };
 
 export type BookEventRoom =
-	| BookEventPlinkoBonus
-	| BookEventWheelBonus
-	| BookEventChestBonus
-	| BookEventTowerBonus;
+	| BookEventPiratePlinko
+	| BookEventBonusWheel
+	| BookEventChest
+	| BookEventOceanVoyage;
 
 export type BookEventWinInfo = {
 	index: number;

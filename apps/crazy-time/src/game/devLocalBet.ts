@@ -2,17 +2,22 @@ import { stateBet } from 'state-shared';
 
 import { playBet } from './utils';
 import type { Bet, BookEvent } from './typesBookEvent';
-import { stateGame, stateGameDerived } from './stateGame.svelte';
+import { stateGame } from './stateGame.svelte';
+import { modeCost } from './constants';
 import books from '../stories/data/base_books';
 
 type RawBook = { events?: Bet['state']; state?: Bet['state']; payoutMultiplier?: number };
 type BooksByMode = Record<string, RawBook[]>;
 
+/**
+ * `?force=` shorthand -> the room's book event. Lowercase on purpose: `readForce` lowercases what
+ * the URL carries, so these are dev words typed by hand rather than the spots' own keys.
+ */
 const ROOM_EVENT: Record<string, string> = {
-	plinko: 'plinkoBonus',
-	wheel: 'wheelBonus',
-	chest: 'chestBonus',
-	tower: 'towerBonus',
+	plinko: 'piratePlinkoRoom',
+	wheel: 'bonusWheelRoom',
+	chest: 'chestRoom',
+	voyage: 'oceanVoyageRoom',
 };
 
 /**
@@ -40,8 +45,8 @@ export async function playDevLocalBook(): Promise<void> {
 	const raw = pickBook(modeBooks, readForce());
 	const bet = { state: raw.events ?? raw.state ?? [] } as Bet;
 
-	// The player is charged for every chip on the board: amount x cost.
-	const stake = stateGameDerived.totalStake();
+	// The player is charged amount x cost: one chip per covered spot, or the buy's price.
+	const stake = modeCost(mode) * stateBet.betAmount;
 	stateBet.balanceAmount = Math.max(0, stateBet.balanceAmount - stake);
 	stateBet.winBookEventAmount = 0;
 
@@ -89,7 +94,7 @@ const eventsOf = (book: RawBook): BookEvent[] => (book.events ?? book.state ?? [
 
 const roomOf = (book: RawBook) =>
 	eventsOf(book).find((e): e is Extract<BookEvent, { multiplier: number; total: number }> =>
-		e.type.endsWith('Bonus'),
+		e.type.endsWith('Room'),
 	);
 
 const matches = (book: RawBook, kind: string): boolean => {
@@ -97,9 +102,9 @@ const matches = (book: RawBook, kind: string): boolean => {
 	const payout = book.payoutMultiplier ?? 0;
 	switch (kind) {
 		case 'bonus':
-			return events.some((e) => e.type.endsWith('Bonus'));
+			return events.some((e) => e.type.endsWith('Room'));
 		case 'number':
-			return !events.some((e) => e.type.endsWith('Bonus'));
+			return !events.some((e) => e.type.endsWith('Room'));
 		case 'topslot':
 			return events.some((e) => e.type === 'wheelSpin' && e.topSlotApplied);
 		case 'win':

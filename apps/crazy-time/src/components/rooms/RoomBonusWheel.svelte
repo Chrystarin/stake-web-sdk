@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * Jackpot Wheel room: the generic wheel with 36 multiplier wedges, spun to the authored wedge.
+	 * Bonus Wheel room: the generic wheel with 36 multiplier wedges, spun to the authored wedge.
 	 *
 	 * The player starts it. Nothing about the outcome is theirs — the wedge is the book's, and the
 	 * countdown spins it for them if they sit on their hands — but a wheel that goes off on its own
@@ -8,7 +8,7 @@
 	 */
 	import Wheel, { type WheelSegment, type WheelFrame } from '../Wheel.svelte';
 	import { PICK_SECONDS } from '../../game/constants';
-	import type { BookEventWheelBonus } from '../../game/typesBookEvent';
+	import type { BookEventBonusWheel } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticUrl } from '../../lib/staticUrl';
 	import { finePointer } from '../../lib/pointer.svelte';
@@ -16,7 +16,7 @@
 	import RoomHint from './RoomHint.svelte';
 
 	/**
-	 * The gilded ring art (static/img/jackpot-wheel/frame.png, 1971x2109), gem pointer at 12 o'clock,
+	 * The gilded ring art (static/img/bonus-wheel/frame.png, 1971x2109), gem pointer at 12 o'clock,
 	 * carrying the same ship's-wheel hub as the main wheel's frame. `hole` is least-squares fitted to
 	 * the ring's inner edge over the clean stretches of wood: centre (985.8, 1115.5) px, radius
 	 * 752.0 px (residual ~1.2 px). The rope wraps, the side plates and the two gem pointers all reach
@@ -24,7 +24,7 @@
 	 * (4%) and finish underneath the art instead of leaving a black crescent anywhere on the rim.
 	 */
 	const FRAME: WheelFrame = {
-		src: staticUrl('img/jackpot-wheel/frame.png'),
+		src: staticUrl('img/bonus-wheel/frame.png'),
 		aspect: 1971 / 2109,
 		hole: { cx: 985.8 / 1971, cy: 1115.5 / 2109, r: 752.0 / 1971 },
 		overscan: 0.04,
@@ -43,7 +43,7 @@
 	const HUB_WIDTH = (2 * 290) / 1971;
 
 	type Props = {
-		room: BookEventWheelBonus;
+		room: BookEventBonusWheel;
 		/** False when the player was not in this bonus: it is a tease, so it plays itself. */
 		interactive?: boolean;
 	};
@@ -57,8 +57,7 @@
 		25: ['#c75a2a', '#ffe9dd'],
 		50: ['#2e9e8a', '#dffff8'],
 		100: ['#d96aa0', '#ffe4f1'],
-		150: ['#5da34a', '#e8ffe0'],
-		500: ['#e23d3d', '#ffe3e3'],
+		1000: ['#e23d3d', '#ffe3e3'],
 	};
 	const colourFor = (value: number): [string, string] => {
 		const base = room.topSlotMultiplier > 1 ? value / room.topSlotMultiplier : value;
@@ -80,7 +79,7 @@
 	 * The clock the player is spinning against, as one span rather than as a count of ticks.
 	 *
 	 * It used to be a `setInterval` printing the seconds under the hub. The instruction now IS the
-	 * clock — `RoomHint` drains the words over exactly this long, the way Plinko's shot clock runs
+	 * clock — `RoomHint` drains the words over exactly this long, the way Pirate Plinko's shot clock runs
 	 * across its aiming hint — so nothing needs the number, and a single timeout cannot drift away
 	 * from the drain the way a run of ticks could.
 	 */
@@ -88,7 +87,7 @@
 
 	/**
 	 * What to tell the player, which is not the same instruction on the two kinds of device — the
-	 * same split Plinko makes, asked of pointer capability rather than of screen width. Broken into
+	 * same split Pirate Plinko makes, asked of pointer capability rather than of screen width. Broken into
 	 * lines here because each line drains on a clock of its own.
 	 */
 	const HINT_FINE = ['Click the wheel', 'to spin it'];
@@ -145,7 +144,7 @@
 		     size of the ship's wheel is a target that gets missed. The glow is drawn on the hub all
 		     the same, since that is where a wheel is grabbed. `pointerdown` so a touch fires on
 		     contact rather than on release; `click` is what Enter and Space arrive as. -->
-		<button class="start" onpointerdown={start} onclick={start} aria-label="Spin the Jackpot Wheel">
+		<button class="start" onpointerdown={start} onclick={start} aria-label="Spin the Bonus Wheel">
 			<span
 				class="hub-glow"
 				style="left:{FRAME.hole.cx * 100}%; top:{FRAME.hole.cy * 100}%; width:{HUB_WIDTH * 100}%"

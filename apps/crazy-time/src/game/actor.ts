@@ -4,12 +4,12 @@ import { createPrimaryMachines, createIntermediateMachines, createGameActor } fr
 import type { Bet } from './typesBookEvent';
 import { playBet, convertTorResumableBet } from './utils';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
-import { backedSpotsForResume, forgetCommittedSpots } from './activeRound';
+import { backedSpotsForResume, buyModeForResume, forgetCommittedSpots } from './activeRound';
 
 const primaryMachines = createPrimaryMachines<Bet>({
 	onResumeGameActive: (betToResume) => {
 		// Rebuild the board before playback so the replay lights up the right tiles.
-		stateGameDerived.applyResumedSelection(backedSpotsForResume(betToResume.state));
+		stateGameDerived.applyResumedSelection(backedSpotsForResume(betToResume.state), buyModeForResume());
 		return convertTorResumableBet(betToResume);
 	},
 	onResumeGameInactive: () => {},

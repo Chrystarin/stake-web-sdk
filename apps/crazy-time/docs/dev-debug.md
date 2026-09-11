@@ -11,10 +11,10 @@ decides every outcome.
 
 | Value     | Plays a book where…                                               |
 | --------- | ----------------------------------------------------------------- |
-| `plinko`  | the wheel lands on the Plinko room                                |
-| `wheel`   | the wheel lands on the Jackpot Wheel room                         |
+| `plinko`  | the wheel lands on the Pirate Plinko room                         |
+| `wheel`   | the wheel lands on the Bonus Wheel room                           |
 | `chest`   | the wheel lands on the Treasure Chest room                        |
-| `tower`   | the wheel lands on the Dragon Tower room                          |
+| `voyage`  | the wheel lands on the Ocean Voyage room                          |
 | `bonus`   | the wheel lands on any room                                       |
 | `number`  | the wheel lands on a number                                       |
 | `topslot` | the Top Slot multiplier applied to the spot the wheel landed on   |
@@ -22,17 +22,19 @@ decides every outcome.
 | `loss`    | the bet paid nothing                                              |
 | `maxwin`  | the biggest payout in the sampled set for the current combination |
 
-`?bonus=<room>` is an alias for `?force=<room>`.
+`?bonus=<room>` is an alias for `?force=<room>`. The room words are dev shorthands (the value is
+lowercased before it is matched), not the spots' own keys — those are `piratePlinko`,
+`bonusWheel`, `chest` and `oceanVoyage`.
 
 ### Narrowing to a value
 
 Append `:<value>` to a room to ask for a specific room multiplier (before the Top Slot), e.g.
-`?force=plinko:400`, `?force=tower:250`, `?force=chest:2`. If no sampled book matches, the
+`?force=plinko:400`, `?force=voyage:250`, `?force=chest:2`. If no sampled book matches, the
 nearest kind without the value is used and a warning is logged.
 
 ### Straight into the room
 
-Forcing a ROOM (`plinko`, `wheel`, `chest`, `tower`, or `bonus` for any of them) also starts the
+Forcing a ROOM (`plinko`, `wheel`, `chest`, `voyage`, or `bonus` for any of them) also starts the
 round for you: on load the whole board goes down and the wheel is sent off, so the page arrives in
 the bonus without a click. The full board is what makes a published ticket out of any single room
 and covers whichever one the book holds, so the room plays its real interactive version.
@@ -60,11 +62,18 @@ not in this bonus" preview, bet a number and force a room.
 ## Examples
 
 ```
-http://localhost:3021/?force=plinko          # Plinko room, whatever it pays
+http://localhost:3021/?force=plinko          # Pirate Plinko room, whatever it pays
 http://localhost:3021/?force=chest:250       # Treasure Chest paying its top value
 http://localhost:3021/?force=topslot         # a Top Slot hit on the landed spot
 http://localhost:3021/?force=maxwin          # the biggest sampled book for the combination
 ```
+
+## Buy Bonus offline
+
+The Buy Bonus screen works offline like any other bet: the harness plays a sampled book from the
+buy mode (`buy_any`, `buy_tc`, `buy_pp`, `buy_ov`, `buy_bw`) and debits price x chip. `?force=`
+narrows the pick within that mode the same way (`?force=wheel:1000` with a Bonus Wheel buy, or
+`?force=maxwin`). The room forcing auto-start still bets the full board, not a buy.
 
 ## Where the books come from
 
