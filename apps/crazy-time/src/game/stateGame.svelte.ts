@@ -122,8 +122,11 @@ const canBuy = (mode: string): boolean =>
  */
 const beginBuy = (mode: string): boolean => {
 	if (!canBuy(mode)) return false;
+	// The buy's rooms carry the chips on the board (the price split across them) and stand in
+	// as the covered spots, so the landed room reads as paid and is collected like any winner.
 	stateGame.backed = noneBacked();
-	stateGame.selectionOrder = [];
+	for (const room of BUY_MODES[mode].rooms) stateGame.backed[room] = true;
+	stateGame.selectionOrder = [...BUY_MODES[mode].rooms];
 	stateGame.backedOrder = [...BUY_MODES[mode].rooms];
 	rememberCommittedSpots(stateGame.backedOrder);
 	stateGame.resultReady = false;

@@ -56,10 +56,14 @@ Plinko 27, Ocean Voyage 27, Bonus Wheel 54; the chip can be stepped on the scree
 card re-prices live. Activate raises a Yes/No prompt; Yes commits the buy mode (`buy_any`, `buy_tc`,
 `buy_pp`, `buy_ov`, `buy_bw`) with the chip as `amount`, so the RGS charges price x chip.
 
-A bought round plays like a natural one: the wheel is authored to stop on the room, the room
-plays its interactive version, and the win badge lands on the room's tile. No chips are on the
-board during a buy; `stateGame.buying` names the mode and `backedOrder` holds the rooms it could
-open, which is what makes the landed room read as covered.
+A bought round is staged in this order: the equivalent chips go down on the rooms the buy can
+open (the price split across them: one 135-chip on Pirate Plinko for `buy_pp`, four 30-chips for
+`buy_any` at a 5 chip), the wheel washes white and comes back as a four-segment disc showing only
+the rooms (crest and name set across each quarter in two big lines), the Top Slot reels roll, then
+the wheel spins to the room the book authored, and the room plays its interactive version. The
+white wash covers the swap back to the full wheel when the round is cleared, too. `stateGame.buying` names the mode; its rooms are the backed spots, so the
+landed room reads as covered and is collected like any winner. The quarter wedges keep the main
+wheel's lettering scale through the wheel's `sizeStep` prop.
 
 ## Round flow
 
@@ -98,7 +102,8 @@ scripts/import-math-books.mjs     samples published books into base_books.ts
   translations beyond `en`, sound design (placeholders from colour-dice), real art.
 - Rooms are placeholders for the three still being brainstormed; the Pirate Plinko room is a CSS
   board, not the One-Eyed Willy engine.
-- The Pirate Plinko room's 400x top slot under a 50x Top Slot puts its 20,000x max win at about
-  1 in 113 million, below Stake's 1-in-20-million achievability floor. Cap or re-weight before
-  publishing. (The game's 50,000x max, the Bonus Wheel's 1,000x wedge under a 50x Top Slot, is
-  about 1 in 6.4 million, above the floor.)
+- Max-win achievability is handled in the math: Pirate Plinko's 400x edge slots and Ocean
+  Voyage's 400x deepest depth each make a 20,000x under a 50x Top Slot, and the rarest of them
+  (a one-number-plus-Plinko bet) lands about 1 in 14.5 million; the game's 50,000x, the Bonus
+  Wheel's 1,000x wedge under a 50x Top Slot, about 1 in 11.9 million. Both clear Stake's
+  1-in-20-million floor; `verify_luts` in the math repo re-checks every published mode.

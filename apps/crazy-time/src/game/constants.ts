@@ -117,7 +117,7 @@ export const WHEEL_LAYOUT = [
 export const NUM_CHESTS = 12;
 
 /** Ocean Voyage depth multipliers, shallowest to deepest. */
-export const VOYAGE_DEPTHS = [2, 3, 5, 8, 12, 20, 35, 60, 120, 250] as const;
+export const VOYAGE_DEPTHS = [2, 3, 5, 8, 12, 20, 35, 60, 120, 400] as const;
 export const TILES_PER_DEPTH = 4;
 
 /** Seconds the player has to make a pick in a pick room before it is made for them. */

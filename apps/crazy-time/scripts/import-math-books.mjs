@@ -86,7 +86,7 @@ for mode, path in spec:
         ks = set()
         for e in b["events"]:
             t = e.get("type", "")
-            if t.endswith("Bonus"): ks.add(t)
+            if t.endswith("Room"): ks.add(t)
             if t == "wheelSpin" and e.get("topSlotApplied"): ks.add("topslot")
         return ks
     picked, seen = [], set()

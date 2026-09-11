@@ -23,6 +23,9 @@
 		SPOT_LABEL,
 		SPOTS,
 		isRoomSpot,
+		BUY_MODES,
+		buyPrice,
+		type RoomSpot,
 		type Spot,
 	} from '../game/constants';
 
@@ -244,6 +247,46 @@
 			: { src: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`), aspect: BADGE_ASPECT },
 	}));
 
+	/**
+	 * The buy disc: the four rooms alone. A bought round can only end in a room, and the book says
+	 * which, so while a buy is in flight the wheel shows just those four and spins to the one
+	 * authored. Quarter wedges, with the ink sized as if they were BUY_WHEEL_INK_STEP wide so the
+	 * crests and names keep the main wheel's scale.
+	 */
+	const BUY_WHEEL_SEGMENTS: WheelSegment[] = ROOM_SPOTS.map((spot) => ({
+		...WHEEL_SEGMENTS[SEGMENT_LAYOUT.indexOf(spot)],
+		// Across the wedge in two big lines, not down it: a quarter wedge has the room for it.
+		kind: 'wide' as const,
+	}));
+	const BUY_WHEEL_INK_STEP = 30;
+
+	/**
+	 * Which disc the wheel is showing. It does not follow `stateGame.buying` directly: the swap is
+	 * staged (chips first, then the disc, then the reels) and hidden behind a white flash.
+	 */
+	let wheelDisc = $state<'main' | 'buy'>('main');
+	let wheelFlash = $state(false);
+	let discSwapping = false;
+	const FLASH_IN_MS = 180;
+	const FLASH_OUT_MS = 420;
+	/** Wash the disc white, change its segments under the white, and let it fade off them. */
+	const swapDisc = async (to: 'main' | 'buy') => {
+		if (wheelDisc === to || discSwapping) return;
+		discSwapping = true;
+		wheelFlash = true;
+		await waitForTimeout(FLASH_IN_MS + 60);
+		wheelHighlight = null;
+		wheelDisc = to;
+		await waitForTimeout(60);
+		wheelFlash = false;
+		await waitForTimeout(FLASH_OUT_MS);
+		discSwapping = false;
+	};
+	// Back to the full wheel once a buy is cleared from the board.
+	$effect(() => {
+		if (!stateGame.buying && wheelDisc === 'buy') void swapDisc('main');
+	});
+
 	// Chip tray comes from the RGS bet template (betLevels). It arrives with authenticate.
 	const stakes = $derived(stateGameDerived.stakeOptions());
 	$effect(() => {
@@ -412,7 +455,7 @@
 		flights = flights.filter((flight) => flight.id !== id);
 	};
 
-	const flyChip = (spot: Spot, kind: 'place' | 'return', delay = 0) => {
+	const flyChip = (spot: Spot, kind: 'place' | 'return', delay = 0, face = currentChipFace()) => {
 		const tray = chipEls[stateGame.stake];
 		const box = tileEls[spot];
 		if (!gameEl || !tray || !box) return;
@@ -424,7 +467,7 @@
 				id,
 				kind,
 				spot,
-				...currentChipFace(),
+				...face,
 				from: centreIn(host, tray.getBoundingClientRect()),
 				to: centreIn(host, box.getBoundingClientRect()),
 				delay,
@@ -803,7 +846,7 @@
 		requestConfirmPrompt('buyBonus', () => startBuy(mode));
 	};
 
-	const startBuy = (mode: string) => {
+	const startBuy = async (mode: string) => {
 		buyBonusOpen = false;
 		// Re-checked here: the prompt was open for a while and the round may have moved on.
 		if (buyDisabled) {
@@ -826,6 +869,19 @@
 			return;
 		}
 		sweepChips(placed, face);
+		// The equivalent chips go down on the rooms the buy can open: the price split across them,
+		// flown from the tray one after another. The reels wait for the last one to land.
+		const idx = stakes.indexOf(stateGame.stake);
+		const buyFace = {
+			label: fmtBuyChip(buyChipValue(mode)),
+			hue: chipHueShift(idx),
+			text: chipTextColour(idx),
+		};
+		const rooms = BUY_MODES[mode].rooms;
+		rooms.forEach((room, i) => flyChip(room, 'place', i * 90, buyFace));
+		await waitForTimeout(FLIGHT_MS + (rooms.length - 1) * 90 + 150);
+		// Then the wheel flashes white and comes back as the four-room disc.
+		await swapDisc('buy');
 		const mismatch = online ? describeModeMismatch(stateBet.activeBetModeKey) : null;
 		if (mismatch) {
 			console.error(`[crazy-time] ${mismatch}`);
@@ -857,6 +913,13 @@
 	const fmt = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
 	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
+	/** A buy's chips are the price split across its rooms, which need not be whole. */
+	const fmtBuyChip = (value: number) =>
+		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : Number.isInteger(value) ? `${value}` : value.toFixed(2);
+	const buyChipValue = (mode: string) => (buyPrice(mode) * stateGame.stake) / BUY_MODES[mode].rooms.length;
+	/** What a chip on a tile reads: the chip, or during a buy the tile's share of the price. */
+	const placedChipLabel = () =>
+		stateGame.buying ? fmtBuyChip(buyChipValue(stateGame.buying)) : fmtChip(stateGame.stake);
 
 	const balanceFormat = $derived(
 		new Intl.NumberFormat(stateUrlDerived.lang(), {
@@ -968,8 +1031,11 @@
 			panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
-			await wheel?.spinTo(event.segment, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
-			wheelHighlight = event.segment;
+			// A bought round spins the four-room disc, so the book's 54-segment index maps to the room.
+			if (stateGame.buying && wheelDisc !== 'buy') await swapDisc('buy');
+			const target = wheelDisc === 'buy' ? ROOM_SPOTS.indexOf(event.spot as RoomSpot) : event.segment;
+			await wheel?.spinTo(target, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
+			wheelHighlight = target;
 			landedSpot = event.spot;
 			topSlotApplied = event.multiplier > 1;
 			// The wheel is done; the board comes back to full strength to show what it paid.
@@ -1012,7 +1078,7 @@
 			<div class="total-bet">
 				<span class="total-bet-lbl">Total Bet</span>
 				<span class="total-bet-val">{sign}{fmt(total)}</span>
-				{#if stateGameDerived.selectionIsNotTicket()}
+				{#if stateGameDerived.selectionIsNotTicket() && !stateGame.buying}
 					<!-- The one-spot bets on the 2- and 1-segment rooms are not published (hit-rate floor). -->
 					<span class="bet-hint">add another spot to bet on this bonus</span>
 				{/if}
@@ -1056,7 +1122,9 @@
 			<div class="wheel-wrap">
 				<Wheel
 					bind:this={wheel}
-					segments={WHEEL_SEGMENTS}
+					segments={wheelDisc === 'buy' ? BUY_WHEEL_SEGMENTS : WHEEL_SEGMENTS}
+					sizeStep={wheelDisc === 'buy' ? BUY_WHEEL_INK_STEP : undefined}
+					flash={wheelFlash}
 					frame={WHEEL_FRAME}
 					innerRadius={0}
 					highlight={wheelHighlight}
@@ -1142,7 +1210,7 @@
 														stakes.indexOf(stateGame.stake),
 													)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
 												>
-													<span>{fmtChip(stateGame.stake)}</span>
+													<span>{placedChipLabel()}</span>
 												</div>
 											{/each}
 										{/if}

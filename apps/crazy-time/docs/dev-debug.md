@@ -29,7 +29,7 @@ lowercased before it is matched), not the spots' own keys — those are `pirateP
 ### Narrowing to a value
 
 Append `:<value>` to a room to ask for a specific room multiplier (before the Top Slot), e.g.
-`?force=plinko:400`, `?force=voyage:250`, `?force=chest:2`. If no sampled book matches, the
+`?force=plinko:400`, `?force=voyage:400`, `?force=chest:2`. If no sampled book matches, the
 nearest kind without the value is used and a warning is logged.
 
 ### Straight into the room

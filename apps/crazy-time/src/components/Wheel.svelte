@@ -15,8 +15,10 @@
 		/**
 		 * How the label is set: `number` is one centred word, while `room` (bonus names) and `value`
 		 * (Bonus Wheel multipliers) are lettered down the wedge glyph by glyph — see roomGlyphs().
+		 * `wide` is for a disc with few, broad wedges: the crest with the name set ACROSS the wedge in
+		 * one or two big lines rather than down it.
 		 */
-		kind?: 'number' | 'room' | 'value';
+		kind?: 'number' | 'room' | 'value' | 'wide';
 		/** Badge art drawn in place of the text label, upright on the label ring. */
 		image?: { src: string; aspect: number };
 	};
@@ -62,6 +64,14 @@
 		/** Hub label. */
 		hub?: string;
 		/**
+		 * Degrees of wedge the INK is sized for, when that is not the real wedge. The buy-bonus disc
+		 * shows four rooms on quarter wedges; crests and names sized honestly to 90° would drown the
+		 * frame, so it states a wedge the size of a few of the main wheel's and keeps its scale.
+		 */
+		sizeStep?: number;
+		/** Wash the disc white: on, it sweeps in; off, it fades away. Used to cover a segment swap. */
+		flash?: boolean;
+		/**
 		 * Radius of the frame's hub art, in viewBox units out of 200: a glyph run's last letter stops
 		 * its ink there. The default fits the main wheel's ship's-wheel hub.
 		 */
@@ -77,6 +87,8 @@
 		highlight = null,
 		hub = '',
 		hubRadius = 69,
+		sizeStep,
+		flash = false,
 	}: Props = $props();
 
 	const R = 200; // viewBox radius
@@ -99,6 +111,8 @@
 		};
 	});
 	const step = $derived(360 / segments.length);
+	/** The wedge the lettering and badges are sized against — the real one unless told otherwise. */
+	const inkStep = $derived(sizeStep ?? step);
 
 	const polar = (r: number, deg: number) => {
 		const a = ((deg - 90) * Math.PI) / 180;
@@ -286,7 +300,7 @@
 	);
 
 	/** Arc width of one wedge at radius `r`, in viewBox units. */
-	const wedgeWidth = (r: number) => r * ((step * Math.PI) / 180);
+	const wedgeWidth = (r: number) => r * ((inkStep * Math.PI) / 180);
 
 	/**
 	 * Badge art stands upright on the label ring. Number wedges sit just inside their width; a room's
@@ -300,6 +314,26 @@
 	};
 
 	type RoomGlyph = { ch: string; x: number; y: number; size: number };
+
+	/**
+	 * A `wide` label: the name split at its spaces into at most two lines, set across the wedge under
+	 * the crest, big. Each line's centre sits on its own ring; the text is rotated with the wedge so
+	 * it reads level when the wedge is at the top.
+	 */
+	const WIDE_FONT = 26;
+	const WIDE_LEAD = 1.08;
+	const WIDE_GAP = 8; // between the crest's bottom edge and the first line's top
+	const wideLines = (i: number, label: string, crest?: { aspect: number }) => {
+		const words = label.split(' ');
+		const lines = words.length > 2 ? [words[0], words.slice(1).join(' ')] : words;
+		const crestH = crest ? badgeBox(crest.aspect, CREST_FILL).h : 0;
+		const top = LABEL_R - crestH / 2 - WIDE_GAP; // outer ink edge of the first line
+		return lines.map((text, k) => {
+			const r = top - WIDE_FONT * 0.5 - k * WIDE_FONT * WIDE_LEAD;
+			const p = polar(r, i * step);
+			return { text, x: p.x, y: p.y };
+		});
+	};
 
 	/** Labels set glyph by glyph down the wedge rather than as one centred word. */
 	const isRun = (seg: WheelSegment) => seg.kind === 'room' || seg.kind === 'value';
@@ -318,7 +352,7 @@
 		 */
 		const crestH = badgeBox(crest.aspect, CREST_FILL).h;
 		const outerEdge = LABEL_R - crestH / 2 - ROOM_CREST_GAP;
-		let perRadius = (ROOM_OVERFLOW * ((step * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
+		let perRadius = (ROOM_OVERFLOW * ((inkStep * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
 		let track = ROOM_TRACK;
 		for (let pass = 0; pass < 4 && label.length > 1; pass++) {
 			const half = (perRadius * track) / 2;
@@ -400,7 +434,7 @@
 		}
 
 		// How much of the wedge a glyph's ink may take across it, per unit radius.
-		const allowed = (RUN_OVERFLOW * (step * Math.PI)) / 180;
+		const allowed = (RUN_OVERFLOW * (inkStep * Math.PI)) / 180;
 		let size = Infinity;
 		for (let j = 0; j <= last; j++) {
 			// inkW·size_j <= allowed·r_j, with r_j written out in terms of the first glyph's size.
@@ -452,7 +486,7 @@
 			{#each segments as seg, i (i)}
 				{#if seg.image}
 					{@const p = labelPos(i)}
-					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' ? CREST_FILL : BADGE_FILL)}
+					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' || seg.kind === 'wide' ? CREST_FILL : BADGE_FILL)}
 					<image
 						href={seg.image.src}
 						x={p.x - box.w / 2}
@@ -475,7 +509,21 @@
 				{/if}
 			{/each}
 			{#each segments as seg, i (i)}
-				{#if isRun(seg)}
+				{#if seg.kind === 'wide'}
+					<g class="run glow" style="--wedge:{seg.fill}">
+						{#each wideLines(i, seg.label, seg.image) as line, k (k)}
+							<text
+								x={line.x}
+								y={line.y}
+								fill={seg.text}
+								class="label wide"
+								transform="rotate({i * step} {line.x} {line.y})"
+								text-anchor="middle"
+								dominant-baseline="central">{line.text}</text
+							>
+						{/each}
+					</g>
+				{:else if isRun(seg)}
 					{@const run =
 						seg.kind === 'room' && seg.image
 							? roomGlyphs(i, seg.label, seg.image)
@@ -516,6 +564,16 @@
 			{/if}
 		</svg>
 	</div>
+	<!-- The white wash a segment swap hides behind. Same box as the disc, under the frame art. -->
+	<div
+		class="flash"
+		class:on={flash}
+		style:left={discBox ? `${discBox.left}%` : null}
+		style:top={discBox ? `${discBox.top}%` : null}
+		style:width={discBox ? `${discBox.width}%` : null}
+		style:height={discBox ? `${discBox.height}%` : null}
+		aria-hidden="true"
+	></div>
 	{#if frame}
 		<img class="frame" src={frame.src} alt="" draggable="false" />
 		{#if frame.center}
@@ -616,6 +674,25 @@
 	}
 	.label.number {
 		font-size: 21px;
+	}
+	/* A wide label reads across a broad wedge: one or two lines, big, in the room lettering. */
+	.label.wide {
+		font-size: 26px;
+		letter-spacing: 0.02em;
+		stroke-width: 3;
+	}
+	.flash {
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: radial-gradient(circle, #ffffff 0%, #fff8e1 70%, #ffe9a8 100%);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 420ms ease-out;
+	}
+	.flash.on {
+		opacity: 1;
+		transition: opacity 160ms ease-in;
 	}
 	/* A multiplier is a figure, not a name: it is set in the balance's own face rather than the ship's
 	   lettering the room names wear, so a x50 on the wheel and the x50 in the read-out below are
