@@ -201,7 +201,7 @@ export const BUNDLE_MODES: readonly { mode: string; label: string }[] = [
  * being what chasing the rooms costs naturally (four chips a spin, a room every six spins).
  */
 export const BUY_MODES: Record<string, { rooms: readonly RoomSpot[]; label: string }> = {
-	buy_any: { rooms: ROOM_SPOTS, label: 'ANY BONUS' },
+	buy_any: { rooms: ROOM_SPOTS, label: 'RANDOM BONUS' },
 	buy_tc: { rooms: ['chest'], label: SPOT_LABEL.chest },
 	buy_pp: { rooms: ['piratePlinko'], label: SPOT_LABEL.piratePlinko },
 	buy_ov: { rooms: ['oceanVoyage'], label: SPOT_LABEL.oceanVoyage },

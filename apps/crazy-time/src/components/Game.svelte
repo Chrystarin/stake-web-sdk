@@ -248,16 +248,20 @@
 	}));
 
 	/**
-	 * The buy disc: the four rooms alone. A bought round can only end in a room, and the book says
-	 * which, so while a buy is in flight the wheel shows just those four and spins to the one
-	 * authored. Quarter wedges, with the ink sized as if they were BUY_WHEEL_INK_STEP wide so the
-	 * crests and names keep the main wheel's scale.
+	 * The buy disc: four quarter wedges. A bought round can only end in a room, and the book says
+	 * which, so while a buy is in flight the wheel shows just those and spins to the one authored.
+	 * ANY BONUS gets the four rooms; a single-room buy gets its own room on all four wedges, so
+	 * wherever it stops it points at the game bought. The ink is sized as if the wedges were
+	 * BUY_WHEEL_INK_STEP wide so the crests and names keep the main wheel's scale.
 	 */
-	const BUY_WHEEL_SEGMENTS: WheelSegment[] = ROOM_SPOTS.map((spot) => ({
-		...WHEEL_SEGMENTS[SEGMENT_LAYOUT.indexOf(spot)],
-		// Across the wedge in two big lines, not down it: a quarter wedge has the room for it.
-		kind: 'wide' as const,
-	}));
+	const buyWheelSegments = (mode: string): WheelSegment[] => {
+		const rooms = BUY_MODES[mode]?.rooms ?? ROOM_SPOTS;
+		return ROOM_SPOTS.map((spot) => ({
+			...WHEEL_SEGMENTS[SEGMENT_LAYOUT.indexOf(rooms.length === 1 ? rooms[0] : spot)],
+			// Across the wedge in two big lines, not down it: a quarter wedge has the room for it.
+			kind: 'wide' as const,
+		}));
+	};
 	const BUY_WHEEL_INK_STEP = 30;
 
 	/**
@@ -265,18 +269,22 @@
 	 * staged (chips first, then the disc, then the reels) and hidden behind a white flash.
 	 */
 	let wheelDisc = $state<'main' | 'buy'>('main');
+	/** The buy the disc was dressed for, kept past the buy itself so the flash back covers it. */
+	let wheelDiscMode = $state<string | null>(null);
+	const buyDisc = $derived(wheelDiscMode ? buyWheelSegments(wheelDiscMode) : null);
 	let wheelFlash = $state(false);
 	let discSwapping = false;
 	const FLASH_IN_MS = 180;
 	const FLASH_OUT_MS = 420;
 	/** Wash the disc white, change its segments under the white, and let it fade off them. */
-	const swapDisc = async (to: 'main' | 'buy') => {
-		if (wheelDisc === to || discSwapping) return;
+	const swapDisc = async (to: 'main' | 'buy', mode: string | null = null) => {
+		if ((wheelDisc === to && (to === 'main' || wheelDiscMode === mode)) || discSwapping) return;
 		discSwapping = true;
 		wheelFlash = true;
 		await waitForTimeout(FLASH_IN_MS + 60);
 		wheelHighlight = null;
 		wheelDisc = to;
+		if (to === 'buy') wheelDiscMode = mode;
 		await waitForTimeout(60);
 		wheelFlash = false;
 		await waitForTimeout(FLASH_OUT_MS);
@@ -904,8 +912,8 @@
 		const rooms = BUY_MODES[mode].rooms;
 		rooms.forEach((room, i) => flyChip(room, 'place', i * 90, buyFace));
 		await waitForTimeout(FLIGHT_MS + (rooms.length - 1) * 90 + 150);
-		// Then the wheel flashes white and comes back as the four-room disc.
-		await swapDisc('buy');
+		// Then the wheel flashes white and comes back as the four-wedge disc for this buy.
+		await swapDisc('buy', mode);
 		const mismatch = online ? describeModeMismatch(stateBet.activeBetModeKey) : null;
 		if (mismatch) {
 			console.error(`[crazy-time] ${mismatch}`);
@@ -1055,8 +1063,8 @@
 			panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
-			// A bought round spins the four-room disc, so the book's 54-segment index maps to the room.
-			if (stateGame.buying && wheelDisc !== 'buy') await swapDisc('buy');
+			// A bought round spins the four-wedge disc, so the book's 54-segment index maps to the room.
+			if (stateGame.buying) await swapDisc('buy', stateGame.buying);
 			const target = wheelDisc === 'buy' ? ROOM_SPOTS.indexOf(event.spot as RoomSpot) : event.segment;
 			await wheel?.spinTo(target, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
 			wheelHighlight = target;
@@ -1146,7 +1154,7 @@
 			<div class="wheel-wrap">
 				<Wheel
 					bind:this={wheel}
-					segments={wheelDisc === 'buy' ? BUY_WHEEL_SEGMENTS : WHEEL_SEGMENTS}
+					segments={wheelDisc === 'buy' && buyDisc ? buyDisc : WHEEL_SEGMENTS}
 					sizeStep={wheelDisc === 'buy' ? BUY_WHEEL_INK_STEP : undefined}
 					flash={wheelFlash}
 					frame={WHEEL_FRAME}

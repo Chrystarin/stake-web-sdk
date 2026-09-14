@@ -1,12 +1,13 @@
 <script lang="ts">
 	/**
-	 * The Buy Bonus screen, ported from apps/plinko's BuyBonusModal: one card per buy (Any Bonus and
-	 * the four rooms), each priced at the current chip, with the chip steppable on the screen itself
-	 * so the prices re-price live. Activate hands the buy to the game, which raises the Yes/No prompt.
+	 * The Buy Bonus screen, ported from apps/plinko's BuyBonusModal: one card per room buy, each
+	 * priced at the current chip, with the chip steppable on the screen itself so the prices re-price
+	 * live. Activate hands the buy to the game, which raises the Yes/No prompt.
 	 *
-	 * The look is the Plinko one (panel frame, gold plates, PiecesOfEight title); what changed is the
-	 * content of a card: the room's own badge instead of a chest, and its max win instead of a
-	 * free-ball count.
+	 * The look and the grid are the Plinko ones (four cards, panel frame, gold plates, PiecesOfEight
+	 * title); what changed is the content of a card: the room's own badge instead of a chest, and its
+	 * max win instead of a free-ball count. Any Bonus is not a card: it sits in its own bar under the
+	 * chip, in the chip's frame, with just its name, price and Activate.
 	 */
 	import { stateBet } from 'state-shared';
 
@@ -33,17 +34,18 @@
 
 	/** A line under each title, in the rooms' own voice. */
 	const TAGLINE: Record<string, string> = {
-		buy_any: 'THE WHEEL LANDS ON\nONE OF THE FOUR BONUSES',
-		buy_tc: 'TWELVE CHESTS,\nONE OF THEM IS YOURS',
-		buy_pp: 'DROP THE CANNONBALL\nDOWN THE PEG BOARD',
-		buy_ov: 'DIVE DEEPER,\nSURFACE RICHER',
+		buy_any: 'THE WHEEL PICKS ONE\nOF THE FOUR BONUSES',
+		buy_tc: 'TREASURE CHESTS AWAIT,\nONE IS DESTINED FOR YOU',
+		buy_pp: 'SHOOT THE CANNONBALL\nDOWN THE PEG BOARD',
+		buy_ov: 'SAIL THE SEAS,\nEARN RICHES',
 		buy_bw: 'SPIN THE WHEEL\nOF MULTIPLIERS',
 	};
 
-	const art = (mode: string) => {
-		const { rooms } = BUY_MODES[mode];
-		return rooms.length === 1 ? staticUrl(ROOM_ICON[rooms[0] as RoomSpot].src) : staticUrl('img/wheel/bonus.png');
-	};
+	/** The four room buys get cards; the buy that can land on any room gets the bar under the chip. */
+	const CARD_MODES = BUY_MODE_NAMES.filter((mode) => BUY_MODES[mode].rooms.length === 1);
+	const ANY_MODE = BUY_MODE_NAMES.find((mode) => BUY_MODES[mode].rooms.length > 1);
+
+	const art = (mode: string) => staticUrl(ROOM_ICON[BUY_MODES[mode].rooms[0] as RoomSpot].src);
 
 	const stakes = $derived(stateGameDerived.stakeOptions());
 	const stakeIndex = $derived(stakes.indexOf(stateGame.stake));
@@ -131,8 +133,30 @@
 				</button>
 			</div>
 
+			<!-- Random Bonus: the cards' own panel turned on its side, holding only the name, the price
+			     and Activate, stacked. The frame is a pre-rotated copy of the art, not a CSS rotate. -->
+			{#if ANY_MODE}
+				<div class="bb-any">
+					<img class="bb-any-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel_landscape.webp')} alt="" aria-hidden="true" />
+					<h3 class="bb-any-title">{BUY_MODES[ANY_MODE].label}</h3>
+					<p class="bb-card-desc bb-any-desc">{TAGLINE[ANY_MODE]}</p>
+					<div class="bb-any-price">{formatMoney(price(ANY_MODE))}</div>
+					<button
+						type="button"
+						class="bb-activate"
+						disabled={props.disabled || !affordable(ANY_MODE)}
+						onpointerdown={(event) => onActivatePointerDown(event, ANY_MODE)}
+						onclick={() => onActivateClick(ANY_MODE)}
+					>
+						<img class="bb-activate-bg" src={staticUrl('img/buy-bonus/buy_bonus_button.webp')} alt="" aria-hidden="true" />
+						<img class="bb-activate-bg bb-activate-bg--hover" src={staticUrl('img/buy-bonus/buy_bonus_button_hover.webp')} alt="" aria-hidden="true" />
+						<span class="bb-activate-text">Activate</span>
+					</button>
+				</div>
+			{/if}
+
 			<div class="bb-cards">
-				{#each BUY_MODE_NAMES as mode (mode)}
+				{#each CARD_MODES as mode (mode)}
 					<div class="bb-card">
 						<img class="bb-card-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel.webp')} alt="" aria-hidden="true" />
 						<div class="bb-card-inner">
@@ -358,11 +382,11 @@
 	.bb-cards {
 		/* Grid shape, restated as data so the portrait fit block at the bottom of this file can solve a
 		   card size against it without having to know which of the two grids is in play. */
-		--bb-cols: 5;
+		--bb-cols: 4;
 		--bb-rows: 1;
 		--bb-card-gap: calc(19.2 * var(--ui-px)); /* 1.2rem */
 		display: grid;
-		grid-template-columns: repeat(5, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: var(--bb-card-gap);
 		width: 100%;
 	}
@@ -419,7 +443,10 @@
 		 * that ratio: in landscape the card is 22.59vw wide (see the .bb-cards grid against
 		 * --bb-modal-width), so 0.17 × 22.59 = 3.84vw. The --ui-px cap takes over past ~1146px, where
 		 * the modal stops growing and the card settles at 260.6ui-px — 0.17 of which is 44. */
-		font-size: clamp(calc(24 * var(--ui-px)), 3.84vw, calc(44 * var(--ui-px)));
+		/* Plinko's 44 cap and 3.84vw, cut to 37 and 3.2vw for this game's longer names: TREASURE, the
+		 * widest word, measures 5.37em, and on the 231.36ui-px reference card the text column is
+		 * 212.9ui-px, so 37 is what leaves it ~5% of air instead of running into the panel's rim. */
+		font-size: clamp(calc(24 * var(--ui-px)), 3.2vw, calc(37 * var(--ui-px)));
 		/* 52/55 in the design — tighter than a default, which is what keeps a two-word title like
 		 * "Super Fury" from eating the tagline's row. */
 		line-height: 0.95;
@@ -541,7 +568,9 @@
 		font-synthesis: none;
 		/* 30px on the design's 324px card = 0.0926 of it, i.e. 2.09vw of the 22.59vw landscape card;
 		 * the cap is 0.0926 of the 260.6ui-px card the modal settles at. Both children inherit it. */
-		font-size: clamp(calc(16 * var(--ui-px)), 2.09vw, calc(24 * var(--ui-px)));
+		/* Plinko's 24 cap and 2.09vw, cut to 21 and 1.85vw: "50,000x MAX WIN" is 9.18em against the
+		 * free-ball count's much shorter line, and 21 keeps it inside the reference card's text column. */
+		font-size: clamp(calc(16 * var(--ui-px)), 1.85vw, calc(21 * var(--ui-px)));
 		/* Keep "<n> FREE BALLS" on one line even for the wide 3-digit tiers (matches the reference). */
 		white-space: nowrap;
 	}
@@ -759,13 +788,13 @@
 	   query --ui-px is defined under (routes/+layout.svelte), so the two can never both apply. */
 	@media (max-width: 760px) and (max-aspect-ratio: 1/1) {
 		.bb-cards {
-			--bb-cols: 3;
+			--bb-cols: 2;
 			--bb-rows: 2;
 			/* 7.2ui-px, not the 0.9rem this used to say: the app halves the root font-size on narrow
 			   screens, so that rem resolved to 7.2px — the same number, but now it scales with the rest of
 			   the column instead of standing still. */
 			--bb-card-gap: calc(7.2 * var(--ui-px));
-			grid-template-columns: repeat(3, 1fr);
+			grid-template-columns: repeat(2, 1fr);
 			gap: var(--bb-card-gap);
 		}
 	}
@@ -785,19 +814,17 @@
 	   construction at every portrait size — the backdrop keeps `overflow: auto` purely as a safety net
 	   that should now never fire.
 
-	   ⚠️ `137.6` is the rest of the column MEASURED, in --ui-px, and has to be re-derived if any of it
-	   changes (the modal has no `gap`; every space is an item margin — see `.bb-modal`):
+	   ⚠️ `336.2` is the rest of the column, in --ui-px, and has to be re-derived if any of it changes
+	   (the modal has no `gap`; every space is an item margin — see `.bb-modal`):
 	       37.0  .bb-title       (32ui-px × the 1.16 line-height pinned below)
-	       46.4  .bb-bet-row's two 23.2ui-px margins (its art-shadow term is in the vw figure below)
+	       96.0  .bb-chip-row    (64ui-px tall, 16ui-px margins above and below)
+	      149.0  .bb-any         (133ui-px tall, 16ui-px margin below)
 	       19.2  .bb-balance's margin-top
 	       27.0  .bb-balance     (18ui-px × the 1.5 line-height pinned below)
 	        8.0  slack, so a rounding or font-metric surprise costs a slightly smaller card rather than
 	             a scrollbar
-	   and `14.265vw` is the bet row, the one block that stays vw-driven (its plaque is solved by the
-	   shared `bp-field-metrics` chain, which is vw throughout): 6.4993vw of plaque × the 2.6 portrait
-	   scale × the 0.844 left of it once its margins have subtracted the art's transparent shadow. Both
-	   line-heights are pinned rather than left at `normal` so that sum is exact even before the display
-	   faces have loaded.
+	   Both line-heights are pinned rather than left at `normal` so that sum is exact even before the
+	   display faces have loaded.
 
 	   @supports, because every one of these values is invalid on a browser without `svh` — and an
 	   invalid `var()` in `grid-template-columns` computes to `none`, i.e. one card per row. Guarded, such
@@ -818,7 +845,7 @@
 			}
 
 			.bb-cards {
-				--bb-cards-budget: calc(100svh - var(--bb-pad-y) - 137.6 * var(--ui-px) - 14.265vw);
+				--bb-cards-budget: calc(100svh - var(--bb-pad-y) - 336.2 * var(--ui-px));
 				/* The tighter of the two budgets. The height one is turned into a WIDTH by the same 0.74 the
 				   card carries as its `aspect-ratio`, so one number can drive the tracks. The outer `max()` is
 				   a floor for a viewport so short the budget goes negative — a negative track size would drop
@@ -855,7 +882,7 @@
 			   one line keeps a card's contents a fixed fraction of the card at whatever size it lands on.
 			   Without it the type held still while the card shrank, and the tagline overran the panel. */
 			.bb-card {
-				--ui-px: calc(var(--bb-card-w) / 115.2);
+				--ui-px: calc(var(--bb-card-w) / 176);
 			}
 		}
 	}
@@ -907,6 +934,7 @@
 					100svh - var(--bb-pad-y) - 1.2 *
 						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) -
 						(64 * var(--ui-px) + 32 * var(--ui-px)) -
+						(133 * var(--ui-px) + 16 * var(--ui-px)) -
 						(
 							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) + 19.2 *
 								var(--ui-px)
@@ -940,7 +968,7 @@
 			   and the `1px` cap keeps every viewport at or above the reference rendering as it does today
 			   (a wide desktop's card is the wider 260.6ui-px, and must NOT scale its contents UP). */
 			.bb-card {
-				--ui-px: min(1px, calc(var(--bb-card-w) / 181.2));
+				--ui-px: min(1px, calc(var(--bb-card-w) / 231.36));
 			}
 		}
 	}
@@ -1002,9 +1030,85 @@
 		color: #ffffff;
 		font-variant-numeric: tabular-nums;
 	}
-	/* The room badge on the card: centred in the art slot, most of the card's width. */
+	/* The room badge on the card. Unlike Plinko's chest renders, the badge is solid art with no glow
+	   to spare, so it does not hang over the text: it fills the slot between the tagline and the max
+	   win and is contained there, however much room the two-line titles leave it. */
 	.bb-card-art-wrap {
-		left: 15%;
-		width: 70%;
+		inset: 0;
+		transform: none;
+	}
+	.bb-card-art {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	/* ── ANY BONUS BAR ────────────────────────────────────────────────────────────────────────────
+	   Under the chip: the cards' panel turned landscape, with the name, price and Activate stacked
+	   down its middle. 180 x 133 is the card's 0.74 turned on its side, so the stretched frame's rails
+	   come out as thick as they are on the cards. The art is a pre-rotated copy
+	   (buy_bonus_panel_landscape.webp) rather than a CSS rotate, which keeps the frame out of the iOS
+	   transformed-art first-paint clip this game has already hit in the Stake Engine iframe.
+	   Sized in --any-px, which is --ui-px until the modal is narrower than the panel, and then the
+	   whole panel scales down with it. Counted in both FIT budgets above at its full 133 + 16ui-px. */
+	.bb-any {
+		--any-px: min(var(--ui-px), calc(var(--bb-modal-width) / 180));
+		position: relative;
+		box-sizing: border-box;
+		width: calc(180 * var(--any-px));
+		height: calc(133 * var(--any-px));
+		margin: 0 auto calc(16 * var(--any-px));
+		padding: calc(12 * var(--any-px)) calc(14 * var(--any-px));
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: calc(7 * var(--any-px));
+	}
+	.bb-any-frame {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: fill;
+		pointer-events: none;
+		user-select: none;
+	}
+	.bb-any-title {
+		position: relative;
+		margin: 0;
+		font-family: 'PiecesOfEight', serif;
+		font-weight: 400;
+		font-size: calc(18 * var(--any-px));
+		line-height: 1;
+		color: #ffffff;
+		text-shadow: 0 calc(3 * var(--any-px)) calc(3 * var(--any-px)) rgba(0, 0, 0, 0.8);
+		white-space: nowrap;
+	}
+	/* The cards' tagline face, sized off the panel rather than a card. */
+	.bb-any-desc {
+		position: relative;
+		font-size: calc(8.5 * var(--any-px));
+		line-height: 1.25;
+		text-align: center;
+	}
+	.bb-any-price {
+		position: relative;
+		font-family: 'Noto Sans', sans-serif;
+		font-weight: 700;
+		font-synthesis: none;
+		font-size: calc(18 * var(--any-px));
+		line-height: 1;
+		color: #ffffff;
+		text-shadow: 0 calc(3 * var(--any-px)) calc(4.5 * var(--any-px)) rgba(0, 0, 0, 0.79);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.bb-any .bb-activate {
+		flex: none;
+		width: calc(116 * var(--any-px));
+	}
+	.bb-any .bb-activate-text {
+		font-size: calc(14 * var(--any-px));
 	}
 </style>

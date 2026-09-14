@@ -320,18 +320,34 @@
 	 * the crest, big. Each line's centre sits on its own ring; the text is rotated with the wedge so
 	 * it reads level when the wedge is at the top.
 	 */
-	const WIDE_FONT = 26;
-	const WIDE_LEAD = 1.08;
-	const WIDE_GAP = 8; // between the crest's bottom edge and the first line's top
+	const WIDE_FONT = 17;
+	const WIDE_LEAD = 1.05;
+	const WIDE_GAP = 5; // between the crest's bottom edge and the first line's top
+	/**
+	 * A wide wedge's crest does not take the label ring's full-wedge setting: at that size it runs
+	 * out past the rim and under the frame. It is cut to WIDE_CREST_W and hung WIDE_RIM_GAP inside
+	 * the visible rim, so the crest and the name under it stay on the painted wedge.
+	 */
+	const WIDE_CREST_W = 56;
+	const WIDE_RIM_GAP = 14;
+	const wideCrest = (i: number, aspect: number) => {
+		const w = WIDE_CREST_W;
+		const h = w / aspect;
+		const r = RIM_R - WIDE_RIM_GAP - h / 2;
+		const p = polar(r, i * step);
+		return { x: p.x - w / 2, y: p.y - h / 2, w, h, cx: p.x, cy: p.y, bottom: r - h / 2 };
+	};
 	const wideLines = (i: number, label: string, crest?: { aspect: number }) => {
 		const words = label.split(' ');
 		const lines = words.length > 2 ? [words[0], words.slice(1).join(' ')] : words;
-		const crestH = crest ? badgeBox(crest.aspect, CREST_FILL).h : 0;
-		const top = LABEL_R - crestH / 2 - WIDE_GAP; // outer ink edge of the first line
+		const top = (crest ? wideCrest(i, crest.aspect).bottom : RIM_R - WIDE_RIM_GAP) - WIDE_GAP; // outer ink edge of the first line
+		// The last line has to stay clear of the hub, so the type gives way before it does.
+		const span = 1 + (lines.length - 1) * WIDE_LEAD;
+		const size = Math.min(WIDE_FONT, (top - hubRadius) / span);
 		return lines.map((text, k) => {
-			const r = top - WIDE_FONT * 0.5 - k * WIDE_FONT * WIDE_LEAD;
+			const r = top - size * 0.5 - k * size * WIDE_LEAD;
 			const p = polar(r, i * step);
-			return { text, x: p.x, y: p.y };
+			return { text, x: p.x, y: p.y, size };
 		});
 	};
 
@@ -484,9 +500,19 @@
 			{/each}
 			<circle cx={R} cy={R} r={OUTER} fill="url(#rim)" />
 			{#each segments as seg, i (i)}
-				{#if seg.image}
+				{#if seg.image && seg.kind === 'wide'}
+					{@const c = wideCrest(i, seg.image.aspect)}
+					<image
+						href={seg.image.src}
+						x={c.x}
+						y={c.y}
+						width={c.w}
+						height={c.h}
+						transform="rotate({i * step} {c.cx} {c.cy})"
+					/>
+				{:else if seg.image}
 					{@const p = labelPos(i)}
-					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' || seg.kind === 'wide' ? CREST_FILL : BADGE_FILL)}
+					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' ? CREST_FILL : BADGE_FILL)}
 					<image
 						href={seg.image.src}
 						x={p.x - box.w / 2}
@@ -517,6 +543,7 @@
 								y={line.y}
 								fill={seg.text}
 								class="label wide"
+								style="font-size:{line.size}px"
 								transform="rotate({i * step} {line.x} {line.y})"
 								text-anchor="middle"
 								dominant-baseline="central">{line.text}</text
@@ -677,9 +704,8 @@
 	}
 	/* A wide label reads across a broad wedge: one or two lines, big, in the room lettering. */
 	.label.wide {
-		font-size: 26px;
 		letter-spacing: 0.02em;
-		stroke-width: 3;
+		stroke-width: 2.2;
 	}
 	.flash {
 		position: absolute;
