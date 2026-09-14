@@ -20,6 +20,7 @@
 	import { finePointer } from '../../lib/pointer.svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
 	import RoomHint from './RoomHint.svelte';
+	import ChestDragon from './ChestDragon.svelte';
 
 	type Props = { room: BookEventChest; interactive: boolean };
 	let { room, interactive }: Props = $props();
@@ -82,8 +83,9 @@
 	 *   idle      nothing chosen yet; twelve shut chests
 	 *   decoys    the eleven the player passed over are open, showing what they held
 	 *   clearing  those eleven are fading off the board
-	 *   centred   the chosen chest has crossed to the middle and grown, still shut
-	 *   opened    it is open, with its multiplier over it
+	 *   centred   the chosen chest has crossed to the middle and grown, still shut; the small dragon
+	 *             lands on it and breathes fire over it, and the lid waits for the flames to die back
+	 *   opened    it is open, with its multiplier on its front; the dragon stays on the lid, idling
 	 */
 	type Phase = 'idle' | 'decoys' | 'clearing' | 'centred' | 'opened';
 	let phase = $state<Phase>('idle');
@@ -101,6 +103,12 @@
 
 	let picked = $state<number | null>(null);
 	let resolvePick: ((index: number) => void) | null = null;
+
+	/** The chests, so the dragon can find the chosen one on the screen. */
+	let chestEls = $state<HTMLButtonElement[]>([]);
+	let dragon = $state<ReturnType<typeof ChestDragon>>();
+	/** True while the dragon's fire is on the chosen chest. */
+	let burning = $state(false);
 
 	/** Values as shown: the awarded value moves to the chest the player opened. */
 	const shown = $derived.by(() => {
@@ -166,8 +174,16 @@
 		await waitForTimeout(CLEAR_MS);
 
 		phase = 'centred';
+		dragon?.appear();
 		await waitForTimeout(CENTRE_MS);
 
+		// The dragon breathes on the chest before it gives up its number: the lid only comes off as
+		// the flames die back.
+		await dragon?.breathe({ onIgnite: () => (burning = true) });
+		burning = false;
+
+		// The dragon stays on the open chest, idling: the number is written on the chest's front, below
+		// where it stands.
 		phase = 'opened';
 		playSound('doorOpen');
 		await waitForTimeout(240);
@@ -205,11 +221,12 @@
 				class:mine
 				class:gone
 				class:centred={mine && (phase === 'centred' || phase === 'opened')}
+				class:burning={mine && burning}
+				bind:this={chestEls[i]}
 				style="--dx:{1.5 - (i % COLS)}; --dy:{1 - Math.floor(i / COLS)}; --in:{openDelay(i)}ms"
 				disabled={picked !== null || !interactive}
 				onclick={() => choose(i)}
 			>
-				<div class="halo"></div>
 				<!-- Both drawings are in the DOM from the first frame, the open one merely transparent.
 				     It is the only way it is ready when it is wanted: a chest that fetched its open art
 				     at the moment it opened would show a hole for as long as the download took, and the
@@ -225,6 +242,7 @@
 			</button>
 		{/each}
 	</div>
+	<ChestDragon bind:this={dragon} target={picked === null ? undefined : chestEls[picked]} />
 </div>
 
 <style>
@@ -235,13 +253,14 @@
 	 * out of proportion with the rest; now there is a single knob and the drawing follows it.
 	 */
 	.chests {
+		/* The dragon's layer is laid over this box. */
+		position: relative;
 		--cell: 8vw;
 		--gap: calc(var(--cell) * 0.097);
 		/* The shut drawing, laid across the full column: 1102/1427 of its own width. */
 		--art-h: calc(var(--cell) * 0.7723);
-		/* Headroom over the lid, which is where the multiplier goes. It is deliberately NOT laid over
-		   the chest: the open drawing is a heap of gold coins, and a gold number on gold coins is a
-		   number nobody can read. */
+		/* Headroom over the lid. The multiplier used to go here; it is on the chest's front now, on a
+		   shadow of its own (see `.value`), and this is where the dragon stands on the chosen chest. */
 		--head: calc(var(--cell) * 0.27);
 		--chest-h: calc(var(--art-h) + var(--head));
 		/* How far the chosen chest grows once it reaches the middle. The grid is 4.29 columns across
@@ -315,54 +334,55 @@
 		transform: translateX(-50%) translateY(-5%);
 	}
 	/*
-	 * The chosen chest is lit from the moment it is chosen, which is what tells the player their tap
-	 * landed while the other eleven are still opening — and it stays lit through the crossing and
-	 * the opening, so the eye never has to find it again.
-	 *
-	 * A pool of light BEHIND the chest rather than a `drop-shadow` around it. The shadow was the
-	 * obvious way to write it and the wrong one: it is a filter over the drawing, so it has to be
-	 * rasterised afresh at every size the chest passes through on its way to three times its own —
-	 * one blur of a megapixel image per frame, for the whole of the trip. A gradient is painted by
-	 * the compositor and scales for nothing.
-	 */
-	.halo {
-		position: absolute;
-		inset: -14% -10% -8%;
-		border-radius: 50%;
-		background: radial-gradient(
-			ellipse at 50% 62%,
-			rgba(255, 226, 96, 0.52) 0%,
-			rgba(255, 195, 58, 0.3) 30%,
-			rgba(255, 168, 32, 0.12) 50%,
-			rgba(255, 150, 20, 0.03) 64%,
-			rgba(255, 150, 20, 0) 76%
-		);
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity 300ms ease;
-	}
-	.chest.mine .halo {
-		opacity: 1;
-	}
-	/*
 	 * The multiplier, cut in the letters every other multiplier in the game is cut in —
 	 * `.mult-badge` is the table's own, and it is global on purpose so a number reads the same
 	 * wherever in the game it happens to be standing.
+	 *
+	 * It is written on the chest's front, over the drawing, where a gold number would otherwise be
+	 * lost in the gold coins of the open art — so it is laid on a pool of shadow with a warm glow
+	 * round its edge (`::before`), which makes it read on any chest at any size.
 	 */
 	.value {
 		position: absolute;
 		left: 0;
 		right: 0;
-		top: 0;
-		height: var(--head);
+		bottom: calc(var(--art-h) * 0.16);
+		height: calc(var(--art-h) * 0.5);
 		display: grid;
 		place-items: center;
-		font-size: calc(var(--cell) * 0.22);
+		font-size: calc(var(--cell) * 0.24);
+		pointer-events: none;
 		opacity: 0;
 		transform: translateY(calc(var(--cell) * 0.09)) scale(0.85);
 		transition:
 			opacity 240ms ease var(--in, 0ms),
 			transform 420ms cubic-bezier(0.3, 1.5, 0.5, 1) var(--in, 0ms);
+	}
+	/* Gradients rather than a blur filter: a filter is rasterised afresh at every size the chosen
+	   chest passes through on its way to three times its own, and a gradient is painted by the
+	   compositor for nothing. The transform on `.value` keeps the negative z-index inside it, under
+	   the number. */
+	.value::before {
+		content: '';
+		position: absolute;
+		inset: -22% -8%;
+		z-index: -1;
+		border-radius: 50%;
+		background:
+			radial-gradient(
+				ellipse closest-side,
+				rgba(8, 4, 0, 0.85) 0%,
+				rgba(8, 4, 0, 0.75) 42%,
+				rgba(8, 4, 0, 0.35) 62%,
+				rgba(8, 4, 0, 0) 74%
+			),
+			radial-gradient(
+				ellipse closest-side,
+				rgba(255, 214, 90, 0.85) 50%,
+				rgba(255, 180, 50, 0.45) 72%,
+				rgba(255, 160, 30, 0.12) 88%,
+				rgba(255, 160, 30, 0) 100%
+			);
 	}
 	.chest.open .value {
 		opacity: 1;
@@ -393,6 +413,20 @@
 				calc((var(--chest-h) + var(--gap)) * var(--dy))
 			)
 			scale(var(--zoom));
+	}
+
+	/* Under the dragon's fire the shut chest shudders in the heat. A transform on the drawing only, so
+	   the compositor moves it and nothing is re-rasterised at three times its size. */
+	.chest.burning .art.shut {
+		animation: scorch 110ms ease-in-out infinite alternate;
+	}
+	@keyframes scorch {
+		from {
+			transform: translateX(-50%) translateX(-1.2%) rotate(-0.6deg);
+		}
+		to {
+			transform: translateX(-50%) translateX(1.2%) rotate(0.6deg);
+		}
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------

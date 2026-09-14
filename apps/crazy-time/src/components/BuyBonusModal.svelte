@@ -22,6 +22,7 @@
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { playSound } from '../game/sound';
 	import { staticUrl } from '../lib/staticUrl';
+	import BuyBonusBetField from './BuyBonusBetField.svelte';
 
 	type Props = {
 		open: boolean;
@@ -48,7 +49,6 @@
 	const art = (mode: string) => staticUrl(ROOM_ICON[BUY_MODES[mode].rooms[0] as RoomSpot].src);
 
 	const stakes = $derived(stateGameDerived.stakeOptions());
-	const stakeIndex = $derived(stakes.indexOf(stateGame.stake));
 	const chip = $derived(stateGame.stake);
 
 	const sign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
@@ -58,14 +58,6 @@
 
 	const price = (mode: string) => buyPrice(mode) * chip;
 	const affordable = (mode: string) => price(mode) > 0 && price(mode) <= stateBet.balanceAmount;
-
-	const step = (delta: number) => {
-		if (props.disabled) return;
-		const next = stakes[stakeIndex + delta];
-		if (next === undefined) return;
-		playSound('click');
-		stateGameDerived.selectStake(next);
-	};
 
 	function close() {
 		playSound('click');
@@ -107,30 +99,15 @@
 
 			<h2 class="bb-title">Buy Bonus</h2>
 
-			<!-- The chip. Every price below is cost x chip, so stepping it re-prices all five cards. -->
-			<div class="bb-chip-row">
-				<button
-					type="button"
-					class="bb-chip-step"
-					aria-label="Lower chip"
-					disabled={props.disabled || stakeIndex <= 0}
-					onclick={() => step(-1)}
-				>
-					<img src={staticUrl('img/buy-bonus/buy_bonus_bet_button_decrease.webp')} alt="" aria-hidden="true" />
-				</button>
-				<div class="bb-chip-value">
-					<span class="bb-chip-label">CHIP</span>
-					<span class="bb-chip-amount">{formatMoney(chip)}</span>
-				</div>
-				<button
-					type="button"
-					class="bb-chip-step"
-					aria-label="Raise chip"
-					disabled={props.disabled || stakeIndex < 0 || stakeIndex >= stakes.length - 1}
-					onclick={() => step(1)}
-				>
-					<img src={staticUrl('img/buy-bonus/buy_bonus_bet_button_increase.webp')} alt="" aria-hidden="true" />
-				</button>
+			<!-- The bet, as One-Eyed Willy's Plinko sets it on its own Buy Bonus screen. Every price below
+			     is cost x chip, so stepping it re-prices all five cards. -->
+			<div class="bb-bet-row">
+				<BuyBonusBetField
+					options={stakes}
+					value={chip}
+					onChange={(value) => stateGameDerived.selectStake(value)}
+					locked={props.disabled}
+				/>
 			</div>
 
 			<!-- Random Bonus: the cards' own panel turned on its side, holding only the name, the price
@@ -814,10 +791,11 @@
 	   construction at every portrait size — the backdrop keeps `overflow: auto` purely as a safety net
 	   that should now never fire.
 
-	   ⚠️ `336.2` is the rest of the column, in --ui-px, and has to be re-derived if any of it changes
+	   ⚠️ `326.2` is the rest of the column, in --ui-px, and has to be re-derived if any of it changes
 	   (the modal has no `gap`; every space is an item margin — see `.bb-modal`):
 	       37.0  .bb-title       (32ui-px × the 1.16 line-height pinned below)
-	       96.0  .bb-chip-row    (64ui-px tall, 16ui-px margins above and below)
+	       86.0  .bb-bet-row     (64ui-px plate, two 11.0ui-px margins: 16 less the 5.0 of shadow air
+	                             its art bakes in)
 	      149.0  .bb-any         (133ui-px tall, 16ui-px margin below)
 	       19.2  .bb-balance's margin-top
 	       27.0  .bb-balance     (18ui-px × the 1.5 line-height pinned below)
@@ -845,7 +823,7 @@
 			}
 
 			.bb-cards {
-				--bb-cards-budget: calc(100svh - var(--bb-pad-y) - 336.2 * var(--ui-px));
+				--bb-cards-budget: calc(100svh - var(--bb-pad-y) - 326.2 * var(--ui-px));
 				/* The tighter of the two budgets. The height one is turned into a WIDTH by the same 0.74 the
 				   card carries as its `aspect-ratio`, so one number can drive the tracks. The outer `max()` is
 				   a floor for a viewport so short the budget goes negative — a negative track size would drop
@@ -904,15 +882,14 @@
 	   expression as the declaration it accounts for, so the two cannot drift (the modal has no `gap`;
 	   every space is an item margin — see `.bb-modal`):
 	       1.2 x the title's own clamp()      .bb-title      (line-height pinned just below)
-	       7.80045vw x 260/308 + 46.4ui-px    .bb-bet-row, rendered height less the transparent
-	                                          drop-shadow air its margins subtract, plus the two
-	                                          23.2ui-px margins themselves
+	       80ui-px + 2 x (16ui-px - 80ui-px x 24/308)
+	                                          .bb-bet-row: its plate, and the two margins that give
+	                                          back the art's baked-in shadow air
+	       133ui-px + 16ui-px                 .bb-any, and its margin below
 	       1.5 x the balance's own clamp()    .bb-balance, plus its 19.2ui-px margin-top
-	   7.80045vw is that row's plaque: `.bb-bet-row` solves its item height so the shared
-	   `bp-field-metrics` chain (GameHud.scss) lays the plaque out at 6.500375vw × the 1.2 --bb-bet-scale.
-	   It is stated as a literal because those variables live on `.bb-bet-row`, a SIBLING — custom
-	   properties only reach descendants, so `.bb-cards` cannot read them. ⚠️ Re-derive it if the
-	   item-height formula, the boost, or --bb-bet-scale changes.
+	   The bet row's 80ui-px is stated as a literal because --bb-bet-h lives on `.bb-bet-row`, a
+	   SIBLING — custom properties only reach descendants, so `.bb-cards` cannot read it. ⚠️ Re-derive
+	   it if that height or the row's margin changes.
 	   Both line-heights are pinned, as in portrait, so the sum is exact before the display faces load.
 	   NO slack term here, deliberately: the reference frame clears its width budget by ~1.5px, and
 	   slack would tip the min() over and shrink the cards on the very frame this was tuned at.
@@ -933,7 +910,7 @@
 				--bb-cards-budget: calc(
 					100svh - var(--bb-pad-y) - 1.2 *
 						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) -
-						(64 * var(--ui-px) + 32 * var(--ui-px)) -
+						(80 * var(--ui-px) + 2 * (16 * var(--ui-px) - 80 * var(--ui-px) * 24 / 308)) -
 						(133 * var(--ui-px) + 16 * var(--ui-px)) -
 						(
 							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) + 19.2 *
@@ -973,62 +950,29 @@
 		}
 	}
 
-	/* ── CHIP ROW ─────────────────────────────────────────────────────────────────────────────────
-	   The buy is priced per chip, so the chip is chosen right here: the Plinko bet-container plate
-	   with its wooden − / + buttons, stepping through the RGS bet grid. Sized in --ui-px like the rest
-	   of the modal. Stated in LAYOUT (no transform) for the same iOS reason as the cards. */
-	.bb-chip-row {
+	/* ── BET ROW ──────────────────────────────────────────────────────────────────────────────────
+	   The buy is priced per chip, so the bet is chosen right here, in One-Eyed Willy's Plinko's own
+	   control (BuyBonusBetField.svelte). `--bb-bet-h` is its one size knob: 80ui-px is the plate
+	   Plinko draws at the 1024×576 reference, and 64 the one it draws on a 375×812 phone. The field
+	   takes its width from the art's ratio. Sized in LAYOUT (no transform) for the same iOS reason
+	   as the cards.
+	   The container art bakes its drop shadow into its canvas — the solid frame starts 24 px down a
+	   308 px canvas — so each margin gives that transparent air back, and the column spaces the
+	   VISIBLE frame 16ui-px from its neighbours. Both FIT budgets below count this row: re-derive them
+	   if the height or the margin changes.
+	   Over the cards (`z-index`), because the presets popup opens downward across them. */
+	.bb-bet-row {
+		--bb-bet-h: calc(80 * var(--ui-px));
 		position: relative;
-		width: calc(300 * var(--ui-px));
-		height: calc(64 * var(--ui-px));
-		margin: calc(16 * var(--ui-px)) auto;
-		display: grid;
-		grid-template-columns: calc(56 * var(--ui-px)) 1fr calc(56 * var(--ui-px));
-		align-items: center;
-		justify-items: center;
-		background: url('img/buy-bonus/buy_bonus_bet_container.webp') no-repeat center / 100% 100%;
-	}
-	.bb-chip-step {
-		width: calc(44 * var(--ui-px));
-		height: calc(44 * var(--ui-px));
-		padding: 0;
-		border: none;
-		background: none;
-		cursor: pointer;
-		transition: transform 0.1s ease, filter 0.1s ease;
-	}
-	.bb-chip-step img {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-		pointer-events: none;
-	}
-	.bb-chip-step:hover:not(:disabled) {
-		transform: scale(1.06);
-	}
-	.bb-chip-step:disabled {
-		cursor: not-allowed;
-		filter: grayscale(0.7) brightness(0.6);
-	}
-	.bb-chip-value {
+		z-index: 3;
 		display: flex;
-		flex-direction: column;
-		align-items: center;
-		line-height: 1.1;
+		justify-content: center;
+		margin: calc(16 * var(--ui-px) - var(--bb-bet-h) * 24 / 308) auto;
 	}
-	.bb-chip-label {
-		font-family: 'Noto Sans', sans-serif;
-		font-weight: 700;
-		font-size: calc(11 * var(--ui-px));
-		letter-spacing: 0.12em;
-		color: #d4d0c4;
-	}
-	.bb-chip-amount {
-		font-family: 'Noto Sans', sans-serif;
-		font-weight: 700;
-		font-size: calc(22 * var(--ui-px));
-		color: #ffffff;
-		font-variant-numeric: tabular-nums;
+	@media (max-aspect-ratio: 1/1) {
+		.bb-bet-row {
+			--bb-bet-h: calc(64 * var(--ui-px));
+		}
 	}
 	/* The room badge on the card. Unlike Plinko's chest renders, the badge is solid art with no glow
 	   to spare, so it does not hang over the text: it fills the slot between the tagline and the max

@@ -248,17 +248,17 @@
 	}));
 
 	/**
-	 * The buy disc: four quarter wedges. A bought round can only end in a room, and the book says
-	 * which, so while a buy is in flight the wheel shows just those and spins to the one authored.
-	 * ANY BONUS gets the four rooms; a single-room buy gets its own room on all four wedges, so
-	 * wherever it stops it points at the game bought. The ink is sized as if the wedges were
+	 * The buy disc. A bought round can only end in a room, and the book says which, so while a buy
+	 * is in flight the wheel shows just those and spins to the one authored. ANY BONUS gets the four
+	 * rooms on quarter wedges; a single-room buy is ONE segment, the whole disc, which turns once and
+	 * stops with its crest and name under the flapper. The ink is sized as if the wedges were
 	 * BUY_WHEEL_INK_STEP wide so the crests and names keep the main wheel's scale.
 	 */
 	const buyWheelSegments = (mode: string): WheelSegment[] => {
 		const rooms = BUY_MODES[mode]?.rooms ?? ROOM_SPOTS;
-		return ROOM_SPOTS.map((spot) => ({
-			...WHEEL_SEGMENTS[SEGMENT_LAYOUT.indexOf(rooms.length === 1 ? rooms[0] : spot)],
-			// Across the wedge in two big lines, not down it: a quarter wedge has the room for it.
+		return rooms.map((spot) => ({
+			...WHEEL_SEGMENTS[SEGMENT_LAYOUT.indexOf(spot)],
+			// Across the wedge in two big lines, not down it: a broad wedge has the room for it.
 			kind: 'wide' as const,
 		}));
 	};
@@ -284,7 +284,12 @@
 		await waitForTimeout(FLASH_IN_MS + 60);
 		wheelHighlight = null;
 		wheelDisc = to;
-		if (to === 'buy') wheelDiscMode = mode;
+		if (to === 'buy') {
+			wheelDiscMode = mode;
+			// Square the buy disc up under the white: the main wheel rests at a 54th of a turn, which
+			// would leave the buy wedges askew — and a single room's one turn must start at the top.
+			wheel?.resetRotation();
+		}
 		await waitForTimeout(60);
 		wheelFlash = false;
 		await waitForTimeout(FLASH_OUT_MS);
@@ -1063,10 +1068,21 @@
 			panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
-			// A bought round spins the four-wedge disc, so the book's 54-segment index maps to the room.
+			// A bought round spins the buy disc, so the book's 54-segment index maps to the room. A
+			// single-room buy is one segment: it turns once, fast, and stops with the room under the
+			// flapper — `turns: 0` from a disc squared up at the top is exactly one full turn.
 			if (stateGame.buying) await swapDisc('buy', stateGame.buying);
-			const target = wheelDisc === 'buy' ? ROOM_SPOTS.indexOf(event.spot as RoomSpot) : event.segment;
-			await wheel?.spinTo(target, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
+			const single = wheelDisc === 'buy' && buyDisc?.length === 1;
+			const target =
+				wheelDisc !== 'buy' ? event.segment : single ? 0 : ROOM_SPOTS.indexOf(event.spot as RoomSpot);
+			await wheel?.spinTo(
+				target,
+				single
+					? { turns: 0, ms: hurried ? 700 : 1400 }
+					: hurried
+						? { turns: 1, ms: 800 }
+						: { turns: 5, ms: 4600 },
+			);
 			wheelHighlight = target;
 			landedSpot = event.spot;
 			topSlotApplied = event.multiplier > 1;

@@ -121,6 +121,14 @@
 
 	/** Wedge `i` is centred on angle i*step, measured clockwise from the flapper at 12 o'clock. */
 	const wedgePath = (i: number) => {
+		// A lone segment is the whole disc. Its arc would start and end on the same point, which SVG
+		// draws as nothing, so it is two half circles instead — and the hub, if any, a reversed pair
+		// cut out of it.
+		if (segments.length === 1) {
+			const disc = `M${R},${R - OUTER} A${OUTER},${OUTER} 0 1 1 ${R},${R + OUTER} A${OUTER},${OUTER} 0 1 1 ${R},${R - OUTER}Z`;
+			if (INNER <= 0) return disc;
+			return `${disc} M${R},${R - INNER} A${INNER},${INNER} 0 1 0 ${R},${R + INNER} A${INNER},${INNER} 0 1 0 ${R},${R - INNER}Z`;
+		}
 		const a0 = i * step - step / 2;
 		const a1 = i * step + step / 2;
 		const o0 = polar(OUTER, a0);
@@ -209,6 +217,16 @@
 			// Safety net in case transitionend never fires (tab hidden, element replaced).
 			setTimeout(() => finish(index), durationMs + 400);
 		});
+	};
+
+	/**
+	 * Put the disc back at rest with segment 0 under the flapper, without turning it. Only for a
+	 * moment when the disc cannot be seen moving — a segment swap under the flash — and never while
+	 * it spins.
+	 */
+	export const resetRotation = () => {
+		if (spinning) return;
+		rotation = 0;
 	};
 
 	const finish = (index: number) => {
