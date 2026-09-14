@@ -139,18 +139,24 @@ const beginBuy = (mode: string): boolean => {
 };
 
 /**
- * Switch the tray denomination, clearing the board as it goes (every placed chip carries the
- * tray's amount, so a new denomination would silently re-price bets already made).
+ * Switch the tray denomination. The board is cleared (every placed chip carries the tray's amount)
+ * and the same spots are backed again at the new value, provided the balance covers all of them;
+ * otherwise the board stays empty.
  *
- * Returns whether the denomination actually changed, so the caller can animate the clear.
+ * Returns the spots re-backed at the new value (possibly none), or null if the denomination did
+ * not change, so the caller can animate the clear and the re-placement.
  */
-const selectStake = (value: number): boolean => {
-	if (stateGame.rolling) return false;
-	if (value === stateGame.stake) return false;
-	if (!stakeOptions().includes(value)) return false;
+const selectStake = (value: number): Spot[] | null => {
+	if (stateGame.rolling) return null;
+	if (value === stateGame.stake) return null;
+	if (!stakeOptions().includes(value)) return null;
+	const spots = backedSpots();
 	stateGame.stake = value;
 	resetBoard();
-	return true;
+	if (!spots.length || spots.length * value > stateBet.balanceAmount) return [];
+	for (const spot of spots) stateGame.backed[spot] = true;
+	stateGame.selectionOrder = spots;
+	return spots;
 };
 
 /** True when another spot can be backed: one is left, and the balance covers it. */

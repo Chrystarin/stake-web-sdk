@@ -370,9 +370,20 @@
 	const selectStake = (value: number) => {
 		const placed = stateGameDerived.backedSpots();
 		const face = currentChipFace();
-		if (!stateGameDerived.selectStake(value)) return;
+		const replaced = stateGameDerived.selectStake(value);
+		if (!replaced) return;
 		sweepChips(placed, face);
+		// The new denomination goes back down on the same spots, taking off while the old chips are
+		// still falling, as a quick run at a faster pace than a hand-placed chip.
+		const after = placed.length ? SWEEP_FALL_MS : 0;
+		replaced.forEach((spot, i) =>
+			flyChip(spot, 'place', after + i * RESTAKE_STEP_MS, undefined, RESTAKE_PACE),
+		);
 	};
+	/** Gap between re-placed chips on a denomination switch. */
+	const RESTAKE_STEP_MS = 35;
+	/** Flight time of a re-placed chip, as a fraction of a hand-placed one. */
+	const RESTAKE_PACE = 0.6;
 
 	// --- Chip flight (copied from colour-dice: place / return / sweep / collect) -----------------
 	const GROW_MS = 130;
@@ -403,6 +414,8 @@
 		delay: number;
 		spin: number;
 		turned: boolean;
+		/** A place/return flight's duration, when it is not the standard FLIGHT_MS. */
+		ms?: number;
 	};
 
 	let flights = $state<ChipFlight[]>([]);
@@ -455,12 +468,21 @@
 		flights = flights.filter((flight) => flight.id !== id);
 	};
 
-	const flyChip = (spot: Spot, kind: 'place' | 'return', delay = 0, face = currentChipFace()) => {
+	const flyChip = (
+		spot: Spot,
+		kind: 'place' | 'return',
+		delay = 0,
+		face = currentChipFace(),
+		pace = 1,
+	) => {
 		const tray = chipEls[stateGame.stake];
 		const box = tileEls[spot];
 		if (!gameEl || !tray || !box) return;
 		const host = gameEl.getBoundingClientRect();
 		const id = ++flightId;
+		const ms = Math.round(FLIGHT_MS * pace);
+		const grow = Math.round(GROW_MS * pace);
+		const travel = Math.round(TRAVEL_MS * pace);
 		flights = [
 			...flights,
 			{
@@ -473,11 +495,12 @@
 				delay,
 				spin: 0,
 				turned: false,
+				ms,
 			},
 		];
-		schedule(id, () => playSound('whoosh'), delay + GROW_MS);
-		schedule(id, () => playSound('pop'), delay + GROW_MS + TRAVEL_MS);
-		schedule(id, () => dropFlight(id), delay + FLIGHT_MS);
+		schedule(id, () => playSound('whoosh'), delay + grow);
+		schedule(id, () => playSound('pop'), delay + grow + travel);
+		schedule(id, () => dropFlight(id), delay + ms);
 	};
 
 	const turnBack = (flight: ChipFlight) => {
@@ -490,8 +513,9 @@
 		animation.reverse();
 		flights = flights.map((other) => (other.id === flight.id ? { ...other, turned: true } : other));
 		cancelCues(flight.id);
-		if (elapsed > GROW_MS) playSound('whoosh');
-		schedule(flight.id, () => playSound('pop'), Math.max(0, elapsed - GROW_MS));
+		const grow = (GROW_MS * (flight.ms ?? FLIGHT_MS)) / FLIGHT_MS;
+		if (elapsed > grow) playSound('whoosh');
+		schedule(flight.id, () => playSound('pop'), Math.max(0, elapsed - grow));
 		schedule(flight.id, () => dropFlight(flight.id), elapsed);
 	};
 
@@ -698,7 +722,7 @@
 			`--from-y:${flight.from.y}px`,
 			`--to-x:${flight.to.x}px`,
 			`--to-y:${flight.to.y}px`,
-			`--flight-ms:${FLIGHT_MS}ms`,
+			`--flight-ms:${flight.ms ?? FLIGHT_MS}ms`,
 			`--sweep-ms:${SWEEP_FALL_MS}ms`,
 			`--sweep-delay:${flight.delay}ms`,
 			`--collect-ms:${COLLECT_MS}ms`,
