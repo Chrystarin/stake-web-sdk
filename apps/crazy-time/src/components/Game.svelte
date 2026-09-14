@@ -906,8 +906,9 @@
 			return;
 		}
 		sweepChips(placed, face);
-		// The equivalent chips go down on the rooms the buy can open: the price split across them,
-		// flown from the tray one after another. The reels wait for the last one to land.
+		// A chip for the full price goes down on every room the buy can open — whichever opens, the
+		// whole price bought it — flown from the tray one after another. The reels wait for the
+		// last one to land.
 		const idx = stakes.indexOf(stateGame.stake);
 		const buyFace = {
 			label: fmtBuyChip(buyChipValue(mode)),
@@ -950,11 +951,12 @@
 	const fmt = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
 	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
-	/** A buy's chips are the price split across its rooms, which need not be whole. */
+	/** A buy's chip is the price x the chip, which need not be whole (the chest's 13.5). */
 	const fmtBuyChip = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : Number.isInteger(value) ? `${value}` : value.toFixed(2);
-	const buyChipValue = (mode: string) => (buyPrice(mode) * stateGame.stake) / BUY_MODES[mode].rooms.length;
-	/** What a chip on a tile reads: the chip, or during a buy the tile's share of the price. */
+	/** The full price on every room the buy can open, not a share of it: one buy, one price. */
+	const buyChipValue = (mode: string) => buyPrice(mode) * stateGame.stake;
+	/** What a chip on a tile reads: the chip, or during a buy the buy's price. */
 	const placedChipLabel = () =>
 		stateGame.buying ? fmtBuyChip(buyChipValue(stateGame.buying)) : fmtChip(stateGame.stake);
 

@@ -52,14 +52,15 @@ Every spot is tuned to 96.7% on its own, so every combination is 96.7% with zero
 The Buy Bonus badge (top-left; button and screen ported from the One-Eyed Willy Plinko) opens a
 screen with five cards: ANY BONUS and the four rooms. A buy skips the wait for the wheel and goes
 straight into a room, keeping the room's natural odds of also carrying a Top Slot multiplier.
-Prices are in chips and mirror the math (`buyPrice`): Any Bonus 16.62, Treasure Chest 13.5, Pirate
-Plinko 18, Ocean Voyage 18, Bonus Wheel 18; the chip can be stepped on the screen itself, and every
-card re-prices live. Activate raises a Yes/No prompt; Yes commits the buy mode (`buy_any`, `buy_tc`,
+Prices are in chips and mirror the math (`buyPrice`): Any Bonus 17, Treasure Chest 13.5, Pirate
+Plinko 18, Ocean Voyage 18, Bonus Wheel 18 (Any Bonus is a whole number because the math picks its
+room 6 : 7 : 7 : 7 rather than by segments); the chip can be stepped on the screen itself, and
+every card re-prices live. Activate raises a Yes/No prompt; Yes commits the buy mode (`buy_any`, `buy_tc`,
 `buy_pp`, `buy_ov`, `buy_bw`) with the chip as `amount`, so the RGS charges price x chip.
 
-A bought round is staged in this order: the equivalent chips go down on the rooms the buy can
-open (the price split across them: one 90-chip on Pirate Plinko for `buy_pp` at a 5 chip, the Any
-Bonus price in four equal parts), the wheel washes white and comes back as a four-segment disc showing only
+A bought round is staged in this order: a chip for the full price goes down on every room the buy
+can open (one 90-chip on Pirate Plinko for `buy_pp` at a 5 chip; an 85-chip on each of the four
+rooms for `buy_any`), the wheel washes white and comes back as a four-segment disc showing only
 the rooms (crest and name set across each quarter in two big lines), the Top Slot reels roll, then
 the wheel spins to the room the book authored, and the room plays its interactive version. The
 white wash covers the swap back to the full wheel when the round is cleared, too. `stateGame.buying` names the mode; its rooms are the backed spots, so the

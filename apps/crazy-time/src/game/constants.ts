@@ -205,11 +205,12 @@ export const BUNDLE_MODES: readonly { mode: string; label: string }[] = [
  * carrying a Top Slot multiplier. Four per-room buys and one "any bonus" buy that lands on a room
  * the way the wheel would (weighted by segments).
  *
- * Price, in chips, mirrors the math (`crazy_time_data.buy_price`): rooms x 54 / segments covered.
- * Every spot returns the target RTP on one chip, so a room's mean return per hit is
- * RTP x 54 / segments, and charging 54 / segments chips returns the same RTP. That gives Pirate
- * Plinko, Bonus Wheel and Ocean Voyage 18 each, Treasure Chest 13.5 and Any Bonus 16.62, the last
- * being what chasing the rooms costs naturally (four chips a spin, a room every 4.15 spins).
+ * Price, in chips, mirrors the math (`crazy_time_data.buy_price`). A room costs 54 / its
+ * segments: every spot returns the target RTP on one chip, so a room's mean return per hit is
+ * RTP x 54 / segments, and charging that many chips returns the same RTP — Pirate Plinko, Bonus
+ * Wheel and Ocean Voyage 18 each, Treasure Chest 13.5. Any Bonus is a whole 17 (`BUY_ANY_PRICE`):
+ * the math picks its room 6 : 7 : 7 : 7 (chest first) rather than by segments, which prices out
+ * at exactly 17 at the same RTP. The book authors the room, so the client only needs the price.
  */
 export const BUY_MODES: Record<string, { rooms: readonly RoomSpot[]; label: string }> = {
 	buy_any: { rooms: ROOM_SPOTS, label: 'RANDOM BONUS' },
@@ -223,10 +224,13 @@ export const BUY_MODE_NAMES: readonly string[] = Object.keys(BUY_MODES);
 
 export const isBuyMode = (mode: string): boolean => mode in BUY_MODES;
 
+export const BUY_ANY_PRICE = 17;
+
 /** Chips charged for one buy of `mode`. */
 export const buyPrice = (mode: string): number => {
-	const { rooms } = BUY_MODES[mode];
-	return (rooms.length * NUM_SEGMENTS) / rooms.reduce((sum, room) => sum + SEGMENT_COUNT[room], 0);
+	if (mode === 'buy_any') return BUY_ANY_PRICE;
+	const [room] = BUY_MODES[mode].rooms;
+	return NUM_SEGMENTS / SEGMENT_COUNT[room];
 };
 
 /** The spots a mode pays on: the combination's spots, or the rooms a buy can open. */
