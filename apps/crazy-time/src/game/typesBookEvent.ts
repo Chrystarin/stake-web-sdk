@@ -46,6 +46,11 @@ export type BookEventPiratePlinko = RoomCommon & {
 export type BookEventBonusWheel = RoomCommon & {
 	type: 'bonusWheelRoom';
 	wedges: number[];
+	/**
+	 * Each wedge's width in the math's units (a full wedge 4, the 1,000x sliver 1): the disc is
+	 * drawn to the widths the book weighs. Older books omit it; `WHEEL_WIDTHS` stands in.
+	 */
+	widths?: number[];
 	wedge: number;
 };
 

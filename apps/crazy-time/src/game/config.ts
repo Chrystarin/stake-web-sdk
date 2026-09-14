@@ -1,7 +1,7 @@
 import { BUY_MODE_NAMES, MODE_NAMES, RTP, maxWinForMode, modeCost } from './constants';
 
-// Mirrors games/crazy_time/library/configs/config_fe_crazy_time.json (252 modes, one per spot
-// combination).
+// Mirrors games/crazy_time/library/configs/config_fe_crazy_time.json (255 modes, one per spot
+// combination, plus the five buys).
 //
 // `cost` = spots covered, so the player is charged cost x amount, where `amount` is the chip.
 // `max_win` is likewise a multiple of `amount` (math `max_win_for_mode`). Every spot is tuned to

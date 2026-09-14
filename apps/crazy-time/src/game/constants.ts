@@ -64,21 +64,26 @@ export const SPOT_COLOUR: Record<Spot, { base: string; deep: string; text: strin
 // Wheel
 // ---------------------------------------------------------------------------
 /**
- * Physical order around the rim, clockwise from the flapper. 54 entries: x1 21, x2 13, x5 7,
- * x10 4, chest 4, piratePlinko 2, oceanVoyage 2, bonusWheel 1 (Crazy Time's own split). One room
- * every six segments, so exactly five numbers sit between any two rooms: chests every 12, Pirate
- * Plinko and Ocean Voyage opposite pairs, the Bonus Wheel on its own.
+ * Physical order around the rim, clockwise from the flapper. 54 entries: x1 19, x2 12, x5 6,
+ * x10 4, chest 4, piratePlinko 3, oceanVoyage 3, bonusWheel 3. Every room has at least three
+ * segments so a chip on any room ALONE pays at least once in 20 spins (Stake's floor for a base
+ * mode; 3 of 54 is 1 in 18). The rooms cycle chest → Plinko → Wheel → Voyage around the rim,
+ * thirteen in all, with three numbers between any two (four in two places, opposite each other).
  */
 export const SEGMENT_LAYOUT: readonly Spot[] = [
-	'chest', 'x1', 'x2', 'x1', 'x5', 'x2',
-	'piratePlinko', 'x1', 'x10', 'x1', 'x2', 'x1',
-	'chest', 'x2', 'x1', 'x5', 'x1', 'x2',
-	'oceanVoyage', 'x1', 'x2', 'x1', 'x5', 'x1',
-	'chest', 'x1', 'x10', 'x2', 'x1', 'x2',
-	'piratePlinko', 'x1', 'x5', 'x1', 'x2', 'x1',
-	'chest', 'x2', 'x1', 'x10', 'x1', 'x5',
-	'oceanVoyage', 'x1', 'x2', 'x1', 'x5', 'x2',
-	'bonusWheel', 'x1', 'x10', 'x2', 'x1', 'x5',
+	'chest', 'x1', 'x2', 'x1',
+	'piratePlinko', 'x2', 'x10', 'x1',
+	'bonusWheel', 'x1', 'x5', 'x2',
+	'oceanVoyage', 'x1', 'x2', 'x1', 'x5',
+	'chest', 'x2', 'x10', 'x1',
+	'piratePlinko', 'x1', 'x5', 'x2',
+	'bonusWheel', 'x2', 'x1', 'x1',
+	'oceanVoyage', 'x1', 'x10', 'x2',
+	'chest', 'x1', 'x5', 'x2', 'x1',
+	'piratePlinko', 'x2', 'x1', 'x5',
+	'bonusWheel', 'x1', 'x10', 'x2',
+	'oceanVoyage', 'x1', 'x2', 'x1',
+	'chest', 'x1', 'x5', 'x1',
 ]; // prettier-ignore
 
 export const NUM_SEGMENTS = SEGMENT_LAYOUT.length;
@@ -97,7 +102,7 @@ export const TOP_SLOT_MULTS = [2, 3, 4, 5, 7, 10, 15, 20, 25, 50] as const;
 // Bonus rooms
 // ---------------------------------------------------------------------------
 /** Pirate Plinko landing slots, left to right (before any Top Slot multiplier). */
-export const PLINKO_SLOTS = [400, 100, 50, 30, 20, 12, 7, 12, 20, 30, 50, 100, 400] as const;
+export const PLINKO_SLOTS = [400, 80, 30, 20, 12, 8, 5, 8, 12, 20, 30, 80, 400] as const;
 /**
  * Rows the math walks the ball down. The front end no longer draws them — the jackpot board
  * derives its own row count from the pocket ladder (see `src/plinko`) — but this stays because
@@ -106,18 +111,28 @@ export const PLINKO_SLOTS = [400, 100, 50, 30, 20, 12, 7, 12, 20, 30, 50, 100, 4
 export const PLINKO_ROWS = 12;
 
 /**
- * Bonus Wheel wedge values in rim order. The 1,000x wedge under a 50x Top Slot is the game's
- * 50,000x max win; mirror of the math's WHEEL_LAYOUT.
+ * Bonus Wheel wedge values in rim order; mirror of the math's WHEEL_LAYOUT. The 1,000x wedge
+ * under a 50x Top Slot is the game's 50,000x max win — and it is a SLIVER, a quarter the width
+ * of the other 35 wedges (`WHEEL_WIDTHS`), landing 1 in 141 visits rather than 1 in 36. That is
+ * what lets a room with three segments of the main wheel keep a 1,000x: a wedge lands in
+ * proportion to the arc it shows, so the disc is drawn to the same widths the book weighs.
  */
 export const WHEEL_LAYOUT = [
-	1000, 10, 15, 20, 10, 10, 25, 15, 10, 20, 15, 10, 100, 10, 15, 20, 10, 10,
-	25, 15, 10, 20, 15, 10, 50, 10, 15, 20, 10, 10, 25, 15, 10, 20, 15, 10,
+	1000, 2, 3, 2, 5, 2, 10, 2, 3, 25, 2, 5, 2, 3, 2, 10, 2, 5,
+	100, 2, 3, 2, 5, 2, 10, 2, 3, 5, 2, 3, 2, 5, 2, 3, 2, 3,
 ] as const; // prettier-ignore
+
+/** Width of each Bonus Wheel wedge in the math's units: a full wedge is 4, the 1,000x sliver 1. */
+export const WHEEL_WEDGE_UNITS = 4;
+export const WHEEL_SLIVER_UNITS = 1;
+export const WHEEL_WIDTHS: readonly number[] = WHEEL_LAYOUT.map((value) =>
+	value === 1000 ? WHEEL_SLIVER_UNITS : WHEEL_WEDGE_UNITS,
+);
 
 export const NUM_CHESTS = 12;
 
 /** Ocean Voyage depth multipliers, shallowest to deepest. */
-export const VOYAGE_DEPTHS = [2, 3, 5, 8, 12, 20, 35, 60, 120, 400] as const;
+export const VOYAGE_DEPTHS = [2, 3, 5, 8, 12, 20, 30, 50, 80, 400] as const;
 export const TILES_PER_DEPTH = 4;
 
 /** Seconds the player has to make a pick in a pick room before it is made for them. */
@@ -160,10 +175,9 @@ const clearsHitRate = (spots: readonly Spot[]): boolean =>
  * Every published mode: each non-empty combination of the eight spots that clears the hit-rate
  * floor, at ONE chip per spot. `cost` is the number of spots and the RGS charges cost x amount.
  *
- * 252 of the 255 combinations. The three that are not published are the one-spot bets on the
- * rooms with 2 or 1 segments (Pirate Plinko, Ocean Voyage, Bonus Wheel): fewer than 3 of 54 segments
- * pays less than once in 20 spins, which Stake does not accept for a base mode. Any combination
- * that includes one of those rooms with anything else is fine.
+ * All 255 combinations: every spot covers at least 3 of the 54 segments (see SEGMENT_LAYOUT), so
+ * even a room alone pays often enough. The filter stays as the guard that says so — a rim that
+ * gave a room fewer segments would silently make its solo bet unpublishable again.
  */
 export const MODE_COVERAGE: Record<string, readonly Spot[]> = (() => {
 	const modes: Record<string, readonly Spot[]> = {};
@@ -176,9 +190,6 @@ export const MODE_COVERAGE: Record<string, readonly Spot[]> = (() => {
 })();
 
 export const MODE_NAMES: readonly string[] = Object.keys(MODE_COVERAGE);
-
-/** Spots that cannot be bet on their own (hit-rate floor); they need company on the board. */
-export const UNPUBLISHED_ALONE: readonly Spot[] = SPOTS.filter((spot) => !clearsHitRate([spot]));
 
 /** Combinations offered as one-tap buttons on the board. */
 export const BUNDLE_MODES: readonly { mode: string; label: string }[] = [
@@ -197,8 +208,8 @@ export const BUNDLE_MODES: readonly { mode: string; label: string }[] = [
  * Price, in chips, mirrors the math (`crazy_time_data.buy_price`): rooms x 54 / segments covered.
  * Every spot returns the target RTP on one chip, so a room's mean return per hit is
  * RTP x 54 / segments, and charging 54 / segments chips returns the same RTP. That gives Pirate
- * Plinko 27, Bonus Wheel 54, Treasure Chest 13.5, Ocean Voyage 27 and Any Bonus 24, the last
- * being what chasing the rooms costs naturally (four chips a spin, a room every six spins).
+ * Plinko, Bonus Wheel and Ocean Voyage 18 each, Treasure Chest 13.5 and Any Bonus 16.62, the last
+ * being what chasing the rooms costs naturally (four chips a spin, a room every 4.15 spins).
  */
 export const BUY_MODES: Record<string, { rooms: readonly RoomSpot[]; label: string }> = {
 	buy_any: { rooms: ROOM_SPOTS, label: 'RANDOM BONUS' },

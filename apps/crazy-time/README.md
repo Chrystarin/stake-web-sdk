@@ -25,7 +25,7 @@ Offline, the dev harness fakes a session and plays books from `src/stories/data/
 Add `?force=<kind>` to the URL to pick a book of that kind (rooms, `topslot`, `number`, `win`, `loss`,
 `maxwin`, or `plinko:400` for a specific room value): see [docs/dev-debug.md](docs/dev-debug.md).
 
-## Bet modes (252): any combination of spots
+## Bet modes (255): any combination of spots
 
 A bet is any set of spots at one chip each. `amount` is the chip, `cost` is the number of spots
 covered, the RGS charges `cost x amount`, and payouts are in units of the chip. Every combination
@@ -38,11 +38,12 @@ board derives the name the same way the math does (`SPOT_CODE`, `modeName`).
 | key | `x1` | `x2` | `x5` | `x10` | `piratePlinko` | `bonusWheel` | `chest` | `oceanVoyage` |
 | code | `x1` | `x2` | `x5` | `x10` | `pp` | `bw` | `tc` | `ov` |
 
-252 of the 255 combinations are published. The three that are not are the one-spot bets on
-Pirate Plinko, Ocean Voyage and the Bonus Wheel: with 2, 2 and 1 segments of 54 they pay less than
-once in 20 spins, under Stake's hit-rate floor for a base mode. The board shows a hint and
-disables Spin until another spot is added; those rooms in any company are fine. ALL BONUS and
-FULL BOARD remain as one-tap shortcuts.
+All 255 combinations are published, a single room included: every spot covers at least 3 of the
+wheel's 54 segments (rooms 4 / 3 / 3 / 3), so even a room alone pays at least once in 20 spins,
+Stake's hit-rate floor for a base mode. (With Crazy Time's own 4/2/2/1 split, used before, the
+three rarer rooms were company-only.) The Bonus Wheel keeps its 50,000x on three segments by
+making its 1,000x a quarter-width jackpot sliver (see `WHEEL_WIDTHS`), drawn to the width the
+book weighs. ALL BONUS and FULL BOARD remain as one-tap shortcuts.
 
 Every spot is tuned to 96.7% on its own, so every combination is 96.7% with zero spread.
 
@@ -51,14 +52,14 @@ Every spot is tuned to 96.7% on its own, so every combination is 96.7% with zero
 The Buy Bonus badge (top-left; button and screen ported from the One-Eyed Willy Plinko) opens a
 screen with five cards: ANY BONUS and the four rooms. A buy skips the wait for the wheel and goes
 straight into a room, keeping the room's natural odds of also carrying a Top Slot multiplier.
-Prices are in chips and mirror the math (`buyPrice`): Any Bonus 24, Treasure Chest 13.5, Pirate
-Plinko 27, Ocean Voyage 27, Bonus Wheel 54; the chip can be stepped on the screen itself, and every
+Prices are in chips and mirror the math (`buyPrice`): Any Bonus 16.62, Treasure Chest 13.5, Pirate
+Plinko 18, Ocean Voyage 18, Bonus Wheel 18; the chip can be stepped on the screen itself, and every
 card re-prices live. Activate raises a Yes/No prompt; Yes commits the buy mode (`buy_any`, `buy_tc`,
 `buy_pp`, `buy_ov`, `buy_bw`) with the chip as `amount`, so the RGS charges price x chip.
 
 A bought round is staged in this order: the equivalent chips go down on the rooms the buy can
-open (the price split across them: one 135-chip on Pirate Plinko for `buy_pp`, four 30-chips for
-`buy_any` at a 5 chip), the wheel washes white and comes back as a four-segment disc showing only
+open (the price split across them: one 90-chip on Pirate Plinko for `buy_pp` at a 5 chip, the Any
+Bonus price in four equal parts), the wheel washes white and comes back as a four-segment disc showing only
 the rooms (crest and name set across each quarter in two big lines), the Top Slot reels roll, then
 the wheel spins to the room the book authored, and the room plays its interactive version. The
 white wash covers the swap back to the full wheel when the round is cleared, too. `stateGame.buying` names the mode; its rooms are the backed spots, so the
@@ -103,7 +104,7 @@ scripts/import-math-books.mjs     samples published books into base_books.ts
 - Rooms are placeholders for the three still being brainstormed; the Pirate Plinko room is a CSS
   board, not the One-Eyed Willy engine.
 - Max-win achievability is handled in the math: Pirate Plinko's 400x edge slots and Ocean
-  Voyage's 400x deepest depth each make a 20,000x under a 50x Top Slot, and the rarest of them
-  (a one-number-plus-Plinko bet) lands about 1 in 14.5 million; the game's 50,000x, the Bonus
-  Wheel's 1,000x wedge under a 50x Top Slot, about 1 in 11.9 million. Both clear Stake's
-  1-in-20-million floor; `verify_luts` in the math repo re-checks every published mode.
+  Voyage's 400x deepest depth each make a 20,000x under a 50x Top Slot, landing about 1 in 10.7
+  and 1 in 14.2 million; the game's 50,000x, the Bonus Wheel's 1,000x sliver under a 50x Top
+  Slot, about 1 in 9.5 million. All clear Stake's 1-in-20-million floor; `compliance()` in the
+  math repo asserts it for every published mode at import.

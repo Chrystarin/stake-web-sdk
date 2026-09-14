@@ -21,6 +21,23 @@
 		kind?: 'number' | 'room' | 'value' | 'wide';
 		/** Badge art drawn in place of the text label, upright on the label ring. */
 		image?: { src: string; aspect: number };
+		/**
+		 * The wedge's width relative to the others; 1 unless stated. The Bonus Wheel's 1,000x is a
+		 * quarter-width sliver, and a wedge lands in proportion to the arc it shows, so the disc is
+		 * drawn to the very widths the book weighs.
+		 */
+		weight?: number;
+		/**
+		 * The width the LABEL is sized for, when the wedge itself is too narrow to hold one: the
+		 * sliver's x1000 is set as if on a full wedge and spills over its neighbours. Its own
+		 * `weight` unless stated.
+		 */
+		inkWeight?: number;
+		/**
+		 * Glow the lettering in the wedge's own colour, as a room name does — so a label that spills
+		 * past a narrow wedge still names the wedge it belongs to.
+		 */
+		glow?: boolean;
 	};
 
 	/**
@@ -110,16 +127,36 @@
 			height: rh * 2 * 100,
 		};
 	});
-	const step = $derived(360 / segments.length);
-	/** The wedge the lettering and badges are sized against — the real one unless told otherwise. */
-	const inkStep = $derived(sizeStep ?? step);
+	/**
+	 * Wedges are laid clockwise from the flapper at 12 o'clock, wedge 0 centred on it, each as wide
+	 * as its `weight` says. Equal weights (the main wheel) give the familiar 360/n step; the Bonus
+	 * Wheel's sliver makes them unequal, so every angle here comes from the cumulative layout.
+	 */
+	const weights = $derived(segments.map((seg) => seg.weight ?? 1));
+	const totalWeight = $derived(weights.reduce((sum, w) => sum + w, 0));
+	/** Degrees of arc wedge `i` covers. */
+	const spanOf = (i: number) => (360 * weights[i]) / totalWeight;
+	/** Leading (anticlockwise) edge of each wedge, in degrees clockwise from the flapper. */
+	const starts = $derived.by(() => {
+		const out: number[] = [];
+		let a = -spanOf(0) / 2;
+		for (let i = 0; i < segments.length; i++) {
+			out.push(a);
+			a += spanOf(i);
+		}
+		return out;
+	});
+	/** Angle of wedge `i`'s centre line. */
+	const centreOf = (i: number) => starts[i] + spanOf(i) / 2;
+	/** Degrees of wedge the lettering and badges on `i` are sized against — its own unless told otherwise. */
+	const inkSpanOf = (i: number) =>
+		sizeStep ?? (360 * (segments[i].inkWeight ?? weights[i])) / totalWeight;
 
 	const polar = (r: number, deg: number) => {
 		const a = ((deg - 90) * Math.PI) / 180;
 		return { x: R + r * Math.cos(a), y: R + r * Math.sin(a) };
 	};
 
-	/** Wedge `i` is centred on angle i*step, measured clockwise from the flapper at 12 o'clock. */
 	const wedgePath = (i: number) => {
 		// A lone segment is the whole disc. Its arc would start and end on the same point, which SVG
 		// draws as nothing, so it is two half circles instead — and the hub, if any, a reversed pair
@@ -129,13 +166,13 @@
 			if (INNER <= 0) return disc;
 			return `${disc} M${R},${R - INNER} A${INNER},${INNER} 0 1 0 ${R},${R + INNER} A${INNER},${INNER} 0 1 0 ${R},${R - INNER}Z`;
 		}
-		const a0 = i * step - step / 2;
-		const a1 = i * step + step / 2;
+		const a0 = starts[i];
+		const a1 = starts[i] + spanOf(i);
 		const o0 = polar(OUTER, a0);
 		const o1 = polar(OUTER, a1);
 		const i0 = polar(INNER, a0);
 		const i1 = polar(INNER, a1);
-		const large = step > 180 ? 1 : 0;
+		const large = spanOf(i) > 180 ? 1 : 0;
 		if (INNER <= 0) {
 			return `M${o0.x},${o0.y} A${OUTER},${OUTER} 0 ${large} 1 ${o1.x},${o1.y} L${R},${R}Z`;
 		}
@@ -151,8 +188,14 @@
 	/** The segment under the flapper for a given clockwise rotation of the disc. */
 	const indexAt = (deg: number) => {
 		const n = segments.length;
-		const norm = ((-deg % 360) + 360) % 360;
-		return Math.round(norm / step) % n;
+		// The flapper's angle in the disc's own frame, measured from wedge 0's leading edge, then
+		// walked wedge by wedge until it is spent.
+		let a = (((-deg - starts[0]) % 360) + 360) % 360;
+		for (let i = 0; i < n; i++) {
+			a -= spanOf(i);
+			if (a < 0) return i;
+		}
+		return n - 1;
 	};
 
 	/** Live rotation off the computed transform, so ticks follow the eased motion, not a timer. */
@@ -195,7 +238,7 @@
 	export const spinTo = (index: number, opts: { turns?: number; ms?: number } = {}): Promise<void> => {
 		const turns = opts.turns ?? 5;
 		durationMs = opts.ms ?? 4500;
-		const target = -index * step; // rotation that puts `index` at the top
+		const target = -centreOf(index); // rotation that puts `index` at the top
 		const current = ((rotation % 360) + 360) % 360;
 		const targetNorm = ((target % 360) + 360) % 360;
 		let delta = targetNorm - current;
@@ -247,7 +290,7 @@
 	onDestroy(() => cancelAnimationFrame(raf));
 
 	const LABEL_R = 160; // the ring the number labels sit on; bonus wedges start their crest here
-	const labelPos = (i: number) => polar(LABEL_R, i * step);
+	const labelPos = (i: number) => polar(LABEL_R, centreOf(i));
 
 	/**
 	 * Labels that run down the wedge, glyph by glyph, instead of sitting on it as one centred word:
@@ -317,8 +360,8 @@
 		frame?.overhang ? RIM_R * (frame.overhang / frame.hole.r) + RUN_TUCK : RIM_R - RUN_RIM_GAP,
 	);
 
-	/** Arc width of one wedge at radius `r`, in viewBox units. */
-	const wedgeWidth = (r: number) => r * ((inkStep * Math.PI) / 180);
+	/** Arc width of wedge `i`'s ink at radius `r`, in viewBox units. */
+	const wedgeWidth = (r: number, i: number) => r * ((inkSpanOf(i) * Math.PI) / 180);
 
 	/**
 	 * Badge art stands upright on the label ring. Number wedges sit just inside their width; a room's
@@ -326,8 +369,8 @@
 	 */
 	const BADGE_FILL = 0.95;
 	const CREST_FILL = 1;
-	const badgeBox = (aspect: number, fill: number) => {
-		const w = fill * wedgeWidth(LABEL_R);
+	const badgeBox = (aspect: number, fill: number, i: number) => {
+		const w = fill * wedgeWidth(LABEL_R, i);
 		return { w, h: w / aspect };
 	};
 
@@ -352,7 +395,7 @@
 		const w = WIDE_CREST_W;
 		const h = w / aspect;
 		const r = RIM_R - WIDE_RIM_GAP - h / 2;
-		const p = polar(r, i * step);
+		const p = polar(r, centreOf(i));
 		return { x: p.x - w / 2, y: p.y - h / 2, w, h, cx: p.x, cy: p.y, bottom: r - h / 2 };
 	};
 	const wideLines = (i: number, label: string, crest?: { aspect: number }) => {
@@ -364,7 +407,7 @@
 		const size = Math.min(WIDE_FONT, (top - hubRadius) / span);
 		return lines.map((text, k) => {
 			const r = top - size * 0.5 - k * size * WIDE_LEAD;
-			const p = polar(r, i * step);
+			const p = polar(r, centreOf(i));
 			return { text, x: p.x, y: p.y, size };
 		});
 	};
@@ -373,7 +416,7 @@
 	const isRun = (seg: WheelSegment) => seg.kind === 'room' || seg.kind === 'value';
 
 	const roomGlyphs = (i: number, label: string, crest: { aspect: number }): RoomGlyph[] => {
-		const angle = i * step;
+		const angle = centreOf(i);
 		/**
 		 * The whole name has to sit between the crest and the hub, and a long one cannot do that at
 		 * a short one's setting: fourteen glyphs down the span that holds six have to give somewhere.
@@ -384,9 +427,9 @@
 		 * crest's gap is measured to the first glyph's OUTER edge, a fixed radius, so it comes out
 		 * identical on every name however the letters end up set.
 		 */
-		const crestH = badgeBox(crest.aspect, CREST_FILL).h;
+		const crestH = badgeBox(crest.aspect, CREST_FILL, i).h;
 		const outerEdge = LABEL_R - crestH / 2 - ROOM_CREST_GAP;
-		let perRadius = (ROOM_OVERFLOW * ((inkStep * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
+		let perRadius = (ROOM_OVERFLOW * ((inkSpanOf(i) * Math.PI) / 180)) / ROOM_GLYPH_H; // size per radius
 		let track = ROOM_TRACK;
 		for (let pass = 0; pass < 4 && label.length > 1; pass++) {
 			const half = (perRadius * track) / 2;
@@ -437,7 +480,7 @@
 	 */
 	const uprightGlyphs = (i: number, label: string): RoomGlyph[] => {
 		if (!label) return [];
-		const angle = i * step;
+		const angle = centreOf(i);
 		const outerEdge = RUN_TOP;
 		const chars = [...label];
 		const last = chars.length - 1;
@@ -468,7 +511,7 @@
 		}
 
 		// How much of the wedge a glyph's ink may take across it, per unit radius.
-		const allowed = (RUN_OVERFLOW * (inkStep * Math.PI)) / 180;
+		const allowed = (RUN_OVERFLOW * (inkSpanOf(i) * Math.PI)) / 180;
 		let size = Infinity;
 		for (let j = 0; j <= last; j++) {
 			// inkW·size_j <= allowed·r_j, with r_j written out in terms of the first glyph's size.
@@ -526,18 +569,18 @@
 						y={c.y}
 						width={c.w}
 						height={c.h}
-						transform="rotate({i * step} {c.cx} {c.cy})"
+						transform="rotate({centreOf(i)} {c.cx} {c.cy})"
 					/>
 				{:else if seg.image}
 					{@const p = labelPos(i)}
-					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' ? CREST_FILL : BADGE_FILL)}
+					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' ? CREST_FILL : BADGE_FILL, i)}
 					<image
 						href={seg.image.src}
 						x={p.x - box.w / 2}
 						y={p.y - box.h / 2}
 						width={box.w}
 						height={box.h}
-						transform="rotate({i * step} {p.x} {p.y})"
+						transform="rotate({centreOf(i)} {p.x} {p.y})"
 					/>
 				{:else if !isRun(seg)}
 					{@const p = labelPos(i)}
@@ -546,7 +589,7 @@
 						y={p.y}
 						fill={seg.text}
 						class="label {seg.kind ?? 'number'}"
-						transform="rotate({i * step} {p.x} {p.y})"
+						transform="rotate({centreOf(i)} {p.x} {p.y})"
 						text-anchor="middle"
 						dominant-baseline="central">{seg.label}</text
 					>
@@ -562,7 +605,7 @@
 								fill={seg.text}
 								class="label wide"
 								style="font-size:{line.size}px"
-								transform="rotate({i * step} {line.x} {line.y})"
+								transform="rotate({centreOf(i)} {line.x} {line.y})"
 								text-anchor="middle"
 								dominant-baseline="central">{line.text}</text
 							>
@@ -573,7 +616,7 @@
 						seg.kind === 'room' && seg.image
 							? roomGlyphs(i, seg.label, seg.image)
 							: uprightGlyphs(i, seg.label)}
-					<g class="run" class:glow={seg.kind === 'room'} style="--wedge:{seg.fill}">
+					<g class="run" class:glow={seg.kind === 'room' || seg.glow} style="--wedge:{seg.fill}">
 						{#each run as g, j (j)}
 							<text
 								x={g.x}
@@ -582,7 +625,7 @@
 								class="label"
 								class:upright={seg.kind !== 'room'}
 								style="font-size:{g.size}px"
-								transform="rotate({i * step + (seg.kind === 'room' ? 90 : 0)} {g.x} {g.y})"
+								transform="rotate({centreOf(i) + (seg.kind === 'room' ? 90 : 0)} {g.x} {g.y})"
 								text-anchor="middle"
 								dominant-baseline="central">{g.ch}</text
 							>
@@ -594,12 +637,11 @@
 				<path d={wedgePath(i)} class="shade" class:on={highlight !== null && highlight !== i} />
 			{/each}
 			{#if outlined !== null}
-				<!-- One wedge outline, rotated onto whichever segment is under the flapper. Rotating a
-				     static path costs one attribute per frame; redrawing its geometry would cost the
-				     whole path, and a blur filter would re-rasterise on every tick. -->
-				<g class="passing" transform="rotate({outlined * step} {R} {R})">
-					<path d={wedgePath(0)} class="passing-edge" />
-				</g>
+				<!-- One wedge outline on whichever segment is under the flapper. Its geometry is redrawn
+				     as the flapper crosses into the next wedge (wedges are not all the same width, so a
+				     rotated copy of wedge 0 would not do): one short path per tick, no filter, so nothing
+				     re-rasterises while the disc turns. -->
+				<path d={wedgePath(outlined)} class="passing-edge" />
 			{/if}
 			{#if !frame && INNER > 4}
 				<circle cx={R} cy={R} r={INNER - 4} class="hub" />

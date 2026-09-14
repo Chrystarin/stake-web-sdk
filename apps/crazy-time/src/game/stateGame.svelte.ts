@@ -98,9 +98,6 @@ const currentBet = (): { mode: string; count: number; amount: number; cost: numb
 	return { mode, count: spots.length, amount: stateGame.stake, cost: modeCost(mode) };
 };
 
-/** True when chips are down but they do not form one of the published tickets. */
-const selectionIsNotTicket = (): boolean => backedCount() > 0 && currentBet() === null;
-
 const resetBoard = () => {
 	stateGame.backed = noneBacked();
 	stateGame.selectionOrder = [];
@@ -287,7 +284,6 @@ export const stateGameDerived = {
 	canBuy,
 	beginBuy,
 	currentBet,
-	selectionIsNotTicket,
 	currentBackedOrder,
 	isLandedSpot,
 	isWinSpot,

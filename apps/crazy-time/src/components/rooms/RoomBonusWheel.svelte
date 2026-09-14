@@ -1,13 +1,14 @@
 <script lang="ts">
 	/**
-	 * Bonus Wheel room: the generic wheel with 36 multiplier wedges, spun to the authored wedge.
+	 * Bonus Wheel room: the generic wheel with 36 multiplier wedges — 35 full ones and the 1,000x
+	 * jackpot sliver — spun to the authored wedge.
 	 *
 	 * The player starts it. Nothing about the outcome is theirs — the wedge is the book's, and the
 	 * countdown spins it for them if they sit on their hands — but a wheel that goes off on its own
 	 * is a wheel that happened TO them, and the whole point of the room is the pull of the handle.
 	 */
 	import Wheel, { type WheelSegment, type WheelFrame } from '../Wheel.svelte';
-	import { PICK_SECONDS } from '../../game/constants';
+	import { PICK_SECONDS, WHEEL_WIDTHS } from '../../game/constants';
 	import type { BookEventBonusWheel } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticUrl } from '../../lib/staticUrl';
@@ -51,11 +52,11 @@
 
 	// Keyed by the wedge's base value (before the Top Slot) — one entry per value in WHEEL_TABLE.
 	const PALETTE: Record<number, [string, string]> = {
-		10: ['#3d7ab8', '#e6f3ff'],
-		15: ['#c9a227', '#fff6d6'],
-		20: ['#8b4fa6', '#f4e6ff'],
+		2: ['#3d7ab8', '#e6f3ff'],
+		3: ['#2e9e8a', '#dffff8'],
+		5: ['#c9a227', '#fff6d6'],
+		10: ['#8b4fa6', '#f4e6ff'],
 		25: ['#c75a2a', '#ffe9dd'],
-		50: ['#2e9e8a', '#dffff8'],
 		100: ['#d96aa0', '#ffe4f1'],
 		1000: ['#e23d3d', '#ffe3e3'],
 	};
@@ -64,11 +65,30 @@
 		return PALETTE[base] ?? ['#555', '#fff'];
 	};
 
+	/**
+	 * Wedge widths, in the math's units, from the book (constants stand in for a book written
+	 * before they were authored). The 1,000x is a quarter-width sliver: that rarity is what keeps
+	 * a 50,000x on a room with three segments of the main wheel, and the disc has to show it.
+	 */
+	const widths = $derived(room.widths ?? WHEEL_WIDTHS);
+	const fullWidth = $derived(Math.max(...widths));
+
 	const segments: WheelSegment[] = $derived(
-		room.wedges.map((value) => {
+		room.wedges.map((value, i) => {
 			const [fill, text] = colourFor(value);
-			// Written the way the table writes every other multiplier — `x50`, not `50x`.
-			return { label: `x${value}`, fill, text, kind: 'value' as const };
+			const sliver = widths[i] < fullWidth;
+			// Written the way the table writes every other multiplier — `x50`, not `50x`. The sliver
+			// cannot hold its own figure, so it is set at a full wedge's size and glows in the
+			// sliver's red where it spills onto the neighbours.
+			return {
+				label: `x${value}`,
+				fill,
+				text,
+				kind: 'value' as const,
+				weight: widths[i],
+				inkWeight: sliver ? fullWidth : undefined,
+				glow: sliver,
+			};
 		}),
 	);
 
