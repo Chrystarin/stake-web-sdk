@@ -18,14 +18,20 @@
 		arcDepth,
 		arcRise,
 		BOUNCE_CHOICES,
+		inBlast,
 		layoutBoard,
 		pegColumnAt,
+		pegKey,
 		pegsFor,
-		planDrop,
+		pegsInRow,
+		placeBombs,
+		planDropWithBombs,
 		snapStartOffset,
 		startOffsets,
 		type BoardFrame,
+		type BoardPeg,
 		type BoardShape,
+		type BombSite,
 	} from './board';
 	import { ballPalette } from './colour';
 	import { pocketHeat, pocketOffset, type PocketLadder } from './pockets';
@@ -64,8 +70,31 @@
 		 * only worth doing over a background worth seeing.
 		 */
 		fieldOpacity?: number;
-		/** Fired as the ball is let go, on every peg contact, and as it lands. */
-		sounds?: { peg?: () => void; drop?: () => void; land?: () => void };
+		/** Fired as the ball is let go, on every peg contact, as a bomb goes off, and as it lands. */
+		sounds?: { peg?: () => void; drop?: () => void; land?: () => void; blast?: () => void };
+		/**
+		 * Bombs among the pegs: `count` of them, placed afresh each time the ball is armed.
+		 *
+		 * The ball striking one sets it off — the pegs around it are blown away and the ball is
+		 * thrown several rows down and a couple of pitches across in one flight (see `board.ts`).
+		 * The pocket is not at stake: the throw is chosen from the ones that leave the walk able to
+		 * reach the pocket it was already headed for.
+		 *
+		 * `src` is drawn in the peg's place; `cx`, `cy` and `d` say where the round body is in it, as
+		 * fractions of its width, so the bomb stands on the peg by its body and not by its fuse. The
+		 * body is drawn `scale` times the ball's size (default 1), capped at half a pitch so bombs
+		 * never touch across a row. `blast` is the explosion, a square picture drawn centred on the
+		 * bomb and animated by the board.
+		 */
+		bombs?: {
+			count: number;
+			src: string;
+			cx: number;
+			cy: number;
+			d: number;
+			scale?: number;
+			blast: string;
+		};
 		/** Let go for the player if they never do, so a round can never hang. 0 disables. */
 		autoDropAfterMs?: number;
 		/**
@@ -110,6 +139,20 @@
 	const FIRED_ENTRY_ARC_SCALE = 1;
 	/** The last, into the pocket: a deeper drop, and the one being waited on, so it takes its time. */
 	const POCKET_ARC_SCALE = 1.5;
+	/**
+	 * A throw off a bomb. Quicker than a hop of the same height — the ball is being driven rather
+	 * than falling — but not by much: a flight that crosses three pitches in the time a hop crosses
+	 * half of one reads as a cut, not a blast.
+	 */
+	const BLAST_ARC_SCALE = 0.8;
+	/**
+	 * How long the ball sits on the bomb before it is thrown. The fuse, in effect: the strike, the
+	 * flash, and only THEN the ball leaving — all three at once and the eye reads none of them.
+	 */
+	const BLAST_HOLD_MS = 90;
+	/** How long the explosion is on screen, and how long a blown peg takes to fly off. */
+	const BLAST_MS = 720;
+	const PEG_GONE_MS = 480;
 	/**
 	 * How high the ball comes off a peg, in row gaps. Most strikes are glancing; roughly one in five
 	 * is a real rebound that carries it back up past the row above before it comes down. The tail is
@@ -185,6 +228,63 @@
 	let landedPocket = $state<number | null>(null);
 	/** Pegs currently flashing, by index into `pegs`. */
 	let litPegs = $state(new Set<number>());
+
+	// --- Bombs ------------------------------------------------------------------------------
+	/** This round's bombs, in board units so a resize carries them with the pegs. */
+	let bombs = $state<BombSite[]>([]);
+	/** Pegs blown away, by `pegKey`, with the direction each flew off in (a unit vector). */
+	let destroyed = $state(new Map<string, { dx: number; dy: number }>());
+	/** Explosions on screen. Each is removed once its animation is over. */
+	let blasts = $state<{ id: number; row: number; offset: number }[]>([]);
+	let blastSeq = 0;
+	const bombAt = $derived(new Map(bombs.map((bomb) => [pegKey(bomb.row, bomb.offset), bomb])));
+	/** A peg's offset from centre in pitches — the unit the bombs and the blast set are kept in. */
+	const pegOffsetOf = (peg: BoardPeg) => peg.col - (pegsInRow(props.shape, peg.row) - 1) / 2;
+	/**
+	 * Where the bomb picture sits about the peg it stands on, in host pixels — the same idea as
+	 * `artBox`: the body is put on the peg, and the fuse goes wherever the drawing has it.
+	 */
+	const bombBox = $derived.by(() => {
+		const art = props.bombs;
+		if (!art || art.d <= 0) return null;
+		const body = Math.min(layout.ballRadius * 2 * (art.scale ?? 1), layout.pitch * 0.5);
+		const size = body / art.d;
+		return { size, left: -art.cx * size, top: -art.cy * size };
+	});
+	/**
+	 * The explosion's box. Wide enough to cover the blast set on either kind of board: a pitch
+	 * either side of the bomb across, two rows either side of it down — whichever of those is the
+	 * larger, since a squat board's rows are a fraction of its pitch and a tall board's are most of
+	 * one. Drawn as a circle regardless; the set it stands for is a diamond, but a flash is round.
+	 */
+	const blastSize = $derived(2 * Math.max(layout.pitch * 1.15, layout.rowGap * 2.4));
+
+	/**
+	 * Set a bomb off: it and the pegs around it are marked gone, each with the direction away from
+	 * the bomb so it can fly off that way, and the explosion is put on screen over the top.
+	 */
+	const explode = (bomb: BombSite) => {
+		const bombX = layout.centreX + bomb.offset * layout.pitch;
+		const bombY = layout.topY + bomb.row * layout.rowGap;
+		const next = new Map(destroyed);
+		for (const peg of pegs) {
+			const offset = pegOffsetOf(peg);
+			if (!inBlast(bomb, peg.row, offset)) continue;
+			const dx = peg.x - bombX;
+			const dy = peg.y - bombY;
+			const length = Math.hypot(dx, dy) || 1;
+			next.set(pegKey(peg.row, offset), { dx: dx / length, dy: dy / length });
+		}
+		destroyed = next;
+		const id = ++blastSeq;
+		blasts = [...blasts, { id, row: bomb.row, offset: bomb.offset }];
+		const timer = setTimeout(() => {
+			blasts = blasts.filter((blast) => blast.id !== id);
+			pegTimers.delete(timer);
+		}, BLAST_MS);
+		pegTimers.add(timer);
+		props.sounds?.blast?.();
+	};
 
 	const pocketX = (index: number) =>
 		layout.centreX + pocketOffset(props.ladder, index) * layout.pitch;
@@ -329,6 +429,10 @@
 		// aimed launcher starts level instead, pointing at the middle of the board.
 		railOffset = aimed ? 0 : 0.5;
 		launchPoint = null;
+		// A fresh field: last round's holes are filled in and the bombs go somewhere new.
+		bombs = props.bombs?.count ? placeBombs(props.shape, props.bombs.count) : [];
+		destroyed = new Map();
+		blasts = [];
 		phase = 'armed';
 		restBall();
 		return new Promise<number>((resolve) => {
@@ -440,36 +544,60 @@
 			ballRadius: layout.ballRadius,
 			pegRadius: layout.pegRadius,
 		};
-		/** The tallest height this hop can be flown at without going through a peg, or null. */
+		/**
+		 * The tallest height this hop can be flown at without going through a peg, or null. `absent`
+		 * is the pegs that are no longer there to go through — blown away earlier in this same fall.
+		 */
 		const flyableBounce = (
 			from: { row: number; offset: number },
 			to: { row: number; offset: number },
 			ceiling = Infinity,
+			absent?: (row: number, offset: number) => boolean,
 		) =>
 			BOUNCE_CHOICES.find(
-				(bounce) => bounce <= ceiling && arcClears(props.shape, geometry, from, to, bounce),
+				(bounce) => bounce <= ceiling && arcClears(props.shape, geometry, from, to, bounce, absent),
 			) ?? null;
 		// A step is only offered to the walk if there is SOME height it can be flown at cleanly. With
 		// the ball going no further than the next peg along, that is nearly always true — what this
 		// still catches is a bounce tall enough to carry it up into the row above and through a peg
-		// standing there.
-		const offsets = planDrop(
+		// standing there. A throw off a bomb is a different matter: it crosses pitches, and the
+		// same test is most of what decides which throws are on offer.
+		const contacts = planDropWithBombs(
 			props.shape,
 			startStep,
 			targetOffset,
+			bombs,
 			Math.random,
-			(from, to) => flyableBounce(from, to) !== null,
+			(from, to, absent) => flyableBounce(from, to, Infinity, absent) !== null,
 		);
 		const pocketDepth =
 			(layout.pocketTop + layout.pocketHeight * 0.5 - layout.topY) / layout.rowGap;
 		const railDepth = (layout.railY - layout.topY) / layout.rowGap;
 
-		// One contact per peg row, then the pocket. `depth` is in row gaps below the top row.
-		const points = offsets.map((offset, row) => ({
-			offset,
-			depth: row < props.shape.rows ? row : pocketDepth,
-			peg: row < props.shape.rows ? { row, col: pegColumnAt(props.shape, row, offset) } : null,
-		}));
+		// One contact per peg struck — one per row, except where a bomb threw the ball over some —
+		// then the pocket. `depth` is in row gaps below the top row. `bomb` marks a contact that
+		// sets one off: the segment AFTER it is the throw.
+		const points = contacts.map((contact) => {
+			const onField = contact.row < props.shape.rows;
+			return {
+				offset: contact.offset,
+				depth: onField ? contact.row : pocketDepth,
+				peg: onField
+					? { row: contact.row, col: pegColumnAt(props.shape, contact.row, contact.offset) }
+					: null,
+				bomb: contact.bomb ? { row: contact.row, offset: contact.offset } : null,
+			};
+		});
+		/**
+		 * The pegs that are gone by the time segment `index` is flown: everything blown away by the
+		 * bombs struck before it. Standing pegs are obstacles; these are holes.
+		 */
+		const absentBefore = (index: number) => {
+			const blown = points.slice(0, index).flatMap((point) => (point.bomb ? [point.bomb] : []));
+			return blown.length
+				? (row: number, offset: number) => blown.some((bomb) => inBlast(bomb, row, offset))
+				: undefined;
+		};
 		// The fall starts where the ball ACTUALLY is, not on the peg it is about to strike — the
 		// first segment is what carries it from one to the other. Fired, that is the muzzle it came
 		// out of, off the top of the board; otherwise it is the drop-zone line.
@@ -499,16 +627,25 @@
 			const wanted = height * (0.85 + (index / points.length) * 0.4);
 			// And then the tallest arc no higher than that which actually clears the pegs. The last
 			// hop is into the pocket, below the field, where there is nothing left to clear.
-			if (index === points.length - 1) return wanted;
+			if (index === points.length - 1 || !before.peg || !point.peg) return wanted;
 			const hop = {
-				from: { row: index - 1, offset: before.offset },
-				to: { row: index, offset: point.offset },
+				from: { row: before.peg.row, offset: before.offset },
+				to: { row: point.peg.row, offset: point.offset },
 			};
+			const absent = absentBefore(index);
+			// Thrown off a bomb: as high as the field allows, which is what a blast looks like — and
+			// never flat, since the planner only offered the throw because some clean arc exists.
+			if (before.bomb)
+				return flyableBounce(hop.from, hop.to, Infinity, absent) ?? BOUNCE_CHOICES[3];
 			// Falling back to a FLAT hop would be the one way left to phase: a ball thrown wide and
 			// not allowed to arc goes straight through whatever stands between. Where nothing under
 			// the wanted height is clean, take the clean arc that is taller instead — the planner
 			// only offered this step because one exists.
-			return flyableBounce(hop.from, hop.to, wanted) ?? flyableBounce(hop.from, hop.to) ?? 0;
+			return (
+				flyableBounce(hop.from, hop.to, wanted, absent) ??
+				flyableBounce(hop.from, hop.to, Infinity, absent) ??
+				0
+			);
 		});
 
 		/**
@@ -528,9 +665,18 @@
 					(fired ? FIRED_ENTRY_ARC_SCALE : ENTRY_ARC_SCALE) *
 					Math.sqrt(Math.max(0.2, drop))
 				);
-			const scale = index === points.length - 1 ? POCKET_ARC_SCALE : 1;
+			const scale =
+				index === points.length - 1
+					? POCKET_ARC_SCALE
+					: points[index - 1].bomb
+						? BLAST_ARC_SCALE
+						: 1;
 			return ARC_MS * scale * arcUnits(bounces[index], drop);
 		});
+		/** The fuse: how long the ball waits on a bomb before the segment's clock starts. */
+		const holds = points.map((_, index) =>
+			index > 0 && points[index - 1].bomb ? BLAST_HOLD_MS : 0,
+		);
 
 		/**
 		 * The share of a segment spent going up, so the two halves of the arc meet at the apex. Zero
@@ -555,7 +701,11 @@
 		for (let index = 0; index < points.length; index++) {
 			const before = index === 0 ? from : points[index - 1];
 			const dir = Math.sign(points[index].offset - before.offset);
-			rate = Math.max(-SPIN_MAX, Math.min(SPIN_MAX, rate * SPIN_RETAIN + dir * SPIN_KICK));
+			// A blast sends it tumbling flat out; a peg only nudges the turn it already has.
+			rate =
+				index > 0 && points[index - 1].bomb
+					? dir * SPIN_MAX
+					: Math.max(-SPIN_MAX, Math.min(SPIN_MAX, rate * SPIN_RETAIN + dir * SPIN_KICK));
 			spinRates.push(rate);
 			spinAngles.push(angle);
 			angle += rate * durations[index];
@@ -571,7 +721,7 @@
 				const start = segment === 0 ? from : points[segment - 1];
 				const end = points[segment];
 				const span = durations[segment];
-				const t = Math.min(1, (now - segmentStart) / span);
+				const t = Math.min(1, Math.max(0, (now - segmentStart - holds[segment]) / span));
 
 				/**
 				 * A real hop, in two parabolas that meet at the apex: up off the peg, decelerating to
@@ -601,7 +751,9 @@
 
 				if (t >= 1) {
 					lastContact = now;
-					if (end.peg) {
+					if (end.bomb) {
+						explode(end.bomb);
+					} else if (end.peg) {
 						lightPeg(end.peg.row, end.peg.col);
 						props.sounds?.peg?.();
 					}
@@ -642,6 +794,9 @@
 		settling = false;
 		railOffset = aimed ? 0 : 0.5;
 		launchPoint = null;
+		bombs = [];
+		destroyed = new Map();
+		blasts = [];
 	};
 
 	/**
@@ -733,12 +888,31 @@
 			</div>
 		{/each}
 
+		<!-- A peg is a stud, or a bomb standing where the stud would be. Either can be blown away:
+		     a stud flies off along the line from the bomb to it, a bomb simply goes — the explosion
+		     drawn over it is what the eye is on. -->
 		{#each pegs as peg, index (`${peg.row}:${peg.col}`)}
-			<div
-				class="pb-peg"
-				class:hit={litPegs.has(index)}
-				style="left:{peg.x}px; top:{peg.y}px; --peg:{layout.pegRadius * 2}px;"
-			></div>
+			{@const key = pegKey(peg.row, pegOffsetOf(peg))}
+			{@const gone = destroyed.get(key)}
+			{#if bombBox && bombAt.has(key)}
+				<i
+					class="pb-bomb"
+					class:gone={Boolean(gone)}
+					style="left:{peg.x + bombBox.left}px; top:{peg.y +
+						bombBox.top}px; width:{bombBox.size}px; height:{bombBox.size}px; background-image:url('{props
+						.bombs?.src}'); transform-origin:{props.bombs ? props.bombs.cx * 100 : 50}% {props.bombs
+						? props.bombs.cy * 100
+						: 50}%;"
+				></i>
+			{:else}
+				<div
+					class="pb-peg"
+					class:hit={litPegs.has(index)}
+					class:gone={Boolean(gone)}
+					style="left:{peg.x}px; top:{peg.y}px; --peg:{layout.pegRadius * 2}px; --dx:{gone?.dx ??
+						0}; --dy:{gone?.dy ?? 0}; --fling:{layout.pitch * 1.1}px; --gone-ms:{PEG_GONE_MS}ms;"
+				></div>
+			{/if}
 		{/each}
 
 		{#each props.ladder.values as value, index (index)}
@@ -762,6 +936,19 @@
 				></i>
 				<span>{props.format ? props.format(value) : `${props.prefix ?? ''}${value}`}</span>
 			</div>
+		{/each}
+
+		<!-- Explosions: over the pegs, UNDER the ball. The ball sits in the middle of the burst for
+		     the moment it is held there and then flies out of it — which is only a flight anyone
+		     sees if the burst is behind it rather than over it. -->
+		{#each blasts as blast (blast.id)}
+			<i
+				class="pb-blast"
+				style="left:{layout.centreX + blast.offset * layout.pitch}px; top:{layout.topY +
+					blast.row *
+						layout.rowGap}px; width:{blastSize}px; height:{blastSize}px; background-image:url('{props
+					.bombs?.blast}'); --blast-ms:{BLAST_MS}ms;"
+			></i>
 		{/each}
 
 		<!-- An aimed ball is inside whatever the host is pointing until it is fired, so the board
@@ -981,6 +1168,186 @@
 		0% {
 			opacity: 0.9;
 			transform: scale(0.6);
+		}
+		100% {
+			opacity: 0;
+			transform: scale(1.5);
+		}
+	}
+	/* Blown away. Lit white for a frame, then flung along the line from the bomb to it and gone —
+	   `--dx`/`--dy` are that direction as a unit vector, `--fling` how far it goes. It stays gone
+	   (`forwards`): the hole is part of the board for the rest of the fall. Declared after `.hit`
+	   so it wins over the strike flash on the one peg that was struck the moment before the bomb
+	   next to it went off. */
+	.pb-peg.gone {
+		animation: peg-gone var(--gone-ms) cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+	}
+	@keyframes peg-gone {
+		0% {
+			opacity: 1;
+			filter: brightness(3);
+			transform: translate(-50%, -50%) scale(1.4);
+		}
+		100% {
+			opacity: 0;
+			filter: brightness(1);
+			transform: translate(
+					calc(-50% + var(--dx) * var(--fling)),
+					calc(-50% + var(--dy) * var(--fling))
+				)
+				scale(0.1);
+		}
+	}
+
+	/* --- Bombs ---------------------------------------------------------------------------- */
+	/* A bomb standing in for a peg. Positioned by its body (see `bombBox`), on the pegs' own layer,
+	   and with the fuse alight: a bomb that does not look about to go off is just a dark peg. */
+	.pb-bomb {
+		position: absolute;
+		z-index: 2;
+		background-repeat: no-repeat;
+		background-position: center;
+		background-size: contain;
+		/* A black ball over dark timber: the drop shadow sits it down, the warm glow is what finds
+		   it. The glow breathes with the fuse — the two are one thing, a bomb about to go off. */
+		filter: drop-shadow(0 0.1em 0.25em rgba(0, 0, 0, 0.7))
+			drop-shadow(0 0 0.3em rgba(255, 140, 40, 0.55));
+		/* Two idles on one element: the glow breathing, and the rattle. The rattle turns about the
+		   body (`transform-origin` is set inline to the round part of the picture), so the fuse
+		   whips and the body stays on its peg — a bomb shaking on its own base rather than a
+		   picture wobbling about its corner. The durations are unrelated on purpose, so the two
+		   never fall into step and the shake reads as nervous rather than metronomic. */
+		animation:
+			bomb-glow 1s ease-in-out infinite alternate,
+			bomb-rattle 1.3s linear infinite;
+		pointer-events: none;
+	}
+	/* A burst of jitter, then a rest: the first half is a run of small irregular kicks about the
+	   body, the second half is still. Percent translates are of the bomb's own box, so the
+	   jitter is under a pixel at any size the board draws it. */
+	@keyframes bomb-rattle {
+		0%,
+		52%,
+		100% {
+			transform: rotate(0deg) translate(0, 0);
+		}
+		6% {
+			transform: rotate(-4deg) translate(-1.5%, 0.5%);
+		}
+		12% {
+			transform: rotate(3.5deg) translate(1.5%, -0.5%);
+		}
+		18% {
+			transform: rotate(-2.5deg) translate(-1%, 0);
+		}
+		24% {
+			transform: rotate(4deg) translate(1%, 0.5%);
+		}
+		30% {
+			transform: rotate(-3deg) translate(-1.5%, -0.5%);
+		}
+		36% {
+			transform: rotate(2deg) translate(0.5%, 0);
+		}
+		42% {
+			transform: rotate(-1.5deg) translate(-0.5%, 0.5%);
+		}
+		48% {
+			transform: rotate(0.8deg) translate(0, 0);
+		}
+	}
+	@keyframes bomb-glow {
+		from {
+			filter: drop-shadow(0 0.1em 0.25em rgba(0, 0, 0, 0.7))
+				drop-shadow(0 0 0.2em rgba(255, 140, 40, 0.35));
+		}
+		to {
+			filter: drop-shadow(0 0.1em 0.25em rgba(0, 0, 0, 0.7))
+				drop-shadow(0 0 0.45em rgba(255, 160, 50, 0.8));
+		}
+	}
+	/* The spark, at the tip of the fuse — read off the file, so it moves if the art does. */
+	.pb-bomb::after {
+		content: '';
+		position: absolute;
+		left: 57%;
+		top: 4%;
+		width: 16%;
+		height: 16%;
+		margin: -8% 0 0 -8%;
+		border-radius: 50%;
+		background: radial-gradient(
+			circle,
+			#fff7c0 0%,
+			#ffb31a 32%,
+			rgba(255, 90, 0, 0.55) 55%,
+			rgba(255, 90, 0, 0) 72%
+		);
+		animation: fuse-spark 0.5s ease-in-out infinite alternate;
+	}
+	@keyframes fuse-spark {
+		from {
+			opacity: 0.75;
+			transform: scale(0.75);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1.4);
+		}
+	}
+	/* Gone the instant it goes off. No flight for the bomb itself: the explosion is drawn exactly
+	   where it stood, and IS what happened to it. */
+	.pb-bomb.gone {
+		visibility: hidden;
+	}
+	/* The explosion. On the pegs' layer and before the ball in the DOM, so the ball is drawn over
+	   it: it bursts out from the bomb, holds for the fuse, and is already thinning as the ball is
+	   thrown out of it. The pseudo-element is a white flash that is over in the first third. */
+	.pb-blast {
+		position: absolute;
+		z-index: 2;
+		background-repeat: no-repeat;
+		background-position: center;
+		background-size: contain;
+		pointer-events: none;
+		filter: drop-shadow(0 0 0.4em rgba(255, 150, 40, 0.85));
+		animation: blast-burst var(--blast-ms) cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+	}
+	.pb-blast::before {
+		content: '';
+		position: absolute;
+		inset: -20%;
+		border-radius: 50%;
+		background: radial-gradient(
+			circle,
+			rgba(255, 245, 200, 0.95) 0%,
+			rgba(255, 160, 40, 0.6) 38%,
+			rgba(255, 90, 0, 0) 68%
+		);
+		animation: blast-flash calc(var(--blast-ms) * 0.4) ease-out forwards;
+	}
+	@keyframes blast-burst {
+		0% {
+			opacity: 0.9;
+			transform: translate(-50%, -50%) scale(0.2) rotate(-25deg);
+		}
+		16% {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1) rotate(0deg);
+		}
+		40% {
+			opacity: 0.95;
+			transform: translate(-50%, -50%) scale(1.08) rotate(8deg);
+		}
+		100% {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(1.3) rotate(20deg);
+		}
+	}
+	@keyframes blast-flash {
+		0% {
+			opacity: 1;
+			transform: scale(0.5);
 		}
 		100% {
 			opacity: 0;

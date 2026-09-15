@@ -47,8 +47,9 @@ export type BookEventBonusWheel = RoomCommon & {
 	type: 'bonusWheelRoom';
 	wedges: number[];
 	/**
-	 * Each wedge's width in the math's units (a full wedge 4, the 1,000x sliver 1): the disc is
-	 * drawn to the widths the book weighs. Older books omit it; `WHEEL_WIDTHS` stands in.
+	 * Each wedge's width in the math's units (a full wedge 4, the 1,000x sliver 1): what the book
+	 * weighs. The disc is drawn at equal widths regardless (see README, "Bonus Wheel drawn at
+	 * equal widths"). Older books omit it; `WHEEL_WIDTHS` stands in.
 	 */
 	widths?: number[];
 	wedge: number;

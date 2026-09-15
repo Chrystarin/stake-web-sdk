@@ -137,6 +137,11 @@ export const arcClears = (
 	from: { row: number; offset: number },
 	to: { row: number; offset: number },
 	bounce: number,
+	/**
+	 * Pegs that are no longer standing — blown away by a bomb (see `inBlast`). A hole in the field
+	 * is a hole the ball may fly through, so they do not count.
+	 */
+	absent?: (row: number, offset: number) => boolean,
 ): boolean => {
 	const drop = to.row - from.row;
 	const rise = arcRise(bounce, drop);
@@ -154,6 +159,7 @@ export const arcClears = (
 				const pegOffset = nearest + step;
 				if (row === from.row && Math.abs(pegOffset - from.offset) < 1e-9) continue;
 				if (row === to.row && Math.abs(pegOffset - to.offset) < 1e-9) continue;
+				if (absent?.(row, pegOffset)) continue;
 				const dx = (offset - pegOffset) * geometry.pitch;
 				const dy = (depth - row) * geometry.rowGap;
 				if (dx * dx + dy * dy < reach * reach) return false;
@@ -393,3 +399,234 @@ export const pegsFor = (shape: BoardShape, layout: BoardLayout): BoardPeg[] => {
 /** Which peg in `row` sits at `offset` — the one the ball is about to strike. */
 export const pegColumnAt = (shape: BoardShape, row: number, offset: number): number =>
 	Math.round(offset + (pegsInRow(shape, row) - 1) / 2);
+
+// --- Bombs ----------------------------------------------------------------------------------
+// A few of the pegs are bombs. The ball striking one sets it off: the pegs around it are blown
+// away and the ball is thrown — several rows down and a couple of pitches across in one flight,
+// instead of the half-pitch hop every other peg gives it. The pocket it ends in is STILL the one
+// the round was settled on: the throw is chosen from the ones that leave the walk able to reach
+// it, exactly the way an ordinary step is, so a blast is a detour on the way to a fixed result
+// rather than a change to it.
+
+export type BombSite = { row: number; offset: number };
+
+/** A peg's identity, for sets and maps. Offsets are exact halves, so the string is exact too. */
+export const pegKey = (row: number, offset: number): string => `${row}:${offset}`;
+
+/**
+ * Rows a bomb may stand on.
+ *
+ * Not the first few: a shot straight into a bomb has had no fall to watch yet, and the explosion
+ * would be the first thing to happen. Not the last few either — a throw goes two to four rows
+ * down and has to land on a peg, so a bomb keeps at least three rows under it, and with them the
+ * guarantee that SOME throw is always feasible (see `planDropWithBombs`).
+ */
+const BOMB_ROW_MIN = 3;
+const BOMB_ROWS_KEPT_BELOW = 4;
+
+/**
+ * Whether the peg at `row`/`offset` is inside `bomb`'s blast.
+ *
+ * Measured in board units rather than pixels, so the same pegs go on every screen: the bomb's own
+ * row either side of it, the four diagonal neighbours, and the pegs straight above and below two
+ * rows off — a diamond of nine, the bomb included. The walk after a throw only ever moves DOWN
+ * from where the ball landed, which is at least two rows under the bomb, so it can never step back
+ * into this set — which is what lets the planner treat a blown peg as simply gone.
+ */
+export const inBlast = (bomb: BombSite, row: number, offset: number): boolean => {
+	const dRow = row - bomb.row;
+	const dOffset = offset - bomb.offset;
+	return Math.abs(dRow) <= 2 && dOffset * dOffset + (dRow / 2) * (dRow / 2) <= 1.05;
+};
+
+/**
+ * Put `count` bombs on the board at random, none within reach of another's blast.
+ *
+ * The separation keeps every blast to itself: no bomb is ever destroyed by a neighbour going off,
+ * and no two blast sets overlap, so a peg is blown away exactly once and the planner never has to
+ * reason about a chain. Best-effort on a board too small to hold them all that far apart — a
+ * jackpot board never is.
+ */
+export const placeBombs = (
+	shape: BoardShape,
+	count: number,
+	random: () => number = Math.random,
+): BombSite[] => {
+	const bombs: BombSite[] = [];
+	const rowMax = shape.rows - BOMB_ROWS_KEPT_BELOW;
+	if (rowMax < BOMB_ROW_MIN) return bombs;
+	for (let tries = 0; bombs.length < count && tries < 400; tries++) {
+		const row = BOMB_ROW_MIN + Math.floor(random() * (rowMax - BOMB_ROW_MIN + 1));
+		const span = rowHalfSpan(shape, row);
+		// Not the outermost peg of a row: a bomb against the wall can only throw one way.
+		const inner = span - 1;
+		if (inner < 0) continue;
+		const offset = -inner + Math.floor(random() * (inner * 2 + 1));
+		const crowded = bombs.some(
+			(other) => Math.abs(other.row - row) <= 4 && Math.abs(other.offset - offset) <= 2,
+		);
+		if (crowded) continue;
+		bombs.push({ row, offset });
+	}
+	return bombs;
+};
+
+/**
+ * The throws a blast can give the ball, as rows down and pitches across (either side).
+ *
+ * Parity is built in: an even number of rows keeps the ball on the same kind of row, so it moves a
+ * whole number of pitches; an odd number swaps it, so it moves a half. The far throws are the ones
+ * wanted — a blast that moves the ball one pitch is a blast nobody saw — and the near ones are the
+ * fallback for a bomb close to a wall, or close to the pocket the ball has to get to. Both tiers
+ * land outside the blast set, so the ball is never thrown onto a peg that was just blown away.
+ */
+const FAR_THROWS: readonly (readonly [rows: number, across: number])[] = [
+	[2, 2],
+	[2, 3],
+	[3, 2.5],
+	[3, 3.5],
+	[4, 3],
+];
+const NEAR_THROWS: readonly (readonly [rows: number, across: number])[] = [
+	[2, 1],
+	[3, 1.5],
+	[4, 2],
+];
+
+/**
+ * How strongly the walk leans towards a bomb it can still reach, 0.5 being no lean at all.
+ *
+ * A Galton walk that ignored the bombs would strike one in about two rounds in seven (measured:
+ * 29% over 4,000 plans on the 13-pocket board), which makes them furniture. Leaning the coin
+ * flip towards the nearest bomb the ball can still walk to — only ever between steps that are
+ * BOTH legal, so the pocket is never at stake — lifts that to about three rounds in four without
+ * making it the certain one, and a ball drifting one way rather than the other is not something a
+ * walk that was random to begin with can be seen doing.
+ */
+export const BOMB_PULL = 0.65;
+
+/** One peg the ball strikes on the way down. `bomb` marks a strike that sets a bomb off. */
+export type Contact = { row: number; offset: number; bomb?: boolean };
+
+const shuffled = <T>(items: readonly T[], random: () => number): T[] => {
+	const out = [...items];
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(random() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
+	}
+	return out;
+};
+
+/**
+ * `planDrop`, on a board with bombs in it.
+ *
+ * The walk is the same walk, and every ordinary step is chosen under the same three conditions.
+ * Two things are added. When the ball's step lands it ON a bomb, the next thing it does is not a
+ * step but a THROW: two to four rows down and one to three-and-a-half pitches across, taken from
+ * `FAR_THROWS` (then `NEAR_THROWS`) in a random order, the first that keeps the ball on the board,
+ * within reach of the pocket, off any peg already blown away, and — given `flyable` — clear of
+ * every peg still standing. And between steps the coin is weighted towards the nearest bomb the
+ * ball can still get to (`BOMB_PULL`), so bombs actually get hit.
+ *
+ * The result is a list of CONTACTS rather than one offset per row, because a throw skips rows.
+ * The last entry is the pocket, at `row === shape.rows`, and its offset is exactly `targetOffset`.
+ *
+ * A bomb the ball lands on with no feasible throw at all — which the placement rules make
+ * impossible on a board from `shapeForPockets`, but a hand-tuned board might allow — still goes
+ * off; the ball just takes an ordinary step off it. Better an explosion that barely moves the ball
+ * than a ball that stops.
+ */
+export const planDropWithBombs = (
+	shape: BoardShape,
+	startOffset: number,
+	targetOffset: number,
+	bombs: readonly BombSite[],
+	random: () => number = Math.random,
+	/**
+	 * Whether a flight from one contact to the next can be flown without going through a standing
+	 * peg — `absent` says which pegs are no longer standing. See `planDrop`'s `canFly`.
+	 */
+	flyable?: (
+		from: { row: number; offset: number },
+		to: { row: number; offset: number },
+		absent: (row: number, offset: number) => boolean,
+	) => boolean,
+	pull: number = BOMB_PULL,
+): Contact[] => {
+	const contacts: Contact[] = [{ row: 0, offset: startOffset }];
+	const live = new Map(bombs.map((bomb) => [pegKey(bomb.row, bomb.offset), bomb]));
+	const exploded: BombSite[] = [];
+	const gone = (row: number, offset: number) => exploded.some((bomb) => inBlast(bomb, row, offset));
+	const stepsLeftFrom = (row: number) => shape.rows - row;
+
+	let row = 0;
+	let current = startOffset;
+	while (row < shape.rows) {
+		const bomb = live.get(pegKey(row, current));
+		if (bomb) {
+			live.delete(pegKey(row, current));
+			exploded.push(bomb);
+			contacts[contacts.length - 1].bomb = true;
+			let landing: { row: number; offset: number } | undefined;
+			for (const tier of [FAR_THROWS, NEAR_THROWS]) {
+				const throws = shuffled(
+					tier.flatMap(([rows, across]) => [
+						[rows, across],
+						[rows, -across],
+					]),
+					random,
+				);
+				for (const [rows, across] of throws) {
+					const to = { row: row + rows, offset: current + across };
+					if (to.row > shape.rows - 1) continue;
+					if (Math.abs(to.offset) > rowHalfSpan(shape, to.row) + 1e-9) continue;
+					if (Math.abs(targetOffset - to.offset) > stepsLeftFrom(to.row) * 0.5 + 1e-9) continue;
+					if (gone(to.row, to.offset)) continue;
+					if (flyable && !flyable({ row, offset: current }, to, gone)) continue;
+					landing = to;
+					break;
+				}
+				if (landing) break;
+			}
+			if (landing) {
+				row = landing.row;
+				current = landing.offset;
+				contacts.push({ row, offset: current });
+				continue;
+			}
+		}
+
+		const limit = spanAfterRow(shape, row);
+		const rowsLeft = shape.rows - row - 1;
+		let steps = random() < 0.5 ? [-0.5, 0.5] : [0.5, -0.5];
+		// The lean: the nearest bomb the ball could still walk to, and the step that goes its way.
+		// Tried FIRST rather than taken — the same legality checks below still decide.
+		const lure = [...live.values()]
+			.filter(
+				(candidate) =>
+					candidate.row > row &&
+					Math.abs(candidate.offset - current) <= (candidate.row - row) * 0.5 + 1e-9,
+			)
+			.sort((a, b) => a.row - b.row)[0];
+		if (lure && random() < pull) {
+			const towards = lure.offset === current ? steps[0] : Math.sign(lure.offset - current) * 0.5;
+			steps = [towards, -towards];
+		}
+		let chosen: number | undefined;
+		for (const step of steps) {
+			const next = current + step;
+			if (Math.abs(next) > limit + 1e-9) continue;
+			if (Math.abs(targetOffset - next) > rowsLeft * 0.5 + 1e-9) continue;
+			if (row + 1 < shape.rows && gone(row + 1, next)) continue;
+			if (flyable && !flyable({ row, offset: current }, { row: row + 1, offset: next }, gone))
+				continue;
+			chosen = step;
+			break;
+		}
+		current += chosen ?? (targetOffset > current ? 0.5 : -0.5);
+		row += 1;
+		contacts.push({ row, offset: current });
+	}
+
+	return contacts;
+};

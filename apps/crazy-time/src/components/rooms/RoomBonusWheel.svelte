@@ -1,14 +1,15 @@
 <script lang="ts">
 	/**
-	 * Bonus Wheel room: the generic wheel with 36 multiplier wedges — 35 full ones and the 1,000x
-	 * jackpot sliver — spun to the authored wedge.
+	 * Bonus Wheel room: the generic wheel with 36 multiplier wedges, drawn at EQUAL width, spun to
+	 * the authored wedge. The 1,000x is a quarter-width sliver in the math (see README, "Bonus
+	 * Wheel drawn at equal widths"); the disc no longer shows that.
 	 *
 	 * The player starts it. Nothing about the outcome is theirs — the wedge is the book's, and the
 	 * countdown spins it for them if they sit on their hands — but a wheel that goes off on its own
 	 * is a wheel that happened TO them, and the whole point of the room is the pull of the handle.
 	 */
 	import Wheel, { type WheelSegment, type WheelFrame } from '../Wheel.svelte';
-	import { PICK_SECONDS, WHEEL_WIDTHS } from '../../game/constants';
+	import { PICK_SECONDS } from '../../game/constants';
 	import type { BookEventBonusWheel } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticUrl } from '../../lib/staticUrl';
@@ -40,8 +41,14 @@
 	// multiplier runs stop their ink just clear of it. The wedges themselves run to the centre
 	// (innerRadius 0) so the hub covers solid colour rather than a hole.
 	const HUB_R = 71;
-	/** The hub art's own width, as a fraction of the frame box: what the glow is drawn around. */
-	const HUB_WIDTH = (2 * 290) / 1971;
+	/**
+	 * What the glow is drawn around, as a fraction of the frame box: the centre disc of the hub —
+	 * the skull's wooden plate — not the whole ship's wheel, so it reads the way the main wheel's
+	 * does (a halo on the gem at its middle). Sampled radially from the hub centre: the plate's dark
+	 * rim shading runs to r≈128 px and the gold ring's ink starts at r≈132, so the box ends where
+	 * the gold begins and the halo spreads out over the ring.
+	 */
+	const HUB_WIDTH = (2 * 132) / 1971;
 
 	type Props = {
 		room: BookEventBonusWheel;
@@ -66,29 +73,17 @@
 	};
 
 	/**
-	 * Wedge widths, in the math's units, from the book (constants stand in for a book written
-	 * before they were authored). The 1,000x is a quarter-width sliver: that rarity is what keeps
-	 * a 50,000x on a room with three segments of the main wheel, and the disc has to show it.
+	 * Every wedge is drawn at the same width, the 1,000x included. The book still weighs the
+	 * 1,000x as a quarter-width sliver (`room.widths`, `WHEEL_WIDTHS`) and lands it 1 in 141
+	 * visits, not 1 in 36: the drawn arc and the landing odds differ on that one wedge by design
+	 * — a product call, recorded in the README under "Bonus Wheel drawn at equal widths". Landing
+	 * is by wedge INDEX (`spinTo`), so the equal-width disc stops on the right wedge regardless.
 	 */
-	const widths = $derived(room.widths ?? WHEEL_WIDTHS);
-	const fullWidth = $derived(Math.max(...widths));
-
 	const segments: WheelSegment[] = $derived(
-		room.wedges.map((value, i) => {
+		room.wedges.map((value) => {
 			const [fill, text] = colourFor(value);
-			const sliver = widths[i] < fullWidth;
-			// Written the way the table writes every other multiplier — `x50`, not `50x`. The sliver
-			// cannot hold its own figure, so it is set at a full wedge's size and glows in the
-			// sliver's red where it spills onto the neighbours.
-			return {
-				label: `x${value}`,
-				fill,
-				text,
-				kind: 'value' as const,
-				weight: widths[i],
-				inkWeight: sliver ? fullWidth : undefined,
-				glow: sliver,
-			};
+			// Written the way the table writes every other multiplier — `x50`, not `50x`.
+			return { label: `x${value}`, fill, text, kind: 'value' as const };
 		}),
 	);
 

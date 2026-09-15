@@ -8,8 +8,10 @@ Lifted from Colour Dice (`apps/colour-dice/src/plinko`), where it also ships tha
 balance. That part did NOT come over: Crazy Time already has `BonusRound` for exactly that, so only
 the board is here. Keep the two copies in step — `index.ts`, `types.ts` and this file are the only
 ones that differ, and they differ only by what the missing screen took with it. Everything that
-runs (`PlinkoBoard.svelte`, `board.ts`, `pockets.ts`, `slots.ts`, `colour.ts`) is byte-identical,
-so a fix in either game is a straight copy across.
+runs (`PlinkoBoard.svelte`, `board.ts`, `pockets.ts`, `slots.ts`, `colour.ts`) WAS byte-identical,
+so a fix in either game is a straight copy across — with one addition this copy has made since:
+the bombs (below), which are opt-in through a prop and leave a board without them exactly as it
+was.
 
 Nothing here imports from the game around it. To remove the feature, delete this folder, the art
 under `static/img/pirate-plinko/`, and put `RoomPiratePlinko.svelte` back to a board of its own.
@@ -49,6 +51,7 @@ under `static/img/pirate-plinko/`, and put `RoomPiratePlinko.svelte` back to a b
 | `fieldOpacity`    | `1`              | Below 1 the screen behind reads through the playfield.                                                                                                                                                                                                  |
 | `sounds`          | —                | `{ drop, peg, land }` — the host owns its own audio.                                                                                                                                                                                                    |
 | `autoDropAfterMs` | `20000`          | Lets go for an absent player. `0` disables.                                                                                                                                                                                                             |
+| `bombs`           | —                | `{ count, src, cx, cy, d, scale?, blast }` — that many bombs among the pegs, placed afresh on every `arm()`. `cx`/`cy`/`d` are the round body of the picture; `blast` is the explosion. See _Bombs_.                                                    |
 
 ## How a fixed result stays honest
 
@@ -78,15 +81,36 @@ half-pitch steps needs to land on a whole-offset pocket centre.
 height — clamped only by the band that keeps the fall looking like a fall. The row-gap-to-pitch
 ratio _is_ the angle the ball falls at: half a pitch sideways per row, so 0.5 is a 45° zig-zag.
 
+## Bombs
+
+With `bombs` set, `arm()` scatters that many bombs among the pegs (`placeBombs`): on rows 3 to
+`rows - 4`, never on a wall peg, and never within a blast of one another. The ball striking one sets
+it off. The nine pegs of its blast set — its row either side, the four diagonals, and the pegs two
+rows straight above and below (`inBlast`) — are blown away, and the ball is THROWN instead of
+deflected: two to four rows down and one to three-and-a-half pitches across in one flight, held on
+the bomb for a fuse's worth of milliseconds first.
+
+The pocket is not at stake. `planDropWithBombs` is `planDrop` with the throw added as one more
+kind of step, chosen under the same conditions as every other: on the board, within reach of the
+pocket, and — through the same clearance test, now told which pegs are gone — flyable without
+passing through anything still standing. The far throws are tried first and the near ones only if
+none of them fits, and the row margins above guarantee that at least one near throw always does,
+so a blast never has to be faked. Between steps the coin flip leans towards the nearest bomb the
+ball can still walk to (`BOMB_PULL`) — only ever between steps that are both legal, so the pocket
+is never at stake — which lifts a strike from about two rounds in seven to about three in four.
+
+A board whose `bombs` prop is unset places none, plans with `planDropWithBombs` over an empty
+list — which is `planDrop`, step for step — and draws exactly what it drew before.
+
 ## Files
 
-| File                 | What it is                                                |
-| -------------------- | --------------------------------------------------------- |
-| `PlinkoBoard.svelte` | Pegs, pockets, the ball, the drag, and the fall.          |
-| `board.ts`           | Geometry and drop planning. Pure — no DOM, no framework.  |
-| `pockets.ts`         | The award ladder and which pocket an award maps to.       |
-| `slots.ts`           | Pocket art: atlas regions, tiers, and the CSS crop.       |
-| `colour.ts`          | Turns the accent hex into the ball's four gradient stops. |
+| File                 | What it is                                                   |
+| -------------------- | ------------------------------------------------------------ |
+| `PlinkoBoard.svelte` | Pegs, pockets, the ball, the drag, and the fall.             |
+| `board.ts`           | Geometry, drop planning, bombs. Pure — no DOM, no framework. |
+| `pockets.ts`         | The award ladder and which pocket an award maps to.          |
+| `slots.ts`           | Pocket art: atlas regions, tiers, and the CSS crop.          |
+| `colour.ts`          | Turns the accent hex into the ball's four gradient stops.    |
 
 ## Pocket art
 

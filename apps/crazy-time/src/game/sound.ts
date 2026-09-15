@@ -16,6 +16,7 @@ export type SoundName =
 	| 'click'
 	| 'merge'
 	| 'peg'
+	| 'boom'
 	| 'notify'
 	| 'win'
 	| 'doorClose'
@@ -34,6 +35,10 @@ const SOURCES: Record<SoundName, string> = {
 	// Willy's plinko (apps/plinko/static/sound) so the bonus round sounds like the game it came
 	// from — same samples, and the trims below are that game's too.
 	peg: staticUrl('sound/peg.wav'),
+	// A bomb going off on the plinko board. Synthesised rather than sampled — a burst of low-passed
+	// noise over a pitched-down thump, a second long — since nothing in the shared sound sets is an
+	// explosion. Replace with a recorded one if the pirate set ever gets one.
+	boom: staticUrl('sound/boom.mp3'),
 	// A reel coming to rest in the Top Slot.
 	notify: staticUrl('sound/notify.mp3'),
 	win: staticUrl('sound/win.mp3'),
@@ -56,12 +61,13 @@ const SOURCES: Record<SoundName, string> = {
  * decaying tail with a `pause()` is a step to zero however quiet it has got, and a step is a click
  * — which is the "cut" you hear rather than the window being mistimed.
  */
-const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, fadeMs?: number]>> = {
-	doorClose: [2790, 2260, 400],
-	// A shorter window gets a shorter tail — the same quarter of it, so the creak lands the way the
-	// thud does rather than fading for half its length.
-	doorOpen: [3200, 900, 220],
-};
+const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, fadeMs?: number]>> =
+	{
+		doorClose: [2790, 2260, 400],
+		// A shorter window gets a shorter tail — the same quarter of it, so the creak lands the way the
+		// thud does rather than fading for half its length.
+		doorOpen: [3200, 900, 220],
+	};
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
 const MIX: Record<SoundName, number> = {
@@ -71,6 +77,8 @@ const MIX: Record<SoundName, number> = {
 	merge: 0.9,
 	// A drop strikes twenty-one of these in under two seconds, so it sits well back.
 	peg: 0.5,
+	// The one loud thing on the board, and it has to read over the peg ticking under it.
+	boom: 0.85,
 	// Two of these land per spin, a couple of seconds apart, over the peg ticking.
 	notify: 0.7,
 	win: 1,

@@ -67,23 +67,27 @@ export const SPOT_COLOUR: Record<Spot, { base: string; deep: string; text: strin
  * Physical order around the rim, clockwise from the flapper. 54 entries: x1 19, x2 12, x5 6,
  * x10 4, chest 4, piratePlinko 3, oceanVoyage 3, bonusWheel 3. Every room has at least three
  * segments so a chip on any room ALONE pays at least once in 20 spins (Stake's floor for a base
- * mode; 3 of 54 is 1 in 18). The rooms cycle chest → Plinko → Wheel → Voyage around the rim,
- * thirteen in all, with three numbers between any two (four in two places, opposite each other).
+ * mode; 3 of 54 is 1 in 18). Rooms are never adjacent and always have three or four numbers
+ * between them; no two identical segments touch anywhere, x1 included; and within that each
+ * spot's own segments sit as evenly round the rim as the counts allow (chest 12 / 13 / 13 / 16
+ * apart, each three-segment room 16..21, x10 13..14, x5 8..10, x2 3..6, x1 2..4). Mirror of
+ * the math's SEGMENT_LAYOUT, which asserts all of that at import — the book's `segment` index
+ * points into this order.
  */
 export const SEGMENT_LAYOUT: readonly Spot[] = [
+	'chest', 'x5', 'x1', 'x2',
+	'piratePlinko', 'x1', 'x10', 'x1',
+	'bonusWheel', 'x2', 'x5', 'x1',
 	'chest', 'x1', 'x2', 'x1',
-	'piratePlinko', 'x2', 'x10', 'x1',
-	'bonusWheel', 'x1', 'x5', 'x2',
-	'oceanVoyage', 'x1', 'x2', 'x1', 'x5',
-	'chest', 'x2', 'x10', 'x1',
-	'piratePlinko', 'x1', 'x5', 'x2',
-	'bonusWheel', 'x2', 'x1', 'x1',
-	'oceanVoyage', 'x1', 'x10', 'x2',
-	'chest', 'x1', 'x5', 'x2', 'x1',
+	'oceanVoyage', 'x2', 'x5', 'x1', 'x10',
+	'piratePlinko', 'x1', 'x2', 'x1',
+	'chest', 'x2', 'x5', 'x1',
+	'bonusWheel', 'x1', 'x2', 'x1',
+	'oceanVoyage', 'x10', 'x1', 'x5', 'x2',
+	'chest', 'x1', 'x2', 'x1',
 	'piratePlinko', 'x2', 'x1', 'x5',
-	'bonusWheel', 'x1', 'x10', 'x2',
+	'bonusWheel', 'x10', 'x1', 'x2',
 	'oceanVoyage', 'x1', 'x2', 'x1',
-	'chest', 'x1', 'x5', 'x1',
 ]; // prettier-ignore
 
 export const NUM_SEGMENTS = SEGMENT_LAYOUT.length;
@@ -112,10 +116,11 @@ export const PLINKO_ROWS = 12;
 
 /**
  * Bonus Wheel wedge values in rim order; mirror of the math's WHEEL_LAYOUT. The 1,000x wedge
- * under a 50x Top Slot is the game's 50,000x max win — and it is a SLIVER, a quarter the width
- * of the other 35 wedges (`WHEEL_WIDTHS`), landing 1 in 141 visits rather than 1 in 36. That is
- * what lets a room with three segments of the main wheel keep a 1,000x: a wedge lands in
- * proportion to the arc it shows, so the disc is drawn to the same widths the book weighs.
+ * under a 50x Top Slot is the game's 50,000x max win — and in the math it is a SLIVER, a quarter
+ * the width of the other 35 wedges (`WHEEL_WIDTHS`), landing 1 in 141 visits rather than 1 in
+ * 36. That is what lets a room with three segments of the main wheel keep a 1,000x. The disc is
+ * NOT drawn to those widths: every wedge is shown equal (see README, "Bonus Wheel drawn at equal
+ * widths"), so `WHEEL_WIDTHS` is kept here only as the record of what the book weighs.
  */
 export const WHEEL_LAYOUT = [
 	1000, 2, 3, 2, 5, 2, 10, 2, 3, 25, 2, 5, 2, 3, 2, 10, 2, 5,
@@ -133,7 +138,7 @@ export const NUM_CHESTS = 12;
 
 /** Ocean Voyage depth multipliers, shallowest to deepest. */
 export const VOYAGE_DEPTHS = [2, 3, 5, 8, 12, 20, 30, 50, 80, 400] as const;
-export const TILES_PER_DEPTH = 4;
+export const TILES_PER_DEPTH = 3;
 
 /** Seconds the player has to make a pick in a pick room before it is made for them. */
 export const PICK_SECONDS = 15;

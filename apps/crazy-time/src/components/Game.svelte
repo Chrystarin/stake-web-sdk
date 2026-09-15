@@ -77,6 +77,13 @@
 	const WHEEL_ASPECT = 1925 / 1911;
 	const PORTRAIT_CABINET_VW = 67;
 	/**
+	 * The cabinet with the stage to itself — a bought room has no wheel to turn, so the Top Slot is
+	 * the whole show and is set twice as large: two fifths of the height in landscape, near the
+	 * viewport's width in portrait. Centred in the room above the panel by the stage's `solo` rule.
+	 */
+	const SOLO_CABINET_SHARE = 0.4;
+	const PORTRAIT_SOLO_CABINET_VW = 96;
+	/**
 	 * How far the wheel laps over the cabinet, as a share of the cabinet's HEIGHT — so the overlap
 	 * grows and shrinks with it. It can run well past the rail (13.4% of that height) because the
 	 * wheel's own art is only opaque at the pin and the ring's crown, both on the centre line, which
@@ -87,6 +94,7 @@
 	let portrait = $state(false);
 	let wheelVw = $state(45);
 	let cabinetVw = $state(22.5);
+	let soloCabinetVw = $state(45);
 	let lapVw = $state(1.29);
 	const updateFit = () => {
 		const w = window.innerWidth;
@@ -99,6 +107,9 @@
 		const localVw = availableVw / fitScale;
 		wheelVw = portrait ? 100 : (localVw * WHEEL_SHARE) / WHEEL_ASPECT;
 		cabinetVw = portrait ? PORTRAIT_CABINET_VW : localVw * CABINET_SHARE * CABINET_ASPECT;
+		soloCabinetVw = portrait
+			? PORTRAIT_SOLO_CABINET_VW
+			: localVw * SOLO_CABINET_SHARE * CABINET_ASPECT;
 		lapVw = (cabinetVw / CABINET_ASPECT) * WHEEL_LAP_SHARE;
 	};
 	$effect(() => {
@@ -248,21 +259,42 @@
 	}));
 
 	/**
-	 * The buy disc. A bought round can only end in a room, and the book says which, so while a buy
-	 * is in flight the wheel shows just those and spins to the one authored. ANY BONUS gets the four
-	 * rooms on quarter wedges; a single-room buy is ONE segment, the whole disc, which turns once and
-	 * stops with its crest and name under the flapper. The ink is sized as if the wedges were
-	 * BUY_WHEEL_INK_STEP wide so the crests and names keep the main wheel's scale.
+	 * The buy disc, for Random Bonus only. That buy can only end in a room, and the book says which,
+	 * so while it is in flight the wheel shows just the four rooms on quarter wedges and spins to
+	 * the one authored. A single-room buy keeps the main wheel and spins it to the bought room's own
+	 * segment, as any round does. The ink is sized as if the wedges were BUY_WHEEL_INK_STEP wide so
+	 * the crests and names keep the main wheel's scale.
 	 */
 	const buyWheelSegments = (mode: string): WheelSegment[] => {
 		const rooms = BUY_MODES[mode]?.rooms ?? ROOM_SPOTS;
 		return rooms.map((spot) => ({
 			...WHEEL_SEGMENTS[SEGMENT_LAYOUT.indexOf(spot)],
-			// Across the wedge in two big lines, not down it: a broad wedge has the room for it.
+			// Across the wedge in two big lines, not down it: a quarter wedge has the room for it.
 			kind: 'wide' as const,
 		}));
 	};
 	const BUY_WHEEL_INK_STEP = 30;
+	/** Whether a buy gets the buy disc: only one the wheel still has to decide between rooms. */
+	const usesBuyDisc = (mode: string): boolean => (BUY_MODES[mode]?.rooms.length ?? 0) > 1;
+
+	/**
+	 * The main-disc segment to stop under the flapper. The book's `segment` indexes the math's
+	 * SEGMENT_LAYOUT, which this client mirrors, so normally it is used as-is. If the two ever
+	 * disagree (books generated before a rim re-order and not re-synced or republished), the wheel
+	 * must still stop on the spot the book actually pays: stopping on the index would show one
+	 * room and then play another. Any segment of that spot will do; the mismatch is reported.
+	 */
+	const mainSegmentFor = (segment: number, spot: Spot): number => {
+		if (SEGMENT_LAYOUT[segment] === spot) return segment;
+		const candidates = SEGMENT_LAYOUT.map((s, i) => (s === spot ? i : -1)).filter((i) => i >= 0);
+		const fallback = candidates[Math.floor(Math.random() * candidates.length)] ?? 0;
+		console.error(
+			`[crazy-time] book segment ${segment} is "${SEGMENT_LAYOUT[segment]}" on this wheel but the ` +
+				`book pays "${spot}": the books predate the current SEGMENT_LAYOUT (re-run the math and ` +
+				`sync-math-books / republish). Stopping on segment ${fallback} instead.`,
+		);
+		return fallback;
+	};
 
 	/**
 	 * Which disc the wheel is showing. It does not follow `stateGame.buying` directly: the swap is
@@ -287,7 +319,7 @@
 		if (to === 'buy') {
 			wheelDiscMode = mode;
 			// Square the buy disc up under the white: the main wheel rests at a 54th of a turn, which
-			// would leave the buy wedges askew — and a single room's one turn must start at the top.
+			// would leave the buy wedges askew.
 			wheel?.resetRotation();
 		}
 		await waitForTimeout(60);
@@ -299,6 +331,39 @@
 	$effect(() => {
 		if (!stateGame.buying && wheelDisc === 'buy') void swapDisc('main');
 	});
+
+	/**
+	 * A bought room has nothing for the wheel to decide, so for a single-room buy the wheel is taken
+	 * off the stage and the Top Slot — the one thing still in play — is centred in its place, twice
+	 * the size. While it is away the wheel is set on the room's segment unseen, and it returns behind
+	 * the bonus screen (the door takes 700 ms to close, and the screen is opaque once it has), so
+	 * when the room opens back onto the table the wheel is there with the room under the flapper and
+	 * the PLAY AGAIN gem at its hub, as after any other round. Settling is the fallback: a round that
+	 * never reached a room still needs the gem.
+	 */
+	let wheelOff = $state(false);
+	/** The wheel's fade and the cabinet's growth into its place, before the reels start. */
+	const WHEEL_LEAVE_MS = 600;
+	const WHEEL_RETURN_MS = 800;
+	$effect(() => {
+		if (!wheelOff) return;
+		if (settled) {
+			wheelOff = false;
+			return;
+		}
+		if (!bonusUp) return;
+		const timer = setTimeout(() => (wheelOff = false), WHEEL_RETURN_MS);
+		return () => clearTimeout(timer);
+	});
+
+	/**
+	 * Random Bonus's one chip. There is no room to back yet, so it lands on the hub between the four
+	 * rooms (where the BONUS group button sits when the table is open), waits there while the wheel
+	 * turns, and follows the wheel to the room that opened. `anyHubEl` marks the hub for the flights.
+	 */
+	let anyChip = $state<'none' | 'flying' | 'hub' | 'landed'>('none');
+	const anyBuy = $derived(stateGame.buying !== null && usesBuyDisc(stateGame.buying));
+	let anyHubEl: HTMLElement | undefined = $state();
 
 	// Chip tray comes from the RGS bet template (betLevels). It arrives with authenticate.
 	const stakes = $derived(stateGameDerived.stakeOptions());
@@ -369,7 +434,8 @@
 	let resultClosing = $state(false);
 
 	const bettingOpen = $derived(idle && !settled && !clearing && !bonusUp);
-	const controlsHidden = $derived(!bettingOpen);
+	// A buy has no chips to choose: the tray and the group buttons go the moment it starts.
+	const controlsHidden = $derived(!bettingOpen || stateGame.buying !== null);
 	const canSpin = $derived(bettingOpen && currentBet !== null && !stateGame.openRoundError);
 	const confirmDisabled = $derived(settled ? clearing || payingOut : !canSpin);
 	const clearDisabled = $derived(
@@ -481,15 +547,21 @@
 		flights = flights.filter((flight) => flight.id !== id);
 	};
 
+	/**
+	 * Fly a chip between the tray and `spot`'s tile. A buy's chip flies elsewhere: `from` and `to`
+	 * stand in for the tray and the tile, and `onLand` fires as the chip is dropped, for whatever
+	 * takes its place.
+	 */
 	const flyChip = (
 		spot: Spot,
 		kind: 'place' | 'return',
 		delay = 0,
 		face = currentChipFace(),
 		pace = 1,
+		opts: { from?: HTMLElement; to?: HTMLElement; onLand?: () => void } = {},
 	) => {
-		const tray = chipEls[stateGame.stake];
-		const box = tileEls[spot];
+		const tray = opts.from ?? chipEls[stateGame.stake];
+		const box = opts.to ?? tileEls[spot];
 		if (!gameEl || !tray || !box) return;
 		const host = gameEl.getBoundingClientRect();
 		const id = ++flightId;
@@ -513,6 +585,7 @@
 		];
 		schedule(id, () => playSound('whoosh'), delay + grow);
 		schedule(id, () => playSound('pop'), delay + grow + travel);
+		if (opts.onLand) schedule(id, opts.onLand, delay + ms);
 		schedule(id, () => dropFlight(id), delay + ms);
 	};
 
@@ -686,10 +759,12 @@
 		if (clearing || !stateGame.resultReady) return;
 		clearing = true;
 		stakePanelOpen = false;
-		const face = currentChipFace();
+		const face = placedChipFace();
 		const placed = stateGameDerived.backedSpots();
-		const winners = placed.filter((spot) => stateGameDerived.isWinSpot(spot));
-		const losers = placed.filter((spot) => !stateGameDerived.isWinSpot(spot));
+		// A Random Bonus buy backs all four rooms but has the one chip, on the room that opened.
+		const onBoard = anyBuy ? placed.filter((spot) => stateGameDerived.isLandedSpot(spot)) : placed;
+		const winners = onBoard.filter((spot) => stateGameDerived.isWinSpot(spot));
+		const losers = onBoard.filter((spot) => !stateGameDerived.isWinSpot(spot));
 		const collected = winCash;
 
 		context.eventEmitter.broadcast({ type: 'boardClear' });
@@ -701,6 +776,7 @@
 			stateGameDerived.clearBets();
 			resultClosing = false;
 			clearing = false;
+			anyChip = 'none';
 			landedSpot = null;
 			wheelHighlight = null;
 			topSlotApplied = false;
@@ -906,20 +982,28 @@
 			return;
 		}
 		sweepChips(placed, face);
-		// A chip for the full price goes down on every room the buy can open — whichever opens, the
-		// whole price bought it — flown from the tray one after another. The reels wait for the
-		// last one to land.
-		const idx = stakes.indexOf(stateGame.stake);
-		const buyFace = {
-			label: fmtBuyChip(buyChipValue(mode)),
-			hue: chipHueShift(idx),
-			text: chipTextColour(idx),
-		};
-		const rooms = BUY_MODES[mode].rooms;
-		rooms.forEach((room, i) => flyChip(room, 'place', i * 90, buyFace));
-		await waitForTimeout(FLIGHT_MS + (rooms.length - 1) * 90 + 150);
-		// Then the wheel flashes white and comes back as the four-wedge disc for this buy.
-		await swapDisc('buy', mode);
+		// The price goes down as ONE yellow chip, flown from the balance it came out of: onto the
+		// bought room, or for Random Bonus onto the hub between the four rooms, from where it follows
+		// the wheel to whichever opens. The reels wait for it to land.
+		const room = BUY_MODES[mode].rooms[0];
+		if (usesBuyDisc(mode)) {
+			anyChip = 'flying';
+			flyChip(room, 'place', 0, buyChipFace(mode), 1, {
+				from: balanceChipEl,
+				to: anyHubEl,
+				onLand: () => (anyChip = 'hub'),
+			});
+		} else {
+			flyChip(room, 'place', 0, buyChipFace(mode), 1, { from: balanceChipEl });
+		}
+		await waitForTimeout(FLIGHT_MS + 150);
+		// Then, for Random Bonus, the wheel flashes white and comes back as the four-wedge disc — or,
+		// for a single room, leaves the stage to the Top Slot (see `wheelOff`).
+		if (usesBuyDisc(mode)) await swapDisc('buy', mode);
+		else {
+			wheelOff = true;
+			await waitForTimeout(WHEEL_LEAVE_MS);
+		}
 		const mismatch = online ? describeModeMismatch(stateBet.activeBetModeKey) : null;
 		if (mismatch) {
 			console.error(`[crazy-time] ${mismatch}`);
@@ -954,11 +1038,18 @@
 	/** A buy's chip is the price x the chip, which need not be whole (the chest's 13.5). */
 	const fmtBuyChip = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : Number.isInteger(value) ? `${value}` : value.toFixed(2);
-	/** The full price on every room the buy can open, not a share of it: one buy, one price. */
+	/** The buy's full price on its one chip: one buy, one price. */
 	const buyChipValue = (mode: string) => buyPrice(mode) * stateGame.stake;
-	/** What a chip on a tile reads: the chip, or during a buy the buy's price. */
-	const placedChipLabel = () =>
-		stateGame.buying ? fmtBuyChip(buyChipValue(stateGame.buying)) : fmtChip(stateGame.stake);
+	/** A buy's chip is yellow — the chip art untinted — whatever the tray's denomination. */
+	const BUY_CHIP_TEXT = `hsl(${CHIP_BASE_HUE}, 70%, 36%)`;
+	const buyChipFace = (mode: string) => ({
+		label: fmtBuyChip(buyChipValue(mode)),
+		hue: 0,
+		text: BUY_CHIP_TEXT,
+	});
+	/** The face a chip on the board wears: the tray's, or during a buy the buy's yellow one. */
+	const placedChipFace = () =>
+		stateGame.buying ? buyChipFace(stateGame.buying) : currentChipFace();
 
 	const balanceFormat = $derived(
 		new Intl.NumberFormat(stateUrlDerived.lang(), {
@@ -1070,28 +1161,38 @@
 			panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
-			// A bought round spins the buy disc, so the book's 54-segment index maps to the room. A
-			// single-room buy is one segment: it turns once, fast, and stops with the room under the
-			// flapper — `turns: 0` from a disc squared up at the top is exactly one full turn.
-			if (stateGame.buying) await swapDisc('buy', stateGame.buying);
-			const single = wheelDisc === 'buy' && buyDisc?.length === 1;
+			// A Random Bonus round spins the buy disc, so the book's 54-segment index maps to the
+			// room; every other round spins the main wheel to the segment. A single-room buy has the
+			// wheel off the stage: it is set on the room's segment unseen, ready for its return.
+			const buying = stateGame.buying;
+			if (buying && usesBuyDisc(buying)) await swapDisc('buy', buying);
 			const target =
-				wheelDisc !== 'buy' ? event.segment : single ? 0 : ROOM_SPOTS.indexOf(event.spot as RoomSpot);
-			await wheel?.spinTo(
-				target,
-				single
-					? { turns: 0, ms: hurried ? 700 : 1400 }
-					: hurried
-						? { turns: 1, ms: 800 }
-						: { turns: 5, ms: 4600 },
-			);
+				wheelDisc === 'buy'
+					? ROOM_SPOTS.indexOf(event.spot as RoomSpot)
+					: mainSegmentFor(event.segment, event.spot);
+			if (wheelOff) {
+				wheel?.jumpTo(target);
+				await waitForTimeout(hurried ? 150 : 500);
+			} else {
+				await wheel?.spinTo(target, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
+			}
 			wheelHighlight = target;
 			landedSpot = event.spot;
 			topSlotApplied = event.multiplier > 1;
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
 			playSound(event.covered ? 'merge' : 'pop');
-			await waitForTimeout(hurried ? 250 : isRoomSpot(event.spot) ? 900 : 700);
+			if (buying && usesBuyDisc(buying) && anyChip !== 'landed') {
+				// Random Bonus's chip leaves the hub for the room the wheel picked; the room waits for it.
+				anyChip = 'flying';
+				flyChip(event.spot, 'place', 0, buyChipFace(buying), 1, {
+					from: anyHubEl,
+					onLand: () => (anyChip = 'landed'),
+				});
+				await waitForTimeout(FLIGHT_MS + 150);
+			} else {
+				await waitForTimeout(hurried ? 250 : isRoomSpot(event.spot) ? 900 : 700);
+			}
 		},
 		winShow: async (emitterEvent) => {
 			// Book amounts are x100 in units of the chip, so cash scales by betAmount.
@@ -1114,7 +1215,7 @@
 	<div
 		class="game"
 		class:portrait
-		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
+		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
 		bind:this={gameEl}
 	>
 		{#if stateGame.openRoundError || betNotice}
@@ -1154,8 +1255,8 @@
 			{@render totalBet()}
 		</div>
 
-		<!-- The show: Top Slot over the wheel. -->
-		<div class="stage">
+		<!-- The show: Top Slot over the wheel — or, for a bought room, the Top Slot alone. -->
+		<div class="stage" class:solo={wheelOff}>
 			<div class="topslot-wrap">
 				<TopSlot
 					bind:this={topSlot}
@@ -1165,7 +1266,7 @@
 					onReelStop={() => playSound('notify')}
 				/>
 			</div>
-			<div class="wheel-wrap">
+			<div class="wheel-wrap" class:off={wheelOff}>
 				<Wheel
 					bind:this={wheel}
 					segments={wheelDisc === 'buy' && buyDisc ? buyDisc : WHEEL_SEGMENTS}
@@ -1247,21 +1348,36 @@
 											</div>
 										{/if}
 
-										{#if backed && !arrivingSpots.has(spot) && !clearing}
+										<!-- Random Bonus backs every room but has the one chip, on the hub until the
+										     wheel has picked a room and the chip has flown to it. -->
+										{#if backed && !arrivingSpots.has(spot) && !clearing && (!anyBuy || (anyChip === 'landed' && landedSpot === spot))}
 											{#each Array.from({ length: chipsOnSpot(spot) }, (_, tier) => tier) as tier (tier)}
+												{@const chipFace = placedChipFace()}
 												<div
 													class="placed-chip chip"
 													class:won={tier > 0}
-													style="--tier:{tier}; --rise:{TIER_RISE_VW}vw; --pop-ms:{PAYOUT_POP_MS}ms; --chip-hue:{chipHueShift(
-														stakes.indexOf(stateGame.stake),
-													)}deg; --chip-text:{chipTextColour(stakes.indexOf(stateGame.stake))}"
+													style="--tier:{tier}; --rise:{TIER_RISE_VW}vw; --pop-ms:{PAYOUT_POP_MS}ms; --chip-hue:{chipFace.hue}deg; --chip-text:{chipFace.text}"
 												>
-													<span>{placedChipLabel()}</span>
+													<span>{chipFace.label}</span>
 												</div>
 											{/each}
 										{/if}
 									</div>
 								{/each}
+							</div>
+
+							<!-- Random Bonus's chip, on the hub between the four rooms until the wheel picks one.
+							     The hub is a point: the chip centres on it as it does on a tile. -->
+							<div class="any-hub" bind:this={anyHubEl} aria-hidden="true">
+								{#if anyChip === 'hub'}
+									{@const chipFace = placedChipFace()}
+									<div
+										class="placed-chip chip"
+										style="--tier:0; --rise:{TIER_RISE_VW}vw; --chip-hue:{chipFace.hue}deg; --chip-text:{chipFace.text}"
+									>
+										<span>{chipFace.label}</span>
+									</div>
+								{/if}
 							</div>
 
 							<!-- Group bets, parked on the seams between the halves of the board. -->
@@ -1799,6 +1915,24 @@
 		position: relative;
 		z-index: 0;
 		isolation: isolate;
+		/* Registered below so the cabinet GROWS into its solo size rather than jumping to it; the
+		   move down to centre rides the same clock. */
+		transition:
+			--ts-width 600ms ease,
+			margin-top 600ms ease;
+	}
+	@property --ts-width {
+		syntax: '<length>';
+		inherits: true;
+		initial-value: 0px;
+	}
+	/* The Top Slot with the stage to itself (a bought room): twice the cabinet, centred in the room
+	   above the panel — half of what that room has left once the cabinet's own height (half its
+	   width, the art being 2:1) is taken out of it. Scaled in layout, not transform: iOS drops the
+	   first paint of a transform-scaled box in the Stake Engine iframe. */
+	.stage.solo .topslot-wrap {
+		--ts-width: var(--ts-solo, 45vw);
+		margin-top: calc((var(--panel-top, 41vw) - 0.4vw - var(--ts-solo, 45vw) / 2) / 2);
 	}
 	/* Sized to land the wheel's bottom just short of the frame: 0.4 top + the Top Slot cabinet
 	   + 0.4 gap + the wheel has to stay inside the frame's 56.25vw. */
@@ -1812,6 +1946,22 @@
 		/* Only as far as the cabinet's lower rail — see WHEEL_LAP_SHARE, which keeps the lap a share of
 		   the cabinet's height so it tracks the viewport with everything else. */
 		margin-top: calc(var(--wheel-lap, 1.29vw) * -1);
+		transition:
+			opacity 400ms ease,
+			visibility 0s;
+	}
+	/* Off the stage for a bought room: faded out and kept in flow (below the grown cabinet, out of
+	   the frame) so its return is the same fade back into place. */
+	.wheel-wrap.off {
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+		transition:
+			opacity 400ms ease,
+			visibility 0s 400ms;
+	}
+	.wheel-wrap.off .hub-spin {
+		pointer-events: none;
 	}
 	/* The stage is click-through; this is the one piece of it that answers. */
 	.hub-spin {
@@ -1941,6 +2091,10 @@
 		border-width: 0.3vw;
 		box-shadow: 0 0.4vw 0.9vw rgba(0, 0, 0, 0.55);
 	}
+	.game.portrait .any-hub {
+		top: calc(3 * var(--tile-h) + 2.5 * var(--tile-gap-y));
+		left: 50%;
+	}
 	.game.portrait .bundle-btn.on {
 		outline-width: 0.5vw;
 		outline-offset: 0.15vw;
@@ -1993,6 +2147,7 @@
 		font-size: 4.2vw;
 	}
 	.game.portrait .tile .placed-chip,
+	.game.portrait .any-hub .placed-chip,
 	.game.portrait .flying-chip {
 		width: 8vw;
 		height: 8vw;
@@ -2191,6 +2346,17 @@
 		visibility: hidden;
 		pointer-events: none;
 	}
+	/* The hub between the four rooms: the BONUS button's seat (seam 3, see `.bundle-btn`), which is
+	   free during a buy. A point, so the chip inside centres on it the way it centres on a tile. */
+	.any-hub {
+		position: absolute;
+		top: 50%;
+		left: calc(3 * var(--tile-w) + 2.5 * var(--tile-gap-x));
+		width: 0;
+		height: 0;
+		z-index: 30;
+		pointer-events: none;
+	}
 	/* The name sits over the core but is free to run onto the ring — a stroke keeps it legible where
 	   it does, and the alternative is type too small to read. */
 	.bundle-lbl {
@@ -2345,7 +2511,8 @@
 			scale: var(--land-scale, 0.6);
 		}
 	}
-	.tile .placed-chip {
+	.tile .placed-chip,
+	.any-hub .placed-chip {
 		position: absolute;
 		top: 50% !important;
 		bottom: auto !important;

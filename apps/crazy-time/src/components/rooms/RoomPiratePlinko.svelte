@@ -94,6 +94,42 @@
 	const GLOW = '#f5b431';
 
 	/**
+	 * Four of the pegs are bombs. The coin striking one sets it off: the pegs around it are blown
+	 * away and the coin is thrown clear across the field — a detour, never a different pocket, since
+	 * the board picks the throw from the ones that still reach the pocket the book settled on.
+	 *
+	 * The bomb is drawn by its BODY, which is not the middle of its file: the fuse takes the top
+	 * third, so the round part sits low — centred at 0.664 down and 0.617 wide, read off the art.
+	 * Drawn well over the coin's size — a black ball on dark timber has to be BIG to be seen at all,
+	 * and the board caps it at half a pitch, which on this squat board is where this lands. The
+	 * explosion is a plain square burst, centred on the bomb by the board.
+	 */
+	const BOMBS = {
+		count: 4,
+		src: staticPath('img/pirate-plinko/bomb.png'),
+		cx: 0.5,
+		cy: 0.664,
+		d: 0.617,
+		scale: 2,
+		blast: staticPath('img/pirate-plinko/explosion.png'),
+	};
+	/** How long the cabinet rattles after a blast. */
+	const QUAKE_MS = 380;
+	let quaking = $state(false);
+	let quakeTimer: ReturnType<typeof setTimeout> | undefined;
+	/**
+	 * The whole cabinet jolts, art and all — a blast that shook the pegs but not the timber they
+	 * stand in would read as the pegs shaking, not the board. Off and on in a fresh frame for the
+	 * same reason the recoil is: two bombs a second apart both have to be felt.
+	 */
+	const quake = () => {
+		quaking = false;
+		requestAnimationFrame(() => (quaking = true));
+		clearTimeout(quakeTimer);
+		quakeTimer = setTimeout(() => (quaking = false), QUAKE_MS + 40);
+	};
+
+	/**
 	 * The cabinet the board is played in: a roped timber sign, and where its picture says the pegs
 	 * and the pockets go. Read off the art as fractions of its own box.
 	 *
@@ -465,7 +501,12 @@
 	</div>
 
 	<div class="board-wrap" bind:this={wrapEl}>
-		<div class="board" bind:this={boardEl} style="width:{fit.w}px; height:{fit.h}px">
+		<div
+			class="board"
+			class:quaking
+			bind:this={boardEl}
+			style="width:{fit.w}px; height:{fit.h}px; --quake-ms:{QUAKE_MS}ms"
+		>
 			<!-- The cabinet itself, drawn at the box it was fitted to. Nothing is turned: a tall screen
 			     is handed the upright drawing instead. -->
 			<img
@@ -481,6 +522,7 @@
 				{ladder}
 				accent={GLOW}
 				art={COIN}
+				bombs={BOMBS}
 				frame={FRAME}
 				format={label}
 				launcher="aimed"
@@ -494,6 +536,10 @@
 						recoil();
 					},
 					peg: () => playSound('peg', 0.9 + Math.random() * 0.2),
+					blast: () => {
+						playSound('boom', 0.95 + Math.random() * 0.1);
+						quake();
+					},
 					land: () => playSound('merge'),
 				}}
 			/>
@@ -648,6 +694,31 @@
 	.board {
 		position: relative;
 		flex: none;
+	}
+	/* The jolt. Small — a third of a percent of the board's own width — and over in a few frames:
+	   the explosion is the thing to look at, and the shake only has to be FELT under it. */
+	.board.quaking {
+		animation: board-quake var(--quake-ms) ease-out;
+	}
+	@keyframes board-quake {
+		0% {
+			translate: 0 0;
+		}
+		15% {
+			translate: 0.5% -0.35%;
+		}
+		35% {
+			translate: -0.45% 0.3%;
+		}
+		55% {
+			translate: 0.3% 0.2%;
+		}
+		75% {
+			translate: -0.15% -0.1%;
+		}
+		100% {
+			translate: 0 0;
+		}
 	}
 	/* Under everything the board draws, and never in the way of a pointer aiming through it. */
 	.board-art {

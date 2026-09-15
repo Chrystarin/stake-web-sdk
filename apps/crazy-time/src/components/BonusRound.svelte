@@ -165,7 +165,7 @@
 			{/if}
 		</div>
 
-		<div class="stage">
+		<div class="stage" class:over-plaque={current.room.type === 'oceanVoyageRoom'}>
 			{#if current.room.type === 'piratePlinkoRoom'}
 				<!-- Pirate Plinko shows what it paid in the middle of its own board rather than on the
 				     screen's footer: the board is the biggest thing on the screen and the last place
@@ -184,7 +184,7 @@
 			{:else if current.room.type === 'chestRoom'}
 				<RoomChest bind:this={roomApi} room={current.room} interactive={current.covered} />
 			{:else}
-				<RoomOceanVoyage bind:this={roomApi} room={current.room} />
+				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={current.covered} />
 			{/if}
 		</div>
 
@@ -268,6 +268,12 @@
 	   the top of the barrel is meant to disappear under the timber. */
 	.header {
 		z-index: 2;
+	}
+	/* The one room that stands something ON the plaque rather than behind it: Ocean Voyage hangs
+	   its caption off the bottom of the sign, over the rope. Nothing else in that room reaches the
+	   header, so the whole stage can go over it. */
+	.stage.over-plaque {
+		z-index: 3;
 	}
 	@keyframes screen-in {
 		from {

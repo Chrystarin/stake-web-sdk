@@ -42,8 +42,21 @@ All 255 combinations are published, a single room included: every spot covers at
 wheel's 54 segments (rooms 4 / 3 / 3 / 3), so even a room alone pays at least once in 20 spins,
 Stake's hit-rate floor for a base mode. (With Crazy Time's own 4/2/2/1 split, used before, the
 three rarer rooms were company-only.) The Bonus Wheel keeps its 50,000x on three segments by
-making its 1,000x a quarter-width jackpot sliver (see `WHEEL_WIDTHS`), drawn to the width the
-book weighs. ALL BONUS and FULL BOARD remain as one-tap shortcuts.
+making its 1,000x a quarter-width jackpot sliver in the math (see `WHEEL_WIDTHS`). ALL BONUS and
+FULL BOARD remain as one-tap shortcuts.
+
+#### Bonus Wheel drawn at equal widths
+
+The Bonus Wheel disc draws all 36 wedges at the same width, the 1,000x included. The math does
+not: the 1,000x is one unit wide against four for every other wedge, so it lands 1 in 141 visits,
+not the 1 in 36 the disc suggests. Every other wedge lands slightly MORE often than its drawn
+arc (4/141 against 1/36). This is a deliberate product decision (2026-09-15): the honest
+alternatives were a 500x jackpot at full width (max win 25,000x, a full re-solve and republish)
+or taking the room back to fewer main-wheel segments (breaking bet-alone). The book event's
+`widths` still carries the true weights, and `RoomBonusWheel.svelte` lands by wedge index, so
+the outcome is the book's either way. Anyone certifying the game should be told the disc is
+not drawn to its odds on that one wedge; restoring the honest disc is a one-line change in
+`RoomBonusWheel.svelte` (pass `weight: widths[i]` back to the segments).
 
 Every spot is tuned to 96.7% on its own, so every combination is 96.7% with zero spread.
 

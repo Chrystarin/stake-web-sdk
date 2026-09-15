@@ -1,4 +1,6 @@
 @font-face { font-family: 'Noto Sans'; font-style: normal; font-weight: 400 900; src: url('fonts/NotoSans/NotoSans-latin.woff2') format('woff2'); }
+/* Poppins Medium only: the YES / NO on the "Start Bonus Buy?" board, set as One-Eyed Willy's Plinko sets it. */
+@font-face { font-family: 'Poppins'; font-style: normal; font-weight: 500; src: url('fonts/Poppins/Poppins-Medium.ttf') format('truetype'); }
 /* --ui-px: "one pixel of the 1024x576 reference frame", capped at 1px, so the Buy Bonus screen
    (ported from the Plinko, which states its layout in this unit) scales down with a small
    landscape viewport instead of overflowing it. Portrait keeps 1px; the modal re-points the unit

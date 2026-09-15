@@ -260,11 +260,13 @@
 		user-select: none;
 	}
 
+	/* Poppins Medium, as on One-Eyed Willy's Plinko: the one face on this board that is not already
+	   shared with the rest of the game, installed (500 only) for exactly this. */
 	.cf-choice-text {
 		position: relative;
 		z-index: 1;
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 600;
+		font-family: 'Poppins', sans-serif;
+		font-weight: 500;
 		font-size: calc(var(--label-size) * var(--scale, 1));
 		line-height: 1;
 		text-align: center;

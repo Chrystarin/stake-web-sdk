@@ -22,14 +22,14 @@
 		/** Badge art drawn in place of the text label, upright on the label ring. */
 		image?: { src: string; aspect: number };
 		/**
-		 * The wedge's width relative to the others; 1 unless stated. The Bonus Wheel's 1,000x is a
-		 * quarter-width sliver, and a wedge lands in proportion to the arc it shows, so the disc is
-		 * drawn to the very widths the book weighs.
+		 * The wedge's width relative to the others; 1 unless stated. Unused by the game's two discs
+		 * today (the Bonus Wheel draws its 1,000x sliver at full width, see README); kept for a disc
+		 * that wants unequal arcs.
 		 */
 		weight?: number;
 		/**
-		 * The width the LABEL is sized for, when the wedge itself is too narrow to hold one: the
-		 * sliver's x1000 is set as if on a full wedge and spills over its neighbours. Its own
+		 * The width the LABEL is sized for, when the wedge itself is too narrow to hold one: a
+		 * narrow wedge's figure set as if on a full one, spilling over its neighbours. Its own
 		 * `weight` unless stated.
 		 */
 		inkWeight?: number;
@@ -129,8 +129,8 @@
 	});
 	/**
 	 * Wedges are laid clockwise from the flapper at 12 o'clock, wedge 0 centred on it, each as wide
-	 * as its `weight` says. Equal weights (the main wheel) give the familiar 360/n step; the Bonus
-	 * Wheel's sliver makes them unequal, so every angle here comes from the cumulative layout.
+	 * as its `weight` says. Equal weights give the familiar 360/n step; unequal ones are allowed,
+	 * so every angle here comes from the cumulative layout.
 	 */
 	const weights = $derived(segments.map((seg) => seg.weight ?? 1));
 	const totalWeight = $derived(weights.reduce((sum, w) => sum + w, 0));
@@ -158,14 +158,6 @@
 	};
 
 	const wedgePath = (i: number) => {
-		// A lone segment is the whole disc. Its arc would start and end on the same point, which SVG
-		// draws as nothing, so it is two half circles instead — and the hub, if any, a reversed pair
-		// cut out of it.
-		if (segments.length === 1) {
-			const disc = `M${R},${R - OUTER} A${OUTER},${OUTER} 0 1 1 ${R},${R + OUTER} A${OUTER},${OUTER} 0 1 1 ${R},${R - OUTER}Z`;
-			if (INNER <= 0) return disc;
-			return `${disc} M${R},${R - INNER} A${INNER},${INNER} 0 1 0 ${R},${R + INNER} A${INNER},${INNER} 0 1 0 ${R},${R - INNER}Z`;
-		}
 		const a0 = starts[i];
 		const a1 = starts[i] + spanOf(i);
 		const o0 = polar(OUTER, a0);
@@ -270,6 +262,15 @@
 	export const resetRotation = () => {
 		if (spinning) return;
 		rotation = 0;
+	};
+
+	/**
+	 * Set the disc at rest with `index` under the flapper, without turning it: for a wheel that is
+	 * off the stage, so it comes back already showing the result. Never while it spins.
+	 */
+	export const jumpTo = (index: number) => {
+		if (spinning) return;
+		rotation = -centreOf(index);
 	};
 
 	const finish = (index: number) => {

@@ -1,168 +1,655 @@
 <script lang="ts">
 	/**
-	 * Ocean Voyage room: ten depths of four tiles. The dive plays out depth by depth along the
-	 * authored path; the depth it ends on pays. A kraken at the next depth ends the dive early,
-	 * clearing every depth pays the top multiplier.
+	 * Ocean Voyage room: ten stops of three buoys between the harbour at the foot of the board and
+	 * the island at its head. The ship sails up the board one stop at a time, to whichever buoy is
+	 * chosen at each; a buoy it reaches safely turns into an island with the stop's multiplier on
+	 * it, and the last island reached is the one that pays. Somewhere on the way a kraken is
+	 * waiting: the stop it is at ends the voyage, and the ship keeps what it had. Clearing all ten
+	 * stops sails the ship into port for the top multiplier.
+	 *
+	 * The player picks the course. Every buoy at the next stop is open to them, and the ship sails
+	 * to the one they tap. Nothing on the board says what a stop is worth until the ship has been
+	 * there.
+	 *
+	 * The voyage is AUTHORED. The book says how many stops the ship reaches (`dived`), and that is
+	 * what pays: every buoy at a stop before that one is safe, and every buoy at that stop holds the
+	 * kraken — so no course changes what the round pays, the same as a shuffled live board. The
+	 * rules page must say so. The book's own `path` and `krakenTile` are only sailed when nobody is
+	 * choosing: a player who was not in the bonus, or one whose clock runs out, who has the rest of
+	 * the voyage sailed for them.
+	 *
+	 * How many buoys a stop has is the CLIENT's number (`TILES_PER_DEPTH`), not the book's: the
+	 * buoys are cosmetic, and books published before the count changed still carry tile indices
+	 * from the old width, which are folded onto the board with a modulo rather than trusted.
+	 *
+	 * Each stop gets its own clock (`PICK_SECONDS`), not the voyage as a whole: ten picks at one
+	 * every second and a half would rush the very run the player most wants to savour, and a player
+	 * who has walked away is still only ever waited for once.
 	 */
+	import { onDestroy } from 'svelte';
+	import { PICK_SECONDS, TILES_PER_DEPTH } from '../../game/constants';
 	import type { BookEventOceanVoyage } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
+	import { staticPath } from '../../lib/staticUrl';
 	import { waitForTimeout } from 'utils-shared/wait';
 	import RoomHint from './RoomHint.svelte';
 
-	type Props = { room: BookEventOceanVoyage };
-	let { room }: Props = $props();
+	type Props = { room: BookEventOceanVoyage; interactive?: boolean };
+	let { room, interactive = false }: Props = $props();
+
+	const PICK_MS = PICK_SECONDS * 1000;
 
 	/**
-	 * The caption, cut as a share of the dive column's own width — the same knob everything else in
-	 * the room is drawn off (see `--voyage-w`), so it grows with the column on a tall screen instead
-	 * of needing a portrait rule of its own.
+	 * The art. All four are PNGs with transparent air around them; the ship's is cut to the drawing
+	 * (204x216, the hull dead centre of it) so that putting its middle on a buoy puts the SHIP on
+	 * the buoy rather than a corner of its canvas.
 	 */
-	const HINT_SIZE = 'calc(var(--voyage-w) * 0.0727)';
+	const SHIP = staticPath('img/ocean-voyage/ship.png');
+	const KRAKEN = staticPath('img/ocean-voyage/kraken.png');
+	const ISLAND = staticPath('img/ocean-voyage/island.png');
+	const GOAL = staticPath('img/ocean-voyage/goal.png');
 
+	/** What to tell the player while a course is theirs to pick. One line per drain — see `RoomHint`. */
+	const HINT = ['Chart your', 'course'];
+	/** The caption, as a share of the board's width — the one knob the room is drawn off (`--voyage-w`). */
+	const HINT_SIZE = 'calc(var(--voyage-w) * 0.042)';
+
+	/** The ship crossing from one stop to the next. */
+	const SAIL_MS = 620;
+	/** The ship's last leg, into port. A little longer: it is the longest crossing on the board. */
+	const PORT_MS = 780;
+	/** A beat on a fresh island before the auto-pilot sails on, or before the last leg into port. */
+	const ARRIVE_MS = 420;
+	/** The ship going down under the kraken. Matches the `sink` animation below. */
+	const SINK_MS = 1100;
+	/** The outcome on the board before the screen moves on to the win line. */
+	const END_HOLD_MS = 900;
+
+	/**
+	 * The board, as shares of its own width.
+	 *
+	 * Everything that has a place on it — the buoys, the ship, the wake curling behind it — is drawn
+	 * off these few numbers, so the ship's arithmetic and the buoys' CSS cannot disagree about
+	 * where a stop is. Landscape and portrait differ only in `--voyage-w`.
+	 *
+	 * The buoys are spread wide on purpose: the course the player draws through them is the thing
+	 * the room is about, and it needs open water to curl in. The vertical shares are kept small so
+	 * that the height, which is what binds on every screen, buys as wide a board as it can: ten
+	 * stops come to 0.985 of the width, so a 16:9 stage gets a board about two fifths of the
+	 * screen across. The side padding is what sets the column pitch — 0.265 for three
+	 * columns, about the same as the four-column board had — so the island and the harbour keep
+	 * the width to themselves and the buoys sit in a band down the middle.
+	 */
+	const L = {
+		/** From the board's edge to the outer buoys' edges. */
+		padX: 0.2,
+		/** A buoy, across. */
+		node: 0.07,
+		/** Centre to centre, one stop to the next. */
+		rowPitch: 0.08,
+		/** The island at the head of the board. */
+		goalH: 0.13,
+		/** The harbour at its foot, where the ship starts. */
+		startH: 0.065,
+	};
 	const depths = $derived(room.depths.length);
-	let reached = $state(0); // depths revealed so far
-	let krakenShown = $state(false);
+	const cols = TILES_PER_DEPTH;
+	const colPitch = $derived((1 - 2 * L.padX - L.node) / (cols - 1));
+	const rowsH = $derived((depths - 1) * L.rowPitch + L.node);
+	const boardH = $derived(L.goalH + rowsH + L.startH);
+
+	type Pt = { x: number; y: number };
+	/** A buoy's centre. Stop 0 is the bottom row, nearest the harbour. */
+	const buoy = (depth: number, tile: number): Pt => ({
+		x: L.padX + L.node / 2 + tile * colPitch,
+		y: L.goalH + L.node / 2 + (depths - 1 - depth) * L.rowPitch,
+	});
+	const harbour = $derived<Pt>({ x: 0.5, y: L.goalH + rowsH + L.startH * 0.55 });
+	/** The ship pulls in at the island's shore, low on the drawing where the water is. */
+	const port = $derived<Pt>({ x: 0.5, y: L.goalH * 0.6 });
+
+	/**
+	 * One leg of the voyage, as a cubic curve.
+	 *
+	 * The ship always arrives at a stop bow-first, heading up the board, and leaves it the same way:
+	 * so a leg sets out straight up from where it is, bends across to the column it is bound for,
+	 * and straightens again to come in over the buoy. Both handles are vertical — the first above
+	 * the start, the second below the end — which is what makes a leg to the same column a straight
+	 * line and a leg across the board an S, and keeps every curve inside the two columns it joins.
+	 * The handles are cut from the leg's HEIGHT, not its length: cut from the length, a leg right
+	 * across the board would loop above its start and below its end before coming in.
+	 */
+	type Leg = { a: Pt; c1: Pt; c2: Pt; b: Pt };
+	const leg = (a: Pt, b: Pt): Leg => {
+		const reach = Math.max(Math.abs(b.y - a.y) * 0.75, 0.03);
+		return { a, c1: { x: a.x, y: a.y - reach }, c2: { x: b.x, y: b.y + reach }, b };
+	};
+	const along = (l: Leg, t: number): Pt => {
+		const u = 1 - t;
+		const w0 = u * u * u,
+			w1 = 3 * u * u * t,
+			w2 = 3 * u * t * t,
+			w3 = t * t * t;
+		return {
+			x: w0 * l.a.x + w1 * l.c1.x + w2 * l.c2.x + w3 * l.b.x,
+			y: w0 * l.a.y + w1 * l.c1.y + w2 * l.c2.y + w3 * l.b.y,
+		};
+	};
+	/** The bow's heading at `t`, in degrees clockwise from straight up the board. */
+	const heading = (l: Leg, t: number): number => {
+		const u = 1 - t;
+		const dx = 3 * (u * u * (l.c1.x - l.a.x) + 2 * u * t * (l.c2.x - l.c1.x) + t * t * (l.b.x - l.c2.x));
+		const dy = 3 * (u * u * (l.c1.y - l.a.y) + 2 * u * t * (l.c2.y - l.c1.y) + t * t * (l.b.y - l.c2.y));
+		return (Math.atan2(dx, -dy) * 180) / Math.PI;
+	};
+	/** The part of a leg from its start to `t` — de Casteljau's split, kept as a curve of its own. */
+	const upTo = (l: Leg, t: number): Leg => {
+		const mix = (p: Pt, q: Pt): Pt => ({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t });
+		const p01 = mix(l.a, l.c1),
+			p12 = mix(l.c1, l.c2),
+			p23 = mix(l.c2, l.b);
+		const p012 = mix(p01, p12),
+			p123 = mix(p12, p23);
+		return { a: l.a, c1: p01, c2: p012, b: mix(p012, p123) };
+	};
+
+	/** Stops cleared so far; the ship is at stop `reached - 1`, or in the harbour. */
+	let reached = $state(0);
+	/** The buoy taken at each cleared stop — the player's, or the book's when sailed for them. */
+	let taken = $state<number[]>([]);
+	/** The buoy the kraken rose from, once it has. */
+	let kraken = $state<{ depth: number; tile: number } | null>(null);
+	let ended = $state<'kraken' | 'port' | null>(null);
+	/** True while the ship is between stops: the buoys wait for it. */
+	let moving = $state(false);
+	/** True while a pick is being waited for. Bumped per pick, so the hint's clock restarts. */
+	let picking = $state(false);
+	let pickRound = $state(0);
+	/** True once the player's clock has run out and the book is sailing the rest. */
+	let autopilot = $state(false);
+
+	/** The ship, in board shares, and its heading. */
+	let ship = $state<Pt>({ x: 0, y: 0 });
+	let tilt = $state(0);
+	let sunk = $state(false);
+	/** Every leg sailed, harbour first, and the one under way with how far along it the ship is. */
+	let legs = $state<Leg[]>([]);
+	let underway = $state<{ leg: Leg; t: number } | null>(null);
+	let started = false;
+
+	$effect.pre(() => {
+		// Once, before the first paint: the ship in the harbour.
+		if (!started) {
+			started = true;
+			ship = harbour;
+		}
+	});
+
+	let alive = true;
+	onDestroy(() => (alive = false));
+
+	/**
+	 * The ship under way along a leg. An ease-out so it leaves at speed and settles on the buoy,
+	 * its bow following the curve; the wake follows the ship itself, so the line grows with the
+	 * crossing rather than appearing behind it.
+	 *
+	 * Frame-driven, with a clock behind it. A tab in the background is given no frames at all, and
+	 * a crossing that waited on one would stand the whole voyage still until the player came back
+	 * (Plinko's rAF-only waits froze the same way on iOS). The clock lands the ship where the frames
+	 * were taking it; on a visible screen the frames get there first and the clock is never heard.
+	 */
+	const sail = (to: Pt, ms: number): Promise<void> =>
+		new Promise((resolve) => {
+			const l = leg(ship, to);
+			const t0 = performance.now();
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				clearTimeout(clock);
+				ship = to;
+				tilt = 0;
+				legs = [...legs, l];
+				underway = null;
+				resolve();
+			};
+			const clock = setTimeout(finish, ms + 80);
+			const frame = (now: number) => {
+				if (done) return;
+				if (!alive) return finish();
+				const t = Math.min(1, (now - t0) / ms);
+				const e = 1 - Math.pow(1 - t, 3);
+				ship = along(l, e);
+				tilt = Math.max(-75, Math.min(75, heading(l, e)));
+				underway = { leg: l, t: e };
+				if (t < 1) requestAnimationFrame(frame);
+				else finish();
+			};
+			requestAnimationFrame(frame);
+		});
+
+	/** The ship to `tile` at the next stop, and what it finds there. */
+	const sailTo = async (tile: number) => {
+		const depth = reached;
+		moving = true;
+		playSound('whoosh');
+		await sail(buoy(depth, tile), SAIL_MS);
+
+		if (depth >= room.dived) {
+			// The stop the book ends the voyage at: whichever buoy was chosen, the kraken is under it.
+			kraken = { depth, tile };
+			sunk = true;
+			playSound('doorClose');
+			await waitForTimeout(SINK_MS);
+			ended = 'kraken';
+		} else {
+			taken = [...taken, tile];
+			reached = depth + 1;
+			playSound('pop', 1 + depth * 0.04);
+			if (reached >= depths) {
+				await waitForTimeout(ARRIVE_MS);
+				playSound('whoosh');
+				await sail(port, PORT_MS);
+				ended = 'port';
+				playSound('win');
+			}
+		}
+		moving = false;
+	};
+
+	let resolvePick: ((tile: number) => void) | null = null;
+
+	/** The player's next buoy, or -1 when their clock runs out first. */
+	const waitForPick = (): Promise<number> =>
+		new Promise((resolve) => {
+			pickRound += 1;
+			picking = true;
+			const deadline = setTimeout(() => {
+				resolvePick = null;
+				picking = false;
+				resolve(-1);
+			}, PICK_MS);
+			resolvePick = (tile) => {
+				clearTimeout(deadline);
+				resolvePick = null;
+				picking = false;
+				resolve(tile);
+			};
+		});
+
+	const choose = (depth: number, tile: number) => {
+		if (!picking || moving || ended !== null || depth !== reached || !resolvePick) return;
+		resolvePick(tile);
+	};
 
 	export const play = async (): Promise<number> => {
-		for (let d = 0; d < room.dived; d++) {
-			await waitForTimeout(d === 0 ? 500 : 380);
-			reached = d + 1;
-			playSound('pop', 1 + d * 0.04);
-		}
 		await waitForTimeout(500);
-		if (room.krakenTile !== null) {
-			krakenShown = true;
-			playSound('doorClose');
-		} else {
-			playSound('win');
+		if (interactive) {
+			while (ended === null) {
+				const tile = await waitForPick();
+				if (tile < 0) {
+					autopilot = true;
+					break;
+				}
+				playSound('click');
+				await sailTo(tile);
+			}
 		}
-		await waitForTimeout(900);
+		// Whatever is left is sailed along the book's own course.
+		let first = true;
+		while (ended === null) {
+			const depth = reached;
+			const tile = (depth < room.dived ? room.path[depth] : (room.krakenTile ?? 0)) % cols;
+			if (!first || autopilot) await waitForTimeout(ARRIVE_MS);
+			first = false;
+			await sailTo(tile);
+		}
+		await waitForTimeout(END_HOLD_MS);
 		return room.total;
 	};
 
-	const tileState = (depth: number, tile: number): 'safe' | 'kraken' | 'hidden' => {
-		if (depth < reached && room.path[depth] === tile) return 'safe';
-		if (krakenShown && depth === room.dived && room.krakenTile === tile) return 'kraken';
-		return 'hidden';
-	};
+	/** The wake: every leg sailed, and the leg under way as far as the ship has got along it. */
+	const pt = (p: Pt) => `${(p.x * 1000).toFixed(1)} ${(p.y * 1000).toFixed(1)}`;
+	const curve = (l: Leg) => `C ${pt(l.c1)} ${pt(l.c2)} ${pt(l.b)}`;
+	const wake = $derived.by(() => {
+		const drawn = underway ? [...legs, upTo(underway.leg, underway.t)] : legs;
+		if (drawn.length === 0) return '';
+		return `M ${pt(drawn[0].a)} ${drawn.map(curve).join(' ')}`;
+	});
+	const at = (p: Pt) =>
+		`left: calc(var(--voyage-w) * ${p.x}); top: calc(var(--voyage-w) * ${p.y})`;
 </script>
 
-<div class="voyage" style="--depths:{depths}">
-	{#each Array.from({ length: depths }, (_, i) => depths - 1 - i) as depth (depth)}
-		<div class="depth" class:current={reached === depth + 1} class:reached={depth < reached}>
-			<div class="mult">{room.depths[depth]}x</div>
-			<div class="tiles">
-				{#each Array.from({ length: room.tilesPerDepth }, (_, t) => t) as tile (tile)}
-					{@const state = tileState(depth, tile)}
-					<div class="tile {state}"></div>
-				{/each}
-			</div>
-		</div>
-	{/each}
-	<!-- What the dive is doing, in the same voice the other three rooms speak in — see `RoomHint`.
-	     No drain on any of these: the voyage is the one room with nothing to decide, so there is no
-	     clock running against the player to draw. Cut smaller than Pirate Plinko's because the dive
-	     is a narrow column and these lines are sentences rather than two-word orders. -->
+<div class="voyage" style="--board-h:{boardH}; --node:{L.node}">
+	<div class="board">
+		<!-- The island at the head of the board. It lights when the ship makes port. -->
+		<img class="goal" class:lit={ended === 'port'} src={GOAL} alt="" />
+
+		{#each Array.from({ length: depths }, (_, d) => d) as depth (depth)}
+			{@const cleared = depth < reached}
+			{@const open = picking && !moving && ended === null && depth === reached}
+			{#each Array.from({ length: cols }, (_, t) => t) as tile (tile)}
+				{@const island = cleared && taken[depth] === tile}
+				{@const wreck = kraken?.depth === depth && kraken.tile === tile}
+				<button
+					class="buoy"
+					class:island
+					class:wreck
+					class:open
+					style={at(buoy(depth, tile))}
+					disabled={!open}
+					onclick={() => choose(depth, tile)}
+					aria-label={open ? `Sail to buoy ${tile + 1}` : undefined}
+				>
+					{#if island}
+						<img class="art" src={ISLAND} alt="" />
+						<!-- The stop's multiplier, on the island it was earned at, cut in the letters every
+						     other multiplier in the game is cut in — `.mult-badge` is the table's own. Once
+						     the voyage is over, the LAST island's number is the one that paid, and it glows
+						     and breathes so the eye lands on it. -->
+						<div class="value mult-badge" class:won={ended !== null && depth === reached - 1}>
+							<span class="mult-stroke" aria-hidden="true">{room.depths[depth]}x</span>
+							<span class="mult-fill">{room.depths[depth]}x</span>
+						</div>
+					{:else if wreck}
+						<img class="art kraken" src={KRAKEN} alt="" />
+					{/if}
+				</button>
+			{/each}
+		{/each}
+
+		<!-- The wake: a broken line curling through every stop the ship has made, following the ship
+		     itself on each leg. A dark line under a light one, so it reads over water and sand alike.
+		     The viewBox is the board in thousandths of its width, the same units every position above
+		     is in. -->
+		<svg class="wake" viewBox="0 0 1000 {boardH * 1000}" aria-hidden="true">
+			<path class="wake-shadow" d={wake} />
+			<path class="wake-line" d={wake} />
+		</svg>
+
+		<img
+			class="ship"
+			class:sunk
+			src={SHIP}
+			alt=""
+			style="--sx:{ship.x}; --sy:{ship.y}; --tilt:{tilt.toFixed(2)}deg"
+		/>
+	</div>
+
+	<!-- What the voyage is doing, in the voice the other rooms speak in — see `RoomHint`. The pick
+	     line drains over the player's clock and is re-keyed per stop, so each pick gets a fresh one;
+	     the other lines have no clock to draw. It hangs off the bottom of the room's sign, over the
+	     rope, rather than taking a row under the board: the board is the tallest thing in the game
+	     and every row it gives up is a row of buoys drawn smaller. `BonusRound` lifts this room's
+	     stage over the header so the words are not cut off by the plaque. -->
 	<div class="caption">
-		{#if krakenShown}
+		{#if ended === 'kraken'}
 			<RoomHint size={HINT_SIZE}>
-				Kraken at depth {room.dived + 1}<br />You keep <b>{room.total}x</b>
+				Kraken at stop {(kraken?.depth ?? 0) + 1}<br />You keep <b>{room.total}x</b>
 			</RoomHint>
-		{:else if reached >= depths}
-			<RoomHint size={HINT_SIZE}>Reached the surface <b>{room.total}x</b></RoomHint>
+		{:else if ended === 'port'}
+			<RoomHint size={HINT_SIZE}>Made port <b>{room.total}x</b></RoomHint>
+		{:else if interactive && !autopilot}
+			{#key pickRound}
+				<RoomHint lines={HINT} durationMs={picking ? PICK_MS : null} size={HINT_SIZE} />
+			{/key}
 		{:else}
-			<RoomHint lines={['Diving']} size={HINT_SIZE} />
+			<RoomHint lines={[autopilot ? 'Sailing on' : 'Setting sail']} size={HINT_SIZE} />
 		{/if}
 	</div>
 </div>
 
 <style>
 	/*
-	 * Everything about the dive column is a share of its own width, and the width is the one number
-	 * that changes between a wide screen and a tall one. It was ten sets of vw before, which meant a
-	 * portrait pass would have been ten more of them, each free to drift out of proportion with the
-	 * rest; now there is a single knob and the drawing follows it.
-	 *
-	 * The shares are the old landscape numbers over the old landscape width of 22vw, so a wide
-	 * screen still gets exactly the column it had.
+	 * Everything on the board is a share of its width, and the width is the one number that changes
+	 * between a wide screen and a tall one. The board is 0.985 times as tall as it is wide (the
+	 * caption hangs above it and takes no row), and the bonus stage is about two thirds of the
+	 * screen tall, so the two bounds meet near 16:9: a wider screen is bound by height, a squarer
+	 * one by width.
 	 */
 	.voyage {
-		--voyage-w: 22vw;
-		display: flex;
-		flex-direction: column;
-		gap: calc(var(--voyage-w) * 0.0082);
+		--voyage-w: min(40vw, 68vh);
+		position: relative;
+		/* At the TOP of the stage rather than its middle: the caption hangs off the room's sign, and
+		   the sign is at the stage's top edge, so the room has to be too — on a long phone, where the
+		   board is bound by width and the stage has air to spare, the air goes below the harbour. */
+		align-self: flex-start;
 		width: var(--voyage-w);
 	}
-	.depth {
-		display: flex;
-		align-items: center;
-		gap: calc(var(--voyage-w) * 0.0227);
-		padding: calc(var(--voyage-w) * 0.0055) calc(var(--voyage-w) * 0.0182);
-		border-radius: calc(var(--voyage-w) * 0.0136);
-		background: rgba(60, 20, 20, 0.55);
-		transition: background 250ms ease;
+	.board {
+		position: relative;
+		width: var(--voyage-w);
+		height: calc(var(--voyage-w) * var(--board-h));
 	}
-	.depth.reached {
-		background: rgba(120, 40, 30, 0.75);
+	/* The island at the head of the board, over the middle of the water. */
+	.goal {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		width: calc(var(--voyage-w) * 0.28);
+		height: auto;
+		transform: translateX(-50%);
+		filter: drop-shadow(0 calc(var(--voyage-w) * 0.01) calc(var(--voyage-w) * 0.02) rgba(0, 0, 0, 0.6));
+		transition: filter 400ms ease;
+		pointer-events: none;
 	}
-	.depth.current {
-		background: rgba(200, 80, 40, 0.85);
-		box-shadow: 0 0 calc(var(--voyage-w) * 0.0273) rgba(255, 180, 80, 0.7);
+	.goal.lit {
+		filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.03) rgba(255, 214, 90, 0.95))
+			drop-shadow(0 0 calc(var(--voyage-w) * 0.06) rgba(255, 180, 50, 0.6));
 	}
-	.mult {
-		width: calc(var(--voyage-w) * 0.136);
-		font-family: 'Alexandria', sans-serif;
-		font-weight: 700;
-		font-size: calc(var(--voyage-w) * 0.0386);
-		color: #ffd27a;
-		text-align: right;
-	}
-	.tiles {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
-		gap: calc(var(--voyage-w) * 0.0114);
-		flex: 1;
-	}
-	.tile {
-		height: calc(var(--voyage-w) * 0.0705);
-		border-radius: calc(var(--voyage-w) * 0.0114);
-		background: linear-gradient(180deg, #6b3b2a, #3e2118);
-		border: calc(var(--voyage-w) * 0.0027) solid rgba(255, 200, 120, 0.35);
+
+	/*
+	 * A buoy: a disc of open water at three-quarter strength until the ship has been there. Its
+	 * place is written on the element (see `buoy`), the same arithmetic the ship sails by. The row
+	 * that is the player's to pick from is fully lit and breathes; a buoy with an island or the
+	 * kraken on it is solid.
+	 */
+	.buoy {
+		position: absolute;
+		width: calc(var(--voyage-w) * var(--node));
+		height: calc(var(--voyage-w) * var(--node));
+		padding: 0;
+		border-radius: 50%;
+		transform: translate(-50%, -50%);
+		background: radial-gradient(circle at 40% 35%, rgba(70, 150, 210, 0.95), rgba(10, 45, 95, 0.95) 75%);
+		border: calc(var(--voyage-w) * 0.004) solid rgba(160, 220, 255, 0.45);
+		opacity: 0.75;
+		cursor: default;
 		transition:
 			background 250ms ease,
-			transform 250ms ease;
+			opacity 250ms ease,
+			transform 250ms ease,
+			box-shadow 250ms ease;
 	}
-	.tile.safe {
-		background: radial-gradient(circle at 50% 40%, #fff7d6 0%, #f4c542 40%, #b8860b 100%);
-		transform: scale(1.06);
+	.buoy.open {
+		opacity: 1;
+		cursor: pointer;
+		border-color: rgba(220, 245, 255, 0.85);
+		animation: breathe 1100ms ease-in-out infinite alternate;
 	}
-	.tile.kraken {
-		background: radial-gradient(circle at 50% 45%, #ff9a5a 0%, #d43a1e 45%, #6b0d05 100%);
-		animation: kraken-in 500ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+	.buoy.open:hover {
+		transform: translate(-50%, -50%) scale(1.1);
+		box-shadow: 0 0 calc(var(--voyage-w) * 0.025) rgba(160, 230, 255, 0.9);
+	}
+	@keyframes breathe {
+		from {
+			box-shadow: 0 0 0 rgba(160, 230, 255, 0);
+		}
+		to {
+			box-shadow: 0 0 calc(var(--voyage-w) * 0.02) rgba(160, 230, 255, 0.7);
+		}
+	}
+	/* An island and its number stand OVER the wake, which is drawn after the buoys and would
+	   otherwise be dashed across the multiplier; the plain water buoys stay under it. */
+	.buoy.island,
+	.buoy.wreck {
+		z-index: 1;
+	}
+	.buoy.island {
+		opacity: 1;
+		background: radial-gradient(circle at 40% 35%, rgba(80, 190, 200, 0.95), rgba(20, 110, 140, 0.95) 75%);
+		border-color: rgba(255, 230, 150, 0.7);
+	}
+	.buoy.wreck {
+		opacity: 1;
+		background: radial-gradient(circle at 50% 45%, rgba(200, 60, 40, 0.95) 0%, rgba(80, 10, 10, 0.95) 100%);
+		border-color: rgba(255, 120, 90, 0.8);
+	}
+	/* The drawing on a buoy, standing a little wider than the disc so it reads as a thing ON the
+	   water rather than a texture of it. Decoration: the buoy is the control. */
+	.art {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: 125%;
+		height: auto;
+		transform: translate(-50%, -50%);
+		pointer-events: none;
+		filter: drop-shadow(0 calc(var(--voyage-w) * 0.004) calc(var(--voyage-w) * 0.008) rgba(0, 0, 0, 0.6));
+		animation: art-in 420ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+	}
+	.art.kraken {
+		width: 150%;
+		animation: kraken-in 520ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+	}
+	@keyframes art-in {
+		from {
+			transform: translate(-50%, -50%) scale(0.3);
+			opacity: 0;
+		}
 	}
 	@keyframes kraken-in {
 		from {
-			transform: scale(0.3);
-		}
-		to {
-			transform: scale(1.1);
+			transform: translate(-50%, -20%) scale(0.2);
+			opacity: 0;
 		}
 	}
-	/* Only a place: what the line looks like is `RoomHint`'s. */
+	/*
+	 * The multiplier, on the island. Laid on a pool of shadow with a warm glow round its edge so it
+	 * reads over the island's own colours (the same trick the chest's number uses), and held back a
+	 * beat behind the island so the two do not land as one.
+	 */
+	.value {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		font-size: calc(var(--voyage-w) * 0.03);
+		white-space: nowrap;
+		pointer-events: none;
+		animation: art-in 420ms cubic-bezier(0.3, 1.5, 0.5, 1) 180ms both;
+	}
+	.value::before {
+		content: '';
+		position: absolute;
+		inset: -30% -25%;
+		z-index: -1;
+		border-radius: 50%;
+		background:
+			radial-gradient(ellipse closest-side, rgba(8, 4, 0, 0.85) 0%, rgba(8, 4, 0, 0.5) 55%, rgba(8, 4, 0, 0) 78%),
+			radial-gradient(
+				ellipse closest-side,
+				rgba(255, 214, 90, 0.8) 50%,
+				rgba(255, 180, 50, 0.4) 74%,
+				rgba(255, 160, 30, 0) 100%
+			);
+	}
+
+	/* The wake, over the buoys and under the ship. Stroke widths are in the viewBox's own units:
+	   thousandths of the board's width. */
+	.wake {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		overflow: visible;
+	}
+	.wake path {
+		fill: none;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.wake-shadow {
+		stroke: rgba(0, 10, 30, 0.7);
+		stroke-width: 11;
+		stroke-dasharray: 18 14;
+	}
+	.wake-line {
+		stroke: #ffe9a8;
+		stroke-width: 6;
+		stroke-dasharray: 18 14;
+	}
+
+	/* The ship. Its place is two shares of the board, written on the element; the translate puts
+	   its middle on them, and the heading is on top so it turns about its own hull. */
+	.ship {
+		position: absolute;
+		left: 0;
+		top: 0;
+		height: calc(var(--voyage-w) * 0.14);
+		width: auto;
+		transform: translate(calc(var(--voyage-w) * var(--sx)), calc(var(--voyage-w) * var(--sy)))
+			translate(-50%, -50%) rotate(var(--tilt));
+		filter: drop-shadow(0 calc(var(--voyage-w) * 0.008) calc(var(--voyage-w) * 0.012) rgba(0, 0, 0, 0.7));
+		pointer-events: none;
+		z-index: 2;
+	}
+	/* Going down under the kraken: it slides down the board and fades as it goes, listing a little
+	   and drawing in as the water takes it. On the drawing's own `translate`/`scale`/`rotate`, which
+	   compose with the transform that places it rather than replacing it. */
+	.ship.sunk {
+		animation: sink 1100ms ease-in both;
+	}
+	@keyframes sink {
+		to {
+			translate: 0 calc(var(--voyage-w) * 0.07);
+			scale: 0.7;
+			rotate: 14deg;
+			opacity: 0;
+		}
+	}
+
+	/* Only a place: what the line looks like is `RoomHint`'s. Hung above the board, up into the
+	   header, so it sits on the sign's lower rope: the timber ends about 0.05 of the board's width
+	   above the stage, and the rope and skulls run on down to the stage's edge. The goal island
+	   starts at the board's top edge, just under it. */
 	.caption {
-		margin-top: calc(var(--voyage-w) * 0.0182);
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 100%;
+		margin-bottom: calc(var(--voyage-w) * -0.012);
+		z-index: 3;
+	}
+	/*
+	 * The number that paid. A gold glow round the letters and a slow breath, in and out, for as
+	 * long as the outcome is on the board. It replaces the landing pop, which has long since
+	 * finished by the time the voyage is over.
+	 */
+	.value.won {
+		z-index: 3;
+		filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.012) rgba(255, 220, 90, 1))
+			drop-shadow(0 0 calc(var(--voyage-w) * 0.03) rgba(255, 180, 40, 0.85));
+		animation: won-breathe 900ms ease-in-out infinite alternate;
+	}
+	@keyframes won-breathe {
+		from {
+			transform: translate(-50%, -50%) scale(1.15);
+		}
+		to {
+			transform: translate(-50%, -50%) scale(1.6);
+		}
+	}
+	/* The island that paid stands over everything but the ship. */
+	.buoy.island:has(.value.won) {
+		z-index: 2;
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------
-	   The one number, given a taller screen.
-
-	   Bound by HEIGHT as much as by width, which is what makes this room different from the other
-	   three: ten depths stacked make the column very nearly square — it comes out at 0.97 of its own
-	   width tall — and a phone's bonus screen has about 60 to 77 vh of stage between the sign and
-	   the win line, depending on how long the handset is. `min()` takes whichever runs out first:
-	   the width on a long phone, the height on a squat one. The vh share is measured against the
-	   shortest of them (h/w = 1.3, where the stage is about 62vh) with a little air left over. */
+	   The one number, given a taller screen. Nearly the whole width on a long phone; on a squat one
+	   (h/w about 1.3, where the stage is about 62vh) the height takes over. */
 	:global(.game.portrait) .voyage {
-		--voyage-w: min(86vw, 58vh);
+		--voyage-w: min(90vw, 62vh);
 	}
 </style>

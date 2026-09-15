@@ -11,7 +11,17 @@ export { default as PlinkoBoard } from './PlinkoBoard.svelte';
 export { buildPocketLadder, pocketForAward, pocketOffset, pocketHeat } from './pockets';
 export type { PocketLadder } from './pockets';
 
-export { shapeForPockets, layoutBoard, pegsFor, pegsInRow, planDrop } from './board';
-export type { BoardShape, BoardLayout, BoardPeg, BoardFrame } from './board';
+export {
+	shapeForPockets,
+	layoutBoard,
+	pegsFor,
+	pegsInRow,
+	planDrop,
+	planDropWithBombs,
+	placeBombs,
+	inBlast,
+	pegKey,
+} from './board';
+export type { BoardShape, BoardLayout, BoardPeg, BoardFrame, BombSite, Contact } from './board';
 
 export type { PlinkoBoardApi } from './types';
