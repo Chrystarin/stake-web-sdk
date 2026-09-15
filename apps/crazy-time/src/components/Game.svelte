@@ -487,6 +487,8 @@
 	const MERGE_GLOW_MS = 650;
 	/** The beat between the multiplier settling (merged or not) and the amount coming up. */
 	const WIN_LEAD_MS = 220;
+	/** How far each chip in a pile rises over the one under it. A tile only ever holds one chip
+	 *  now (tier 0), so this is inert; `.placed-chip` keeps the tier maths for a pile to return. */
 	const TIER_RISE_VW = 0.5;
 	/** How long the board is given to sweep before its bets are cleared. */
 	const RESULT_CLOSE_MS = 340;
@@ -1114,7 +1116,6 @@
 	const fmt = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
 	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
-	/** The buy's full price on its one chip: one buy, one price. */
 	/** A buy's chip is yellow — the chip art untinted — whatever the tray's denomination. */
 	const BUY_CHIP_TEXT = `hsl(${CHIP_BASE_HUE}, 70%, 36%)`;
 	/** The chip a buy puts on the room wears the chip the buy was priced in — the price bought the
@@ -2617,8 +2618,8 @@
 	}
 	/* The round's readout on the tile that paid. Both lines are centred on the tile and kept inside
 	   it — the multiplier hugs the top edge in the Top Slot's own hand, a touch smaller than the
-	   corner badge so a Top Slot that applied here can still sit beside it; the cash hugs the
-	   bottom edge in the HUD's gold. They pop in the way the chip pile used to. */
+	   corner badge it will swallow (`mergeBadge`); the cash hugs the bottom edge in `.win-amount`'s
+	   gold. Each pops in with `readout-pop` as its payout stage comes up. */
 	.tile-readout-mult,
 	.tile-readout-win {
 		position: absolute;

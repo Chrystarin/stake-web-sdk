@@ -138,6 +138,8 @@ export const NUM_CHESTS = 12;
 
 /** Ocean Voyage depth multipliers, shallowest to deepest. */
 export const VOYAGE_DEPTHS = [2, 3, 5, 8, 12, 20, 30, 50, 80, 400] as const;
+/** Buoys across each depth. Cosmetic: the player draws their own course and only the depth reached
+ *  pays. Mirror of the math's TILES_PER_DEPTH, which sizes the book's `path` / `fail` tiles. */
 export const TILES_PER_DEPTH = 3;
 
 /** Seconds the player has to make a pick in a pick room before it is made for them. */
