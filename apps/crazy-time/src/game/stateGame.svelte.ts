@@ -34,6 +34,9 @@ export const stateGame = $state({
 	backed: noneBacked(),
 	// Spots in the order they were backed: drives undo.
 	selectionOrder: [] as Spot[],
+	// The placement each backed spot went down in. Spots sharing an id (a MULTI / ALL / BONUS tap)
+	// come off together on undo; a spot with no id comes off alone.
+	placement: {} as Partial<Record<Spot, number>>,
 	// Chip value. 0 until the RGS bet template arrives; `ensureValidStake` snaps it onto the grid.
 	stake: 0,
 	// Last committed round, for "repeat".
@@ -98,9 +101,15 @@ const currentBet = (): { mode: string; count: number; amount: number; cost: numb
 	return { mode, count: spots.length, amount: stateGame.stake, cost: modeCost(mode) };
 };
 
+let lastPlacement = 0;
+
+/** A fresh placement id, to back several spots as one undoable step. */
+const newPlacement = (): number => ++lastPlacement;
+
 const resetBoard = () => {
 	stateGame.backed = noneBacked();
 	stateGame.selectionOrder = [];
+	stateGame.placement = {};
 	stateGame.resultReady = false;
 	stateGame.result = null;
 	stateGame.topSlot = null;
@@ -124,6 +133,7 @@ const beginBuy = (mode: string): boolean => {
 	stateGame.backed = noneBacked();
 	for (const room of BUY_MODES[mode].rooms) stateGame.backed[room] = true;
 	stateGame.selectionOrder = [...BUY_MODES[mode].rooms];
+	stateGame.placement = {};
 	stateGame.backedOrder = [...BUY_MODES[mode].rooms];
 	rememberCommittedSpots(stateGame.backedOrder);
 	stateGame.resultReady = false;
@@ -148,11 +158,14 @@ const selectStake = (value: number): Spot[] | null => {
 	if (value === stateGame.stake) return null;
 	if (!stakeOptions().includes(value)) return null;
 	const spots = backedSpots();
+	const placement = { ...stateGame.placement };
 	stateGame.stake = value;
 	resetBoard();
 	if (!spots.length || spots.length * value > stateBet.balanceAmount) return [];
 	for (const spot of spots) stateGame.backed[spot] = true;
 	stateGame.selectionOrder = spots;
+	// Same chips at a new value: undo still lifts them in the steps they went down in.
+	stateGame.placement = placement;
 	return spots;
 };
 
@@ -164,8 +177,13 @@ const canBackAnother = (): boolean =>
 
 const isBacked = (spot: Spot): boolean => stateGame.backed[spot];
 
-/** Back or un-back a spot. Returns false if it could not be backed. */
-const toggleSpot = (spot: Spot): boolean => {
+/**
+ * Back or un-back a spot. Returns false if it could not be backed.
+ *
+ * `placement` groups spots backed by one tap (see `newPlacement`) so undo lifts them together;
+ * without it the spot is its own step.
+ */
+const toggleSpot = (spot: Spot, placement: number = newPlacement()): boolean => {
 	if (stateGame.rolling) return false;
 	// A fresh selection after a resolved round starts a new bet.
 	if (stateGame.resultReady) resetBoard();
@@ -173,11 +191,13 @@ const toggleSpot = (spot: Spot): boolean => {
 	if (stateGame.backed[spot]) {
 		stateGame.backed[spot] = false;
 		stateGame.selectionOrder = stateGame.selectionOrder.filter((s) => s !== spot);
+		delete stateGame.placement[spot];
 		return true;
 	}
 	if (!canBackAnother()) return false;
 	stateGame.backed[spot] = true;
 	stateGame.selectionOrder = [...stateGame.selectionOrder, spot];
+	stateGame.placement[spot] = placement;
 	return true;
 };
 
@@ -194,15 +214,28 @@ const selectTicket = (mode: string): Spot[] => {
 	stateGame.backed = noneBacked();
 	for (const spot of coverage) stateGame.backed[spot] = true;
 	stateGame.selectionOrder = [...coverage];
+	stateGame.placement = {};
 	return [...coverage];
 };
 
-const undoBet = () => {
-	if (stateGame.rolling) return;
-	const last = stateGame.selectionOrder[stateGame.selectionOrder.length - 1];
-	if (!last) return;
-	stateGame.backed[last] = false;
-	stateGame.selectionOrder = stateGame.selectionOrder.slice(0, -1);
+/**
+ * Lift the most recent placement: the last spot backed, plus every spot that went down in the
+ * same tap. Returns the lifted spots, most recent first.
+ */
+const undoBet = (): Spot[] => {
+	if (stateGame.rolling) return [];
+	const last = stateGame.selectionOrder.at(-1);
+	if (!last) return [];
+	const placement = stateGame.placement[last];
+	const lifted = stateGame.selectionOrder
+		.filter((spot) => spot === last || (placement !== undefined && stateGame.placement[spot] === placement))
+		.reverse();
+	for (const spot of lifted) {
+		stateGame.backed[spot] = false;
+		delete stateGame.placement[spot];
+	}
+	stateGame.selectionOrder = stateGame.selectionOrder.filter((spot) => !lifted.includes(spot));
+	return lifted;
 };
 
 const clearBets = () => {
@@ -255,6 +288,7 @@ const applyResumedSelection = (spots: Spot[], buying: string | null = null) => {
 	stateGame.backed = noneBacked();
 	for (const spot of spots) stateGame.backed[spot] = true;
 	stateGame.selectionOrder = [...spots];
+	stateGame.placement = {};
 	stateGame.backedOrder = [...spots];
 	stateGame.resultReady = false;
 	stateGame.result = null;
@@ -275,6 +309,7 @@ export const stateGameDerived = {
 	isBacked,
 	selectStake,
 	toggleSpot,
+	newPlacement,
 	selectTicket,
 	undoBet,
 	clearBets,

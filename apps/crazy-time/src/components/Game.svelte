@@ -34,7 +34,6 @@
 	import TopSlot from './TopSlot.svelte';
 	import Background from './Background.svelte';
 	import BonusRound from './BonusRound.svelte';
-	import RoundResult from './RoundResult.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
 	import BuyBonusModal from './BuyBonusModal.svelte';
@@ -356,15 +355,6 @@
 		return () => clearTimeout(timer);
 	});
 
-	/**
-	 * Random Bonus's one chip. There is no room to back yet, so it lands on the hub between the four
-	 * rooms (where the BONUS group button sits when the table is open), waits there while the wheel
-	 * turns, and follows the wheel to the room that opened. `anyHubEl` marks the hub for the flights.
-	 */
-	let anyChip = $state<'none' | 'flying' | 'hub' | 'landed'>('none');
-	const anyBuy = $derived(stateGame.buying !== null && usesBuyDisc(stateGame.buying));
-	let anyHubEl: HTMLElement | undefined = $state();
-
 	// Chip tray comes from the RGS bet template (betLevels). It arrives with authenticate.
 	const stakes = $derived(stateGameDerived.stakeOptions());
 	$effect(() => {
@@ -431,7 +421,16 @@
 	let payingOut = $state(false);
 	/** True while the bonus screen is down over the table. */
 	let bonusUp = $state(false);
-	let resultClosing = $state(false);
+
+	const onBonusOpenChange = (open: boolean) => {
+		bonusUp = open;
+		if (open) return;
+		// The bonus sequence is over: the Top Slot's badge goes with it. With no badge parked, the
+		// payout skips the merge and the tile's readout reads the room's total straight away.
+		multFlight = null;
+		tileMult = null;
+		multHidden = false;
+	};
 
 	const bettingOpen = $derived(idle && !settled && !clearing && !bonusUp);
 	// A buy has no chips to choose: the tray and the group buttons go the moment it starts.
@@ -465,9 +464,9 @@
 	const RESTAKE_PACE = 0.6;
 
 	// --- Chip flight (copied from colour-dice: place / return / sweep / collect) -----------------
-	const GROW_MS = 130;
-	const TRAVEL_MS = 390;
-	const SETTLE_MS = 130;
+	const GROW_MS = 80;
+	const TRAVEL_MS = 240;
+	const SETTLE_MS = 80;
 	const FLIGHT_MS = GROW_MS + TRAVEL_MS + SETTLE_MS;
 	const SWEEP_WINDOW_MS = 260;
 	const SWEEP_FALL_MS = 220;
@@ -476,9 +475,20 @@
 	const COLLECT_MS = COLLECT_TRAVEL_MS + COLLECT_MERGE_MS;
 	const COLLECT_STAGGER_MS = 90;
 	const WIN_FLOAT_MS = 1100;
+	/** How long the wheel's stop is left to read before the winning tile writes its readout. */
 	const PAYOUT_LEAD_MS = 420;
+	/** The readout's pop onto the tile. */
 	const PAYOUT_POP_MS = 300;
+	/** How long the readout stands alone before a Top Slot badge on the same tile joins it. */
+	const MERGE_LEAD_MS = 650;
+	/** The badge's slide from the tile's corner into the readout. */
+	const MERGE_FLY_MS = 420;
+	/** The flare the readout gives when the badge lands in it and the total appears. */
+	const MERGE_GLOW_MS = 650;
+	/** The beat between the multiplier settling (merged or not) and the amount coming up. */
+	const WIN_LEAD_MS = 220;
 	const TIER_RISE_VW = 0.5;
+	/** How long the board is given to sweep before its bets are cleared. */
 	const RESULT_CLOSE_MS = 340;
 
 	type ChipFlight = {
@@ -507,6 +517,7 @@
 	let chipEls = $state<Record<number, HTMLElement | undefined>>({});
 	let tileEls = $state<Partial<Record<Spot, HTMLElement>>>({});
 	let balanceChipEl: HTMLElement | undefined = $state();
+	let buyBonusEl: HTMLElement | undefined = $state();
 	let flightEls = $state<Record<number, HTMLElement | undefined>>({});
 
 	/**
@@ -548,9 +559,9 @@
 	};
 
 	/**
-	 * Fly a chip between the tray and `spot`'s tile. A buy's chip flies elsewhere: `from` and `to`
-	 * stand in for the tray and the tile, and `onLand` fires as the chip is dropped, for whatever
-	 * takes its place.
+	 * Fly a chip between the tray and `spot`'s tile. A buy's chip comes from elsewhere: `from` and
+	 * `to` stand in for the tray and the tile, and `onLand` fires as the chip is dropped, for
+	 * whatever takes its place.
 	 */
 	const flyChip = (
 		spot: Spot,
@@ -587,6 +598,26 @@
 		schedule(id, () => playSound('pop'), delay + grow + travel);
 		if (opts.onLand) schedule(id, opts.onLand, delay + ms);
 		schedule(id, () => dropFlight(id), delay + ms);
+		if (opts.from || opts.to) followLanding(id, box, delay + ms);
+	};
+
+	/**
+	 * A buy's chip takes off as the tray folds away, and the board — pinned to the bottom — slides
+	 * down under it. Aimed at where the tile was at take-off, the chip landed short and the placed
+	 * chip then jumped to the tile. So its landing is re-read every frame until it touches down.
+	 */
+	const followLanding = (id: number, box: HTMLElement, forMs: number) => {
+		const end = performance.now() + forMs;
+		const step = () => {
+			const flight = flights.find((f) => f.id === id);
+			if (!gameEl || !flight || flight.turned || performance.now() > end) return;
+			const to = centreIn(gameEl.getBoundingClientRect(), box.getBoundingClientRect());
+			if (Math.abs(to.x - flight.to.x) > 0.5 || Math.abs(to.y - flight.to.y) > 0.5) {
+				flights = flights.map((f) => (f.id === id ? { ...f, to } : f));
+			}
+			requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
 	};
 
 	const turnBack = (flight: ChipFlight) => {
@@ -656,15 +687,39 @@
 	};
 
 	// --- Paying out -----------------------------------------------------------------------------
-	// The winning tile grows its chip into a two-chip pile once the round settles; the payout
-	// itself is written on the tile as a multiplier badge. Everything else stays one chip.
+	// Once the round settles, the winning tile writes the round's readout on itself, in order: the
+	// multiplier across its top edge, then a Top Slot badge on the tile merging into it, then the
+	// cash it all came to across its bottom. The chip stays one chip — the readout is the only
+	// thing that changes on the board. `payoutStage`: 1 = multiplier up, 2 = amount up.
 	let payoutStage = $state(0);
-	const chipsOnSpot = (spot: Spot): number =>
-		stateGameDerived.isWinSpot(spot) && payoutStage >= 1 ? 2 : 1;
+	/** The Top Slot badge on the winning tile joining the readout: 0 parked, 1 sliding in, 2 in. */
+	let mergeStage = $state(0);
+	/** The slide, in the frame's units: how far the badge travels and how much it shrinks. */
+	let mergeSlide = $state<{ dx: number; dy: number; scale: number } | null>(null);
+	let readoutMultEl: HTMLElement | undefined = $state();
+	/** The wheel's own figure for the win: a room's result, or a number's n. A buy is no different —
+	 *  the price buys the room for ONE chip, and the room pays that chip. */
+	const baseMult = $derived.by(() => {
+		const result = stateGame.result;
+		if (!result) return 0;
+		return isRoomSpot(result.spot) ? (result.roomValue ?? 0) : NUMBER_PAY[result.spot];
+	});
+	const topMult = $derived(stateGame.result?.multiplier ?? 1);
+	/** True while the Top Slot's badge is still parked on the winning tile, waiting to join in. */
+	const mergePending = $derived(
+		topMult > 1 && tileMult !== null && tileMult.spot === stateGame.result?.spot && mergeStage < 2,
+	);
+	/** What the tile reads: the wheel's figure until the badge has joined it, then the total. */
+	const readoutMult = $derived(mergePending ? baseMult : baseMult * topMult);
+	const readoutShown = $derived(payoutStage >= 1 && winCash > 0 && !clearing);
+	const fmtMult = (value: number) =>
+		`${Number.isInteger(value) ? value : value.toFixed(2).replace(/\.?0+$/, '')}x`;
 
 	$effect(() => {
 		if (!stateGame.resultReady) {
 			payoutStage = 0;
+			mergeStage = 0;
+			mergeSlide = null;
 			payingOut = false;
 			return;
 		}
@@ -682,10 +737,48 @@
 			playSound('pop');
 			await waitForTimeout(PAYOUT_POP_MS + 200);
 			if (cancelled) return;
+			if (untrack(() => mergePending)) {
+				await waitForTimeout(MERGE_LEAD_MS);
+				if (cancelled) return;
+				await mergeBadge();
+				if (cancelled) return;
+				await waitForTimeout(MERGE_GLOW_MS);
+				if (cancelled) return;
+			}
+			await waitForTimeout(WIN_LEAD_MS);
+			if (cancelled) return;
+			payoutStage = 2;
+			playSound('pop');
+			await waitForTimeout(PAYOUT_POP_MS + 200);
+			if (cancelled) return;
 			payingOut = false;
 		})();
 		return () => (cancelled = true);
 	});
+
+	/**
+	 * The Top Slot's badge leaves the tile's corner and slides into the readout, shrinking to the
+	 * readout's size on the way; when it lands, the readout flares and reads the total. Both boxes
+	 * are measured through the frame's `zoom`, so the slide is divided back into the frame's units
+	 * — the badge moves in those.
+	 */
+	const mergeBadge = async () => {
+		const from = tileMultEl?.getBoundingClientRect();
+		const to = readoutMultEl?.getBoundingClientRect();
+		if (from && to && from.width && to.width) {
+			mergeSlide = {
+				dx: (to.left + to.width / 2 - (from.left + from.width / 2)) / fitScale,
+				dy: (to.top + to.height / 2 - (from.top + from.height / 2)) / fitScale,
+				scale: to.height / from.height,
+			};
+			mergeStage = 1;
+			playSound('whoosh');
+			await waitForTimeout(MERGE_FLY_MS);
+		}
+		mergeStage = 2;
+		tileMult = null;
+		playSound('merge');
+	};
 
 	// --- Collecting -----------------------------------------------------------------------------
 	let balanceHold = $state<number | null>(null);
@@ -716,16 +809,12 @@
 		if (!gameEl || !balanceChipEl || !winners.length) return;
 		const host = gameEl.getBoundingClientRect();
 		const to = centreIn(host, balanceChipEl.getBoundingClientRect());
-		const vw = window.innerWidth / 100;
 		const picks: { spot: Spot; x: number; y: number }[] = [];
 		for (const spot of winners) {
 			const box = tileEls[spot];
 			if (!box) continue;
 			const centre = centreIn(host, box.getBoundingClientRect());
-			const tiers = chipsOnSpot(spot);
-			for (let tier = tiers - 1; tier >= 0; tier--) {
-				picks.push({ spot, x: centre.x, y: centre.y - tier * TIER_RISE_VW * vw });
-			}
+			picks.push({ spot, x: centre.x, y: centre.y });
 		}
 		if (!picks.length) return;
 		const launched = picks.map((pick, index) => ({
@@ -761,22 +850,17 @@
 		stakePanelOpen = false;
 		const face = placedChipFace();
 		const placed = stateGameDerived.backedSpots();
-		// A Random Bonus buy backs all four rooms but has the one chip, on the room that opened.
-		const onBoard = anyBuy ? placed.filter((spot) => stateGameDerived.isLandedSpot(spot)) : placed;
-		const winners = onBoard.filter((spot) => stateGameDerived.isWinSpot(spot));
-		const losers = onBoard.filter((spot) => !stateGameDerived.isWinSpot(spot));
+		const winners = placed.filter((spot) => stateGameDerived.isWinSpot(spot));
+		const losers = placed.filter((spot) => !stateGameDerived.isWinSpot(spot));
 		const collected = winCash;
 
 		context.eventEmitter.broadcast({ type: 'boardClear' });
-		resultClosing = true;
 		sweepChips(losers, face);
 		const collecting = collectChips(winners, face);
 
 		void waitForTimeout(RESULT_CLOSE_MS).then(() => {
 			stateGameDerived.clearBets();
-			resultClosing = false;
 			clearing = false;
-			anyChip = 'none';
 			landedSpot = null;
 			wheelHighlight = null;
 			topSlotApplied = false;
@@ -850,7 +934,7 @@
 	};
 
 	/** Gap between a bundle's chips, so a group lands as a run rather than a single thud. */
-	const BUNDLE_STEP_MS = 90;
+	const BUNDLE_STEP_MS = 60;
 
 	/** True once every spot a bundle covers is already backed — the button is showing, not offering. */
 	const bundleOn = (spots: readonly Spot[]) =>
@@ -865,9 +949,11 @@
 		if (!bettingOpen) return;
 		const lifting = bundleOn(spots);
 		const wanted = lifting ? [...spots] : spots.filter((spot) => !stateGameDerived.isBacked(spot));
+		// One tap, one undo step.
+		const placement = stateGameDerived.newPlacement();
 		let moved = 0;
 		for (const spot of wanted) {
-			if (!stateGameDerived.toggleSpot(spot)) continue;
+			if (!stateGameDerived.toggleSpot(spot, placement)) continue;
 			if (lifting) recallChip(spot, moved * BUNDLE_STEP_MS);
 			else flyChip(spot, 'place', moved * BUNDLE_STEP_MS);
 			moved++;
@@ -900,9 +986,9 @@
 	});
 
 	const undoBet = () => {
-		const last = stateGameDerived.backedSpots().at(-1);
-		stateGameDerived.undoBet();
-		if (last && !stateGame.backed[last]) recallChip(last);
+		stateGameDerived
+			.undoBet()
+			.forEach((spot, index) => recallChip(spot, index * BUNDLE_STEP_MS));
 	};
 
 	let committedStake = $state(0);
@@ -982,21 +1068,14 @@
 			return;
 		}
 		sweepChips(placed, face);
-		// The price goes down as ONE yellow chip, flown from the balance it came out of: onto the
-		// bought room, or for Random Bonus onto the hub between the four rooms, from where it follows
-		// the wheel to whichever opens. The reels wait for it to land.
-		const room = BUY_MODES[mode].rooms[0];
-		if (usesBuyDisc(mode)) {
-			anyChip = 'flying';
-			flyChip(room, 'place', 0, buyChipFace(mode), 1, {
-				from: balanceChipEl,
-				to: anyHubEl,
-				onLand: () => (anyChip = 'hub'),
-			});
-		} else {
-			flyChip(room, 'place', 0, buyChipFace(mode), 1, { from: balanceChipEl });
-		}
-		await waitForTimeout(FLIGHT_MS + 150);
+		// A yellow chip for the full price goes down on every room the buy can open — whichever
+		// opens, the whole price bought it — flown from the Buy Bonus button that bought it, one
+		// after another. The reels wait for the last one to land.
+		const rooms = BUY_MODES[mode].rooms;
+		rooms.forEach((room, i) =>
+			flyChip(room, 'place', i * 90, buyChipFace(), 1, { from: buyBonusEl }),
+		);
+		await waitForTimeout(FLIGHT_MS + (rooms.length - 1) * 90 + 150);
 		// Then, for Random Bonus, the wheel flashes white and comes back as the four-wedge disc — or,
 		// for a single room, leaves the stage to the Top Slot (see `wheelOff`).
 		if (usesBuyDisc(mode)) await swapDisc('buy', mode);
@@ -1035,21 +1114,19 @@
 	const fmt = (value: number) =>
 		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
 	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
-	/** A buy's chip is the price x the chip, which need not be whole (the chest's 13.5). */
-	const fmtBuyChip = (value: number) =>
-		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : Number.isInteger(value) ? `${value}` : value.toFixed(2);
 	/** The buy's full price on its one chip: one buy, one price. */
-	const buyChipValue = (mode: string) => buyPrice(mode) * stateGame.stake;
 	/** A buy's chip is yellow — the chip art untinted — whatever the tray's denomination. */
 	const BUY_CHIP_TEXT = `hsl(${CHIP_BASE_HUE}, 70%, 36%)`;
-	const buyChipFace = (mode: string) => ({
-		label: fmtBuyChip(buyChipValue(mode)),
+	/** The chip a buy puts on the room wears the chip the buy was priced in — the price bought the
+	 *  room for that one chip, and the room pays that chip — so its face and the readout agree. */
+	const buyChipFace = () => ({
+		label: fmtChip(stateGame.stake),
 		hue: 0,
 		text: BUY_CHIP_TEXT,
 	});
 	/** The face a chip on the board wears: the tray's, or during a buy the buy's yellow one. */
 	const placedChipFace = () =>
-		stateGame.buying ? buyChipFace(stateGame.buying) : currentChipFace();
+		stateGame.buying ? buyChipFace() : currentChipFace();
 
 	const balanceFormat = $derived(
 		new Intl.NumberFormat(stateUrlDerived.lang(), {
@@ -1087,7 +1164,8 @@
 		size: number;
 		land: number;
 	} | null>(null);
-	/** Parked on that tile once it lands, until the board clears. */
+	/** Parked on that tile once it lands, until the board clears — or, on a room, until the bonus
+	 *  screen lifts: the room already paid the Top Slot in, so the badge has nothing left to add. */
 	let tileMult = $state<{ spot: Spot; label: string } | null>(null);
 	/** The parked badge, held invisible while the flying copy is on its way to it. */
 	let tileMultEl: HTMLElement | undefined = $state();
@@ -1182,17 +1260,7 @@
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
 			playSound(event.covered ? 'merge' : 'pop');
-			if (buying && usesBuyDisc(buying) && anyChip !== 'landed') {
-				// Random Bonus's chip leaves the hub for the room the wheel picked; the room waits for it.
-				anyChip = 'flying';
-				flyChip(event.spot, 'place', 0, buyChipFace(buying), 1, {
-					from: anyHubEl,
-					onLand: () => (anyChip = 'landed'),
-				});
-				await waitForTimeout(FLIGHT_MS + 150);
-			} else {
-				await waitForTimeout(hurried ? 250 : isRoomSpot(event.spot) ? 900 : 700);
-			}
+			await waitForTimeout(hurried ? 250 : isRoomSpot(event.spot) ? 900 : 700);
 		},
 		winShow: async (emitterEvent) => {
 			// Book amounts are x100 in units of the chip, so cash scales by betAmount.
@@ -1235,6 +1303,7 @@
 		<button
 			type="button"
 			class="buy-bonus-trigger"
+			bind:this={buyBonusEl}
 			disabled={buyDisabled}
 			onclick={openBuyBonus}
 			aria-label="Buy bonus"
@@ -1288,7 +1357,7 @@
 					onclick={onConfirmClick}
 					aria-hidden="true"
 				>
-					<span class="hub-cta">{stateGame.rolling ? '…' : settled ? 'PLAY AGAIN' : 'SPIN'}</span>
+					<span class="hub-cta">{stateGame.rolling ? '…' : settled ? 'PLAY\nAGAIN' : 'SPIN'}</span>
 				</div>
 			</div>
 		</div>
@@ -1341,6 +1410,8 @@
 											<div
 												class="tile-mult mult-badge"
 												class:waiting={multHidden}
+												class:merging={mergeStage === 1 && mergeSlide !== null}
+												style="--dx:{mergeSlide?.dx ?? 0}px; --dy:{mergeSlide?.dy ?? 0}px; --land-scale:{mergeSlide?.scale ?? 1}; --merge-ms:{MERGE_FLY_MS}ms"
 												bind:this={tileMultEl}
 											>
 												<span class="mult-stroke" aria-hidden="true">{tileMult.label}</span>
@@ -1348,36 +1419,38 @@
 											</div>
 										{/if}
 
-										<!-- Random Bonus backs every room but has the one chip, on the hub until the
-										     wheel has picked a room and the chip has flown to it. -->
-										{#if backed && !arrivingSpots.has(spot) && !clearing && (!anyBuy || (anyChip === 'landed' && landedSpot === spot))}
-											{#each Array.from({ length: chipsOnSpot(spot) }, (_, tier) => tier) as tier (tier)}
-												{@const chipFace = placedChipFace()}
-												<div
-													class="placed-chip chip"
-													class:won={tier > 0}
-													style="--tier:{tier}; --rise:{TIER_RISE_VW}vw; --pop-ms:{PAYOUT_POP_MS}ms; --chip-hue:{chipFace.hue}deg; --chip-text:{chipFace.text}"
-												>
-													<span>{chipFace.label}</span>
+										{#if backed && !arrivingSpots.has(spot) && !clearing}
+											{@const chipFace = placedChipFace()}
+											<div
+												class="placed-chip chip"
+												style="--tier:0; --rise:{TIER_RISE_VW}vw; --chip-hue:{chipFace.hue}deg; --chip-text:{chipFace.text}"
+											>
+												<span>{chipFace.label}</span>
+											</div>
+										{/if}
+
+										<!-- The round's readout, on the tile that paid: the multiplier its chip
+										     returned along the top edge, the cash along the bottom. -->
+										{#if win && readoutShown}
+											<div
+												class="tile-readout-mult mult-badge"
+												class:merged={mergeStage >= 2}
+												style="--pop-ms:{PAYOUT_POP_MS}ms; --glow-ms:{MERGE_GLOW_MS}ms"
+												bind:this={readoutMultEl}
+												aria-hidden="true"
+											>
+												<span class="mult-stroke" aria-hidden="true">{fmtMult(readoutMult)}</span>
+												<span class="mult-fill">{fmtMult(readoutMult)}</span>
+											</div>
+											{#if payoutStage >= 2}
+												<div class="tile-readout-win win-amount" style="--pop-ms:{PAYOUT_POP_MS}ms" aria-hidden="true">
+													<span class="win-stroke" aria-hidden="true">{sign}{fmt(winCash)}</span>
+													<span class="win-fill">{sign}{fmt(winCash)}</span>
 												</div>
-											{/each}
+											{/if}
 										{/if}
 									</div>
 								{/each}
-							</div>
-
-							<!-- Random Bonus's chip, on the hub between the four rooms until the wheel picks one.
-							     The hub is a point: the chip centres on it as it does on a tile. -->
-							<div class="any-hub" bind:this={anyHubEl} aria-hidden="true">
-								{#if anyChip === 'hub'}
-									{@const chipFace = placedChipFace()}
-									<div
-										class="placed-chip chip"
-										style="--tier:0; --rise:{TIER_RISE_VW}vw; --chip-hue:{chipFace.hue}deg; --chip-text:{chipFace.text}"
-									>
-										<span>{chipFace.label}</span>
-									</div>
-								{/if}
 							</div>
 
 							<!-- Group bets, parked on the seams between the halves of the board. -->
@@ -1519,12 +1592,9 @@
 			chip={stateBet.betAmount}
 			{sign}
 			{portrait}
-			onOpenChange={(open) => (bonusUp = open)}
+			onOpenChange={onBonusOpenChange}
 		/>
 
-		{#if stateGame.resultReady}
-			<RoundResult amount={winCash} {sign} closing={resultClosing} />
-		{/if}
 	</div>
 </div>
 
@@ -1886,9 +1956,6 @@
 		--panel-inset: 12.5vw;
 		/* The size the Top Slot's multiplier settles at on a tile — the flight reads it too. */
 		--mult-land: 1.45vw;
-		/* The round's readout: how tall the marquee is, and how far above the panel it sits. */
-		--result-size: 8vw;
-		--result-gap: 0.3vw;
 		position: relative;
 		width: calc(100vw / var(--fit, 1));
 		height: calc(100vh / var(--fit, 1));
@@ -2006,8 +2073,11 @@
 		pointer-events: none;
 		font-family: 'PotatoSans', 'Alexandria', sans-serif;
 		font-size: 1.4vw;
+		line-height: 1.05;
 		letter-spacing: 0.08vw;
-		white-space: nowrap;
+		/* Two words, two lines — PLAY over AGAIN — both centred on the gem. */
+		white-space: pre-line;
+		text-align: center;
 		color: #fff;
 		paint-order: stroke;
 		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
@@ -2054,8 +2124,6 @@
 	   vw to come out the same physical size. */
 	.game.portrait {
 		--mult-land: 3.7vw;
-		--result-size: 20vw;
-		--result-gap: 3vw;
 		/* The board is held well clear of the viewport's edges: the tiles are sized off this, so the
 		   margin is set here once rather than tuned into the grid. The chip tray is trimmed to
 		   match, since its row would otherwise be the widest thing in the panel. */
@@ -2090,10 +2158,6 @@
 		height: 10.4vw;
 		border-width: 0.3vw;
 		box-shadow: 0 0.4vw 0.9vw rgba(0, 0, 0, 0.55);
-	}
-	.game.portrait .any-hub {
-		top: calc(3 * var(--tile-h) + 2.5 * var(--tile-gap-y));
-		left: 50%;
 	}
 	.game.portrait .bundle-btn.on {
 		outline-width: 0.5vw;
@@ -2147,7 +2211,6 @@
 		font-size: 4.2vw;
 	}
 	.game.portrait .tile .placed-chip,
-	.game.portrait .any-hub .placed-chip,
 	.game.portrait .flying-chip {
 		width: 8vw;
 		height: 8vw;
@@ -2158,6 +2221,24 @@
 	.game.portrait .tile-mult {
 		top: -0.9vw;
 		right: -0.8vw;
+	}
+	.game.portrait .tile-readout-mult {
+		top: 0.15vw;
+	}
+	.game.portrait .tile-readout-win {
+		bottom: 0.4vw;
+		font-size: 2.6vw;
+	}
+	/* The Buy Bonus badge takes the corner beside the cabinet: 67vw centred leaves 16.5vw either side,
+	   and the frame's rope post starts a hair further in, so 2vw + 14.5vw just clears it. */
+	.game.portrait .buy-bonus-trigger {
+		top: 2vw;
+		left: 2vw;
+		width: 14.5vw;
+		height: 14.5vw;
+	}
+	.game.portrait .buy-bonus-trigger img {
+		filter: drop-shadow(0 0.35vw 1vw rgba(0, 0, 0, 0.5));
 	}
 	.game.portrait .bet-notice {
 		top: 10vw;
@@ -2346,17 +2427,6 @@
 		visibility: hidden;
 		pointer-events: none;
 	}
-	/* The hub between the four rooms: the BONUS button's seat (seam 3, see `.bundle-btn`), which is
-	   free during a buy. A point, so the chip inside centres on it the way it centres on a tile. */
-	.any-hub {
-		position: absolute;
-		top: 50%;
-		left: calc(3 * var(--tile-w) + 2.5 * var(--tile-gap-x));
-		width: 0;
-		height: 0;
-		z-index: 30;
-		pointer-events: none;
-	}
 	/* The name sits over the core but is free to run onto the ring — a stroke keeps it legible where
 	   it does, and the alternative is type too small to read. */
 	.bundle-lbl {
@@ -2477,9 +2547,30 @@
 		z-index: 502;
 		font-size: var(--mult-land);
 	}
+	/* A tile the wheel passed over is shadowed badge and all: the badge stands above the cover and
+	   overhangs the tile, so the cover can't reach it — it is darkened by the cover's own amount
+	   instead (1 - 0.68), keeping `.mult-badge`'s drop shadow. */
+	.tile.dimmed .tile-mult {
+		filter: drop-shadow(0.034em 0.068em 0 #000) brightness(0.32);
+	}
 	/* Laid out but not shown, while the flying copy is still travelling to where it sits. */
 	.tile-mult.waiting {
 		visibility: hidden;
+	}
+	/* Joining the readout: slides from the corner into it, shrinking to its size on the way. The
+	   slide is measured by Game.svelte when it starts. */
+	.tile-mult.merging {
+		animation: mult-merge var(--merge-ms, 420ms) cubic-bezier(0.32, 0.72, 0.24, 1) forwards;
+	}
+	@keyframes mult-merge {
+		from {
+			translate: 0 0;
+			scale: 1;
+		}
+		to {
+			translate: var(--dx) var(--dy);
+			scale: var(--land-scale, 0.8);
+		}
 	}
 	/* In flight: a zero-size box carried between the two points, so `scale` shrinks the reel-sized
 	   copy about the point it is travelling to rather than about a corner. */
@@ -2511,8 +2602,7 @@
 			scale: var(--land-scale, 0.6);
 		}
 	}
-	.tile .placed-chip,
-	.any-hub .placed-chip {
+	.tile .placed-chip {
 		position: absolute;
 		top: 50% !important;
 		bottom: auto !important;
@@ -2525,21 +2615,64 @@
 		pointer-events: none;
 		filter: drop-shadow(0 0.15vw 0.25vw rgba(0, 0, 0, 0.5));
 	}
-	.tile .placed-chip.won {
-		animation: chip-stack var(--pop-ms) cubic-bezier(0.22, 1.3, 0.5, 1) both;
+	/* The round's readout on the tile that paid. Both lines are centred on the tile and kept inside
+	   it — the multiplier hugs the top edge in the Top Slot's own hand, a touch smaller than the
+	   corner badge so a Top Slot that applied here can still sit beside it; the cash hugs the
+	   bottom edge in the HUD's gold. They pop in the way the chip pile used to. */
+	.tile-readout-mult,
+	.tile-readout-win {
+		position: absolute;
+		left: 50%;
+		translate: -50% 0;
+		z-index: 503;
+		white-space: nowrap;
+		pointer-events: none;
+		animation: readout-pop var(--pop-ms, 300ms) cubic-bezier(0.22, 1.3, 0.5, 1) both;
 	}
-	@keyframes chip-stack {
+	.tile-readout-mult {
+		top: 0.05vw;
+		font-size: calc(var(--mult-land) * 0.82);
+	}
+	/* The amount, in the house's cash hand (`.win-amount`, global): only its place and size live
+	   here. */
+	.tile-readout-win {
+		bottom: 0.15vw;
+		font-size: 0.95vw;
+	}
+	/* The badge has landed in it: the readout swells and flares gold as the total appears, then
+	   settles with a glow it keeps. The badge's own hard shadow is carried through the flare. */
+	.tile-readout-mult.merged {
+		animation: readout-merge var(--glow-ms, 650ms) cubic-bezier(0.22, 1.3, 0.5, 1) both;
+	}
+	@keyframes readout-merge {
+		0% {
+			scale: 1;
+			filter: drop-shadow(0.034em 0.068em 0 #000) drop-shadow(0 0 0.5em rgba(255, 225, 77, 1))
+				brightness(1.7);
+		}
+		40% {
+			scale: 1.4;
+			filter: drop-shadow(0.034em 0.068em 0 #000) drop-shadow(0 0 0.8em rgba(255, 225, 77, 1))
+				brightness(1.5);
+		}
+		100% {
+			scale: 1;
+			filter: drop-shadow(0.034em 0.068em 0 #000) drop-shadow(0 0 0.35em rgba(255, 225, 77, 0.85))
+				brightness(1.1);
+		}
+	}
+	@keyframes readout-pop {
 		0% {
 			opacity: 0;
-			transform: translate(-50%, calc(-50% - var(--tier) * var(--rise, 0.5vw) - 2.4vw)) scale(1.35);
+			scale: 1.35;
 		}
 		65% {
 			opacity: 1;
-			transform: translate(-50%, calc(-50% - var(--tier) * var(--rise, 0.5vw) + 0.2vw)) scale(0.94);
+			scale: 0.94;
 		}
 		100% {
 			opacity: 1;
-			transform: translate(-50%, calc(-50% - var(--tier) * var(--rise, 0.5vw)));
+			scale: 1;
 		}
 	}
 

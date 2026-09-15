@@ -184,7 +184,7 @@
 			{:else if current.room.type === 'chestRoom'}
 				<RoomChest bind:this={roomApi} room={current.room} interactive={current.covered} />
 			{:else}
-				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={current.covered} />
+				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={current.covered} {portrait} />
 			{/if}
 		</div>
 
@@ -192,11 +192,16 @@
 			class="footer"
 			class:shown={result !== null && current.room.type !== 'piratePlinkoRoom'}
 			class:folded={current.room.type === 'piratePlinkoRoom'}
+			class:over-stage={current.room.type === 'oceanVoyageRoom'}
 		>
 			{#if result !== null && current.room.type !== 'piratePlinkoRoom'}
 				<div class="mult">x{result}</div>
 				{#if current.covered}
-					<div class="cash">WIN {sign}{fmt(result * chip)}</div>
+					{@const won = `WIN ${sign}${fmt(result * chip)}`}
+					<div class="cash win-amount">
+						<span class="win-stroke" aria-hidden="true">{won}</span>
+						<span class="win-fill">{won}</span>
+					</div>
 				{:else}
 					<div class="cash muted">would have paid {sign}{fmt(result * chip)} per chip</div>
 				{/if}
@@ -419,14 +424,16 @@
 		line-height: 1;
 		text-shadow: 0 0.2vw 0.6vw rgba(0, 0, 0, 0.8);
 	}
+	/* The win is set in the house's cash hand (`.win-amount`, global) — the same as the board's
+	   winning tile — so only its size lives here. A miss is a plain grey line. */
 	.cash {
-		font-size: 1.1vw;
-		font-weight: 600;
-		color: #fff;
+		font-size: 1.3vw;
 	}
 	.cash.muted {
-		color: #9aa3b4;
+		font-family: 'Alexandria', sans-serif;
+		font-size: 1.1vw;
 		font-weight: 400;
+		color: #9aa3b4;
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------------
@@ -457,10 +464,30 @@
 	:global(.game.portrait) .footer.folded {
 		margin-bottom: 0;
 	}
+	/* Ocean Voyage stretches its board down the whole stage in portrait, and a footer row under it
+	   was a band of empty water for all but the last second of the round. So the stage runs down to
+	   the rail and the win line lands over the foot of the board instead — the harbour strip, which
+	   the ship has left by the time there is a win to show. Over the stage, since the stage itself
+	   stands over the header; and never in the way of a buoy while it is invisible. */
+	:global(.game.portrait) .stage.over-plaque {
+		margin-bottom: var(--rail-h, 0px);
+	}
+	:global(.game.portrait) .footer.over-stage {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: calc(1.4vw + var(--rail-h, 0px));
+		margin-bottom: 0;
+		z-index: 4;
+		pointer-events: none;
+	}
 	:global(.game.portrait) .mult {
 		font-size: 6.4vw;
 	}
 	:global(.game.portrait) .cash {
+		font-size: 3.2vw;
+	}
+	:global(.game.portrait) .cash.muted {
 		font-size: 2.8vw;
 	}
 </style>

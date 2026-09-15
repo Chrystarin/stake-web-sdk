@@ -34,8 +34,8 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 	import RoomHint from './RoomHint.svelte';
 
-	type Props = { room: BookEventOceanVoyage; interactive?: boolean };
-	let { room, interactive = false }: Props = $props();
+	type Props = { room: BookEventOceanVoyage; interactive?: boolean; portrait?: boolean };
+	let { room, interactive = false, portrait = false }: Props = $props();
 
 	const PICK_MS = PICK_SECONDS * 1000;
 
@@ -70,7 +70,8 @@
 	 *
 	 * Everything that has a place on it — the buoys, the ship, the wake curling behind it — is drawn
 	 * off these few numbers, so the ship's arithmetic and the buoys' CSS cannot disagree about
-	 * where a stop is. Landscape and portrait differ only in `--voyage-w`.
+	 * where a stop is. In landscape they are all there is; portrait stretches them to fill the
+	 * stage (see `fill`).
 	 *
 	 * The buoys are spread wide on purpose: the course the player draws through them is the thing
 	 * the room is about, and it needs open water to curl in. The vertical shares are kept small so
@@ -80,7 +81,7 @@
 	 * columns, about the same as the four-column board had — so the island and the harbour keep
 	 * the width to themselves and the buoys sit in a band down the middle.
 	 */
-	const L = {
+	const BASE = {
 		/** From the board's edge to the outer buoys' edges. */
 		padX: 0.2,
 		/** A buoy, across. */
@@ -92,8 +93,50 @@
 		/** The harbour at its foot, where the ship starts. */
 		startH: 0.065,
 	};
+	/** The harbour on a stretched board: room for the whole ship, which the square one lets hang
+	    over the foot of the board. */
+	const TALL_START_H = 0.12;
 	const depths = $derived(room.depths.length);
 	const cols = TILES_PER_DEPTH;
+
+	/**
+	 * How tall the stage is, in board widths, when the board is to fill it; null draws it at its
+	 * own shape.
+	 *
+	 * A phone's stage is far taller than the board is wide, and the square board left the bottom
+	 * half of it empty water. So in portrait the height goes to the gaps between stops: the width,
+	 * and with it every buoy, the island and the ship, stays exactly the size it was. A stage too
+	 * short to give the stops even their landscape gap keeps the square board.
+	 *
+	 * Both numbers are the elements' own pixels (`clientWidth`/`clientHeight`), so the game's CSS
+	 * `zoom` cancels out of the share.
+	 */
+	let fill = $state<number | null>(null);
+	let voyageEl = $state<HTMLDivElement>();
+	$effect(() => {
+		const el = voyageEl;
+		const stage = el?.parentElement;
+		if (!el || !stage || !portrait) {
+			fill = null;
+			return;
+		}
+		const measure = () => {
+			const w = el.clientWidth;
+			// A pixel short, so a rounded-up board never pushes the footer.
+			fill = w > 0 ? (stage.clientHeight - 1) / w : null;
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(stage);
+		observer.observe(el);
+		return () => observer.disconnect();
+	});
+
+	const L = $derived.by(() => {
+		if (fill === null) return BASE;
+		const rowPitch = (fill - BASE.goalH - TALL_START_H - BASE.node) / (room.depths.length - 1);
+		return rowPitch > BASE.rowPitch ? { ...BASE, rowPitch, startH: TALL_START_H } : BASE;
+	});
 	const colPitch = $derived((1 - 2 * L.padX - L.node) / (cols - 1));
 	const rowsH = $derived((depths - 1) * L.rowPitch + L.node);
 	const boardH = $derived(L.goalH + rowsH + L.startH);
@@ -167,23 +210,24 @@
 	let pickRound = $state(0);
 	/** True once the player's clock has run out and the book is sailing the rest. */
 	let autopilot = $state(false);
-
-	/** The ship, in board shares, and its heading. */
-	let ship = $state<Pt>({ x: 0, y: 0 });
-	let tilt = $state(0);
 	let sunk = $state(false);
-	/** Every leg sailed, harbour first, and the one under way with how far along it the ship is. */
-	let legs = $state<Leg[]>([]);
-	let underway = $state<{ leg: Leg; t: number } | null>(null);
-	let started = false;
 
-	$effect.pre(() => {
-		// Once, before the first paint: the ship in the harbour.
-		if (!started) {
-			started = true;
-			ship = harbour;
-		}
-	});
+	/**
+	 * Where the ship has been, as STOPS rather than points: the board's shape follows the stage in
+	 * portrait, so a buoy's point moves when the screen does, and a course kept in points would
+	 * leave the ship and its wake behind on the old board. Everything drawn is derived from these.
+	 */
+	type Stop = 'harbour' | 'port' | { depth: number; tile: number };
+	const spot = (s: Stop): Pt => (s === 'harbour' ? harbour : s === 'port' ? port : buoy(s.depth, s.tile));
+	/** Every stop made, harbour first, and the one under way with how far along the leg the ship is. */
+	let course = $state<Stop[]>(['harbour']);
+	let underway = $state<{ to: Stop; t: number } | null>(null);
+	const here = $derived(course[course.length - 1]);
+	const legs = $derived(course.slice(1).map((s, i) => leg(spot(course[i]), spot(s))));
+	const crossing = $derived(underway ? leg(spot(here), spot(underway.to)) : null);
+	/** The ship, in board shares, and its heading. */
+	const ship = $derived(crossing && underway ? along(crossing, underway.t) : spot(here));
+	const tilt = $derived(crossing && underway ? Math.max(-75, Math.min(75, heading(crossing, underway.t))) : 0);
 
 	let alive = true;
 	onDestroy(() => (alive = false));
@@ -198,18 +242,15 @@
 	 * (Plinko's rAF-only waits froze the same way on iOS). The clock lands the ship where the frames
 	 * were taking it; on a visible screen the frames get there first and the clock is never heard.
 	 */
-	const sail = (to: Pt, ms: number): Promise<void> =>
+	const sail = (to: Stop, ms: number): Promise<void> =>
 		new Promise((resolve) => {
-			const l = leg(ship, to);
 			const t0 = performance.now();
 			let done = false;
 			const finish = () => {
 				if (done) return;
 				done = true;
 				clearTimeout(clock);
-				ship = to;
-				tilt = 0;
-				legs = [...legs, l];
+				course = [...course, to];
 				underway = null;
 				resolve();
 			};
@@ -218,10 +259,7 @@
 				if (done) return;
 				if (!alive) return finish();
 				const t = Math.min(1, (now - t0) / ms);
-				const e = 1 - Math.pow(1 - t, 3);
-				ship = along(l, e);
-				tilt = Math.max(-75, Math.min(75, heading(l, e)));
-				underway = { leg: l, t: e };
+				underway = { to, t: 1 - Math.pow(1 - t, 3) };
 				if (t < 1) requestAnimationFrame(frame);
 				else finish();
 			};
@@ -233,7 +271,7 @@
 		const depth = reached;
 		moving = true;
 		playSound('whoosh');
-		await sail(buoy(depth, tile), SAIL_MS);
+		await sail({ depth, tile }, SAIL_MS);
 
 		if (depth >= room.dived) {
 			// The stop the book ends the voyage at: whichever buoy was chosen, the kraken is under it.
@@ -249,7 +287,7 @@
 			if (reached >= depths) {
 				await waitForTimeout(ARRIVE_MS);
 				playSound('whoosh');
-				await sail(port, PORT_MS);
+				await sail('port', PORT_MS);
 				ended = 'port';
 				playSound('win');
 			}
@@ -312,7 +350,7 @@
 	const pt = (p: Pt) => `${(p.x * 1000).toFixed(1)} ${(p.y * 1000).toFixed(1)}`;
 	const curve = (l: Leg) => `C ${pt(l.c1)} ${pt(l.c2)} ${pt(l.b)}`;
 	const wake = $derived.by(() => {
-		const drawn = underway ? [...legs, upTo(underway.leg, underway.t)] : legs;
+		const drawn = crossing && underway ? [...legs, upTo(crossing, underway.t)] : legs;
 		if (drawn.length === 0) return '';
 		return `M ${pt(drawn[0].a)} ${drawn.map(curve).join(' ')}`;
 	});
@@ -320,7 +358,7 @@
 		`left: calc(var(--voyage-w) * ${p.x}); top: calc(var(--voyage-w) * ${p.y})`;
 </script>
 
-<div class="voyage" style="--board-h:{boardH}; --node:{L.node}">
+<div class="voyage" bind:this={voyageEl} style="--board-h:{boardH}; --node:{L.node}">
 	<div class="board">
 		<!-- The island at the head of the board. It lights when the ship makes port. -->
 		<img class="goal" class:lit={ended === 'port'} src={GOAL} alt="" />
@@ -648,7 +686,8 @@
 
 	/* ---- Portrait ----------------------------------------------------------------------
 	   The one number, given a taller screen. Nearly the whole width on a long phone; on a squat one
-	   (h/w about 1.3, where the stage is about 62vh) the height takes over. */
+	   (h/w about 1.3, where the stage is about 62vh) the height takes over. Whatever height the
+	   stage has past that, the script spreads the stops over (`fill`). */
 	:global(.game.portrait) .voyage {
 		--voyage-w: min(90vw, 62vh);
 	}

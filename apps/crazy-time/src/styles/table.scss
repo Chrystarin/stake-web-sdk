@@ -1355,3 +1355,38 @@ app-dice-box {
 .mult-badge .mult-fill {
 	color: #e9e4e4;
 }
+
+/* A cash win, in the house's other hand: gold gradient glyphs over a dark brown outline, with a
+   soft shadow under the lot. Global for the same reason as `.mult-badge` — the board's winning
+   tile, the bonus screen's footer and Pirate Plinko's board all say the amount, and they should
+   say it the same way. Two stacked copies: a gradient clipped to text has no fill for a stroke to
+   sit behind, so the outline is its own layer underneath. Every measurement is in `em`, so the
+   size comes from whatever sets `font-size` on it. */
+.win-amount {
+	display: inline-grid;
+	font-family: 'Alexandria', sans-serif;
+	font-weight: 800;
+	line-height: 1.2;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+	filter: drop-shadow(0 0.08em 0.18em rgba(0, 0, 0, 0.7));
+}
+
+.win-amount .win-stroke,
+.win-amount .win-fill {
+	grid-area: 1 / 1;
+}
+
+.win-amount .win-stroke {
+	color: transparent;
+	-webkit-text-stroke: 0.2em #4c2813;
+	paint-order: stroke fill;
+}
+
+.win-amount .win-fill {
+	color: transparent;
+	background: linear-gradient(#fff6b0 0%, #ffd53c 48%, #f2960b 100%);
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+}

@@ -564,7 +564,10 @@
 				<div class="win">
 					<div class="win-mult">x{result}</div>
 					{#if covered}
-						<div class="win-cash">WIN {cash}</div>
+						<div class="win-cash win-amount">
+							<span class="win-stroke" aria-hidden="true">WIN {cash}</span>
+							<span class="win-fill">WIN {cash}</span>
+						</div>
 					{:else}
 						<div class="win-cash muted">would have paid {cash} per chip</div>
 					{/if}
@@ -763,17 +766,19 @@
 			0 0.2vw 0.5vw rgba(0, 0, 0, 0.9),
 			0 0 1.6vw rgba(0, 0, 0, 0.85);
 	}
+	/* The win is set in the house's cash hand (`.win-amount`, global) — the same as the board's
+	   winning tile — so only its size lives here. A miss is a plain line, shadowed to read over
+	   the board. */
 	.win-cash {
+		font-size: 1.7vw;
+	}
+	.win-cash.muted {
 		font-size: 1.5vw;
-		font-weight: 600;
-		color: #fff;
+		font-weight: 400;
+		color: #cbb9a4;
 		text-shadow:
 			0 0.15vw 0.4vw rgba(0, 0, 0, 0.9),
 			0 0 1.2vw rgba(0, 0, 0, 0.85);
-	}
-	.win-cash.muted {
-		color: #cbb9a4;
-		font-weight: 400;
 	}
 	/* ---- Portrait ----------------------------------------------------------------------
 	   A tall screen gets the upright cabinet: nearly the full width, and everything that is
@@ -793,6 +798,9 @@
 		font-size: 11vw;
 	}
 	:global(.game.portrait) .win-cash {
+		font-size: 4vw;
+	}
+	:global(.game.portrait) .win-cash.muted {
 		font-size: 3.6vw;
 	}
 </style>
