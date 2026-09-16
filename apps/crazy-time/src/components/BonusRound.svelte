@@ -15,6 +15,7 @@
 	import type { BookEventRoom } from '../game/typesBookEvent';
 	import { playSound } from '../game/sound';
 	import { staticUrl } from '../lib/staticUrl';
+	import { adoptVideo, releaseVideo, type VideoKey } from '../lib/preloadAssets';
 
 	import RoomPiratePlinko from './rooms/RoomPiratePlinko.svelte';
 	import RoomBonusWheel from './rooms/RoomBonusWheel.svelte';
@@ -70,11 +71,30 @@
 		return Math.min(capVw, (plateVw * 0.72) / (0.7 * label.length));
 	};
 
-	const ROOM_VIDEO: Partial<Record<Spot, string>> = {
-		piratePlinko: staticUrl('videos/animated_background_pirate_plinko.mp4'),
-		bonusWheel: staticUrl('videos/animated_background_bonus_wheel.mp4'),
-		oceanVoyage: staticUrl('videos/animated_background_ocean_voyage.mp4'),
-		chest: staticUrl('videos/animated_background_treasure_chest.mp4'),
+	/**
+	 * Puts the room's backdrop into `host`. The `<video>` is not written in the markup: it is ADOPTED
+	 * from the intro preload (lib/preloadAssets.ts), which built one per room behind the splash and
+	 * holds a decoded first frame in each — so the screen slides in over the room's scene, not over
+	 * black while the clip cold-starts. The room keys ARE the preload's video keys. On close the
+	 * element goes back to the preload's parking stage, paused, for the room's next visit.
+	 */
+	const roomVideo = (host: HTMLElement, spot: Spot) => {
+		let showing: VideoKey | undefined;
+		const show = (next: Spot) => {
+			const key = next as VideoKey;
+			if (showing === key) return;
+			if (showing) releaseVideo(showing);
+			showing = key;
+			const el = adoptVideo(key, host);
+			if (el) el.className = 'room-video';
+		};
+		show(spot);
+		return {
+			update: show,
+			destroy: () => {
+				if (showing) releaseVideo(showing);
+			},
+		};
 	};
 
 	const spotFor = (room: BookEventRoom): Spot =>
@@ -133,13 +153,9 @@
 {#if current}
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
-	{@const video = ROOM_VIDEO[spot]}
 	<div class="screen" class:closing style="--room-base:{colour.base}; --room-deep:{colour.deep}">
-		{#if video}
-			<!-- svelte-ignore a11y_media_has_caption -- decor: the file carries no audio track -->
-			<video class="room-video" src={video} autoplay muted loop playsinline preload="auto"></video>
-			<div class="room-scrim"></div>
-		{/if}
+		<div class="room-video-host" use:roomVideo={spot}></div>
+		<div class="room-scrim"></div>
 
 		<div class="header">
 			<div class="plate" style="--title-frame:url('{TITLE_FRAME}')">
@@ -235,14 +251,19 @@
 	/* A room's own backdrop, over the flat gradient and under everything else. The scrim is what
 	   keeps the title, the win line and the pocket labels readable over moving footage — without it
 	   the video decides, frame by frame, how legible the round is. */
-	.room-video {
+	.room-video-host {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+	/* :global — the element is appended by `roomVideo`, so it never receives this component's scope. */
+	.room-video-host :global(.room-video) {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 		object-position: center;
-		pointer-events: none;
 	}
 	.room-scrim {
 		position: absolute;

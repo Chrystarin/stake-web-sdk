@@ -30,7 +30,8 @@
 	} from '../game/constants';
 
 	import Wheel, { type WheelSegment, type WheelFrame } from './Wheel.svelte';
-	import { staticUrl } from '../lib/staticUrl';
+	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
+	import { markGameBooted } from '../lib/preloadAssets';
 	import TopSlot from './TopSlot.svelte';
 	import Background from './Background.svelte';
 	import BonusRound from './BonusRound.svelte';
@@ -914,6 +915,8 @@
 	});
 
 	onMount(() => {
+		// The splash's last step: the game is standing (lib/preloadAssets.ts, `booted`).
+		markGameBooted();
 		preloadSounds();
 		startMusic();
 		return () => {
@@ -1279,7 +1282,14 @@
 	<DevHarness />
 {/if}
 
-<div class="viewport-fit" style="--fit:{fitScale}">
+<!-- The chip art rides in as custom properties so the stylesheet's `url(var(--…))` paints the
+     preload's resident copy (lib/preloadAssets.ts); a literal `url('img/…')` in a component
+     stylesheet cannot be redirected, and in a production build resolves against the CSS file's own
+     folder rather than the game's. -->
+<div
+	class="viewport-fit"
+	style="--fit:{fitScale}; --art-chip-base:{staticCssUrl('img/chip_base.svg')}; --art-chip-yellow:{staticCssUrl('img/chip_yellow.svg')}"
+>
 	<Background />
 	<div
 		class="game"
@@ -1620,7 +1630,7 @@
 		content: '';
 		position: absolute;
 		inset: 0;
-		background: url('img/chip_base.svg') no-repeat center / contain;
+		background: var(--art-chip-base) no-repeat center / contain;
 		filter: hue-rotate(var(--chip-hue, 0deg));
 		z-index: 0;
 	}
@@ -2342,7 +2352,7 @@
 		width: var(--hud-mark);
 		height: var(--hud-mark);
 		flex: none;
-		background: url('img/chip_yellow.svg') no-repeat center / contain;
+		background: var(--art-chip-yellow) no-repeat center / contain;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.6));
 	}
 	.balance-text {

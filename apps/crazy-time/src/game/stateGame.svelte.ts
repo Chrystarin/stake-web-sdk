@@ -55,6 +55,14 @@ export const stateGame = $state({
 	buying: null as string | null,
 	// Set when an RGS round is stuck open and the server refuses to close it.
 	openRoundError: '',
+	/**
+	 * True once the intro preload has every asset in memory (lib/preloadAssets.ts). The layout mounts
+	 * <Game> only then, so nothing it renders can be its first fetch of anything — every image is
+	 * already a resident `blob:` and every video already holds a decoded frame.
+	 */
+	assetsReady: false,
+	/** True once the intro splash has finished (it flips at the START of the fade-out). */
+	introLoaderComplete: false,
 });
 
 /** Keep `stake` on the RGS grid, starting from the operator's suggested bet. */

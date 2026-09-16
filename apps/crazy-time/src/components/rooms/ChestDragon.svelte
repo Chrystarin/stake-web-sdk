@@ -3,10 +3,14 @@
 	 * The small dragon that lands on the chosen treasure chest, breathes fire over it before the lid
 	 * comes off, and then stays perched on it, idling, for the rest of the room.
 	 *
-	 * The only Spine in the game, and so the only WebGL context: a transparent canvas laid over the
-	 * chest board, click-through, with its ticker stopped until the dragon is wanted. It is mounted
-	 * with the room and torn down with it — the room is rare, and the atlas is two large pages that
-	 * have no business staying decoded for the rest of the session.
+	 * The only Spine in the game proper (the intro logo has its own, released with the splash): a
+	 * transparent canvas laid over the chest board, click-through, with its ticker stopped until the
+	 * dragon is wanted. The canvas is mounted with the room and torn down with it. Its ATLAS is not:
+	 * both pages are loaded into Pixi's cache by the intro preload (lib/preloadAssets.ts, under the
+	 * aliases below) and stay resident for the session, so every visit to the room — the first
+	 * included — finds the dragon's ~5 MB already decoded instead of fetching it on entry. That
+	 * costs ~26 MB of texture memory held for the session; the alternative measured in the Plinko is
+	 * a re-download on every entry, because Stake's CDN headers stop the browser reusing the files.
 	 *
 	 * The dragon is not placed by eye. It is placed by its own body: at load, the `Idle` pose is
 	 * measured — the middle of its body off the hip and chest bones, its lowest point and its width
@@ -209,6 +213,8 @@
 		application.ticker.add(tick);
 		app = application;
 
+		// Normally a straight cache hit — the intro preload registered and loaded both (see the note
+		// at the top). The registration here is the fallback for a capped-out preload.
 		for (const { alias, src } of [SKELETON, ATLAS]) {
 			if (!Assets.resolver.hasKey(alias)) Assets.add({ alias, src });
 		}
@@ -235,15 +241,15 @@
 		return () => {
 			destroyed = true;
 			breath?.finish();
-			const hadDragon = Boolean(spine);
 			spine?.destroy();
 			spine = undefined;
 			if (app) {
 				app.ticker.remove(tick);
+				// `texture: false`, and no `Assets.unload`: the atlas stays in Pixi's cache for the next
+				// visit to the room (see the note at the top).
 				app.destroy(true, { children: true, texture: false });
 				app = undefined;
 			}
-			if (hadDragon) void Assets.unload([SKELETON.alias, ATLAS.alias]).catch(() => {});
 		};
 	});
 </script>

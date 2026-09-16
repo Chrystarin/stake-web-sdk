@@ -87,3 +87,20 @@ combination, raise `--limit` and re-run the sync (default 14 books per mode, 252
 
 The offline balance starts at 1,000 and is debited `cost x chip` per spin; wins are credited from
 the book's `finalWin`. It is not persisted; reload to reset.
+
+## The intro loader
+
+Every load opens on the casino TV logo splash (`src/components/LoaderCasinoTvLogo.svelte`), which
+holds until every asset in the manifest (`src/lib/preloadAssets.ts`) is resident and the game has
+mounted, with a progress bar reading out how far it has got. Two dev-only knobs, both ignored in a
+production build:
+
+| Parameter           | Effect                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `?noLoader=1`       | Skip the splash: the game mounts at once, as before the loader existed. The preload still runs silently. For harnesses that step the game on a clock. |
+| `?preloadDelay=<ms>` | Pad every preload task by that long, so the bar can be watched filling on a local server that would otherwise finish in a blink (`?preloadDelay=150` runs about ten seconds). |
+
+After the splash, `window.crazyTimePreloadReport()` (evaluated in the game's own frame) says what the
+preload did: tasks settled, time taken, anything that failed, and anything the browser fetched from
+the network after the reveal. In dev, an asset fetched after the reveal that is not in the manifest
+also warns in the console with the path to add.

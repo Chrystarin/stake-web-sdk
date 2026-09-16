@@ -113,6 +113,48 @@ export const preloadSounds = (): void => {
 };
 
 /**
+ * How long the intro preload waits on one effect before carrying on without it. `preload` is a hint
+ * — iOS ignores it outright on cellular — so an element that never buffers must not hold the splash;
+ * the effect just streams on its first play, which is what every effect did before the preload.
+ */
+const SOUND_WARM_TIMEOUT_MS = 15_000;
+
+/**
+ * The same warm-up as {@link preloadSounds}, but as one promise per effect for the intro preload to
+ * count towards its progress: each resolves once its element can play through (or has failed, or has
+ * taken too long). The ELEMENTS are what is warmed, not the HTTP cache — `playSound` clones these very
+ * elements, so what they have buffered is what the first play uses. Always resolves.
+ */
+export const warmSounds = (): Promise<void>[] => {
+	preloadSounds();
+	return [...preloaded.values()].map((audio) => {
+		if (audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA || audio.error) {
+			return Promise.resolve();
+		}
+		return new Promise<void>((resolve) => {
+			const settle = () => {
+				clearTimeout(giveUp);
+				audio.removeEventListener('canplaythrough', settle);
+				audio.removeEventListener('error', settle);
+				resolve();
+			};
+			const giveUp = setTimeout(settle, SOUND_WARM_TIMEOUT_MS);
+			audio.addEventListener('canplaythrough', settle);
+			audio.addEventListener('error', settle);
+			// A second `load()` on an element that is already fetching would restart it; only nudge
+			// one the browser has not started on.
+			if (audio.networkState === HTMLMediaElement.NETWORK_EMPTY) audio.load();
+		});
+	});
+};
+
+/** The effect files, for the preload's manifest audit (lib/preloadAssets.ts). */
+export const soundEffectUrls = (): string[] => Object.values(SOURCES);
+
+/** The music file — streamed by `startMusic` from the game's first frame, never preloaded. */
+export const musicUrl = (): string => MUSIC_SRC;
+
+/**
  * `rate` shifts playback speed AND pitch — for a sound fired many times in a row, a touch of
  * random pitch is what stops the repeats sounding machine-gun identical. Browsers default to
  * correcting pitch when the rate changes, which is exactly backwards here, so that is turned off.
