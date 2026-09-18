@@ -2,8 +2,9 @@ import { type BookEventHandlerMap } from 'utils-book';
 import { stateBet } from 'state-shared';
 
 import { eventEmitter } from './eventEmitter';
-import { stateGame } from './stateGame.svelte';
-import { isRoomSpot } from './constants';
+import { stateGame, stateGameDerived, type HistoryChip } from './stateGame.svelte';
+import { SPOT_COLOUR, SPOT_LABEL, isRoomSpot } from './constants';
+import type { RoundResult } from './typesEmitterEvent';
 import type { BookEvent, BookEventOfType, BookEventContext, BookEventRoom } from './typesBookEvent';
 
 /** The room events share one handler: they only differ in what the overlay draws. */
@@ -12,6 +13,49 @@ const playRoom = async (bookEvent: BookEventRoom) => {
 	const covered = Boolean(stateGame.result?.covered);
 	await eventEmitter.broadcastAsync({ type: 'bonusRound', room: bookEvent, covered });
 	if (stateGame.result) stateGame.result = { ...stateGame.result, roomValue: bookEvent.multiplier };
+};
+
+/** My Bet History is this session's list in the info modal, not an archive. */
+const MAX_HISTORY_ENTRIES = 100;
+
+const TOP_SLOT_PILL = '#b8860b';
+const NOT_COVERED_PILL = '#4b5563';
+
+/** `18:04:31 18/09/2026`: the time and the date each stay whole when the cell wraps between them. */
+const historyDate = (): string => {
+	const now = new Date();
+	const pad = (value: number) => String(value).padStart(2, '0');
+	return (
+		`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ` +
+		`${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`
+	);
+};
+
+/** One row per settled round, newest first. */
+const logRound = (result: RoundResult) => {
+	const chip = stateBet.betAmount || stateGame.stake;
+	const buying = stateGame.buying;
+	const chips: HistoryChip[] = [
+		{ label: SPOT_LABEL[result.spot], color: SPOT_COLOUR[result.spot].deep },
+	];
+	if (!result.covered) chips.push({ label: 'Not covered', color: NOT_COVERED_PILL });
+	else {
+		if (result.roomValue !== null) {
+			chips.push({ label: `x${result.roomValue}`, color: SPOT_COLOUR[result.spot].base });
+		}
+		if (result.multiplier > 1) {
+			chips.push({ label: `Top Slot x${result.multiplier}`, color: TOP_SLOT_PILL });
+		}
+	}
+	stateGame.history.unshift({
+		date: historyDate(),
+		bet: buying ? stateGameDerived.buyTotal(buying) : stateGame.backedOrder.length * chip,
+		chip,
+		spots: buying ? 'Buy' : String(stateGame.backedOrder.length),
+		chips,
+		win: result.payout * chip,
+	});
+	if (stateGame.history.length > MAX_HISTORY_ENTRIES) stateGame.history.length = MAX_HISTORY_ENTRIES;
 };
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
@@ -73,6 +117,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.result = result;
 		stateGame.resultReady = true;
 		stateGame.rolling = false;
+		logRound(result);
 		await eventEmitter.broadcastAsync({ type: 'roundSettle', result });
 	},
 

@@ -99,8 +99,22 @@
 	const CENTRE_MS = 640;
 	/** It is open, with the number over it, before the screen moves on to the win line. */
 	const OPEN_HOLD_MS = 1200;
-	/** One swing of a shut chest, left to right and back — see `rattle` below. */
-	const SHAKE_MS = 360;
+	/** One rattle of a shut chest, a few swings dying away — see `rattle` below. */
+	const SHAKE_MS = 560;
+	/** The board stays still this long, give or take, between one set of rattling chests and the next. */
+	const SHAKE_PAUSE_MIN_MS = 1000;
+	const SHAKE_PAUSE_MAX_MS = 2000;
+	/** How many chests go in a set: three as a rule, two or four now and then so it does not tick. */
+	const SHAKE_SET_SIZES = [2, 3, 3, 3, 4];
+	/**
+	 * The chests of a set do not start together — each waits this much longer than the one before
+	 * it, give or take, so a set reads as one box stirring and setting the next off rather than the
+	 * three jolting in step.
+	 */
+	const SHAKE_STAGGER_MIN_MS = 120;
+	const SHAKE_STAGGER_MAX_MS = 320;
+	/** The first set comes sooner, so the board does not open on two dead seconds. */
+	const SHAKE_FIRST_MS = 500;
 
 	/** The chests opened so far, in the order they were opened. */
 	let openedOrder = $state<number[]>([]);
@@ -108,6 +122,50 @@
 	/** The last chest standing, once there is one. */
 	let winner = $state<number | null>(null);
 	let resolveOpen: ((index: number) => void) | null = null;
+
+	/**
+	 * The shut chests rattling right now. While the pick is on, about three shut chests are picked to
+	 * rattle together, then the board rests for a second or two before another set goes — never the
+	 * whole board at once. A set tries not to repeat a chest from the set before it, so the rattle
+	 * wanders round the grid. Each entry carries the chest's own start offset within the set.
+	 */
+	let rattling = $state<{ index: number; delayMs: number }[]>([]);
+	const rattleDelay = (index: number) => rattling.find((r) => r.index === index)?.delayMs;
+	$effect(() => {
+		if (phase !== 'picking') return;
+		let timer: ReturnType<typeof setTimeout>;
+		const next = (delay: number) => (timer = setTimeout(rattle, delay));
+		const rattle = () => {
+			const shut = room.chests.map((_, index) => index).filter((index) => !openedSet.has(index));
+			const fresh = shut.filter((index) => rattleDelay(index) === undefined);
+			const pool = [...(fresh.length > 0 ? fresh : shut)];
+			const size = Math.min(
+				pool.length,
+				SHAKE_SET_SIZES[Math.floor(Math.random() * SHAKE_SET_SIZES.length)],
+			);
+			const set: { index: number; delayMs: number }[] = [];
+			let delayMs = 0;
+			while (set.length < size) {
+				const index = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+				set.push({ index, delayMs });
+				delayMs += Math.round(
+					SHAKE_STAGGER_MIN_MS + Math.random() * (SHAKE_STAGGER_MAX_MS - SHAKE_STAGGER_MIN_MS),
+				);
+			}
+			rattling = set;
+			// The set is over when its LAST chest has finished, not its first.
+			const lastStart = set[set.length - 1]?.delayMs ?? 0;
+			timer = setTimeout(() => {
+				rattling = [];
+				next(SHAKE_PAUSE_MIN_MS + Math.random() * (SHAKE_PAUSE_MAX_MS - SHAKE_PAUSE_MIN_MS));
+			}, lastStart + SHAKE_MS);
+		};
+		next(SHAKE_FIRST_MS);
+		return () => {
+			clearTimeout(timer);
+			rattling = [];
+		};
+	});
 
 	/** The chests, so the dragon can find the last one on the screen. */
 	let chestEls = $state<HTMLButtonElement[]>([]);
@@ -224,11 +282,11 @@
 				class:open
 				class:mine
 				class:gone
-				class:shaking={!open && phase === 'picking'}
+				class:shaking={!open && phase === 'picking' && rattleDelay(i) !== undefined}
 				class:centred={mine && (phase === 'centred' || phase === 'opened')}
 				class:burning={mine && burning}
 				bind:this={chestEls[i]}
-				style="--dx:{1.5 - (i % COLS)}; --dy:{1 - Math.floor(i / COLS)}; --shake-delay:{-((i * 97) % SHAKE_MS)}ms"
+				style="--dx:{1.5 - (i % COLS)}; --dy:{1 - Math.floor(i / COLS)}; --shake-delay:{rattleDelay(i) ?? 0}ms"
 				disabled={open || winner !== null || phase !== 'picking' || !interactive}
 				onclick={() => choose(i)}
 			>
@@ -454,10 +512,12 @@
 	}
 
 	/*
-	 * A shut chest rattles while the pick is on — something is in it, and it wants out. Every shut
-	 * chest shakes the whole time, on its own: none of them waits its turn, and none stops until it
-	 * is opened. Each is started at a different point in the cycle (`--shake-delay`, negative so they
-	 * are all mid-shake from the first frame) so twelve boxes do not swing as one.
+	 * A shut chest rattles now and then while the pick is on — something is in it, and it wants out.
+	 * It is a small nudge, a few swings dying away, played once each time the chest is picked for a
+	 * set (`rattling` in the script says which chests and when). The class comes off between sets,
+	 * so a chest picked again starts its rattle from the top. Under a degree: three chests go per
+	 * set, and at the original 1.1° a set read as the board jolting rather than a few boxes stirring;
+	 * half that was too easy to miss, so it sits between.
 	 *
 	 * On the drawing's `rotate` and `translate` rather than its `transform`: the transform is where
 	 * the drawing is centred in its column and where the hover lift goes, and the individual
@@ -465,25 +525,30 @@
 	 * gets the dragon's scorch (below) in its place.
 	 */
 	.chest.shaking .art.shut {
-		animation: rattle var(--shake-ms) ease-in-out var(--shake-delay, 0ms) infinite;
+		/* `--shake-delay` is the chest's own offset within its set (script), so no two start together. */
+		animation: rattle var(--shake-ms) ease-in-out var(--shake-delay, 0ms);
 	}
 	@keyframes rattle {
 		0%,
 		100% {
-			rotate: -2.2deg;
-			translate: -1.3% 0;
+			rotate: 0deg;
+			translate: 0 0;
 		}
-		25% {
-			rotate: 0.6deg;
-			translate: 0.2% 0.5%;
+		18% {
+			rotate: -0.8deg;
+			translate: -0.36% 0;
 		}
-		50% {
-			rotate: 2.2deg;
-			translate: 1.3% 0;
+		38% {
+			rotate: 0.72deg;
+			translate: 0.32% 0.14%;
 		}
-		75% {
-			rotate: -0.6deg;
-			translate: -0.2% 0.5%;
+		58% {
+			rotate: -0.44deg;
+			translate: -0.18% 0;
+		}
+		78% {
+			rotate: 0.22deg;
+			translate: 0.08% 0.06%;
 		}
 	}
 

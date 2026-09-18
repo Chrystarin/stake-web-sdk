@@ -19,7 +19,14 @@
 			no: 'bonus_buy_no_container.webp',
 		},
 		aspect: { panel: 5280 / 3666, button: 1497 / 819 },
-		panel: { maxWidthPx: 1600, widthVw: 71, scale: 1, offsetX: 0, offsetY: -10 },
+		// `maxHeightVh` is the one knob the Plinko's board does not have. The board is sized off the
+		// viewport's WIDTH and lifted by a tenth of its own height, which on a short landscape screen
+		// (a phone on its side is ~812x375; the Stake Engine pane is not much taller) put its top —
+		// and the skull with it — off the top edge. Capping the height keeps the whole board on
+		// screen: at 82vh with the -10% lift the frame's top lands ~1vh below the edge, plus the art's
+		// own 4.5% transparent margin. Where the width already fits, the cap never binds and the board
+		// is exactly the Plinko's.
+		panel: { maxWidthPx: 1600, widthVw: 71, maxHeightVh: 82, scale: 1, offsetX: 0, offsetY: -10 },
 		portrait: { widthVw: 92, offsetY: -6 },
 		// The skull arch eats the top of this board and the coin piles the bottom corners, so the
 		// headline sits low and the plates are narrow.
@@ -89,6 +96,8 @@
 			onclick={(event) => event.stopPropagation()}
 			style:--panel-max-w="{LAYOUT.panel.maxWidthPx}px"
 			style:--panel-vw="{LAYOUT.panel.widthVw}vw"
+			style:--panel-max-h-vh="{LAYOUT.panel.maxHeightVh}vh"
+			style:--panel-max-h-svh="{LAYOUT.panel.maxHeightVh}svh"
 			style:--panel-vw-p="{LAYOUT.portrait.widthVw}vw"
 			style:--panel-aspect={LAYOUT.aspect.panel}
 			style:--panel-scale={LAYOUT.panel.scale}
@@ -161,7 +170,17 @@
 
 	.cf-panel {
 		position: relative;
-		width: min(var(--panel-max-w), var(--panel-vw));
+		/* The height cap, in `svh` where the browser has it: on a phone `vh` is the chrome-hidden
+		   height, so a `vh` cap is measured against space the player cannot see. Both values arrive
+		   inline (a custom property set inline cannot be overridden from here, so they come in as two). */
+		--panel-max-h: var(--panel-max-h-vh);
+		/* Width-sized, but never taller than `--panel-max-h`: the third term is that height turned back
+		   into a width through the art's aspect, so the box stays one aspect-locked rectangle. */
+		width: min(
+			var(--panel-max-w),
+			var(--panel-vw),
+			calc(var(--panel-max-h) * var(--panel-aspect))
+		);
 		aspect-ratio: var(--panel-aspect);
 		/* 1cqw = 1% of THIS box's width, so every child is a plain percentage of the panel. */
 		container-type: inline-size;
@@ -169,9 +188,19 @@
 		animation: cf-pop 0.16s ease-out;
 	}
 
+	@supports (height: 100svh) {
+		.cf-panel {
+			--panel-max-h: var(--panel-max-h-svh);
+		}
+	}
+
 	@media (orientation: portrait) {
 		.cf-panel {
-			width: min(var(--panel-max-w), var(--panel-vw-p));
+			width: min(
+				var(--panel-max-w),
+				var(--panel-vw-p),
+				calc(var(--panel-max-h) * var(--panel-aspect))
+			);
 			--panel-dy: var(--panel-dy-p);
 		}
 	}

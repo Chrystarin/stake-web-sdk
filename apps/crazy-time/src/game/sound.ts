@@ -1,6 +1,7 @@
 import { stateSoundDerived } from 'state-shared';
 
 import { staticUrl } from '../lib/staticUrl';
+import { stateGame } from './stateGame.svelte';
 
 /**
  * One-shot table sound effects.
@@ -161,6 +162,8 @@ export const musicUrl = (): string => MUSIC_SRC;
  */
 export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 	if (typeof Audio === 'undefined') return;
+	// The menu's Sound switch.
+	if (!stateGame.soundEnabled) return;
 	// `gain` trims one call rather than the sound: the peg tick is shared by the wheel, the Top Slot
 	// and both bonus rooms, and they do not all want it at the same level.
 	const volume = stateSoundDerived.volumeSoundEffect() * MIX[name] * gain;
@@ -256,7 +259,9 @@ let music: HTMLAudioElement | null = null;
 /** Calls off a pending "start on the first gesture" wait; null while nothing is waiting. */
 let cancelGestureWait: (() => void) | null = null;
 
-const musicVolume = () => Math.min(1, stateSoundDerived.volumeMusic() * MUSIC_MIX);
+/** Zero while the menu's Music switch is off, which pauses the track the way a silent slider does. */
+const musicVolume = () =>
+	stateGame.musicEnabled ? Math.min(1, stateSoundDerived.volumeMusic() * MUSIC_MIX) : 0;
 
 /** Run `start` on the first interaction with the page, once, and only ever wait for one. */
 const onFirstGesture = (start: () => void): void => {

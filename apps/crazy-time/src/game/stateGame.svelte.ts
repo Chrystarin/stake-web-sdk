@@ -25,6 +25,30 @@ const stakeOptions = (): number[] => {
 	return within.length ? within : grid;
 };
 
+/** One pill in a round's My Bet History row. */
+export type HistoryChip = {
+	/** Pill text, e.g. "X5", "Top Slot x10", "x80". */
+	label: string;
+	/** Pill background colour. */
+	color: string;
+};
+
+/** One row per round in My Bet History. */
+export type HistoryEntry = {
+	date: string;
+	/** Total wager for the round: chip x spots covered, or the full price of a buy. */
+	bet: number;
+	/** Chip value for the round. */
+	chip: number;
+	/** What was covered: the number of spots, or "Buy" for a bought room. */
+	spots: string;
+	/** Where the wheel stopped, plus the Top Slot multiplier and the room's result when they applied. */
+	chips: HistoryChip[];
+	win: number;
+};
+
+export type InfoModalTab = 'rules' | 'history' | 'howToPlay';
+
 const noneBacked = (): Record<Spot, boolean> =>
 	Object.fromEntries(SPOTS.map((spot) => [spot, false])) as Record<Spot, boolean>;
 
@@ -63,6 +87,17 @@ export const stateGame = $state({
 	assetsReady: false,
 	/** True once the intro splash has finished (it flips at the START of the fade-out). */
 	introLoaderComplete: false,
+	// The top-right menu (HudMenuPopup.svelte) and what it opens (InfoModal.svelte).
+	menuOpen: false,
+	infoModalOpen: false,
+	infoModalTab: 'rules' as InfoModalTab,
+	// The 4-page walkthrough (QuickGuideModal.svelte): opens once after the splash, and from How to Play?.
+	quickGuideOpen: false,
+	// The menu's two switches. Sound gates every effect, music the looping track (game/sound.ts).
+	soundEnabled: true,
+	musicEnabled: true,
+	// This session's rounds, newest first, for My Bet History.
+	history: [] as HistoryEntry[],
 });
 
 /** Keep `stake` on the RGS grid, starting from the operator's suggested bet. */

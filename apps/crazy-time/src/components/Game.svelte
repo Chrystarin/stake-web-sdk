@@ -9,7 +9,7 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
+	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
 	import { forcedRoomKind, isForcedRound } from '../game/devLocalBet';
 	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
@@ -39,6 +39,9 @@
 	import DevHarness from './DevHarness.svelte';
 	import BuyBonusModal from './BuyBonusModal.svelte';
 	import ConfirmPromptModal from './ConfirmPromptModal.svelte';
+	import HudMenuPopup from './HudMenuPopup.svelte';
+	import InfoModal from './InfoModal.svelte';
+	import QuickGuideModal from './QuickGuideModal.svelte';
 	import { requestConfirmPrompt } from '../game/confirmPrompt.svelte';
 
 	const context = getContext();
@@ -1046,6 +1049,32 @@
 		buyBonusOpen = true;
 	};
 
+	// --- Menu (top-right): rules, history, how to play, sound and music --------------------------
+	const toggleMenu = () => {
+		playSound('click');
+		stakePanelOpen = false;
+		stateGame.menuOpen = !stateGame.menuOpen;
+	};
+
+	const openInfo = (tab: InfoModalTab) => {
+		playSound('click');
+		stateGame.infoModalTab = tab;
+		stateGame.infoModalOpen = true;
+		stateGame.menuOpen = false;
+	};
+
+	/**
+	 * Menu → How to Play? opens the 4-page quick guide (the walkthrough shown once after the intro
+	 * splash), as it does in the Plinko. The InfoModal's text `howToPlay` tab is left in place but
+	 * nothing opens it; restoring it is the commented line below.
+	 */
+	const openQuickGuide = () => {
+		// openInfo('howToPlay');
+		playSound('click');
+		stateGame.menuOpen = false;
+		stateGame.quickGuideOpen = true;
+	};
+
 	const handleBuyActivate = (mode: string) => {
 		requestConfirmPrompt('buyBonus', () => startBuy(mode));
 	};
@@ -1321,6 +1350,32 @@
 		>
 			<img src={staticUrl('img/buy-bonus/buy-bonus-btn.webp')} alt="" aria-hidden="true" />
 		</button>
+
+		<!-- The menu, opposite the Buy Bonus badge: rules, history, how to play, sound and music. -->
+		<div class="menu-anchor">
+			<button
+				type="button"
+				class="menu-trigger"
+				style:background-image={staticCssUrl(
+					portrait ? 'img/menu/menu-btn-mobile.webp' : 'img/menu/menu-btn.webp',
+				)}
+				onclick={toggleMenu}
+				aria-label="Menu"
+				aria-expanded={stateGame.menuOpen}
+			></button>
+			{#if stateGame.menuOpen}
+				<HudMenuPopup
+					soundEnabled={stateGame.soundEnabled}
+					onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
+					musicEnabled={stateGame.musicEnabled}
+					onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
+					onOpenRules={() => openInfo('rules')}
+					onOpenHistory={() => openInfo('history')}
+					onOpenHowToPlay={openQuickGuide}
+					onClose={() => (stateGame.menuOpen = false)}
+				/>
+			{/if}
+		</div>
 
 		<div class="hud" bind:this={hudEl}>
 			{#key balancePulse}
@@ -1617,6 +1672,11 @@
 />
 <ConfirmPromptModal />
 
+<InfoModal />
+
+<!-- 4-page walkthrough. Opens itself once the intro splash clears, and again from Menu → How to Play?. -->
+<QuickGuideModal />
+
 <style>
 	/* ---- Chips (same skin as colour-dice: chip_base.svg tinted by --chip-hue) ---- */
 	.chip {
@@ -1844,6 +1904,32 @@
 		transition:
 			transform 0.12s ease,
 			filter 0.12s ease;
+	}
+	/* Menu button (art from the Plinko), top-right of the table, centred on the badge's line. */
+	.menu-anchor {
+		position: absolute;
+		top: 2.2vw;
+		right: 1.6vw;
+		z-index: 25;
+		width: 4.2vw;
+		height: 4.2vw;
+	}
+	.menu-trigger {
+		display: block;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		border: none;
+		background: center / contain no-repeat;
+		cursor: pointer;
+		filter: drop-shadow(0 0.15vw 0.45vw rgba(0, 0, 0, 0.5));
+		transition: transform 0.12s ease;
+	}
+	.menu-trigger:hover {
+		transform: scale(1.06);
+	}
+	.menu-trigger:active {
+		transform: scale(0.96);
 	}
 	.buy-bonus-trigger img {
 		width: 100%;
@@ -2247,6 +2333,13 @@
 		left: 2vw;
 		width: 14.5vw;
 		height: 14.5vw;
+	}
+	/* The menu takes the other corner beside the cabinet, on the badge's centre line. */
+	.game.portrait .menu-anchor {
+		top: 3.75vw;
+		right: 2.75vw;
+		width: 11vw;
+		height: 11vw;
 	}
 	.game.portrait .buy-bonus-trigger img {
 		filter: drop-shadow(0 0.35vw 1vw rgba(0, 0, 0, 0.5));

@@ -135,6 +135,8 @@ export const WHEEL_WIDTHS: readonly number[] = WHEEL_LAYOUT.map((value) =>
 );
 
 export const NUM_CHESTS = 12;
+/** Values a chest can hold, lowest to highest: the values of the math's CHEST_TABLE, without its weights. */
+export const CHEST_VALUES = [2, 3, 5, 8, 10, 15, 20, 25, 50, 100, 250] as const;
 
 /** Ocean Voyage depth multipliers, shallowest to deepest. */
 export const VOYAGE_DEPTHS = [2, 3, 5, 8, 12, 20, 30, 50, 80, 400] as const;
@@ -265,7 +267,7 @@ export const modeForSpots = (spots: readonly Spot[]): string | null => {
 const roomTop: Record<RoomSpot, number> = {
 	piratePlinko: Math.max(...PLINKO_SLOTS),
 	bonusWheel: Math.max(...WHEEL_LAYOUT),
-	chest: 250,
+	chest: Math.max(...CHEST_VALUES),
 	oceanVoyage: Math.max(...VOYAGE_DEPTHS),
 };
 const TOP_SLOT_MAX = Math.max(...TOP_SLOT_MULTS);

@@ -104,6 +104,9 @@ docs/dev-debug.md                 offline outcome forcing (?force=...)
 src/components/TopSlot.svelte     two reels, landed on the authored pair
 src/components/BonusRound.svelte  the bonus screen; hosts one of:
 src/components/rooms/Room*.svelte PiratePlinko, BonusWheel, Chest, OceanVoyage (presentation)
+src/components/HudMenuPopup.svelte top-right menu (ported from the Plinko): rules, history, how to play, sound, music
+src/components/QuickGuideModal.svelte 4-page walkthrough (ported from the Plinko): opens once after the splash and from How to Play?; stills in the well until clips exist
+src/components/InfoModal.svelte   Game Rules (+ Limits) / My Bet History / How to Play?; every number read off constants.ts
 src/game/constants.ts             mirror of crazy_time_data.py (wheel, tables, modes)
 src/game/stateGame.svelte.ts      board state, spots → mode, commit/resume
 src/game/bookEventHandlerMap.ts   book → emitter events
@@ -113,7 +116,7 @@ scripts/import-math-books.mjs     samples published books into base_books.ts
 
 ## Not done (prototype)
 
-- Portrait / mobile layout (fixed 16:9 stage like colour-dice), autoplay, turbo, rules page,
+- Portrait / mobile layout (fixed 16:9 stage like colour-dice), autoplay, turbo,
   translations beyond `en`, sound design (placeholders from colour-dice), real art.
 - Rooms are placeholders for the three still being brainstormed; the Pirate Plinko room is a CSS
   board, not the One-Eyed Willy engine.

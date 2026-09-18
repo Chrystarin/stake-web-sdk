@@ -247,10 +247,7 @@
 			aria-valuemax="100"
 			aria-valuenow={percent}
 		>
-			<div class="load-progress-row">
-				<span class="load-progress-label">{phase === 'boot' ? 'Starting game' : 'Loading'}</span>
-				<span class="load-progress-pct">{percent}%</span>
-			</div>
+			<div class="load-progress-pct">{percent}%</div>
 			<div class="load-progress-track">
 				<div class="load-progress-fill" style="transform: scaleX({shown});"></div>
 			</div>
@@ -306,20 +303,14 @@
 		transition-delay: 350ms;
 	}
 
-	.load-progress-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		margin-bottom: clamp(6px, 1.2vh, 10px);
-		font-size: clamp(11px, 1.6vh, 14px);
-		font-weight: 600;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-	}
+	/* Just the number, centred over the bar — the bar itself says "loading". */
 	.load-progress-pct {
+		margin-bottom: clamp(6px, 1.2vh, 10px);
+		font-size: clamp(12px, 1.8vh, 15px);
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-align: center;
 		font-variant-numeric: tabular-nums;
-		letter-spacing: 0.04em;
-		color: #f5c451;
 	}
 
 	.load-progress-track {
@@ -337,8 +328,8 @@
 		inset: 0;
 		transform-origin: left center;
 		border-radius: inherit;
-		background: linear-gradient(90deg, #d99a1e 0%, #f5c451 60%, #ffe08a 100%);
-		box-shadow: 0 0 10px rgba(245, 196, 81, 0.55);
+		background: #fff;
+		box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
 		transition: transform 120ms linear;
 	}
 </style>

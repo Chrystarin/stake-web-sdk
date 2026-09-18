@@ -35,6 +35,9 @@ import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvL
  * one referenced through `staticUrl` / `staticPath`, which is what lets the resident copy take over.
  */
 const DOM_IMAGE_PATHS: readonly string[] = [
+	// ── The table's backdrop (Background.svelte) ─────────────────────────────────────────────────
+	'img/background_base_landscape.webp',
+
 	// ── The wheel (Game.svelte + Wheel.svelte): ring art, number badges, room badges ─────────────
 	'img/wheel/frame.png',
 	...NUMBER_SPOTS.map((spot) => `img/wheel/${NUMBER_PAY[spot]}.png`),
@@ -61,6 +64,20 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy-bonus/buy_bonus_bet_container.webp',
 	'img/buy-bonus/buy_bonus_bet_button_decrease.webp',
 	'img/buy-bonus/buy_bonus_bet_button_increase.webp',
+
+	// ── Menu (Game.svelte + HudMenuPopup.svelte): the top-right button and the three entry icons ──
+	'img/menu/menu-btn.webp',
+	'img/menu/menu-btn-mobile.webp',
+	'img/menu/hamburg_menu_ico_game_rules.webp',
+	'img/menu/hamburg_menu_ico_history.webp',
+	'img/menu/hamburg_menu_ico_how_to_play.webp',
+
+	// ── Quick guide (QuickGuideModal.svelte): both frames, the nav plate, the well's placeholder ─────────────────────
+	'img/quick_guide/quick_guide_container_wide.webp',
+	'img/quick_guide/quick_guide_container_mobile.webp',
+	'img/quick_guide/quick_guide_button_container.webp',
+	'img/quick_guide/quick_guide_placeholder.webp',
+	'img/quick_guide/quick_guide_placeholder_portrait.webp',
 
 	// ── "Start Bonus Buy?" confirmation (ConfirmPromptModal.svelte, the bonus_buy variant only) ──
 	'img/buy-bonus/confirmation_popup/bonus_buy_container.webp',
@@ -121,8 +138,8 @@ const FONT_SPECS: readonly string[] = [
 ];
 
 /**
- * The five looping backdrops: the table's, and one per bonus room (Background.svelte and
- * BonusRound.svelte).
+ * The four looping backdrops, one per bonus room (BonusRound.svelte). The table's own backdrop is a
+ * still (Background.svelte) and rides with the DOM images above.
  *
  * Warmed as ELEMENTS, never as bytes. A Blob + `registerResidentUrl`, the way every image above is
  * warmed, cannot work for media on Stake: the page serves the game under
@@ -136,25 +153,23 @@ const FONT_SPECS: readonly string[] = [
  * element that plays in the game ({@link adoptVideo}). Nothing for CSP to refuse, nothing for the CDN
  * to answer twice.
  *
- * The splash blocks on a FIRST FRAME per clip, not on the bodies: all five together are ~154 MB, and
+ * The splash blocks on a FIRST FRAME per clip, not on the bodies: all four together are ~133 MB, and
  * a splash that waited on that would sit for minutes on an ordinary connection. What the splash is
- * buying is a decode — the reveal must not paint black — and the files are faststart, so five first
- * frames is well under a megabyte. The bodies are pulled after reveal, the table's first and then the
+ * buying is a decode — the reveal must not paint black — and the files are faststart, so four first
+ * frames is well under a megabyte. The bodies are pulled after reveal, the
  * rooms one at a time ({@link preloadPostRevealAssets}), so whatever is on screen keeps the link.
  */
-export type VideoKey = 'table' | 'piratePlinko' | 'bonusWheel' | 'chest' | 'oceanVoyage';
+export type VideoKey = 'piratePlinko' | 'bonusWheel' | 'chest' | 'oceanVoyage';
 
 const VIDEO_PATHS: Record<VideoKey, string> = {
-	table: 'videos/animated_background.mp4',
 	piratePlinko: 'videos/animated_background_pirate_plinko.mp4',
 	bonusWheel: 'videos/animated_background_bonus_wheel.mp4',
 	chest: 'videos/animated_background_treasure_chest.mp4',
 	oceanVoyage: 'videos/animated_background_ocean_voyage.mp4',
 };
 
-/** The order the bodies are filled in after reveal: the one on screen, then the rooms. */
+/** The order the bodies are filled in after reveal. */
 const VIDEO_FILL_ORDER: readonly VideoKey[] = [
-	'table',
 	'piratePlinko',
 	'bonusWheel',
 	'chest',
@@ -560,7 +575,7 @@ export type PreloadOptions = {
 	 * Hard cap (ms) so a hung asset or a dead connection can never trap the player on the splash. A
 	 * safety valve, not a budget — firing it reveals the game part-loaded, the exact failure this module
 	 * exists to prevent, so it sits far above a realistic full-manifest load. The blocking set here is
-	 * ~30 MB (art 20 MB, spine 5.5 MB, fonts 1.7 MB, effects 0.2 MB, five video first frames); the
+	 * ~30 MB (art 20 MB, spine 5.5 MB, fonts 1.7 MB, effects 0.2 MB, four video first frames); the
 	 * Plinko measured ~27 MB at 1.8 Mbps as ~146 s, and this is the same ~2x margin over that.
 	 */
 	timeoutMs?: number;
@@ -660,9 +675,9 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 }
 
 /**
- * Fire-and-forget: the video bodies. The table's first — it is on screen now — and then the four
- * rooms ONE AT A TIME, each once the previous can play through (or has had its turn), because five
- * parallel 20–40 MB downloads would leave the clip actually playing with a fifth of the link.
+ * Fire-and-forget: the video bodies. The four rooms ONE AT A TIME, each once the previous can play
+ * through (or has had its turn), because four parallel 25–45 MB downloads would leave a clip that is
+ * actually playing with a quarter of the link.
  * The music is deliberately absent: `startMusic` streams it from the game's first frame.
  */
 export function preloadPostRevealAssets(): void {
