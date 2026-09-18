@@ -108,19 +108,27 @@ const landingFromBook = (state: unknown): { spot: Spot; covered: boolean } | nul
 };
 
 /**
+ * The mode of the round being resumed. The resume machine clears `stateBet.betToResume` before it
+ * hands the round over, so the round itself is asked first; `activeBetModeKey` is where
+ * Authenticate (and a replay) also leave it.
+ */
+const resumedMode = (round?: { mode?: string } | null): string | undefined =>
+	round?.mode || activeRound()?.mode || stateBet.activeBetModeKey || undefined;
+
+/** The buy mode of the resumed round, if it was a buy. */
+export const buyModeForResume = (round?: { mode?: string } | null): string | null => {
+	const mode = resumedMode(round);
+	return mode && isBuyMode(mode) ? mode : null;
+};
+
+/**
  * The spots to replay a resumed round against.
  *
  * Prefers the mode the RGS reports for the round (its coverage IS the board), then the stashed
  * selection, and only as a last resort infers from the book which spot was covered.
  */
-/** The buy mode of the open round, if it was a buy. */
-export const buyModeForResume = (): string | null => {
-	const mode = activeRound()?.mode;
-	return mode && isBuyMode(mode) ? mode : null;
-};
-
-export const backedSpotsForResume = (state: unknown): Spot[] => {
-	const mode = activeRound()?.mode;
+export const backedSpotsForResume = (state: unknown, round?: { mode?: string } | null): Spot[] => {
+	const mode = resumedMode(round);
 	if (mode && coverageOf(mode).length) return [...coverageOf(mode)];
 	const remembered = recallCommittedSpots();
 	if (remembered) return remembered;

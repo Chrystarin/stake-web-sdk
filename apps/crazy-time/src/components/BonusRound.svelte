@@ -14,6 +14,8 @@
 	import { SPOT_LABEL, SPOT_COLOUR, type Spot } from '../game/constants';
 	import type { BookEventRoom } from '../game/typesBookEvent';
 	import { playSound } from '../game/sound';
+	import { isReplay } from '../game/replay';
+	import { formatMoney } from '../game/currency';
 	import { staticUrl } from '../lib/staticUrl';
 	import { adoptVideo, releaseVideo, type VideoKey } from '../lib/preloadAssets';
 
@@ -25,17 +27,22 @@
 	type Props = {
 		/** Cash value of one chip, for the win line. */
 		chip: number;
-		sign: string;
 		/** Tall viewport: the rooms that care lay themselves out differently. */
 		portrait?: boolean;
 		/** True for the whole time the screen is up. */
 		onOpenChange?: (open: boolean) => void;
 	};
-	let { chip, sign, portrait = false, onOpenChange }: Props = $props();
+	let { chip, portrait = false, onOpenChange }: Props = $props();
 
 	const context = getContext();
 
 	let current = $state<{ room: BookEventRoom; covered: boolean } | null>(null);
+	/**
+	 * A room is played by hand only by the player who covered it. A replay has nobody at the table
+	 * (it is a recording being watched, often by someone else), so its rooms play themselves out
+	 * the way an uncovered room does, rather than sitting on a pick timer at every step.
+	 */
+	const handsOn = $derived(Boolean(current?.covered) && !isReplay());
 	let closing = $state(false);
 	let result = $state<number | null>(null);
 	let roomApi = $state<{ play: () => Promise<number> } | undefined>();
@@ -117,9 +124,6 @@
 	const SETTLE_MS = 1000;
 	const WIN_HOLD_MS = 3000;
 
-	const fmt = (value: number) =>
-		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
-
 	context.eventEmitter.subscribeOnMount({
 		bonusRound: async (event) => {
 			onOpenChange?.(true);
@@ -189,18 +193,18 @@
 				<RoomPiratePlinko
 					bind:this={roomApi}
 					room={current.room}
-					interactive={current.covered}
+					interactive={handsOn}
 					covered={current.covered}
 					{portrait}
 					{result}
-					cash={result === null ? '' : `${sign}${fmt(result * chip)}`}
+					cash={result === null ? '' : formatMoney(result * chip)}
 				/>
 			{:else if current.room.type === 'bonusWheelRoom'}
-				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={current.covered} />
+				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={handsOn} />
 			{:else if current.room.type === 'chestRoom'}
-				<RoomChest bind:this={roomApi} room={current.room} interactive={current.covered} />
+				<RoomChest bind:this={roomApi} room={current.room} interactive={handsOn} />
 			{:else}
-				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={current.covered} {portrait} />
+				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
 			{/if}
 		</div>
 
@@ -213,13 +217,13 @@
 			{#if result !== null && current.room.type !== 'piratePlinkoRoom'}
 				<div class="mult">x{result}</div>
 				{#if current.covered}
-					{@const won = `WIN ${sign}${fmt(result * chip)}`}
+					{@const won = `WIN ${formatMoney(result * chip)}`}
 					<div class="cash win-amount">
 						<span class="win-stroke" aria-hidden="true">{won}</span>
 						<span class="win-fill">{won}</span>
 					</div>
 				{:else}
-					<div class="cash muted">would have paid {sign}{fmt(result * chip)} per chip</div>
+					<div class="cash muted">would have paid {formatMoney(result * chip)} per chip</div>
 				{/if}
 			{/if}
 		</div>

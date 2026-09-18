@@ -9,7 +9,11 @@ import { backedSpotsForResume, buyModeForResume, forgetCommittedSpots } from './
 const primaryMachines = createPrimaryMachines<Bet>({
 	onResumeGameActive: (betToResume) => {
 		// Rebuild the board before playback so the replay lights up the right tiles.
-		stateGameDerived.applyResumedSelection(backedSpotsForResume(betToResume.state), buyModeForResume());
+		const round = betToResume as { mode?: string };
+		stateGameDerived.applyResumedSelection(
+			backedSpotsForResume(betToResume.state, round),
+			buyModeForResume(round),
+		);
 		return convertTorResumableBet(betToResume);
 	},
 	onResumeGameInactive: () => {},

@@ -4,7 +4,7 @@
 
 	import { onMount, tick, untrack } from 'svelte';
 
-	import { stateBet } from 'state-shared';
+	import { stateBet, stateConfig } from 'state-shared';
 	import { stateUrlDerived } from 'state-shared';
 	import { waitForTimeout } from 'utils-shared/wait';
 
@@ -12,6 +12,14 @@
 	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
 	import { forcedRoomKind, isForcedRound } from '../game/devLocalBet';
+	import {
+		isReplay,
+		seedReplayStake,
+		stageReplayRound,
+		takeReplayRound,
+		type ReplayRound,
+	} from '../game/replay';
+	import { formatBalance, formatMoney } from '../game/currency';
 	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
 	import {
 		NUMBER_PAY,
@@ -25,6 +33,8 @@
 		isRoomSpot,
 		BUY_MODES,
 		buyPrice,
+		coverageOf,
+		isBuyMode,
 		type RoomSpot,
 		type Spot,
 	} from '../game/constants';
@@ -42,7 +52,7 @@
 	import HudMenuPopup from './HudMenuPopup.svelte';
 	import InfoModal from './InfoModal.svelte';
 	import QuickGuideModal from './QuickGuideModal.svelte';
-	import { requestConfirmPrompt } from '../game/confirmPrompt.svelte';
+	import { isConfirmPromptOpen, requestConfirmPrompt } from '../game/confirmPrompt.svelte';
 
 	const context = getContext();
 
@@ -414,6 +424,11 @@
 		stakePanelOpen = false;
 	};
 
+	/** Stake's Bet Replay: fixed by the launch URL, so it is read once. See the replay block below. */
+	const replayMode = isReplay();
+	let replayRound = $state.raw<ReplayRound | null>(null);
+	let replayStarting = $state(false);
+
 	const backedCount = $derived(stateGameDerived.backedCount());
 	const total = $derived(
 		stateGame.buying ? stateGameDerived.buyTotal(stateGame.buying) : stateGameDerived.totalStake(),
@@ -436,11 +451,16 @@
 		multHidden = false;
 	};
 
-	const bettingOpen = $derived(idle && !settled && !clearing && !bonusUp);
+	// A replay is watched, never bet on: betting stays shut for the life of the page, which takes
+	// the tray, the group buttons, SPIN and Buy Bonus with it.
+	const bettingOpen = $derived(idle && !settled && !clearing && !bonusUp && !replayMode);
 	// A buy has no chips to choose: the tray and the group buttons go the moment it starts.
 	const controlsHidden = $derived(!bettingOpen || stateGame.buying !== null);
 	const canSpin = $derived(bettingOpen && currentBet !== null && !stateGame.openRoundError);
-	const confirmDisabled = $derived(settled ? clearing || payingOut : !canSpin);
+	const canReplay = $derived(replayRound !== null && idle && !replayStarting);
+	const confirmDisabled = $derived(
+		settled ? clearing || payingOut || replayStarting : replayMode ? !canReplay : !canSpin,
+	);
 	const clearDisabled = $derived(
 		clearing || payingOut || (!settled && (!idle || backedCount === 0)),
 	);
@@ -718,6 +738,12 @@
 	/** What the tile reads: the wheel's figure until the badge has joined it, then the total. */
 	const readoutMult = $derived(mergePending ? baseMult : baseMult * topMult);
 	const readoutShown = $derived(payoutStage >= 1 && winCash > 0 && !clearing);
+	/**
+	 * The win is written in full, so its length runs with the currency: up to READOUT_CHARS it is
+	 * set at the readout's own size (a tile holds that many), past that it is scaled to still fit.
+	 */
+	const READOUT_CHARS = 15;
+	const readoutFit = (text: string) => Math.min(1, READOUT_CHARS / text.length).toFixed(3);
 	const fmtMult = (value: number) =>
 		`${Number.isInteger(value) ? value : value.toFixed(2).replace(/\.?0+$/, '')}x`;
 
@@ -883,8 +909,34 @@
 	const onConfirmClick = () => {
 		if (confirmDisabled) return;
 		playSound('click');
-		if (settled) void finishRound();
+		if (replayMode) void (settled ? replayAgain() : startReplay());
+		else if (settled) void finishRound();
 		else spin();
+	};
+
+	/**
+	 * Stake requires the spacebar on the bet button: it presses the gem, SPIN or PLAY AGAIN alike.
+	 * It stays out of the way of anything laid over the table (a press there belongs to that
+	 * screen), of a field being typed in, and of operators that switch it off.
+	 */
+	const onSpaceKey = (event: KeyboardEvent) => {
+		if ((event.code !== 'Space' && event.key !== ' ') || event.repeat) return;
+		if (stateConfig.jurisdiction?.disabledSpacebar) return;
+		const target = event.target as HTMLElement | null;
+		if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+		if (
+			buyBonusOpen ||
+			bonusUp ||
+			stateGame.menuOpen ||
+			stateGame.infoModalOpen ||
+			stateGame.quickGuideOpen ||
+			isConfirmPromptOpen()
+		)
+			return;
+		// A focused button would also take the space as its own click: the gem gets it, once.
+		event.preventDefault();
+		if (target instanceof HTMLButtonElement) target.blur();
+		onConfirmClick();
 	};
 
 	const onClearClick = () => {
@@ -922,6 +974,8 @@
 		markGameBooted();
 		preloadSounds();
 		startMusic();
+		// Whatever loaded the round (Authenticate online, the dev harness offline) mounted first.
+		if (replayMode) loadReplay();
 		return () => {
 			for (const id of [...flightTimers.keys()]) cancelCues(id);
 			flights = [];
@@ -934,7 +988,7 @@
 	});
 
 	const toggleSpot = (spot: Spot) => {
-		if (!idle || settled || clearing) return;
+		if (!idle || settled || clearing || replayMode) return;
 		const wasBacked = stateGameDerived.isBacked(spot);
 		if (!stateGameDerived.toggleSpot(spot)) return;
 		if (wasBacked) recallChip(spot);
@@ -997,6 +1051,67 @@
 		stateGameDerived
 			.undoBet()
 			.forEach((spot, index) => recallChip(spot, index * BUNDLE_STEP_MS));
+	};
+
+	// --- Bet Replay (`?replay=true`, ported from the Plinko) -----------------------------------
+	// One recorded round, played back through the resume path with no session behind it. The gem
+	// is the whole interface: PLAY starts it, PLAY AGAIN runs it once more. The board shows the
+	// bet that was made and cannot be touched, and the rail reads Win where the balance would be.
+	/** True once the load has been looked at, so "nothing to play" is a failure and not a wait. */
+	let replayChecked = $state(false);
+	const replayFailed = $derived(replayMode && replayChecked && replayRound === null);
+	/** What the round won, in cash, once it has settled: exact, never abbreviated. */
+	const replayWin = $derived(settled ? (stateGame.result?.payout ?? 0) * stateBet.betAmount : 0);
+
+	/** The recorded bet goes down on the board, so the wager can be read before PLAY is pressed. */
+	const showReplayBoard = (round: ReplayRound) => {
+		stateGameDerived.applyResumedSelection(
+			[...coverageOf(round.mode)],
+			isBuyMode(round.mode) ? round.mode : null,
+		);
+	};
+
+	const loadReplay = () => {
+		seedReplayStake();
+		replayRound = takeReplayRound();
+		replayChecked = true;
+		if (replayRound) showReplayBoard(replayRound);
+	};
+
+	const startReplay = async () => {
+		const round = replayRound;
+		if (!round || !canReplay) return;
+		replayStarting = true;
+		showReplayBoard(round);
+		committedStake = total;
+		landedSpot = null;
+		wheelHighlight = null;
+		topSlotApplied = false;
+		multFlight = null;
+		tileMult = null;
+		multHidden = false;
+		panelDimmed = false;
+		// A bought single room was played with the wheel off the stage (see `wheelOff`).
+		if (isBuyMode(round.mode) && !usesBuyDisc(round.mode)) {
+			wheelOff = true;
+			await waitForTimeout(WHEEL_LEAVE_MS);
+		}
+		stageReplayRound(round);
+		stateGame.rolling = true;
+		replayStarting = false;
+		context.eventEmitter.broadcast({ type: 'resumeBet' });
+	};
+
+	/** PLAY AGAIN: clear the table the way any settled round is cleared, then run it once more. */
+	const replayAgain = async () => {
+		if (replayStarting) return;
+		replayStarting = true;
+		const wasBuy = stateGame.buying !== null;
+		await finishRound();
+		// The board's sweep, and for a buy the white wash back to the full wheel.
+		await waitForTimeout(RESULT_CLOSE_MS + (wasBuy ? FLASH_IN_MS + FLASH_OUT_MS + 200 : 60));
+		replayStarting = false;
+		await startReplay();
 	};
 
 	let committedStake = $state(0);
@@ -1144,9 +1259,8 @@
 		if (context.stateXstateDerived.isIdle() && stateGame.rolling) stateGame.rolling = false;
 	});
 
-	const sign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
-	const fmt = (value: number) =>
-		value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value.toFixed(2);
+	// Sums are written by game/currency.ts, exact and in the currency's own form. Only a chip's
+	// face is abbreviated: it names a denomination, it does not state an amount.
 	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
 	/** A buy's chip is yellow — the chip art untinted — whatever the tray's denomination. */
 	const BUY_CHIP_TEXT = `hsl(${CHIP_BASE_HUE}, 70%, 36%)`;
@@ -1160,13 +1274,6 @@
 	/** The face a chip on the board wears: the tray's, or during a buy the buy's yellow one. */
 	const placedChipFace = () =>
 		stateGame.buying ? buyChipFace() : currentChipFace();
-
-	const balanceFormat = $derived(
-		new Intl.NumberFormat(stateUrlDerived.lang(), {
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 2,
-		}),
-	);
 
 	let winCash = $state(0);
 	$effect(() => {
@@ -1305,6 +1412,8 @@
 	});
 </script>
 
+<svelte:window onkeydown={onSpaceKey} />
+
 {#if online}
 	<EnableGameActor />
 {:else}
@@ -1336,20 +1445,32 @@
 		{#snippet totalBet()}
 			<div class="total-bet">
 				<span class="total-bet-lbl">Total Bet</span>
-				<span class="total-bet-val">{sign}{fmt(total)}</span>
+				<span class="total-bet-val">{formatMoney(total)}</span>
 			</div>
 		{/snippet}
 
-		<button
-			type="button"
-			class="buy-bonus-trigger"
-			bind:this={buyBonusEl}
-			disabled={buyDisabled}
-			onclick={openBuyBonus}
-			aria-label="Buy bonus"
-		>
-			<img src={staticUrl('img/buy-bonus/buy-bonus-btn.webp')} alt="" aria-hidden="true" />
-		</button>
+		{#if !replayMode}
+			<button
+				type="button"
+				class="buy-bonus-trigger"
+				bind:this={buyBonusEl}
+				disabled={buyDisabled}
+				onclick={openBuyBonus}
+				aria-label="Buy bonus"
+			>
+				<img src={staticUrl('img/buy-bonus/buy-bonus-btn.webp')} alt="" aria-hidden="true" />
+			</button>
+		{:else}
+			<div class="replay-badge" aria-hidden="true">
+				<span class="replay-dot"></span>
+				REPLAY
+			</div>
+			{#if replayFailed}
+				<div class="bet-notice replay-notice">
+					This replay could not be loaded. Check the link and try again.
+				</div>
+			{/if}
+		{/if}
 
 		<!-- The menu, opposite the Buy Bonus badge: rules, history, how to play, sound and music. -->
 		<div class="menu-anchor">
@@ -1378,15 +1499,25 @@
 		</div>
 
 		<div class="hud" bind:this={hudEl}>
-			{#key balancePulse}
-				<div class="balance-hud" class:collected={balancePulse > 0}>
-					<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
+			{#if replayMode}
+				<!-- No session, so no balance: the rail reads what the round won instead. -->
+				<div class="balance-hud">
 					<div class="balance-text">
-						<span class="hud-lbl">Balance</span>
-						<span class="hud-val">{sign}{balanceFormat.format(shownBalance)}</span>
+						<span class="hud-lbl">Win</span>
+						<span class="hud-val">{formatMoney(replayWin)}</span>
 					</div>
 				</div>
-			{/key}
+			{:else}
+				{#key balancePulse}
+					<div class="balance-hud" class:collected={balancePulse > 0}>
+						<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
+						<div class="balance-text">
+							<span class="hud-lbl">Balance</span>
+							<span class="hud-val">{formatBalance(shownBalance)}</span>
+						</div>
+					</div>
+				{/key}
+			{/if}
 			{@render totalBet()}
 		</div>
 
@@ -1423,7 +1554,15 @@
 					onclick={onConfirmClick}
 					aria-hidden="true"
 				>
-					<span class="hub-cta">{stateGame.rolling ? '…' : settled ? 'PLAY\nAGAIN' : 'SPIN'}</span>
+					<span class="hub-cta"
+						>{stateGame.rolling || replayStarting
+							? '…'
+							: settled
+								? 'PLAY\nAGAIN'
+								: replayMode
+									? 'PLAY'
+									: 'SPIN'}</span
+					>
 				</div>
 			</div>
 		</div>
@@ -1509,9 +1648,14 @@
 												<span class="mult-fill">{fmtMult(readoutMult)}</span>
 											</div>
 											{#if payoutStage >= 2}
-												<div class="tile-readout-win win-amount" style="--pop-ms:{PAYOUT_POP_MS}ms" aria-hidden="true">
-													<span class="win-stroke" aria-hidden="true">{sign}{fmt(winCash)}</span>
-													<span class="win-fill">{sign}{fmt(winCash)}</span>
+												{@const winText = formatMoney(winCash)}
+												<div
+													class="tile-readout-win win-amount"
+													style="--pop-ms:{PAYOUT_POP_MS}ms; --len-fit:{readoutFit(winText)}"
+													aria-hidden="true"
+												>
+													<span class="win-stroke" aria-hidden="true">{winText}</span>
+													<span class="win-fill">{winText}</span>
 												</div>
 											{/if}
 										{/if}
@@ -1650,13 +1794,12 @@
 				style="--float-x:{winFloat.x}px; --float-y:{winFloat.y}px; --float-ms:{WIN_FLOAT_MS}ms"
 				aria-hidden="true"
 			>
-				+{sign}{fmt(winFloat.amount)}
+				+{formatMoney(winFloat.amount)}
 			</div>
 		{/if}
 
 		<BonusRound
 			chip={stateBet.betAmount}
-			{sign}
 			{portrait}
 			onOpenChange={onBonusOpenChange}
 		/>
@@ -1963,6 +2106,59 @@
 		line-height: 1.4;
 		text-align: center;
 		cursor: pointer;
+	}
+	/* Replay: the badge sits where Buy Bonus would, since there is nothing to buy. */
+	.replay-badge {
+		position: absolute;
+		top: 1.2vw;
+		left: 1.2vw;
+		z-index: 34;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6vw;
+		padding: 0.5vw 1.1vw;
+		border-radius: 999px;
+		background: rgba(18, 18, 22, 0.82);
+		border: 0.12vw solid #ffe14d;
+		color: #ffe14d;
+		font-family: 'Alexandria', sans-serif;
+		font-size: 0.95vw;
+		font-weight: 700;
+		letter-spacing: 0.16em;
+		box-shadow: 0 0.2vw 1vw rgba(0, 0, 0, 0.45);
+		user-select: none;
+	}
+	.replay-dot {
+		width: 0.7vw;
+		height: 0.7vw;
+		border-radius: 50%;
+		background: #ffe14d;
+		box-shadow: 0 0 0.6vw #ffe14d;
+		animation: replay-pulse 1.2s ease-in-out infinite;
+	}
+	@keyframes replay-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.3;
+		}
+	}
+	.replay-notice {
+		cursor: default;
+	}
+	.game.portrait .replay-badge {
+		top: 3vw;
+		left: 3vw;
+		gap: 1.4vw;
+		padding: 1.2vw 2.6vw;
+		border-width: 0.3vw;
+		font-size: 2.4vw;
+	}
+	.game.portrait .replay-dot {
+		width: 1.8vw;
+		height: 1.8vw;
 	}
 	.chips-viewport {
 		--chip-pitch: 3.6vw;
@@ -2324,7 +2520,7 @@
 	}
 	.game.portrait .tile-readout-win {
 		bottom: 0.4vw;
-		font-size: 2.6vw;
+		font-size: calc(2.6vw * var(--len-fit, 1));
 	}
 	/* The Buy Bonus badge takes the corner beside the cabinet: 67vw centred leaves 16.5vw either side,
 	   and the frame's rope post starts a hair further in, so 2vw + 14.5vw just clears it. */
@@ -2741,7 +2937,7 @@
 	   here. */
 	.tile-readout-win {
 		bottom: 0.15vw;
-		font-size: 0.95vw;
+		font-size: calc(0.95vw * var(--len-fit, 1));
 	}
 	/* The badge has landed in it: the readout swells and flares gold as the total appears, then
 	   settles with a glow it keeps. The badge's own hard shadow is carried through the flare. */

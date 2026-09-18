@@ -23,6 +23,7 @@
 	import { playSound } from '../game/sound';
 	import { staticUrl } from '../lib/staticUrl';
 	import BuyBonusBetField from './BuyBonusBetField.svelte';
+	import { formatBalance, formatMoney } from '../game/currency';
 
 	type Props = {
 		open: boolean;
@@ -51,9 +52,6 @@
 	const stakes = $derived(stateGameDerived.stakeOptions());
 	const chip = $derived(stateGame.stake);
 
-	const sign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
-	const formatMoney = (value: number) =>
-		`${sign}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 	const formatMult = (value: number) => `${value.toLocaleString('en-US')}x`;
 
 	const price = (mode: string) => buyPrice(mode) * chip;
@@ -166,7 +164,7 @@
 			</div>
 
 			<!-- `stateBet.balanceAmount`, the very figure the prices are tested against. -->
-			<p class="bb-balance">Balance: {formatMoney(stateBet.balanceAmount)}</p>
+			<p class="bb-balance">Balance: {formatBalance(stateBet.balanceAmount)}</p>
 		</div>
 	</div>
 {/if}

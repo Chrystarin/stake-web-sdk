@@ -104,3 +104,27 @@ After the splash, `window.crazyTimePreloadReport()` (evaluated in the game's own
 preload did: tasks settled, time taken, anything that failed, and anything the browser fetched from
 the network after the reveal. In dev, an asset fetched after the reveal that is not in the manifest
 also warns in the console with the path to add.
+
+## Bet Replay offline
+
+Stake's replay mode (`?replay=true`) plays one recorded round with no session. Online the round
+comes from `{rgs_url}/bet/replay/{game}/{version}/{mode}/{event}`; with no `rgs_url` the dev
+harness stands in with a sampled book for `mode`: the one whose id is `event`, else one picked by
+`?force=`, else any. `amount` is the chip in API units (1000000 = 1.00) and `currency` its code.
+
+```
+http://localhost:3021/?replay=true&mode=x1_x2_x5_x10&amount=2000000&currency=USD&force=win
+http://localhost:3021/?replay=true&mode=bw&amount=1000000&currency=EUR&force=loss
+http://localhost:3021/?replay=true&mode=buy_tc&amount=1000000       # a bought room
+http://localhost:3021/?replay=true&mode=nonsense                    # the "could not be loaded" notice
+```
+
+The gem reads PLAY, then PLAY AGAIN; the board shows the recorded bet and takes no input; the
+rail reads Win where the balance would be; bonus rooms play themselves (nobody is at the table).
+See `src/game/replay.ts` and the replay block in `Game.svelte`.
+
+## Another currency offline
+
+`?currency=<code>` runs the offline table in that currency's form (symbol, decimals, symbol side:
+see `src/game/currency.ts`), e.g. `?currency=JPY`, `?currency=PLN`, `?currency=KWD`, `?currency=XGC`.
+Online the currency always comes from the RGS.

@@ -9,6 +9,7 @@
 		activeRoundHasNoPayout,
 		closeActiveRgsRound,
 	} from '../game/activeRound';
+	import { isReplay } from '../game/replay';
 
 	const context = getContext();
 
@@ -20,6 +21,9 @@
 	 *  - a zero-payout round is invisible to that path, so it is closed directly.
 	 */
 	const finishOpenRound = async () => {
+		// A replay's round is not an open round: there is no session to close it against, and it
+		// waits for the PLAY gem rather than starting itself (Game.svelte, `startReplay`).
+		if (isReplay()) return;
 		if (!hasActiveRoundToResume()) return;
 
 		if (activeRoundHasNoPayout()) {

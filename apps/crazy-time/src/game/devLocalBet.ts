@@ -143,3 +143,21 @@ const pickBook = (modeBooks: RawBook[], force: Force): RawBook => {
 	}
 	return random(pool);
 };
+
+/**
+ * Offline stand-in for `/bet/replay` (`?replay=true&mode=<ticket>` with no `rgs_url`): the sampled
+ * book whose id is `event`, else one `?force=` picks, else any. Null when the mode has no books.
+ */
+export const devReplayBook = (
+	mode: string,
+	event: string,
+): { state: BookEvent[]; payoutMultiplier: number; mode: string } | null => {
+	const modeBooks = (books as unknown as BooksByMode)[mode];
+	if (!modeBooks?.length) return null;
+	const byId = (modeBooks as (RawBook & { id?: number })[]).find(
+		(book) => event !== '' && String(book.id) === event,
+	);
+	const raw = byId ?? pickBook(modeBooks, readForce());
+	// Sampled books carry the lookup table's figure (x100); the RGS sends the multiplier itself.
+	return { state: eventsOf(raw), payoutMultiplier: (raw.payoutMultiplier ?? 0) / 100, mode };
+};

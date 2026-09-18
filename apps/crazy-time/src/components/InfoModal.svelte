@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { stateBet } from 'state-shared';
-
 	import config from '../game/config';
 	import {
 		BUY_MODES,
@@ -31,6 +29,7 @@
 	} from '../game/constants';
 	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
 	import { staticUrl } from '../lib/staticUrl';
+	import { formatMoney } from '../game/currency';
 
 	/**
 	 * Game Rules / My Bet History / How to Play?, opened from the top-right menu. The shell, the tabs,
@@ -59,24 +58,14 @@
 		howToPlay: 'How to Play?',
 	};
 
-	const currencySign = $derived(stateBet.currency === 'USD' ? '$' : `${stateBet.currency} `);
-
 	/** Sub-tab within the Game Rules view: descriptive rules vs. the limits table. */
 	let rulesTab = $state<'rules' | 'limits'>('rules');
 
 	/** Newest entries are stored first (index 0 = top of table). */
 	const historyRows = $derived(stateGame.history);
 
-	function formatMoney(value: number) {
-		return `${currencySign}${value.toFixed(2)}`;
-	}
-
-	/** Grouped amount without forcing decimals on whole numbers (e.g. 0.01, 2,500, 50,000). */
-	function formatLimit(value: number) {
-		const formatted =
-			value >= 1 ? value.toLocaleString('en-US', { maximumFractionDigits: 2 }) : value.toFixed(2);
-		return `${currencySign}${formatted}`;
-	}
+	/** The limits are sums like any other: exact, in the currency's own form (game/currency.ts). */
+	const formatLimit = formatMoney;
 
 	/** `8` → "8x", `13.5` → "13.5x", `50000` → "50,000x". */
 	function formatTimes(value: number) {
@@ -371,7 +360,7 @@
 							</table>
 							<p>
 								The wheel is drawn with equal wedges so every value can be read. The
-								<strong>{formatTimes(wheelJackpot)}</strong> wedge is a jackpot and is
+								<strong>{formatTimes(wheelJackpot)}</strong> wedge is the top prize and is
 								{sliverRatio} times less likely to land than any other single wedge.
 							</p>
 
@@ -481,7 +470,8 @@
 								<li><strong>Clear.</strong> Takes every chip off the board.</li>
 								<li>
 									<strong>SPIN.</strong> The gem at the center of the wheel. Starts the round. After a
-									round it reads PLAY AGAIN and clears the board for the next bet.
+									round it reads PLAY AGAIN and clears the board for the next bet. The spacebar presses it
+									too.
 								</li>
 								<li><strong>Buy Bonus.</strong> Opens the Buy Bonus screen.</li>
 							</ul>
@@ -501,7 +491,7 @@
 								expected return is calculated over many plays. The game display is not representative
 								of any physical device and is for illustrative purposes only. Winnings are settled
 								according to the amount received from the Remote Game Server and not from events
-								within the web browser. TM and © 2026 Stake Engine.
+								within the web browser. TM and © 2026 Engine.
 							</p>
 						{/if}
 					{:else if stateGame.infoModalTab === 'howToPlay'}
