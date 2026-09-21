@@ -105,7 +105,11 @@ export class LogoSpineRenderer {
 			Assets.add({ alias: skeletonAlias, src: asset.skeleton });
 		}
 		await Assets.load([atlasAlias, skeletonAlias]);
-		if (this.destroyed || !this.app) return;
+		if (this.destroyed || !this.app) {
+			// Torn down while the atlas was still arriving: `destroy()` had nothing to unload yet.
+			this.releaseAssets(asset);
+			return;
+		}
 
 		const spine = Spine.from({ skeleton: skeletonAlias, atlas: atlasAlias, autoUpdate: true });
 		spine.state.setAnimation(0, asset.animation, false);
@@ -289,8 +293,42 @@ export class LogoSpineRenderer {
 		this.app = undefined;
 		const asset = this.asset;
 		this.asset = undefined;
-		if (asset) {
-			void Assets.unload([`${asset.id}-atlas`, `${asset.id}-skeleton`]).catch(() => {});
+		if (asset) this.releaseAssets(asset);
+	}
+
+	/**
+	 * Unload the atlas and skeleton — and the atlas PAGE bitmaps, which do not go with them.
+	 *
+	 * The spine atlas loader fetches each page through `Assets.loader.load(url)` directly, so a page
+	 * lives in the loader's promise cache under its absolute URL and never in the `Assets` cache.
+	 * Unloading the alias runs `TextureAtlas.dispose` → `SpineTexture.dispose` → `texture.destroy()`
+	 * WITHOUT `destroySource`: that drops spine's per-page wrapper Texture only, and the decoded bitmap
+	 * behind it stays pinned by the loader for the rest of the session. For this logo that is four
+	 * pages of 1806² and up — some 50 MB of decoded image memory held under the whole game (found and
+	 * measured in the Plinko, whose renderer this one was cut down from). So the pages' cache URLs are
+	 * collected (`createTexture` stamps them on `source.label`) BEFORE the alias unload, then released
+	 * through the loader, whose texture parser destroys the source. `Assets.loader.unload` rather than
+	 * `Assets.unload`: the latter also tries `Cache.remove(url)`, which these entries never had, and
+	 * warns about it.
+	 */
+	private releaseAssets(asset: LogoSpineAsset): void {
+		const atlasAlias = `${asset.id}-atlas`;
+		const skeletonAlias = `${asset.id}-skeleton`;
+		const pageUrls = new Set<string>();
+		try {
+			const atlas = Assets.get(atlasAlias) as
+				| { pages?: { texture?: { texture?: { source?: { label?: string } } } }[] }
+				| undefined;
+			for (const page of atlas?.pages ?? []) {
+				const label = page.texture?.texture?.source?.label;
+				if (label) pageUrls.add(label);
+			}
+		} catch {
+			/* nothing loaded under the alias — nothing to collect */
 		}
+		void Assets.unload([atlasAlias, skeletonAlias])
+			.catch(() => {})
+			.then(() => Promise.allSettled([...pageUrls].map((url) => Assets.loader.unload(url))))
+			.catch(() => {});
 	}
 }

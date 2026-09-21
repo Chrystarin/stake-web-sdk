@@ -237,6 +237,8 @@ async function preloadImage(url: string): Promise<void> {
 	await withImageFetchSlot(async () => {
 		let lastError: unknown;
 		for (let attempt = 1; attempt <= IMAGE_FETCH_ATTEMPTS; attempt++) {
+			let objectUrl: string | undefined;
+			let img: HTMLImageElement | undefined;
 			try {
 				// `cache: reload` on a retry: a failed first try can leave a poisoned entry in the HTTP
 				// cache that a plain refetch would keep serving.
@@ -245,8 +247,8 @@ async function preloadImage(url: string): Promise<void> {
 					cache: attempt === 1 ? 'default' : 'reload',
 				});
 				if (!response.ok) throw new Error(`HTTP ${response.status}`);
-				const objectUrl = URL.createObjectURL(await response.blob());
-				const img = new Image();
+				objectUrl = URL.createObjectURL(await response.blob());
+				img = new Image();
 				retainedImages.push(img);
 				img.src = objectUrl;
 				// decode() guarantees the bitmap is ready to paint with no first-use hitch.
@@ -257,6 +259,14 @@ async function preloadImage(url: string): Promise<void> {
 				return;
 			} catch (error) {
 				lastError = error;
+				// A body that would not decode is never published, so nothing will ever paint from it:
+				// let the blob and the element go rather than holding them for the session.
+				if (img) {
+					const held = retainedImages.indexOf(img);
+					if (held >= 0) retainedImages.splice(held, 1);
+					img.src = '';
+				}
+				if (objectUrl) URL.revokeObjectURL(objectUrl);
 				if (attempt < IMAGE_FETCH_ATTEMPTS) {
 					await new Promise((r) => setTimeout(r, IMAGE_RETRY_BASE_MS * attempt));
 				}

@@ -8,8 +8,8 @@ import { stateGame } from './stateGame.svelte';
  *
  * Deliberately plain HTMLAudio rather than the shared `utils-sound` package: that one is built
  * around pixi-svelte's loaded-audio sprite sheets, and this game is DOM-only with a couple of
- * standalone mp3s. Each play uses its own audio node, so overlapping plays (tapping one colour
- * straight after another) sound together instead of restarting the one already playing.
+ * standalone mp3s. Each effect plays on a small ring of audio nodes, so overlapping plays (tapping
+ * one colour straight after another) sound together instead of restarting the one already playing.
  */
 export type SoundName =
 	| 'whoosh'
@@ -97,6 +97,53 @@ const preloaded = new Map<SoundName, HTMLAudioElement>();
  */
 const spriteRuns = new Map<SoundName, () => void>();
 
+/**
+ * How many plays of ONE effect can sound together. The busiest caller is the wheel's peg tick — a
+ * 0.13 s sample, pitched up, fired some thirty times a second at full speed — which overlaps three
+ * or four deep; eight leaves room for the Top Slot ticking over it.
+ */
+const VOICES_PER_SOUND = 8;
+
+/**
+ * The elements each effect plays on, reused from one play to the next.
+ *
+ * Every play used to get an element of its own (`cloneNode` on the warmed one). A single spin ticks
+ * the peg ~190 times, so that was ~190 media elements — each with its own fetch of the file and its
+ * own decoder — built and thrown away per round, and left for the garbage collector to find. A
+ * media element is not reclaimed while it is playing and is slow to be reclaimed after; mobile
+ * Chrome refuses new players outright past a few dozen live ones, and iOS holds an audio session
+ * slot for each. A small ring of voices sounds the same — overlapping plays still layer — and
+ * allocates nothing after the first few ticks.
+ */
+const voices = new Map<SoundName, HTMLAudioElement[]>();
+const voiceCursor = new Map<SoundName, number>();
+
+/** An element to play `name` on: an idle voice, a new one while the ring has room, else the oldest. */
+const takeVoice = (name: SoundName): HTMLAudioElement => {
+	let ring = voices.get(name);
+	if (!ring) {
+		ring = [];
+		voices.set(name, ring);
+	}
+	const idle = ring.find((voice) => voice.paused || voice.ended);
+	if (idle) return idle;
+	if (ring.length < VOICES_PER_SOUND) {
+		// Cloning the warmed element starts the new voice from the same source, so it is served from
+		// what the warm-up already fetched; a fresh Audio covers a play that beats the preload.
+		const warmed = preloaded.get(name);
+		const voice = warmed ? (warmed.cloneNode() as HTMLAudioElement) : new Audio(SOURCES[name]);
+		voice.preload = 'auto';
+		ring.push(voice);
+		return voice;
+	}
+	// Every voice is sounding: the oldest gives way, which is the one nearest its end anyway.
+	const cursor = voiceCursor.get(name) ?? 0;
+	voiceCursor.set(name, (cursor + 1) % ring.length);
+	const stolen = ring[cursor];
+	stolen.pause();
+	return stolen;
+};
+
 const cancelSprite = (name: SoundName) => {
 	spriteRuns.get(name)?.();
 	spriteRuns.delete(name);
@@ -168,28 +215,39 @@ export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 	// and both bonus rooms, and they do not all want it at the same level.
 	const volume = stateSoundDerived.volumeSoundEffect() * MIX[name] * gain;
 	if (volume <= 0) return;
-	// Cloning the warmed element reuses whatever it has already buffered; falling back to a
-	// fresh Audio covers a play that beats the preload.
-	const warmed = preloaded.get(name);
 	const sprite = SPRITES[name];
 	// A sprite has to seek before it sounds, and a fresh clone has no metadata to seek against —
 	// so these play on the warmed element itself, restarting rather than layering. They are screen
 	// transitions: there is only ever one, and a second one wants to cut the first off anyway.
-	const node = sprite
-		? (warmed ?? new Audio(SOURCES[name]))
-		: warmed
-			? (warmed.cloneNode() as HTMLAudioElement)
-			: new Audio(SOURCES[name]);
-	node.volume = Math.min(1, volume);
-	if (rate && rate > 0) {
-		const pitched = node as HTMLAudioElement & { preservesPitch?: boolean };
-		pitched.preservesPitch = false;
-		node.playbackRate = rate;
+	// Everything else plays on one of its effect's voices (see `takeVoice`).
+	let node: HTMLAudioElement;
+	if (sprite) {
+		let warmed = preloaded.get(name);
+		if (!warmed) {
+			// A play that beat the preload. Kept, so the next one reuses it rather than building another.
+			warmed = new Audio(SOURCES[name]);
+			preloaded.set(name, warmed);
+		}
+		node = warmed;
+	} else {
+		node = takeVoice(name);
 	}
+	node.volume = Math.min(1, volume);
+	// Set on every play, not only a pitched one: the voice is reused, and would otherwise carry the
+	// last caller's rate into a play that asked for none.
+	const pitched = node as HTMLAudioElement & { preservesPitch?: boolean };
+	pitched.preservesPitch = false;
+	node.playbackRate = rate && rate > 0 ? rate : 1;
 
 	// Rejects while the autoplay policy is unsatisfied. Every play here follows a tap on the
 	// board, so there is nothing to recover from and nothing worth logging.
 	if (!sprite) {
+		try {
+			// A voice that has played before is sitting at its end (or, stolen, part-way through).
+			if (node.currentTime > 0) node.currentTime = 0;
+		} catch {
+			/* not seekable yet — `play()` on an ended element rewinds by itself */
+		}
 		void node.play().catch(() => {});
 		return;
 	}
