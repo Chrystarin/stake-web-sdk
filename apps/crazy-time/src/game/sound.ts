@@ -40,9 +40,9 @@ const SOURCES: Record<SoundName, string> = {
 	// Willy's plinko (apps/plinko/static/sound) so the bonus round sounds like the game it came
 	// from — same samples, and the trims below are that game's too.
 	peg: staticUrl('sound/peg.wav'),
-	// The cannon over the plinko board firing the ball. Plays whole: the shot decays to nothing
-	// by itself around 1.9s, well under the peg ticking that starts a few frames after it, so there
-	// is nothing to trim and no window to keep in step with the fall.
+	// The cannon over the plinko board firing the ball. A SPRITE window, for its silent head alone;
+	// past that the shot decays to nothing by itself around 1.9s, well under the peg ticking that
+	// starts a few frames after it.
 	cannon: staticUrl('sound/cannon_sfx.mp3'),
 	// The chest room's dragon breathing over the last chest, and the chest itself giving up its
 	// prize. The roar is a SPRITE window — the recording carries a wind-up and a tail either side
@@ -90,6 +90,13 @@ const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, f
 		 * comes off.
 		 */
 		dragon: [1500, 3500, 400],
+		/**
+		 * The shot, off its silent head. The recording opens with ~0.09s of digital silence before
+		 * the blast, which put the bang a frame and a half behind the ball leaving the barrel; the
+		 * window starts a hair inside that so the attack is not clipped. It runs to the end of the
+		 * recording, which is already silent by 1.9s, so there is nothing to fade.
+		 */
+		cannon: [80, 2040],
 	};
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
