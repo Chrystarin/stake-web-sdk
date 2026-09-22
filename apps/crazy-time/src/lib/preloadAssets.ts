@@ -35,8 +35,9 @@ import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvL
  * one referenced through `staticUrl` / `staticPath`, which is what lets the resident copy take over.
  */
 const DOM_IMAGE_PATHS: readonly string[] = [
-	// ── The table's backdrop (Background.svelte) ─────────────────────────────────────────────────
+	// ── The table's backdrop (Background.svelte): both cuts, since a phone can turn mid-session ──
 	'img/background_base_landscape.webp',
+	'img/background_base_portrait.webp',
 
 	// ── The wheel (Game.svelte + Wheel.svelte): ring art, number badges, room badges ─────────────
 	'img/wheel/frame.png',
@@ -101,6 +102,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/bonus-wheel/frame.png',
 
 	// ── Treasure Chest (RoomChest.svelte) ────────────────────────────────────────────────────────
+	'img/treasure_chest/background_landscape.webp',
 	'img/treasure_chest/chest_close.webp',
 	'img/treasure_chest/chest_open.webp',
 
@@ -138,8 +140,9 @@ const FONT_SPECS: readonly string[] = [
 ];
 
 /**
- * The four looping backdrops, one per bonus room (BonusRound.svelte). The table's own backdrop is a
- * still (Background.svelte) and rides with the DOM images above.
+ * The three looping backdrops, one per bonus room (BonusRound.svelte) — all but the Treasure Chest,
+ * whose backdrop is a still. That one and the table's own (Background.svelte) ride with the DOM
+ * images above.
  *
  * Warmed as ELEMENTS, never as bytes. A Blob + `registerResidentUrl`, the way every image above is
  * warmed, cannot work for media on Stake: the page serves the game under
@@ -153,18 +156,17 @@ const FONT_SPECS: readonly string[] = [
  * element that plays in the game ({@link adoptVideo}). Nothing for CSP to refuse, nothing for the CDN
  * to answer twice.
  *
- * The splash blocks on a FIRST FRAME per clip, not on the bodies: all four together are ~133 MB, and
+ * The splash blocks on a FIRST FRAME per clip, not on the bodies: all three together are ~107 MB, and
  * a splash that waited on that would sit for minutes on an ordinary connection. What the splash is
- * buying is a decode — the reveal must not paint black — and the files are faststart, so four first
+ * buying is a decode — the reveal must not paint black — and the files are faststart, so three first
  * frames is well under a megabyte. The bodies are pulled after reveal, the
  * rooms one at a time ({@link preloadPostRevealAssets}), so whatever is on screen keeps the link.
  */
-export type VideoKey = 'piratePlinko' | 'bonusWheel' | 'chest' | 'oceanVoyage';
+export type VideoKey = 'piratePlinko' | 'bonusWheel' | 'oceanVoyage';
 
 const VIDEO_PATHS: Record<VideoKey, string> = {
 	piratePlinko: 'videos/animated_background_pirate_plinko.mp4',
 	bonusWheel: 'videos/animated_background_bonus_wheel.mp4',
-	chest: 'videos/animated_background_treasure_chest.mp4',
 	oceanVoyage: 'videos/animated_background_ocean_voyage.mp4',
 };
 
@@ -172,7 +174,6 @@ const VIDEO_PATHS: Record<VideoKey, string> = {
 const VIDEO_FILL_ORDER: readonly VideoKey[] = [
 	'piratePlinko',
 	'bonusWheel',
-	'chest',
 	'oceanVoyage',
 ];
 
@@ -585,7 +586,7 @@ export type PreloadOptions = {
 	 * Hard cap (ms) so a hung asset or a dead connection can never trap the player on the splash. A
 	 * safety valve, not a budget — firing it reveals the game part-loaded, the exact failure this module
 	 * exists to prevent, so it sits far above a realistic full-manifest load. The blocking set here is
-	 * ~30 MB (art 20 MB, spine 5.5 MB, fonts 1.7 MB, effects 0.2 MB, four video first frames); the
+	 * ~30 MB (art 20 MB, spine 5.5 MB, fonts 1.7 MB, effects 0.2 MB, three video first frames); the
 	 * Plinko measured ~27 MB at 1.8 Mbps as ~146 s, and this is the same ~2x margin over that.
 	 */
 	timeoutMs?: number;
@@ -685,8 +686,8 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 }
 
 /**
- * Fire-and-forget: the video bodies. The four rooms ONE AT A TIME, each once the previous can play
- * through (or has had its turn), because four parallel 25–45 MB downloads would leave a clip that is
+ * Fire-and-forget: the video bodies. The three video rooms ONE AT A TIME, each once the previous can play
+ * through (or has had its turn), because parallel 25–45 MB downloads would leave a clip that is
  * actually playing with a quarter of the link.
  * The music is deliberately absent: `startMusic` streams it from the game's first frame.
  */

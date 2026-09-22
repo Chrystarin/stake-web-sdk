@@ -16,7 +16,7 @@
 	import { playSound } from '../game/sound';
 	import { isReplay } from '../game/replay';
 	import { formatMoney } from '../game/currency';
-	import { staticUrl } from '../lib/staticUrl';
+	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { adoptVideo, releaseVideo, type VideoKey } from '../lib/preloadAssets';
 
 	import RoomPiratePlinko from './rooms/RoomPiratePlinko.svelte';
@@ -48,13 +48,18 @@
 	let roomApi = $state<{ play: () => Promise<number> } | undefined>();
 
 	/**
-	 * A room can bring its own moving backdrop, which then shows through whatever it plays on. All
-	 * four rooms have one; a room with no entry here simply gets no video element and keeps the
-	 * flat room-tinted gradient.
+	 * A room brings its own backdrop, which then shows through whatever it plays on. Three rooms have
+	 * a moving one (a video, see `roomVideo`); the Treasure Chest has a still, the dragon's lair,
+	 * painted from the preload's resident copy the same way the table's backdrop is. A room with
+	 * neither keeps the flat room-tinted gradient.
 	 *
-	 * `muted` and `playsinline` are what let it start on its own — see `Background.svelte` for why.
-	 * Nothing depends on playback: a browser that refuses leaves the gradient underneath showing.
+	 * Nothing depends on video playback: a browser that refuses leaves the gradient underneath showing.
 	 */
+	const ROOM_STILL: Partial<Record<Spot, string>> = {
+		chest: 'img/treasure_chest/background_landscape.webp',
+	};
+	const isVideoRoom = (spot: Spot): spot is VideoKey =>
+		spot === 'piratePlinko' || spot === 'bonusWheel' || spot === 'oceanVoyage';
 	/**
 	 * The board every room's name is written on. Its plaque — the timber inside the rope — runs
 	 * from 0.14 to 0.86 across and 0.26 to 0.70 down, read off the file; the text is laid in that
@@ -88,10 +93,11 @@
 	const roomVideo = (host: HTMLElement, spot: Spot) => {
 		let showing: VideoKey | undefined;
 		const show = (next: Spot) => {
-			const key = next as VideoKey;
+			const key = isVideoRoom(next) ? next : undefined;
 			if (showing === key) return;
 			if (showing) releaseVideo(showing);
 			showing = key;
+			if (!key) return;
 			const el = adoptVideo(key, host);
 			if (el) el.className = 'room-video';
 		};
@@ -157,8 +163,12 @@
 {#if current}
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
+	{@const still = ROOM_STILL[spot]}
 	<div class="screen" class:closing style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
+		{#if still}
+			<div class="room-still" style="--room-still:{staticCssUrl(still)}"></div>
+		{/if}
 		<div class="room-scrim"></div>
 
 		<div class="header">
@@ -268,6 +278,12 @@
 		height: 100%;
 		object-fit: cover;
 		object-position: center;
+	}
+	.room-still {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background: var(--room-still) no-repeat center / cover;
 	}
 	.room-scrim {
 		position: absolute;

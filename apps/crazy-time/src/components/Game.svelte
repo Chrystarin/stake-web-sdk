@@ -1428,7 +1428,7 @@
 	class="viewport-fit"
 	style="--fit:{fitScale}; --art-chip-base:{staticCssUrl('img/chip_base.svg')}; --art-chip-yellow:{staticCssUrl('img/chip_yellow.svg')}"
 >
-	<Background />
+	<Background {portrait} />
 	<div
 		class="game"
 		class:portrait
