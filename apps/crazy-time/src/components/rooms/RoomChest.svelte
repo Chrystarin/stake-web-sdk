@@ -99,6 +99,11 @@
 	const CENTRE_MS = 640;
 	/** It is open, with the number over it, before the screen moves on to the win line. */
 	const OPEN_HOLD_MS = 1200;
+	/**
+	 * How far into the chest's cue (`treasure`, game/sound.ts) the lid comes off: the hit the
+	 * recording builds to. Everything from the ignition to here is the chest shuddering.
+	 */
+	const LID_AT_CUE_MS = 4000;
 	/** One rattle of a shut chest, a few swings dying away — see `rattle` below. */
 	const SHAKE_MS = 560;
 	/** The board stays still this long, give or take, between one set of rattling chests and the next. */
@@ -239,9 +244,25 @@
 		dragon?.appear();
 		await waitForTimeout(CENTRE_MS);
 
-		// The dragon breathes on the chest before it gives up its number: the lid only comes off as
-		// the flames die back.
-		await dragon?.breathe({ onIgnite: () => (burning = true) });
+		/*
+		 * The fire and the chest's own cue start together, on the ignition: the dragon breathes, the
+		 * chest shudders in the heat, and the lid stays on until the cue reaches the hit it is cut to
+		 * — half a second after the roar has finished, with the flames already gone and the chest
+		 * still shaking. The wait is measured from the cue rather than counted in beats, so the two
+		 * cannot drift.
+		 *
+		 * The dragon is allowed not to be there (it has its own load timeout), and the beat plays out
+		 * the same way when it is not: the cue and the shudder start where the fire would have.
+		 */
+		let cueAt = 0;
+		const startCue = () => {
+			burning = true;
+			playSound('treasure');
+			cueAt = performance.now();
+		};
+		await dragon?.breathe({ onIgnite: startCue });
+		if (!cueAt) startCue();
+		await waitForTimeout(Math.max(0, LID_AT_CUE_MS - (performance.now() - cueAt)));
 		burning = false;
 
 		// The dragon stays on the open chest, idling: the number is written on the chest's front, below

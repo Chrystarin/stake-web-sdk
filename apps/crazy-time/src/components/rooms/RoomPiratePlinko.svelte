@@ -532,7 +532,7 @@
 					// jump — and it covers the unattended shot too, which is fired from inside the board
 					// and never passes through a pointer handler at all.
 					drop: () => {
-						playSound('whoosh');
+						playSound('cannon');
 						recoil();
 					},
 					peg: () => playSound('peg', 0.9 + Math.random() * 0.2),

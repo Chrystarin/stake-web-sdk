@@ -11,9 +11,9 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { SPOT_LABEL, SPOT_COLOUR, type Spot } from '../game/constants';
+	import { SPOT_LABEL, SPOT_COLOUR, type RoomSpot, type Spot } from '../game/constants';
 	import type { BookEventRoom } from '../game/typesBookEvent';
-	import { playSound } from '../game/sound';
+	import { playSound, setMusicScene } from '../game/sound';
 	import { isReplay } from '../game/replay';
 	import { formatMoney } from '../game/currency';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
@@ -110,7 +110,7 @@
 		};
 	};
 
-	const spotFor = (room: BookEventRoom): Spot =>
+	const spotFor = (room: BookEventRoom): RoomSpot =>
 		room.type === 'piratePlinkoRoom'
 			? 'piratePlinko'
 			: room.type === 'bonusWheelRoom'
@@ -136,6 +136,8 @@
 			result = null;
 			closing = false;
 			current = { room: event.room, covered: event.covered };
+			// The table track rides out under the door and the room's own comes up behind it.
+			setMusicScene(spotFor(event.room));
 			playSound('doorClose');
 			await tick();
 			await waitForTimeout(700); // screen slide-in
@@ -150,6 +152,7 @@
 				await waitForTimeout(WIN_HOLD_MS);
 			} finally {
 				closing = true;
+				setMusicScene('base');
 				playSound('doorOpen');
 				await waitForTimeout(450);
 				current = null;

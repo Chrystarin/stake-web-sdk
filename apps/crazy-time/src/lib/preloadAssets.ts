@@ -1,7 +1,7 @@
 import { Assets } from 'pixi.js';
 
 import { NUMBER_PAY, NUMBER_SPOTS, ROOM_ICON, ROOM_SPOTS } from '../game/constants';
-import { musicUrl, soundEffectUrls, warmSounds } from '../game/sound';
+import { musicUrls, soundEffectUrls, warmSounds } from '../game/sound';
 import { stateGame } from '../game/stateGame.svelte';
 import { registerResidentUrl, staticNetworkUrl } from './staticUrl';
 import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvLogoAsset';
@@ -715,7 +715,7 @@ function coveredUrls(): Set<string> {
 			staticNetworkUrl,
 		),
 		...soundEffectUrls(),
-		musicUrl(),
+		...musicUrls(),
 		logo.skeleton,
 		logo.atlas,
 		...Object.values(logo.images),
@@ -742,8 +742,8 @@ export function watchForUnpreloadedAssets(): void {
 
 	const covered = coveredUrls();
 	const watched = ['img/', 'sound/', 'spine/', 'fonts/', 'videos/'].map(staticNetworkUrl);
-	// Fetched after reveal on purpose: the video bodies, and the music `startMusic` streams itself.
-	const byDesign = new Set([...Object.values(VIDEO_PATHS).map(staticNetworkUrl), musicUrl()]);
+	// Fetched after reveal on purpose: the video bodies, and the music tracks each scene streams itself.
+	const byDesign = new Set([...Object.values(VIDEO_PATHS).map(staticNetworkUrl), ...musicUrls()]);
 	const reported = new Set<string>();
 
 	const observer = new PerformanceObserver((list) => {

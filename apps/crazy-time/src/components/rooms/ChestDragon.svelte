@@ -88,7 +88,7 @@
 	const ignite = (current: Breath) => {
 		if (current.ignited) return;
 		current.ignited = true;
-		playSound('whoosh', 0.55, 1.6);
+		playSound('dragon');
 		current.onIgnite?.();
 	};
 

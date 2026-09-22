@@ -1,6 +1,7 @@
 import { stateSoundDerived } from 'state-shared';
 
 import { staticUrl } from '../lib/staticUrl';
+import type { RoomSpot } from './constants';
 import { stateGame } from './stateGame.svelte';
 
 /**
@@ -18,6 +19,9 @@ export type SoundName =
 	| 'merge'
 	| 'peg'
 	| 'boom'
+	| 'cannon'
+	| 'dragon'
+	| 'treasure'
 	| 'notify'
 	| 'win'
 	| 'doorClose'
@@ -36,6 +40,17 @@ const SOURCES: Record<SoundName, string> = {
 	// Willy's plinko (apps/plinko/static/sound) so the bonus round sounds like the game it came
 	// from — same samples, and the trims below are that game's too.
 	peg: staticUrl('sound/peg.wav'),
+	// The cannon over the plinko board firing the ball. Plays whole: the shot decays to nothing
+	// by itself around 1.9s, well under the peg ticking that starts a few frames after it, so there
+	// is nothing to trim and no window to keep in step with the fall.
+	cannon: staticUrl('sound/cannon_sfx.mp3'),
+	// The chest room's dragon breathing over the last chest, and the chest itself giving up its
+	// prize. The roar is a SPRITE window — the recording carries a wind-up and a tail either side
+	// of the breath (see `SPRITES`). The chest's cue plays WHOLE, and the room is cut to it rather
+	// than the other way round: it starts with the fire, the chest shudders through its build, and
+	// the lid comes off on the hit 4s in (rooms/RoomChest.svelte, `LID_AT_CUE_MS`).
+	dragon: staticUrl('sound/dragon_sfx.mp3'),
+	treasure: staticUrl('sound/treasure_sfx.mp3'),
 	// A bomb going off on the plinko board. Synthesised rather than sampled — a burst of low-passed
 	// noise over a pitched-down thump, a second long — since nothing in the shared sound sets is an
 	// explosion. Replace with a recorded one if the pirate set ever gets one.
@@ -68,6 +83,13 @@ const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, f
 		// A shorter window gets a shorter tail — the same quarter of it, so the creak lands the way the
 		// thud does rather than fading for half its length.
 		doorOpen: [3200, 900, 220],
+		/**
+		 * The roar, against the dragon's `Fire` animation (rooms/ChestDragon.svelte): the breath
+		 * itself, from 1.5s to 5.0s of the recording, with the last of it riding down rather than
+		 * stopping dead. It starts on the ignition and is finished half a second before the lid
+		 * comes off.
+		 */
+		dragon: [1500, 3500, 400],
 	};
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
@@ -80,6 +102,13 @@ const MIX: Record<SoundName, number> = {
 	peg: 0.5,
 	// The one loud thing on the board, and it has to read over the peg ticking under it.
 	boom: 0.85,
+	// Recorded hot — it peaks where the bomb does. Held just under it, because the bomb is the
+	// one thing on that board allowed to be the loudest, and the shot fires once a round.
+	cannon: 0.7,
+	// Both recorded as hot as the cannon. The roar is the loud moment of that room, so it keeps
+	// most of its level; the chest is under it, because the win line is read over the top.
+	dragon: 0.7,
+	treasure: 0.6,
 	// Two of these land per spin, a couple of seconds apart, over the peg ticking.
 	notify: 0.7,
 	win: 1,
@@ -199,9 +228,6 @@ export const warmSounds = (): Promise<void>[] => {
 /** The effect files, for the preload's manifest audit (lib/preloadAssets.ts). */
 export const soundEffectUrls = (): string[] => Object.values(SOURCES);
 
-/** The music file — streamed by `startMusic` from the game's first frame, never preloaded. */
-export const musicUrl = (): string => MUSIC_SRC;
-
 /**
  * `rate` shifts playback speed AND pitch — for a sound fired many times in a row, a touch of
  * random pitch is what stops the repeats sounding machine-gun identical. Browsers default to
@@ -305,15 +331,45 @@ export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 };
 
 // --- Background music ---------------------------------------------------------------------
-// One looping track under the table, on the MUSIC volume rather than the effects one, so a
-// player who only wants the chips can turn it off on its own.
+// One looping track per scene — the table, and each bonus room its own — on the MUSIC volume
+// rather than the effects one, so a player who only wants the chips can turn it off on its own.
+// Moving between scenes crossfades: the outgoing track rides down and pauses, the incoming one
+// rides up from silence. The table track resumes where it left off; a room's starts from the top.
 
-const MUSIC_SRC = staticUrl('sound/background_music_placeholder.mp3');
+/** A scene with its own track: the table, or the room on screen (the room keys are its Spots). */
+export type MusicScene = 'base' | RoomSpot;
+
+const MUSIC_SOURCES: Record<MusicScene, string> = {
+	base: staticUrl('sound/bgm_base.mp3'),
+	bonusWheel: staticUrl('sound/bgm_bonus_wheel.mp3'),
+	piratePlinko: staticUrl('sound/bgm_pirate_plinko.mp3'),
+	chest: staticUrl('sound/bgm_treasure_chest.mp3'),
+	oceanVoyage: staticUrl('sound/brm_ocean_voyage.mp3'),
+};
+
+/** The music files — streamed on first use by the scene that plays them, never preloaded. */
+export const musicUrls = (): string[] => Object.values(MUSIC_SOURCES);
 
 /** Held well under the effects — the track plays behind the game, not over it. */
 const MUSIC_MIX = 0.05;
 
-let music: HTMLAudioElement | null = null;
+/** The table track coming up when the game first stands. */
+const FADE_START_MS = 1200;
+/** The outgoing track, and the incoming one. The in is the longer so the two overlap softly. */
+const FADE_OUT_MS = 1000;
+const FADE_IN_MS = 1400;
+
+type Track = {
+	el: HTMLAudioElement;
+	/** 0..1 — where this track's fade stands, multiplied onto the music volume. */
+	gain: number;
+	ramp?: ReturnType<typeof setInterval>;
+};
+
+const tracks = new Map<MusicScene, Track>();
+let scene: MusicScene = 'base';
+/** Between `startMusic` and `stopMusic`: a scene change outside it only remembers the scene. */
+let running = false;
 /** Calls off a pending "start on the first gesture" wait; null while nothing is waiting. */
 let cancelGestureWait: (() => void) | null = null;
 
@@ -336,39 +392,109 @@ const onFirstGesture = (start: () => void): void => {
 	for (const type of events) window.addEventListener(type, onGesture, { passive: true });
 };
 
-/**
- * Start the table music, looping until `stopMusic`.
- *
- * Autoplay is refused until the player has interacted with the page, so a blocked start is not
- * a failure: the track waits for the first touch of the table and begins there instead. Safe to
- * call again — it reuses the element it already has.
- */
-export const startMusic = (): void => {
-	if (typeof Audio === 'undefined') return; // SSR
-	if (!music) {
-		music = new Audio(MUSIC_SRC);
-		music.loop = true;
-		music.preload = 'auto';
+const trackFor = (name: MusicScene): Track => {
+	let track = tracks.get(name);
+	if (!track) {
+		const el = new Audio(MUSIC_SOURCES[name]);
+		el.loop = true;
+		el.preload = 'auto';
+		track = { el, gain: 0 };
+		tracks.set(name, track);
 	}
-	music.volume = musicVolume();
-	// Turned all the way down: nothing to start until the slider comes back up (syncMusicVolume).
-	if (music.volume <= 0) return;
-	void music.play().catch(() => onFirstGesture(startMusic));
+	return track;
 };
 
-/** Follow the music slider: silence pauses the track, and turning it back up resumes it. */
+// iOS ignores `volume` on a media element, so there the fades cannot be heard: the outgoing track
+// plays on at full until its fade ends and it pauses. Everywhere else the ride is smooth.
+const applyVolume = (track: Track) => {
+	track.el.volume = Math.min(1, Math.max(0, musicVolume() * track.gain));
+};
+
+/**
+ * Play the current scene's track if it should be sounding. Autoplay is refused until the player
+ * has interacted with the page, so a blocked start is not a failure: the track waits for the first
+ * touch of the table and begins there instead.
+ */
+const resumeScene = (): void => {
+	if (!running || musicVolume() <= 0) return;
+	const track = tracks.get(scene);
+	if (!track || !track.el.paused) return;
+	applyVolume(track);
+	void track.el.play().catch(() => onFirstGesture(resumeScene));
+};
+
+/** Ride a track's gain to `target` over `ms`, pausing it once it reaches silence. */
+const rampTo = (track: Track, target: number, ms: number): void => {
+	if (track.ramp) clearInterval(track.ramp);
+	const from = track.gain;
+	// Stepping the element's own volume is coarse next to a Web Audio ramp, but at ~30ms a step it
+	// is well under what reads as a step — the same trade the sprite fades above make.
+	const steps = Math.max(1, Math.round(ms / 30));
+	let step = 0;
+	const ramp = setInterval(() => {
+		step += 1;
+		track.gain = from + (target - from) * (step / steps);
+		applyVolume(track);
+		if (step < steps) return;
+		clearInterval(ramp);
+		track.ramp = undefined;
+		if (track.gain <= 0) track.el.pause();
+	}, ms / steps);
+	track.ramp = ramp;
+};
+
+/** Start the music, looping until `stopMusic`. Safe to call again — it reuses what it has. */
+export const startMusic = (): void => {
+	if (typeof Audio === 'undefined') return; // SSR
+	running = true;
+	const track = trackFor(scene);
+	if (track.gain < 1) rampTo(track, 1, FADE_START_MS);
+	resumeScene();
+};
+
+/**
+ * Crossfade to a scene's track: the one playing rides down and pauses, the new one rides up. A
+ * room's track starts from the top on each visit; one re-entered while still fading out from the
+ * last visit picks up where it is rather than jumping.
+ */
+export const setMusicScene = (next: MusicScene): void => {
+	if (next === scene) return;
+	const previous = tracks.get(scene);
+	scene = next;
+	if (!running || typeof Audio === 'undefined') return;
+	if (previous) rampTo(previous, 0, FADE_OUT_MS);
+	const track = trackFor(next);
+	if (next !== 'base' && track.el.paused) {
+		try {
+			track.el.currentTime = 0;
+		} catch {
+			/* not seekable yet — it has not played, so it is at the top anyway */
+		}
+	}
+	rampTo(track, 1, FADE_IN_MS);
+	resumeScene();
+};
+
+/** Follow the music slider: silence pauses the music, and turning it back up resumes the scene's track. */
 export const syncMusicVolume = (): void => {
 	// Read before the guard, so a caller tracking this (Game's effect) still subscribes to the
-	// slider on a call that lands before the track exists.
+	// slider on a call that lands before any track exists.
 	const volume = musicVolume();
-	if (!music) return;
-	music.volume = volume;
-	if (volume <= 0) music.pause();
-	else if (music.paused) startMusic();
+	if (!running) return;
+	for (const track of tracks.values()) {
+		applyVolume(track);
+		if (volume <= 0) track.el.pause();
+	}
+	resumeScene();
 };
 
 export const stopMusic = (): void => {
 	cancelGestureWait?.();
-	music?.pause();
-	music = null;
+	running = false;
+	for (const track of tracks.values()) {
+		if (track.ramp) clearInterval(track.ramp);
+		track.el.pause();
+	}
+	tracks.clear();
+	scene = 'base';
 };
