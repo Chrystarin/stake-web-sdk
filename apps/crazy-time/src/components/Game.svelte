@@ -1699,12 +1699,17 @@
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
 			playSound(event.covered ? 'merge' : 'pop');
+			// The landed wedge's badge does its tile's motion: the chest rattles, the ball hops, the
+			// number pops. Not for a wheel off the stage — nobody would see it.
+			const landMotionMs = wheelOff ? 0 : TILE_MOTION_MS[motionOf(event.spot)];
+			if (!wheelOff) wheel?.playIcon(target, motionOf(event.spot), landMotionMs);
 			// The Treasure Chest and the Bonus Wheel are walked into through their own icons (see
 			// RoomReveal, WheelReveal) — when the wheel is on the stage to lift them from. A bought
 			// room has the wheel off, so it keeps the plain slide.
 			const by = event.spot === 'chest' ? 'chest' : event.spot === 'bonusWheel' ? 'wheel' : null;
 			if (by && !wheelOff) {
-				await waitForTimeout(400);
+				// The reveal lifts the badge off the wedge, so it waits for the motion to finish.
+				await waitForTimeout(Math.max(400, landMotionMs));
 				if (await revealRoom(target, by)) return;
 			}
 			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
@@ -1918,7 +1923,7 @@
 											{#each ['side', 'centre', 'side'] as pos, i (i)}
 												<span class="tile-icon" class:side={pos === 'side'}>
 													<img
-														class="tile-art idle-{tileMotionClass(spot)}"
+														class="tile-art motion-{tileMotionClass(spot)}"
 														src={iconSrc}
 														alt=""
 														draggable="false"
@@ -3277,20 +3282,28 @@
 			transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1),
 			opacity 120ms ease-out;
 	}
-	/* The tiles' motions (see `motionOf`), on the art inside each icon's wrapper, played on hover
-	   or a chip landing. The sides lag the centre a beat (TILE_MOTION_LAG_MS), so the three read as
-	   a ripple, not a stamp. */
+	/* The tiles' motions (see `motionOf`): on the art inside each tile icon's wrapper, played on
+	   hover or a chip landing, and on the landed wedge's badge (Wheel's `playIcon`) — global, so
+	   the wheel's SVG badges wear the same classes. Each is worked in the icon's own box (`fill-box`
+	   for an SVG badge, whose turn onto its wedge sits on the group around it). On a tile the sides
+	   lag the centre a beat (TILE_MOTION_LAG_MS), so the three read as a ripple, not a stamp. */
+	:global([class^='motion-']),
+	:global([class*=' motion-']) {
+		transform-box: fill-box;
+		/* An SVG element's own default is its viewport's corner, not its middle. */
+		transform-origin: 50% 50%;
+	}
 	.tile-icon.side .tile-art {
 		animation-delay: 70ms;
 	}
 	/* The chest: a rattle on its base, as if something inside wants out. */
-	.tile-art.idle-shake {
+	:global(.motion-shake) {
 		transform-origin: 50% 90%;
-		animation-name: idle-shake;
+		animation-name: motion-shake;
 		animation-duration: 700ms;
 		animation-timing-function: ease-in-out;
 	}
-	@keyframes idle-shake {
+	@keyframes -global-motion-shake {
 		0%,
 		100% {
 			transform: none;
@@ -3315,13 +3328,13 @@
 		}
 	}
 	/* The cannonball: squats, hops, lands with a squash and a smaller second hop. */
-	.tile-art.idle-bounce {
+	:global(.motion-bounce) {
 		transform-origin: 50% 100%;
-		animation-name: idle-bounce;
+		animation-name: motion-bounce;
 		animation-duration: 850ms;
 		animation-timing-function: linear;
 	}
-	@keyframes idle-bounce {
+	@keyframes -global-motion-bounce {
 		0%,
 		100% {
 			transform: none;
@@ -3347,12 +3360,12 @@
 		}
 	}
 	/* The Bonus Wheel's wheel: one full turn, winding up and coasting to a stop. */
-	.tile-art.idle-spin {
-		animation-name: idle-spin;
+	:global(.motion-spin) {
+		animation-name: motion-spin;
 		animation-duration: 1200ms;
 		animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
 	}
-	@keyframes idle-spin {
+	@keyframes -global-motion-spin {
 		from {
 			transform: rotate(0deg);
 		}
@@ -3362,13 +3375,13 @@
 	}
 	/* The ship: rolls to one side and back as a swell passes under it, rising a touch on the crest,
 	   and settles. Pivoted low, on the waterline. */
-	.tile-art.idle-rock {
+	:global(.motion-rock) {
 		transform-origin: 50% 85%;
-		animation-name: idle-rock;
+		animation-name: motion-rock;
 		animation-duration: 2200ms;
 		animation-timing-function: ease-in-out;
 	}
-	@keyframes idle-rock {
+	@keyframes -global-motion-rock {
 		0%,
 		100% {
 			transform: none;
@@ -3387,12 +3400,12 @@
 		}
 	}
 	/* A number's badge: ducks small, springs up past its size, and settles with a wobble. */
-	.tile-art.idle-pop {
-		animation-name: idle-pop;
+	:global(.motion-pop) {
+		animation-name: motion-pop;
 		animation-duration: 600ms;
 		animation-timing-function: ease-in-out;
 	}
-	@keyframes idle-pop {
+	@keyframes -global-motion-pop {
 		0%,
 		100% {
 			transform: none;
@@ -3411,7 +3424,8 @@
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.tile-art {
+		:global([class^='motion-']),
+		:global([class*=' motion-']) {
 			animation: none !important;
 		}
 	}

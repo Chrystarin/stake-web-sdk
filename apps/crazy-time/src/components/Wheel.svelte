@@ -242,6 +242,7 @@
 
 		return new Promise((resolve) => {
 			resolveSpin = resolve;
+			stopIcon();
 			spinning = true;
 			lastTick = indexAt(rotation);
 			// Two frames so the transition picks up the new duration before the angle changes.
@@ -275,6 +276,24 @@
 		if (spinning) return;
 		rotation = -centreOf(index);
 	};
+
+	/**
+	 * Segment `index`'s badge plays a motion once through: `motion` names a global `motion-*` class
+	 * (Game.svelte defines them, for the bet tiles' icons too) and `ms` is how long it runs. A spin
+	 * cuts it short.
+	 */
+	let moving = $state<{ index: number; motion: string } | null>(null);
+	let movingTimer: ReturnType<typeof setTimeout> | undefined;
+	const stopIcon = () => {
+		clearTimeout(movingTimer);
+		moving = null;
+	};
+	export const playIcon = (index: number, motion: string, ms: number) => {
+		stopIcon();
+		moving = { index, motion };
+		movingTimer = setTimeout(() => (moving = null), ms);
+	};
+	onDestroy(() => clearTimeout(movingTimer));
 
 	/** Where segment `index`'s badge art is on the screen, as a client rect; null if it has none. */
 	/**
@@ -638,31 +657,37 @@
 			{#each segments as seg, i (i)}
 				{#if seg.image && seg.kind === 'wide'}
 					{@const c = wideCrest(i, seg.image.aspect)}
-					<image
-						href={seg.image.src}
-						x={c.x}
-						y={c.y}
-						width={c.w}
-						height={c.h}
-						transform="rotate({centreOf(i)} {c.cx} {c.cy})"
-						data-seg={i}
-						opacity={liftedIcon === i ? 0 : 1}
-						class:slam={slammed === i}
-					/>
+					<!-- The wedge's turn is on the group, so the badge is free to move about its own box
+					     (`playIcon`). -->
+					<g transform="rotate({centreOf(i)} {c.cx} {c.cy})">
+						<image
+							href={seg.image.src}
+							x={c.x}
+							y={c.y}
+							width={c.w}
+							height={c.h}
+							data-seg={i}
+							opacity={liftedIcon === i ? 0 : 1}
+							class:slam={slammed === i}
+							class={moving?.index === i ? `motion-${moving.motion}` : undefined}
+						/>
+					</g>
 				{:else if seg.image}
 					{@const p = labelPos(i)}
 					{@const box = badgeBox(seg.image.aspect, seg.kind === 'room' ? CREST_FILL : BADGE_FILL, i)}
-					<image
-						href={seg.image.src}
-						x={p.x - box.w / 2}
-						y={p.y - box.h / 2}
-						width={box.w}
-						height={box.h}
-						transform="rotate({centreOf(i)} {p.x} {p.y})"
-						data-seg={i}
-						opacity={liftedIcon === i ? 0 : 1}
-						class:slam={slammed === i}
-					/>
+					<g transform="rotate({centreOf(i)} {p.x} {p.y})">
+						<image
+							href={seg.image.src}
+							x={p.x - box.w / 2}
+							y={p.y - box.h / 2}
+							width={box.w}
+							height={box.h}
+							data-seg={i}
+							opacity={liftedIcon === i ? 0 : 1}
+							class:slam={slammed === i}
+							class={moving?.index === i ? `motion-${moving.motion}` : undefined}
+						/>
+					</g>
 				{:else if !isRun(seg)}
 					{@const p = labelPos(i)}
 					<text
