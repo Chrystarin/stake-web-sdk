@@ -757,6 +757,84 @@
 	let gameEl: HTMLDivElement;
 	let chipEls = $state<Record<number, HTMLElement | undefined>>({});
 	let tileEls = $state<Partial<Record<Spot, HTMLElement>>>({});
+
+	/**
+	 * A chip sitting on the tile — the same test that draws its `.placed-chip`. Not `backed`: a tile
+	 * is backed the moment it is clicked, while its chip is still in flight.
+	 */
+	const chipDown = (spot: Spot) =>
+		stateGameDerived.isBacked(spot) && !arrivingSpots.has(spot) && !clearing;
+
+	/**
+	 * Each tile's motion, played by its icons: a bonus tile does its room's own thing (the chest
+	 * rattles, the cannonball hops, the Bonus Wheel's wheel turns, the ship rides a swell) and a
+	 * number tile's badges pop. Only on cue: the mouse coming onto the tile, or a chip landing on
+	 * it — the latter once its side icons have sprung out to their slots.
+	 */
+	type TileMotion = 'shake' | 'bounce' | 'spin' | 'rock' | 'pop';
+	const ROOM_MOTION: Record<RoomSpot, TileMotion> = {
+		chest: 'shake',
+		piratePlinko: 'bounce',
+		bonusWheel: 'spin',
+		oceanVoyage: 'rock',
+	};
+	const motionOf = (spot: Spot): TileMotion => (isRoomSpot(spot) ? ROOM_MOTION[spot] : 'pop');
+	/** Each motion's length, plus the side icons' small lag behind the centre (`.side .tile-art`). */
+	const TILE_MOTION_MS: Record<TileMotion, number> = {
+		shake: 700,
+		bounce: 850,
+		spin: 1200,
+		rock: 2200,
+		pop: 600,
+	};
+	const TILE_MOTION_LAG_MS = 70;
+	/** The side icons' spring out to their slots (`.tile.chip-down .tile-icon.side`). */
+	const SIDE_SPRING_MS = 380;
+
+	let tileMoving = $state<Partial<Record<Spot, boolean>>>({});
+	const tileMotionTimers: Partial<Record<Spot, ReturnType<typeof setTimeout>>> = {};
+	const tileMotionClass = (spot: Spot) => (tileMoving[spot] ? motionOf(spot) : 'none');
+	const stopTileMotion = (spot: Spot) => {
+		clearTimeout(tileMotionTimers[spot]);
+		tileMoving[spot] = false;
+	};
+	/** Plays the tile's motion once through; a cue while it is already playing is let go. */
+	const playTileMotion = (spot: Spot) => {
+		if (tileMoving[spot]) return;
+		tileMoving[spot] = true;
+		tileMotionTimers[spot] = setTimeout(
+			() => (tileMoving[spot] = false),
+			TILE_MOTION_MS[motionOf(spot)] + TILE_MOTION_LAG_MS,
+		);
+	};
+	/** Mouse only: on touch the same tap places a chip, and the landing plays it anyway. */
+	const onTileHover = (event: PointerEvent, spot: Spot) => {
+		if (event.pointerType === 'mouse') playTileMotion(spot);
+	};
+
+	// On a chip landing: whatever the tile was doing is cut short so its icons spring out still, and
+	// the motion plays from the start once they are in their slots.
+	const chipWasDown: Partial<Record<Spot, boolean>> = {};
+	const landTimers: Partial<Record<Spot, ReturnType<typeof setTimeout>>> = {};
+	$effect(() => {
+		for (const spot of SPOTS) {
+			const down = chipDown(spot);
+			if (down && !chipWasDown[spot]) {
+				stopTileMotion(spot);
+				clearTimeout(landTimers[spot]);
+				landTimers[spot] = setTimeout(() => {
+					if (chipDown(spot)) playTileMotion(spot);
+				}, SIDE_SPRING_MS);
+			}
+			chipWasDown[spot] = down;
+		}
+	});
+	onMount(() => () => {
+		for (const spot of SPOTS) {
+			clearTimeout(landTimers[spot]);
+			clearTimeout(tileMotionTimers[spot]);
+		}
+	});
 	let balanceChipEl: HTMLElement | undefined = $state();
 	let buyBonusEl: HTMLElement | undefined = $state();
 	let flightEls = $state<Record<number, HTMLElement | undefined>>({});
@@ -1822,9 +1900,10 @@
 										class:room={isRoomSpot(spot)}
 										class:locked={bettingOpen && !backed && !stateGameDerived.canBackAnother()}
 										class:backed
-										class:chip-down={backed && !arrivingSpots.has(spot) && !clearing}
+										class:chip-down={chipDown(spot)}
 										style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
 										onclick={() => toggleSpot(spot)}
+										onpointerenter={(event) => onTileHover(event, spot)}
 										aria-hidden="true"
 									>
 										<!-- A tile wears its wedge's icon three times in a row, the middle one
@@ -1834,14 +1913,17 @@
 											class:crest={isRoomSpot(spot)}
 											style="--aspect:{isRoomSpot(spot) ? ROOM_ICON[spot].aspect : BADGE_ASPECT}"
 										>
+											<!-- Each icon's wrapper slides and casts the shadow; the art inside plays the
+											     room's idle motion, so a turning icon's shadow stays underneath it. -->
 											{#each ['side', 'centre', 'side'] as pos, i (i)}
-												<img
-													class="tile-icon"
-													class:side={pos === 'side'}
-													src={iconSrc}
-													alt=""
-													draggable="false"
-												/>
+												<span class="tile-icon" class:side={pos === 'side'}>
+													<img
+														class="tile-art idle-{tileMotionClass(spot)}"
+														src={iconSrc}
+														alt=""
+														draggable="false"
+													/>
+												</span>
 											{/each}
 										</div>
 
@@ -3067,11 +3149,15 @@
 			rgba(0, 0, 0, 0.04) calc(var(--shade-from) + var(--shade-len) * 0.6),
 			rgba(0, 0, 0, 0.005) calc(var(--shade-from) + var(--shade-len) * 0.8),
 			rgba(0, 0, 0, 0) calc(var(--shade-from) + var(--shade-len));
+		/* Under the edge shade, two washes set the fill's light over its colour and grain: dimmed
+		   while the tile is empty, lifted once a chip sits on it (`.tile.chip-down`). */
 		background-image:
 			linear-gradient(to bottom, var(--shade-stops)),
 			linear-gradient(to top, var(--shade-stops)),
 			linear-gradient(to right, var(--shade-stops)),
 			linear-gradient(to left, var(--shade-stops)),
+			linear-gradient(rgba(255, 255, 255, var(--fill-lift)), rgba(255, 255, 255, var(--fill-lift))),
+			linear-gradient(rgba(0, 0, 0, var(--fill-dim)), rgba(0, 0, 0, var(--fill-dim))),
 			/* Plank grain over the flat colour, under the shade. Its transparency is baked into the
 			   art (bet_tile_texture.webp, 28% alpha): CSS cannot fade one background layer alone. */
 			var(--art-tile-texture),
@@ -3081,10 +3167,29 @@
 		background-repeat: no-repeat;
 		font-family: 'Alexandria', sans-serif;
 		color: var(--tile-text);
+		--fill-dim: 0.32;
+		--fill-lift: 0;
 		transition:
 			opacity 300ms ease,
 			filter 150ms ease,
-			transform 150ms ease;
+			transform 150ms ease,
+			--fill-dim 250ms ease,
+			--fill-lift 250ms ease;
+	}
+	.tile.chip-down {
+		--fill-dim: 0;
+		--fill-lift: 0.08;
+	}
+	/* Registered so the fill's light fades between empty and backed rather than snapping. */
+	@property --fill-dim {
+		syntax: '<number>';
+		inherits: false;
+		initial-value: 0;
+	}
+	@property --fill-lift {
+		syntax: '<number>';
+		inherits: false;
+		initial-value: 0;
 	}
 	/* The frame on its own layer, so it can be shaded without the fill. z-index -1 inside
 	   the tile's isolation: over the fill, under the badge and name. */
@@ -3131,9 +3236,14 @@
 	   icon stands up off the planks. The drop scales with the icon, so a side icon's is smaller. */
 	.tile-icon {
 		--h: var(--icon-h);
+		display: block;
 		height: var(--h);
-		width: auto;
 		filter: drop-shadow(0 calc(var(--h) * 0.095) 0 rgba(0, 0, 0, 0.6));
+	}
+	.tile-art {
+		display: block;
+		height: 100%;
+		width: auto;
 	}
 	.tile-icon:not(.side) {
 		position: relative;
@@ -3166,6 +3276,144 @@
 		transition:
 			transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1),
 			opacity 120ms ease-out;
+	}
+	/* The tiles' motions (see `motionOf`), on the art inside each icon's wrapper, played on hover
+	   or a chip landing. The sides lag the centre a beat (TILE_MOTION_LAG_MS), so the three read as
+	   a ripple, not a stamp. */
+	.tile-icon.side .tile-art {
+		animation-delay: 70ms;
+	}
+	/* The chest: a rattle on its base, as if something inside wants out. */
+	.tile-art.idle-shake {
+		transform-origin: 50% 90%;
+		animation-name: idle-shake;
+		animation-duration: 700ms;
+		animation-timing-function: ease-in-out;
+	}
+	@keyframes idle-shake {
+		0%,
+		100% {
+			transform: none;
+		}
+		12% {
+			transform: rotate(-9deg) translateX(-3%);
+		}
+		26% {
+			transform: rotate(8deg) translateX(3%);
+		}
+		40% {
+			transform: rotate(-7deg) translateX(-2%);
+		}
+		54% {
+			transform: rotate(5deg) translateX(2%);
+		}
+		68% {
+			transform: rotate(-3deg);
+		}
+		82% {
+			transform: rotate(1.5deg);
+		}
+	}
+	/* The cannonball: squats, hops, lands with a squash and a smaller second hop. */
+	.tile-art.idle-bounce {
+		transform-origin: 50% 100%;
+		animation-name: idle-bounce;
+		animation-duration: 850ms;
+		animation-timing-function: linear;
+	}
+	@keyframes idle-bounce {
+		0%,
+		100% {
+			transform: none;
+		}
+		10% {
+			transform: scale(1.12, 0.86);
+			animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+		}
+		36% {
+			transform: translateY(-32%) scale(0.94, 1.07);
+			animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+		}
+		58% {
+			transform: scale(1.1, 0.88);
+			animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+		}
+		74% {
+			transform: translateY(-10%);
+			animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+		}
+		88% {
+			transform: scale(1.04, 0.96);
+		}
+	}
+	/* The Bonus Wheel's wheel: one full turn, winding up and coasting to a stop. */
+	.tile-art.idle-spin {
+		animation-name: idle-spin;
+		animation-duration: 1200ms;
+		animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+	}
+	@keyframes idle-spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	/* The ship: rolls to one side and back as a swell passes under it, rising a touch on the crest,
+	   and settles. Pivoted low, on the waterline. */
+	.tile-art.idle-rock {
+		transform-origin: 50% 85%;
+		animation-name: idle-rock;
+		animation-duration: 2200ms;
+		animation-timing-function: ease-in-out;
+	}
+	@keyframes idle-rock {
+		0%,
+		100% {
+			transform: none;
+		}
+		20% {
+			transform: translateY(-4%) rotate(-11deg);
+		}
+		45% {
+			transform: translateY(-1%) rotate(9deg);
+		}
+		68% {
+			transform: translateY(-3%) rotate(-5deg);
+		}
+		86% {
+			transform: rotate(2deg);
+		}
+	}
+	/* A number's badge: ducks small, springs up past its size, and settles with a wobble. */
+	.tile-art.idle-pop {
+		animation-name: idle-pop;
+		animation-duration: 600ms;
+		animation-timing-function: ease-in-out;
+	}
+	@keyframes idle-pop {
+		0%,
+		100% {
+			transform: none;
+		}
+		18% {
+			transform: scale(0.78);
+		}
+		45% {
+			transform: scale(1.18);
+		}
+		65% {
+			transform: scale(0.93);
+		}
+		83% {
+			transform: scale(1.04);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tile-art {
+			animation: none !important;
+		}
 	}
 	/* A backed tile wears no ring of its own — its frame lights instead (see `.tile.backed::before`).
 	   A winner wears none either: it stays lit while the rest are shadowed, and its readout says
