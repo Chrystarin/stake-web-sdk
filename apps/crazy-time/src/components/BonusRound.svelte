@@ -170,6 +170,13 @@
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
 	{@const still = ROOM_STILL[spot]?.[portrait ? 'portrait' : 'landscape']}
+	<!-- What the room paid, on the footer. Pirate Plinko writes it on its own board, and the Treasure
+	     Chest on the last chest's front (four times its size, the multiplier on it), so theirs stays
+	     empty. The chest's footer keeps its height: its lift off the floor is measured against it. -->
+	{@const footerSays =
+		result !== null &&
+		current.room.type !== 'piratePlinkoRoom' &&
+		current.room.type !== 'chestRoom'}
 	<div class="screen" class:closing style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
 		{#if still}
@@ -226,11 +233,11 @@
 
 		<div
 			class="footer"
-			class:shown={result !== null && current.room.type !== 'piratePlinkoRoom'}
+			class:shown={footerSays}
 			class:folded={current.room.type === 'piratePlinkoRoom'}
 			class:over-stage={current.room.type === 'oceanVoyageRoom'}
 		>
-			{#if result !== null && current.room.type !== 'piratePlinkoRoom'}
+			{#if footerSays && result !== null}
 				<div class="mult">x{result}</div>
 				{#if current.covered}
 					{@const won = `WIN ${formatMoney(result * chip)}`}
