@@ -102,7 +102,9 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/bonus-wheel/frame.png',
 
 	// ── Treasure Chest (RoomChest.svelte) ────────────────────────────────────────────────────────
+	// Both backdrop cuts, for the same reason as the plinko boards above.
 	'img/treasure_chest/background_landscape.webp',
+	'img/treasure_chest/background_portrait.webp',
 	'img/treasure_chest/chest_close.webp',
 	'img/treasure_chest/chest_open.webp',
 

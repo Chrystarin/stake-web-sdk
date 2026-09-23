@@ -50,13 +50,16 @@
 	/**
 	 * A room brings its own backdrop, which then shows through whatever it plays on. Three rooms have
 	 * a moving one (a video, see `roomVideo`); the Treasure Chest has a still, the dragon's lair,
-	 * painted from the preload's resident copy the same way the table's backdrop is. A room with
-	 * neither keeps the flat room-tinted gradient.
+	 * painted from the preload's resident copy the same way the table's backdrop is, in a cut for
+	 * each orientation. A room with neither keeps the flat room-tinted gradient.
 	 *
 	 * Nothing depends on video playback: a browser that refuses leaves the gradient underneath showing.
 	 */
-	const ROOM_STILL: Partial<Record<Spot, string>> = {
-		chest: 'img/treasure_chest/background_landscape.webp',
+	const ROOM_STILL: Partial<Record<Spot, { landscape: string; portrait: string }>> = {
+		chest: {
+			landscape: 'img/treasure_chest/background_landscape.webp',
+			portrait: 'img/treasure_chest/background_portrait.webp',
+		},
 	};
 	const isVideoRoom = (spot: Spot): spot is VideoKey =>
 		spot === 'piratePlinko' || spot === 'bonusWheel' || spot === 'oceanVoyage';
@@ -166,7 +169,7 @@
 {#if current}
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
-	{@const still = ROOM_STILL[spot]}
+	{@const still = ROOM_STILL[spot]?.[portrait ? 'portrait' : 'landscape']}
 	<div class="screen" class:closing style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
 		{#if still}
