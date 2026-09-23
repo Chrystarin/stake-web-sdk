@@ -56,6 +56,12 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// resident copy; a literal `url('img/…')` in a component stylesheet cannot be redirected.
 	'img/chip_base.svg',
 	'img/chip_yellow.svg',
+	// The bet board's gold frames: the rectangle round every tile, the ring round the group buttons.
+	// Same custom-property route as the chips.
+	'img/bet_tile_frame_rectangle.webp',
+	'img/bet_tile_frame_circle.webp',
+	// The plank grain laid over every tile's fill (cropped to its lines, 28% alpha baked in).
+	'img/bet_tile_texture.webp',
 
 	// ── Buy Bonus: the board button, the modal and the bet stepper ───────────────────────────────
 	'img/buy-bonus/buy-bonus-btn.webp',

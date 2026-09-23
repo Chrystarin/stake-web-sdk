@@ -1655,7 +1655,7 @@
      folder rather than the game's. -->
 <div
 	class="viewport-fit"
-	style="--fit:{fitScale}; --art-chip-base:{staticCssUrl('img/chip_base.svg')}; --art-chip-yellow:{staticCssUrl('img/chip_yellow.svg')}"
+	style="--fit:{fitScale}; --art-chip-base:{staticCssUrl('img/chip_base.svg')}; --art-chip-yellow:{staticCssUrl('img/chip_yellow.svg')}; --art-tile-frame:{staticCssUrl('img/bet_tile_frame_rectangle.webp')}; --art-bundle-frame:{staticCssUrl('img/bet_tile_frame_circle.webp')}; --art-tile-texture:{staticCssUrl('img/bet_tile_texture.webp')}"
 >
 	<Background {portrait} />
 	<div
@@ -1810,6 +1810,9 @@
 									{@const win = stateGameDerived.isWinSpot(spot)}
 									{@const landed = stateGameDerived.isLandedSpot(spot)}
 									{@const colour = SPOT_COLOUR[spot]}
+									{@const iconSrc = isRoomSpot(spot)
+										? staticUrl(ROOM_ICON[spot].src)
+										: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`)}
 									<div
 										bind:this={tileEls[spot]}
 										class="tile"
@@ -1819,28 +1822,28 @@
 										class:room={isRoomSpot(spot)}
 										class:locked={bettingOpen && !backed && !stateGameDerived.canBackAnother()}
 										class:backed
+										class:chip-down={backed && !arrivingSpots.has(spot) && !clearing}
 										style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
 										onclick={() => toggleSpot(spot)}
 										aria-hidden="true"
 									>
-										<!-- A tile says what its wedge says: a number wears its badge alone, a room its
-										     own icon over its name. -->
-										{#if isRoomSpot(spot)}
-											<img
-												class="tile-crest"
-												src={staticUrl(ROOM_ICON[spot].src)}
-												alt=""
-												draggable="false"
-											/>
-											<span class="tile-lbl">{SPOT_LABEL[spot]}</span>
-										{:else}
-											<img
-												class="tile-badge"
-												src={staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`)}
-												alt=""
-												draggable="false"
-											/>
-										{/if}
+										<!-- A tile wears its wedge's icon three times in a row, the middle one
+										     biggest — a number its badge, a room its own icon, with no name. -->
+										<div
+											class="tile-icons"
+											class:crest={isRoomSpot(spot)}
+											style="--aspect:{isRoomSpot(spot) ? ROOM_ICON[spot].aspect : BADGE_ASPECT}"
+										>
+											{#each ['side', 'centre', 'side'] as pos, i (i)}
+												<img
+													class="tile-icon"
+													class:side={pos === 'side'}
+													src={iconSrc}
+													alt=""
+													draggable="false"
+												/>
+											{/each}
+										</div>
 
 										{#if tileMult?.spot === spot}
 											<div
@@ -2679,7 +2682,7 @@
 	   frame is 1.78x narrower than in landscape, so type and controls need roughly that much more
 	   vw to come out the same physical size. */
 	.game.portrait {
-		--mult-land: 3.7vw;
+		--mult-land: 4.3vw;
 		/* The board is held well clear of the viewport's edges: the tiles are sized off this, so the
 		   margin is set here once rather than tuned into the grid. The chip tray is trimmed to
 		   match, since its row would otherwise be the widest thing in the panel. */
@@ -2697,51 +2700,46 @@
 		order: 1;
 	}
 	.game.portrait .board {
-		--tile-w: calc((100vw / var(--fit, 1) - 2 * var(--panel-inset) - 1vw) / 2);
-		--tile-h: 12vw;
-		--tile-gap-x: 1vw;
-		--tile-gap-y: 0.9vw;
+		/* Half the panel's width, capped at the landscape tile's own proportion (10.4 : 4.6) — at a
+		   phone's width that is the cap, and the board sits centred and narrower than the panel. */
+		--tile-w: min(
+			calc((100vw / var(--fit, 1) - 2 * var(--panel-inset) - var(--tile-gap-x)) / 2),
+			calc(var(--tile-h) * 10.4 / 4.6)
+		);
+		--tile-h: 14vw;
+		--tile-gap-x: 0vw;
+		--tile-gap-y: 0vw;
 	}
 	.game.portrait .tiles {
 		grid-template-columns: repeat(2, var(--tile-w));
 	}
 	/* Two columns of four turns the board's seams from vertical into horizontal: the group buttons
-	   ride the row gaps instead, on the one column seam, and grow with the rest of the portrait UI. */
+	   ride the row gaps instead, on the one column seam, only overlapping the inner edge of each
+	   tile beside it. */
 	.game.portrait .bundle-btn {
 		top: calc(var(--seam) * var(--tile-h) + (var(--seam) - 0.5) * var(--tile-gap-y));
 		left: 50%;
-		width: 10.4vw;
-		height: 10.4vw;
-		border-width: 0.3vw;
-		box-shadow: 0 0.4vw 0.9vw rgba(0, 0, 0, 0.55);
+		--bundle-w: 9vw;
 	}
-	.game.portrait .bundle-btn.on {
-		outline-width: 0.5vw;
-		outline-offset: 0.15vw;
+	.game.portrait .bundle-btn::before {
+		box-shadow:
+			var(--inner-shade),
+			0 0.4vw 0.9vw rgba(0, 0, 0, 0.55);
 	}
 	.game.portrait .bundle-lbl {
-		font-size: 2vw;
-		letter-spacing: 0.04vw;
-		-webkit-text-stroke: 0.4vw rgba(0, 0, 0, 0.75);
+		font-size: 1.9vw;
+		letter-spacing: 0.02vw;
+		-webkit-text-stroke: 0.3vw rgba(0, 0, 0, 0.75);
 	}
 	.game.portrait .tile {
-		border-width: 0.3vw;
-		border-radius: 1vw;
+		--frame: 3.1vw;
+		gap: 0.35vw;
 	}
-	.game.portrait .tile.backed {
-		outline-width: 0.28vw;
-		outline-offset: 0.06vw;
+	.game.portrait .tile-icons {
+		--icon-h: 8.91vw;
 	}
-	.game.portrait .tile-lbl {
-		font-size: 3.5vw;
-		letter-spacing: 0.12vw;
-		-webkit-text-stroke: 0.32vw rgba(0, 0, 0, 0.55);
-	}
-	.game.portrait .tile-badge {
-		height: 8.5vw;
-	}
-	.game.portrait .tile-crest {
-		height: 4.4vw;
+	.game.portrait .tile-icons.crest {
+		--icon-h: 7.56vw;
 	}
 	.game.portrait .board {
 		margin-top: 1.2vw;
@@ -2768,22 +2766,24 @@
 	}
 	.game.portrait .tile .placed-chip,
 	.game.portrait .flying-chip {
-		width: 8vw;
-		height: 8vw;
+		width: 9.2vw;
+		height: 9.2vw;
 	}
 	.game.portrait .flying-chip {
-		margin: -4vw 0 0 -4vw;
+		margin: -4.6vw 0 0 -4.6vw;
 	}
 	.game.portrait .tile-mult {
-		top: -0.9vw;
-		right: -0.8vw;
+		top: -1.05vw;
+		right: -0.92vw;
 	}
 	.game.portrait .tile-readout-mult {
-		top: 0.15vw;
+		top: 0.2vw;
 	}
+	/* Landscape's readout scaled to the portrait tile (1.3vw on a 4.6vw-tall tile), so
+	   READOUT_CHARS still fit across it. */
 	.game.portrait .tile-readout-win {
-		bottom: 0.4vw;
-		font-size: calc(3.55vw * var(--len-fit, 1));
+		bottom: 0.5vw;
+		font-size: calc(3.95vw * var(--len-fit, 1));
 	}
 	/* The Buy Bonus badge takes the corner beside the cabinet: 67vw centred leaves 16.5vw either side,
 	   and the frame's rope post starts a hair further in, so 2vw + 14.5vw just clears it. */
@@ -2933,13 +2933,17 @@
 	/* The tile metrics live on the board rather than in the grid, because the group buttons are
 	   placed on the gaps between tiles and have to be able to work out where those gaps are. */
 	.board {
+		/* How much of their brightness the gold frames keep — tiles and group buttons alike. */
+		--frame-shade: 0.47;
 		position: relative;
 		margin: 0.45vw auto 0;
 		width: fit-content;
 		--tile-w: 10.4vw;
 		--tile-h: 4.6vw;
-		--tile-gap-x: 0.3vw;
-		--tile-gap-y: 0.25vw;
+		/* No grid gap: the frame art carries its own margin outside the bars, so neighbouring
+		   frames meet corner to corner with a sliver of backdrop between their bars. */
+		--tile-gap-x: 0vw;
+		--tile-gap-y: 0vw;
 	}
 	.tiles {
 		display: grid;
@@ -2951,39 +2955,64 @@
 	   A coin sat astride a seam of the board: the spots it buys, painted as equal sectors of a pie,
 	   with the group's name over a dark core so it still reads against eight colours. Landscape
 	   counts seams across the columns; portrait counts them down the rows (see the portrait block).
-	   Sizes are held off the tile metrics so the button keeps its proportion at any fit. */
+	   Sizes are held off the tile metrics so the
+	   button keeps its proportion at any fit. */
 	.bundle-btn {
 		position: absolute;
 		top: 50%;
 		left: calc(var(--seam) * var(--tile-w) + (var(--seam) - 0.5) * var(--tile-gap-x));
 		translate: -50% -50%;
-		width: 3.35vw;
-		height: 3.35vw;
+		--bundle-w: 3.7vw;
+		width: var(--bundle-w);
+		height: var(--bundle-w);
 		z-index: 30;
+		isolation: isolate;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		border-radius: 50%;
-		border: 0.12vw solid #4c2813;
-		background-image:
-			radial-gradient(circle at 50% 50%, #1c0f06 0 36%, rgba(28, 15, 6, 0) 37%), var(--face);
-		box-shadow: 0 0.15vw 0.35vw rgba(0, 0, 0, 0.55);
 		transition:
 			opacity 180ms ease,
 			filter 150ms ease,
 			transform 150ms ease,
 			visibility 260ms;
 	}
+	/* The pie is a disc tucked under the gold ring (bet_tile_frame_circle): the ring's inner edge
+	   sits at 83% of the art's radius and its studs reach the edge, so the disc stops at 88%, under
+	   the middle of the band. Its inner shadow matches the tiles': solid over the sliver hidden under
+	   the ring (2.5% of the button), then fading in from the ring's inner edge. */
+	.bundle-btn::before,
+	.bundle-btn::after {
+		content: '';
+		position: absolute;
+		pointer-events: none;
+	}
+	.bundle-btn::before {
+		inset: 6%;
+		z-index: -1;
+		border-radius: 50%;
+		background-image:
+			radial-gradient(circle at 50% 50%, #1c0f06 0 36%, rgba(28, 15, 6, 0) 37%), var(--face);
+		--inner-shade: inset 0 0 calc(var(--bundle-w) * 0.14) calc(var(--bundle-w) * 0.025)
+			rgba(0, 0, 0, 0.6);
+		box-shadow:
+			var(--inner-shade),
+			0 0.15vw 0.35vw rgba(0, 0, 0, 0.55);
+	}
+	.bundle-btn::after {
+		inset: 0;
+		background: var(--art-bundle-frame) center / contain no-repeat;
+		filter: brightness(var(--frame-shade)) drop-shadow(0 0.08vw 0.12vw rgba(0, 0, 0, 0.5));
+		transition: filter 150ms ease;
+	}
+	/* Fully covered: its ring comes out of the shade, as a backed tile's frame does. */
+	.bundle-btn.on::after {
+		filter: brightness(1) drop-shadow(0 0.08vw 0.12vw rgba(0, 0, 0, 0.5));
+	}
 	.bundle-btn:hover {
 		filter: brightness(1.15);
 		transform: scale(1.06);
-	}
-	/* Already fully covered: the tap that follows lifts the group back off, so say so. */
-	.bundle-btn.on {
-		outline: 0.2vw solid #ffe14d;
-		outline-offset: 0.06vw;
-		filter: brightness(1.12);
 	}
 	.bundle-btn.hidden {
 		opacity: 0;
@@ -2993,6 +3022,8 @@
 	/* The name sits over the core but is free to run onto the ring — a stroke keeps it legible where
 	   it does, and the alternative is type too small to read. */
 	.bundle-lbl {
+		position: relative;
+		z-index: 1;
 		font-family: 'Alexandria', sans-serif;
 		font-weight: 700;
 		font-size: 0.7vw;
@@ -3004,9 +3035,15 @@
 		paint-order: stroke;
 		-webkit-text-stroke: 0.14vw rgba(0, 0, 0, 0.75);
 	}
-	/* Tiles carry a gold border and a label + sub-label over a solid fill in the
-	   spot's own colour, the same flat fill its wedges use on the wheel. */
+	/* Tiles sit in the gold frame (bet_tile_frame_rectangle) over a solid fill in the spot's own
+	   colour, the same flat fill its wedges use on the wheel. The frame is nine-sliced so its corner
+	   studs keep their shape at any tile size: `--frame` is the corner's size on screen, and the art's
+	   bars run from 0.08 to 0.45 of it — the fill stops under the middle of the bar. The slice is
+	   drawn as a zero-width border's image, so it takes no room from the tile's contents. */
 	.tile {
+		--frame: 1vw;
+		--frame-inner: calc(var(--frame) * 0.45);
+		--fill-in: calc(var(--frame) * 0.28);
 		position: relative;
 		isolation: isolate;
 		cursor: pointer;
@@ -3015,9 +3052,33 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.15vw;
-		border-radius: 0.35vw;
-		background: var(--tile);
-		border: 0.12vw solid #4c2813;
+		/* An inner shadow round the fill: four edge fades laid over the colour, solid under the bars
+		   (the fill starts beneath them) and fading out from the bars' inner edge. The fade follows
+		   0.6·(1 − t)³ rather than a straight line, so it tails off into the fill with no visible
+		   edge where it ends. Painted as background, below the frame, so none of it shows past the
+		   gold. */
+		--shade-from: calc(var(--frame-inner) - var(--fill-in));
+		--shade-len: var(--frame);
+		--shade-stops:
+			rgba(0, 0, 0, 0.6) var(--shade-from),
+			rgba(0, 0, 0, 0.37) calc(var(--shade-from) + var(--shade-len) * 0.15),
+			rgba(0, 0, 0, 0.21) calc(var(--shade-from) + var(--shade-len) * 0.3),
+			rgba(0, 0, 0, 0.1) calc(var(--shade-from) + var(--shade-len) * 0.45),
+			rgba(0, 0, 0, 0.04) calc(var(--shade-from) + var(--shade-len) * 0.6),
+			rgba(0, 0, 0, 0.005) calc(var(--shade-from) + var(--shade-len) * 0.8),
+			rgba(0, 0, 0, 0) calc(var(--shade-from) + var(--shade-len));
+		background-image:
+			linear-gradient(to bottom, var(--shade-stops)),
+			linear-gradient(to top, var(--shade-stops)),
+			linear-gradient(to right, var(--shade-stops)),
+			linear-gradient(to left, var(--shade-stops)),
+			/* Plank grain over the flat colour, under the shade. Its transparency is baked into the
+			   art (bet_tile_texture.webp, 28% alpha): CSS cannot fade one background layer alone. */
+			var(--art-tile-texture),
+			linear-gradient(var(--tile), var(--tile));
+		background-position: center;
+		background-size: calc(100% - 2 * var(--fill-in)) calc(100% - 2 * var(--fill-in));
+		background-repeat: no-repeat;
 		font-family: 'Alexandria', sans-serif;
 		color: var(--tile-text);
 		transition:
@@ -3025,56 +3086,97 @@
 			filter 150ms ease,
 			transform 150ms ease;
 	}
+	/* The frame on its own layer, so it can be shaded without the fill. z-index -1 inside
+	   the tile's isolation: over the fill, under the badge and name. */
+	.tile::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		pointer-events: none;
+		border: 0 solid transparent;
+		border-image: var(--art-tile-frame) 71 / var(--frame) stretch;
+		filter: brightness(var(--frame-shade));
+		transition: filter 150ms ease;
+	}
+	/* A chip on the tile takes its frame out of the shade — the tile's only "backed" mark. A fully
+	   covered group button does the same with its ring (`.bundle-btn.on::after`). */
+	.tile.backed::before {
+		filter: brightness(1);
+	}
 	.tile:hover {
 		filter: brightness(1.15);
 	}
-	/* The spot's name is set in the wheel's own face; weight 400 because it has a single cut. Sized
-	   and tracked so the longest name — TREASURE CHEST — still clears the tile's edges. */
-	.tile-lbl {
-		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
-		font-size: 1.05vw;
-		font-weight: 400;
-		letter-spacing: 0.04vw;
-		white-space: nowrap;
-		/* The wheel's own label outline: same colour, and the same share of the type size (the wedges
-		   use a 2.4 stroke on 21px). `paint-order` keeps it behind the glyph where a browser honours
-		   it on HTML text; where it does not, a stroke this thin still reads as an edge. */
-		paint-order: stroke;
-		-webkit-text-stroke: 0.11vw rgba(0, 0, 0, 0.55);
+	/* Three of the spot's icon in a row, the middle one biggest, all on one centre line. A room's
+	   icon is square against a number badge's 30:48, so it runs a little shorter to keep the row
+	   inside the frame. Sides are sized in layout, not by transform (iOS drops the first paint of
+	   transform-scaled art in the Stake iframe). */
+	.tile-icons {
+		--icon-h: 3.06vw;
+		--icon-side: 0.55;
+		/* The row spans the fill inside the frame's bars and spreads its icons evenly: the same space
+		   from the frame to a side icon as between each icon. */
+		align-self: stretch;
+		box-sizing: border-box;
+		padding-inline: var(--frame-inner);
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-evenly;
 	}
-	/* A number's badge has the tile to itself; a bonus crest shares it with the room's name. */
-	.tile-badge {
-		height: 3.4vw;
+	.tile-icons.crest {
+		--icon-h: 2.7vw;
+	}
+	/* A hard, unblurred copy of the icon's own silhouette dropped straight down beneath it, so the
+	   icon stands up off the planks. The drop scales with the icon, so a side icon's is smaller. */
+	.tile-icon {
+		--h: var(--icon-h);
+		height: var(--h);
 		width: auto;
-		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
+		filter: drop-shadow(0 calc(var(--h) * 0.095) 0 rgba(0, 0, 0, 0.6));
 	}
-	.tile-crest {
-		height: 1.7vw;
-		width: auto;
-		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
+	.tile-icon:not(.side) {
+		position: relative;
+		z-index: 1;
 	}
-	/* A tile with a chip on it wears the same gold ring a covered group button does, so the two ways
-	   of backing a spot read as one state. It sits OUTSIDE the tile — the win ring is inset, and the
-	   two have to be told apart at a glance — which is why it is thin: the outline has half a grid
-	   gap to live in before it meets its neighbour's. Declared ahead of `win` and `landed` so those
-	   heavier rings replace it once the wheel has stopped. */
-	.tile.backed {
-		outline: 0.1vw solid #ffe14d;
-		outline-offset: 0.02vw;
+	/* The side icons only show while a chip sits on the tile. Otherwise each keeps its slot in the row (so the
+	   spacing never shifts) but is slid back behind the centre icon and faded out; a chip landing
+	   springs them out to the sides, and lifting it slides them back in behind. The slide is the
+	   distance between the two icons' centres, which with the row's even spacing works out to a
+	   quarter of (row width + centre icon width) — `--aspect` is the art's width over height. */
+	.tile-icon.side {
+		--h: calc(var(--icon-h) * var(--icon-side));
+		--home: calc(
+			(var(--tile-w) - 2 * var(--frame-inner) + var(--icon-h) * var(--aspect)) / 4
+		);
+		opacity: 0;
+		transform: translateX(var(--home));
+		transition:
+			transform 220ms cubic-bezier(0.55, 0, 0.8, 0.4),
+			opacity 120ms ease-in 100ms;
 	}
+	.tile-icon.side:last-child {
+		transform: translateX(calc(-1 * var(--home)));
+	}
+	/* Keyed to the chip sitting on the tile (the same test that draws `.placed-chip`), not to
+	   `backed`: a tile is backed the moment it is clicked, while its chip is still in flight. */
+	.tile.chip-down .tile-icon.side {
+		opacity: 1;
+		transform: none;
+		transition:
+			transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1),
+			opacity 120ms ease-out;
+	}
+	/* A backed tile wears no ring of its own — its frame lights instead (see `.tile.backed::before`).
+	   A winner wears none either: it stays lit while the rest are shadowed, and its readout says
+	   the rest. The landed ring is inset past the frame's bars, onto the fill, so the gold of the
+	   art stays whole. */
 	.tile.win {
-		outline: 0.3vw solid #ffe14d;
-		outline-offset: -0.3vw;
 		filter: brightness(1.15);
 	}
 	.tile.landed {
 		outline: 0.2vw solid rgba(255, 255, 255, 0.7);
-		outline-offset: -0.2vw;
-	}
-	/* The cover that shadows a losing tile is inside its box, and an outline is not — so the ring has
-	   to be taken off by hand, or a spot that just lost would still be wearing the gold. */
-	.tile.dimmed.backed {
-		outline: none;
+		outline-offset: calc(-0.2vw - var(--frame-inner));
 	}
 	/* Two states cover a tile rather than fade it, so its own colour stays underneath instead of the
 	   backdrop showing through: `locked` while another spot holds the bet, and `dimmed` once the wheel
