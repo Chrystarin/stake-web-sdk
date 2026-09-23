@@ -1375,8 +1375,10 @@
 				await flyMultiplier(event.spot, event.multiplier);
 				await waitForTimeout(hurried ? 200 : MULT_SETTLE_MS);
 			}
-			// Only now does the board give the floor to the wheel.
-			panelDimmed = true;
+			// Only now does the board give the floor to the wheel — unless a bought room took the
+			// wheel off the stage: nothing spins, so the board stays at full strength and goes
+			// straight to the landed room's shadowing.
+			if (!wheelOff) panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
 			// A Random Bonus round spins the buy disc, so the book's 54-segment index maps to the
@@ -1389,8 +1391,8 @@
 					? ROOM_SPOTS.indexOf(event.spot as RoomSpot)
 					: mainSegmentFor(event.segment, event.spot);
 			if (wheelOff) {
+				// Unseen, so there is nothing to wait for: the board shows the result at once.
 				wheel?.jumpTo(target);
-				await waitForTimeout(hurried ? 150 : 500);
 			} else {
 				await wheel?.spinTo(target, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
 			}
