@@ -13,9 +13,9 @@
 	 * a re-download on every entry, because Stake's CDN headers stop the browser reusing the files.
 	 *
 	 * The dragon is not placed by eye. It is placed by its own body: at load, the `Idle` pose is
-	 * measured — the middle of its body off the hip and chest bones, its lowest point and its width
-	 * off the drawn bounds — and every frame the body is centred over the chest, its feet stood on
-	 * the lid, and the whole drawing sized to the chest. So it follows the chest wherever the board
+	 * measured — the middle of its body off the hip and chest bones, the bottom of its tail off the
+	 * tail's own drawing, its width off the drawn bounds — and every frame the body is centred over
+	 * the chest, its tail sat on the top edge of the lid, and the whole drawing sized to the chest. So it follows the chest wherever the board
 	 * puts it, at whatever size the chest has grown to.
 	 *
 	 * The chest writes its multiplier on its front, below the lid, so the dragon never has to get out
@@ -32,8 +32,10 @@
 	type Props = {
 		/** The chest to sit on. Nothing is drawn until there is one and `appear` has been called. */
 		target?: HTMLElement;
+		/** The chest's lid is off: its top edge is a little lower in the open drawing. */
+		open?: boolean;
 	};
-	let { target }: Props = $props();
+	let { target, open = false }: Props = $props();
 
 	const SKELETON = {
 		alias: 'chestDragon-skeleton',
@@ -57,9 +59,16 @@
 	const DRAGON_WIDTH = 0.9;
 	/** Where its body is centred across the chest, as a share of the chest's box. */
 	const BODY_X = 0.5;
-	/** Where its feet stand, as a share of the chest's box from the top: on the lid of the drawing,
-	 *  which starts below the headroom the box carries over it. */
-	const FEET_Y = 0.44;
+	/**
+	 * The top edge of the chest's lid, as a share of the chest's box from the top — where the dragon
+	 * sits. Measured off the two drawings (the flat of the lid, a third of the way across, below the
+	 * headroom the box carries over the art): row 108 of the shut drawing's 1102, row 75 of the open
+	 * one's 1024. The open lid stands a little lower in its box, so the dragon settles with it.
+	 */
+	const LID_Y_SHUT = 0.332;
+	const LID_Y_OPEN = 0.348;
+	/** How quickly the dragon follows the lid down as it comes off, per millisecond. */
+	const LID_FOLLOW = 0.012;
 
 	const FADE_IN_MS = 350;
 	/** How long a reveal will wait for the dragon to finish loading before going on without it. */
@@ -68,9 +77,11 @@
 	let host: HTMLDivElement;
 	let app: Application | undefined;
 	let spine: Spine | undefined;
-	/** The idle body's middle, its feet and its width, in the skeleton's own units (see the note at
-	 *  the top). */
+	/** The idle body's middle, the bottom of its tail and its width, in the skeleton's own units
+	 *  (see the note at the top). */
 	let pose = { x: 0, feet: 0, width: 1 };
+	/** Where the dragon is sitting now, on its way from the shut lid's line to the open one's. */
+	let lidY = LID_Y_SHUT;
 	let shown = false;
 	let destroyed = false;
 
@@ -92,6 +103,17 @@
 		current.onIgnite?.();
 	};
 
+	/** The box round ONE slot's drawing in the current pose — everything else detached while it is
+	 *  read, then put back. */
+	const boundsOf = (dragon: Spine, slotName: string) => {
+		const slots = dragon.skeleton.slots;
+		const saved = slots.map((slot) => slot.appliedPose.attachment);
+		for (const slot of slots) if (slot.data.name !== slotName) slot.appliedPose.attachment = null;
+		const rect = dragon.skeleton.getBoundsRect();
+		slots.forEach((slot, i) => (slot.appliedPose.attachment = saved[i]));
+		return rect.width ? rect : null;
+	};
+
 	/** Pose the dragon idling and read its body off the bones and the drawing. */
 	const measurePose = (dragon: Spine) => {
 		dragon.state.setAnimation(0, 'Idle', true);
@@ -105,9 +127,15 @@
 		const hip = at('hip');
 		const chest = at('chest');
 		const bounds = dragon.getLocalBounds();
+		// It sits on its TAIL: the tail's lowest point — the sharp tip curled under it — is what rests
+		// on the lid, with the body settled down onto it and only the claws reaching over the edge.
+		// The whole drawing's lowest point is no use for this: the skeleton carries a guide, a glow and
+		// the fire in slots of their own, and their boxes hang below the dragon. (Skeletons are y-down
+		// in spine-pixi, so its bounds are already in the dragon's own drawing space.)
+		const tail = boundsOf(dragon, 'sDragon_tail');
 		pose = {
 			x: hip && chest ? (hip.worldX + chest.worldX) / 2 : (bounds.minX + bounds.maxX) / 2,
-			feet: bounds.maxY,
+			feet: tail ? tail.y + tail.height : bounds.maxY,
 			width: bounds.width || 1,
 		};
 	};
@@ -124,7 +152,7 @@
 		const width = chest.width / zoom;
 		const scale = (width * DRAGON_WIDTH) / pose.width;
 		const bodyX = (chest.left - box.left) / zoom + width * BODY_X;
-		const feetY = (chest.top - box.top) / zoom + (chest.height / zoom) * FEET_Y;
+		const feetY = (chest.top - box.top) / zoom + (chest.height / zoom) * lidY;
 		spine.scale.set(scale);
 		spine.position.set(bodyX - pose.x * scale, feetY - pose.feet * scale);
 	};
@@ -134,6 +162,8 @@
 		const dt = Math.min(48, Math.max(0, ticker.deltaMS));
 		if (shown && spine.alpha < 1) spine.alpha = Math.min(1, spine.alpha + dt / FADE_IN_MS);
 		spine.visible = spine.alpha > 0;
+		const lid = open ? LID_Y_OPEN : LID_Y_SHUT;
+		lidY += (lid - lidY) * Math.min(1, dt * LID_FOLLOW);
 		place();
 		spine.update(dt / 1000);
 		const current = breath;

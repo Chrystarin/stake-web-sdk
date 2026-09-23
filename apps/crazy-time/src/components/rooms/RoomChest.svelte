@@ -318,13 +318,36 @@
 				     download is on the far side of a CDN. -->
 				<img class="art shut" src={CHEST_SHUT} alt="" />
 				<img class="art spilling" src={CHEST_OPEN} alt="" />
-				<div class="value">
-					<MultiplierBurst value={valueOf(i)} shown={open} rays={mine} />
-				</div>
+				<!-- The last chest's number is not written here but on a layer of its own over the
+				     dragon (below), so the dragon on the lid never covers its glow. -->
+				{#if !mine}
+					<div class="value">
+						<MultiplierBurst value={valueOf(i)} shown={open} />
+					</div>
+				{/if}
 			</button>
 		{/each}
 	</div>
-	<ChestDragon bind:this={dragon} target={winner === null ? undefined : chestEls[winner]} />
+	<ChestDragon
+		bind:this={dragon}
+		target={winner === null ? undefined : chestEls[winner]}
+		open={phase === 'opened'}
+	/>
+	{#if winner !== null && chestEls[winner]}
+		{@const el = chestEls[winner]}
+		<!-- The last chest's number, over the dragon: a box laid exactly where the chest's own box is
+		     and moved the same way (`.chest.centred`), so it lands on the chest's front whatever size
+		     the chest has grown to. -->
+		<div
+			class="winner-value"
+			style="left:{el.offsetLeft}px; top:{el.offsetTop}px; --dx:{1.5 - (winner % COLS)}; --dy:{1 - Math.floor(winner / COLS)}"
+			aria-hidden="true"
+		>
+			<div class="value">
+				<MultiplierBurst value={valueOf(winner)} shown={phase === 'opened'} rays />
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -453,11 +476,23 @@
 	 * starts a little above this (the heap of coins inside the open drawing), which is where the
 	 * burst's rise comes from.
 	 */
+	/* Over the dragon (its canvas is z-index 6) but otherwise the chest's own box, drawn nothing. */
+	.winner-value {
+		position: absolute;
+		z-index: 7;
+		width: var(--cell);
+		height: var(--chest-h);
+		transform-origin: center center;
+		pointer-events: none;
+	}
+	/* On the treasure the open chest shows, not its front: the heap's middle is 0.42 of a column up
+	   the box (the open art is drawn 0.7176 of a column high off a 0.014 floor, and the heap sits
+	   0.57 of the way up it), and this box is 0.5 of the art tall, so its foot is at 0.29 of it. */
 	.value {
 		position: absolute;
 		left: 0;
 		right: 0;
-		bottom: calc(var(--art-h) * 0.16);
+		bottom: calc(var(--art-h) * 0.29);
 		height: calc(var(--art-h) * 0.5);
 		display: grid;
 		place-items: center;
@@ -483,7 +518,8 @@
 	 * dragging its own new size across the board with it. `--lift` is taken off the trip in the
 	 * board's own units, so it is the same distance on the screen whatever the zoom.
 	 */
-	.chest.centred {
+	.chest.centred,
+	.winner-value {
 		z-index: 5;
 		transform: translate(
 				calc((var(--cell) + var(--gap)) * var(--dx)),
