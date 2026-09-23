@@ -23,9 +23,9 @@
 	const OPENED = staticUrl('img/treasure_chest/wheel_icon_chest_opened.webp');
 	/**
 	 * Where the treasure is in the open drawing, off the box's centre as a share of its size: the
-	 * heap of coins and the crown sit about 0.47 down the square canvas. The light starts there.
+	 * heap of coins and the crown sit about 0.475 down the square canvas. The light starts there.
 	 */
-	const TREASURE_DY = -0.03;
+	const TREASURE_DY = -0.025;
 
 	/** The beats, in ms. */
 	const LIFT_MS = 620;
