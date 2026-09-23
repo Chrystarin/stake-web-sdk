@@ -222,6 +222,34 @@
 	:global(.game.hub-lifted) .jackpot :global(img.center) {
 		visibility: hidden;
 	}
+	/* And the moment it is slammed into the hub the game marks itself `hub-slammed`: the room's wheel
+	   takes the knock, with the same rattle the table's wheel takes (Game.svelte, `wheel-shake`). */
+	:global(.game.hub-slammed) .jackpot {
+		animation: hub-slam-shake 420ms linear;
+	}
+	@keyframes hub-slam-shake {
+		0% {
+			translate: 0 0;
+		}
+		12% {
+			translate: 0 0.7vw;
+		}
+		28% {
+			translate: -0.35vw -0.3vw;
+		}
+		44% {
+			translate: 0.3vw 0.25vw;
+		}
+		60% {
+			translate: -0.2vw -0.15vw;
+		}
+		78% {
+			translate: 0.1vw 0.08vw;
+		}
+		100% {
+			translate: 0 0;
+		}
+	}
 	/* Nothing to see: only a place, measured by the way in. */
 	.hub-icon {
 		position: absolute;

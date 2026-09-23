@@ -6,7 +6,7 @@
 	 * out of its wedge the way the Treasure Chest's does, and from the top of that jump, in one
 	 * movement, comes into the middle of the wheel and on at the player until it IS the screen.
 	 * The room is put up behind it (see BonusRound's `litEntrance`), and `clear` backs the icon off
-	 * again, still turning, until it comes to rest exactly on the room wheel's own hub — the same
+	 * again, still turning, and slams it into the room wheel's own hub — the same
 	 * drawing — and becomes it: the room's hub is held back until then. So the table's badge
 	 * becomes the room's hub.
 	 *
@@ -16,8 +16,8 @@
 	 * which the caller rattles, with the wheel, the way the Treasure Chest's return does.
 	 *
 	 * The turning never stops in between: it runs on an element of its own (`spinEl`) at one steady
-	 * rate, apart from the moving and growing (`iconEl`), and only slows at the very end, eased out
-	 * from the rate it was going at, so it comes to rest where it lands rather than pausing anywhere.
+	 * rate, apart from the moving and growing (`iconEl`), and is only stopped by the slam at the very
+	 * end, dead on the angle it lands at, rather than pausing anywhere.
 	 *
 	 * Everything is laid out in the game frame's own pixels (the caller converts client rects, see
 	 * `centreIn` in Game.svelte), and every beat is timed by the clock rather than by animation
@@ -52,7 +52,7 @@
 	const IN_MS = 1200;
 	const OUT_COVER_MS = 900;
 	const BACK_MS = 1000;
-	/** From the whole screen back down into its wedge on the way out. */
+	/** From the whole screen down into what it lands on: the room's hub, or its wedge on the way out. */
 	const SLAM_MS = 700;
 	const FADE_MS = 400;
 	/** The turn: one revolution in this long, got up to from a standstill over `SPIN_UP_MS`. */
@@ -178,23 +178,39 @@
 	};
 
 	/**
-	 * Back off the screen onto `hub` — where the room wheel's hub goes, as a box of the same drawing —
-	 * coming to rest square on it, and gone the moment it is there: `onLand` puts the hub up in its
-	 * place. With no hub to land on it backs off where it is and fades. Resolves once it is gone.
+	 * Slammed off the screen into `hub` — where the room wheel's hub goes, as a box of the same
+	 * drawing — stopping dead upright on it, and gone the moment it hits: `onLand` is the hit, which
+	 * puts the hub up in its place and shakes the room's wheel. With no hub to land on it backs off
+	 * where it is and fades. Resolves once it is gone.
 	 */
 	export const clear = async (hub: Box | null, onLand?: () => void): Promise<void> => {
 		if (!shown) return;
 		const end = hub ?? { ...box, size: box.size * 0.5 };
-		settle(0, BACK_MS);
-		leg(
-			covered,
-			{ dx: end.x - box.x, dy: end.y - box.y, k: end.size / box.size },
-			easeIn,
-			easeOut,
-			BACK_MS,
-		);
-		await waitForTimeout(BACK_MS);
-		if (!hub) {
+		if (hub) {
+			// Slammed into the middle of the room's wheel, turning in place as it comes: faster and
+			// faster until it hits, the turn running on at full rate and stopping dead upright at
+			// the moment of impact — the same slam as the way out's (`uncover`).
+			slamSpin(0, SLAM_MS);
+			leg(
+				covered,
+				{ dx: end.x - box.x, dy: end.y - box.y, k: end.size / box.size },
+				(u) => Math.pow(u, 2.2),
+				(u) => Math.pow(u, 2.6),
+				SLAM_MS,
+			);
+			playSound('whoosh');
+			await waitForTimeout(SLAM_MS);
+			playSound('boom', 1.3, 0.5);
+		} else {
+			settle(0, BACK_MS);
+			leg(
+				covered,
+				{ dx: end.x - box.x, dy: end.y - box.y, k: end.size / box.size },
+				easeIn,
+				easeOut,
+				BACK_MS,
+			);
+			await waitForTimeout(BACK_MS);
 			iconEl?.animate([{ opacity: 1 }, { opacity: 0 }], {
 				duration: FADE_MS,
 				easing: 'ease-in',

@@ -501,6 +501,9 @@
 	 * the room's wheel (RoomBonusWheel hides it under `.game.hub-lifted`): the one in flight is it.
 	 */
 	let hubLifted = $state(false);
+	/** The room's wheel rattling from the icon being slammed into its middle (RoomBonusWheel). */
+	let hubSlammed = $state(false);
+	const HUB_SLAM_MS = 420;
 
 	/** The room wheel's hub, where the ship's wheel comes to rest, in the frame's own pixels. */
 	const bonusHubBox = () => {
@@ -511,7 +514,13 @@
 
 	const endReveal = async () => {
 		revealIcon = null;
-		if (revealBy === 'wheel') await wheelReveal?.clear(bonusHubBox(), () => (hubLifted = false));
+		if (revealBy === 'wheel')
+			await wheelReveal?.clear(bonusHubBox(), () => {
+				// Slammed into the room wheel's middle: the hub is up, and the wheel takes the knock.
+				hubLifted = false;
+				hubSlammed = true;
+				setTimeout(() => (hubSlammed = false), HUB_SLAM_MS);
+			});
 		else await roomReveal?.clear();
 		hubLifted = false;
 		revealBy = null;
@@ -1653,6 +1662,7 @@
 		class="game"
 		class:portrait
 		class:hub-lifted={hubLifted}
+		class:hub-slammed={hubSlammed}
 		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
 		bind:this={gameEl}
 	>
