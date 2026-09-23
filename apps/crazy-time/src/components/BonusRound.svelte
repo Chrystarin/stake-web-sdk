@@ -15,7 +15,6 @@
 	import type { BookEventRoom } from '../game/typesBookEvent';
 	import { playSound, setMusicScene } from '../game/sound';
 	import { isReplay } from '../game/replay';
-	import { formatMoney } from '../game/currency';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { adoptVideo, releaseVideo, type VideoKey } from '../lib/preloadAssets';
 
@@ -23,21 +22,29 @@
 	import RoomBonusWheel from './rooms/RoomBonusWheel.svelte';
 	import RoomChest from './rooms/RoomChest.svelte';
 	import RoomOceanVoyage from './rooms/RoomOceanVoyage.svelte';
+	import MultiplierBurst from './rooms/MultiplierBurst.svelte';
 
 	type Props = {
-		/** Cash value of one chip, for the win line. */
+		/** Cash value of one chip. Nothing on this screen says money any more; kept for the caller. */
 		chip: number;
 		/** Tall viewport: the rooms that care lay themselves out differently. */
 		portrait?: boolean;
 		/**
-		 * The screen is already white with light (the Treasure Chest's way in, RoomReveal): the room
-		 * goes up in place under it, with no slide and no door, and the light fading is the entrance.
+		 * The screen is already covered (the Treasure Chest's light, RoomReveal, or the Bonus Wheel's
+		 * ship's wheel, WheelReveal): the room goes up in place under it, with no slide and no door,
+		 * and the cover coming off is the entrance.
 		 */
 		litEntrance?: boolean;
+		/**
+		 * Asked as the screen is about to go: true once something has covered the screen for the way
+		 * out (the Bonus Wheel's ship's wheel, WheelReveal), and the room is taken down in place under
+		 * it, with no slide and no door. False keeps the slide.
+		 */
+		coverExit?: (room: RoomSpot) => Promise<boolean>;
 		/** True for the whole time the screen is up. */
 		onOpenChange?: (open: boolean) => void;
 	};
-	let { chip, portrait = false, litEntrance = false, onOpenChange }: Props = $props();
+	let { portrait = false, litEntrance = false, coverExit, onOpenChange }: Props = $props();
 	/** `litEntrance` as it stood when this screen went up: the light lifting must not start a slide. */
 	let enteredLit = $state(false);
 
@@ -130,11 +137,11 @@
 					: 'oceanVoyage';
 
 	/**
-	 * The two beats at the end of a round: the landing on its own, and then the win line.
+	 * The two beats at the end of a round: the landing on its own, and then the multiplier.
 	 *
 	 * Both are the same for a round the player was in and one they were only watching. The tease
 	 * used to be cut shorter than the real thing, on the grounds that there is less to take in — but
-	 * the win line reads the same either way, and hurrying it only made the two look like different
+	 * the result reads the same either way, and hurrying it only made the two look like different
 	 * screens.
 	 */
 	const SETTLE_MS = 1000;
@@ -162,10 +169,13 @@
 				result = paid;
 				await waitForTimeout(WIN_HOLD_MS);
 			} finally {
-				closing = true;
+				const covered = await coverExit?.(spotFor(event.room)).catch(() => false);
 				setMusicScene('base');
-				playSound('doorOpen');
-				await waitForTimeout(450);
+				if (!covered) {
+					closing = true;
+					playSound('doorOpen');
+					await waitForTimeout(450);
+				}
 				current = null;
 				closing = false;
 				onOpenChange?.(false);
@@ -178,13 +188,10 @@
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
 	{@const still = ROOM_STILL[spot]?.[portrait ? 'portrait' : 'landscape']}
-	<!-- What the room paid, on the footer. Pirate Plinko writes it on its own board, and the Treasure
-	     Chest on the last chest's front (four times its size, the multiplier on it), so theirs stays
-	     empty. The chest's footer keeps its height: its lift off the floor is measured against it. -->
-	{@const footerSays =
-		result !== null &&
-		current.room.type !== 'piratePlinkoRoom' &&
-		current.room.type !== 'chestRoom'}
+	<!-- What the room paid, as a multiplier over the middle of the screen, in the Treasure Chest's
+	     own burst (`MultiplierBurst`). The chest writes it on its last chest instead, so it is left
+	     out here. No cash: the win is the balance's to report, not this screen's. -->
+	{@const centreSays = result !== null && current.room.type !== 'chestRoom'}
 	<div class="screen" class:closing class:lit={enteredLit} style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
 		{#if still}
@@ -218,18 +225,7 @@
 
 		<div class="stage" class:over-plaque={current.room.type === 'oceanVoyageRoom'}>
 			{#if current.room.type === 'piratePlinkoRoom'}
-				<!-- Pirate Plinko shows what it paid in the middle of its own board rather than on the
-				     screen's footer: the board is the biggest thing on the screen and the last place
-				     anyone is looking is under it. -->
-				<RoomPiratePlinko
-					bind:this={roomApi}
-					room={current.room}
-					interactive={handsOn}
-					covered={current.covered}
-					{portrait}
-					{result}
-					cash={result === null ? '' : formatMoney(result * chip)}
-				/>
+				<RoomPiratePlinko bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
 			{:else if current.room.type === 'bonusWheelRoom'}
 				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={handsOn} />
 			{:else if current.room.type === 'chestRoom'}
@@ -239,25 +235,19 @@
 			{/if}
 		</div>
 
+		<!-- Empty now, but it keeps its height: the rooms' layouts (the wheel's frame, the chest's lift
+		     off the floor) are measured against it. -->
 		<div
 			class="footer"
-			class:shown={footerSays}
 			class:folded={current.room.type === 'piratePlinkoRoom'}
 			class:over-stage={current.room.type === 'oceanVoyageRoom'}
-		>
-			{#if footerSays && result !== null}
-				<div class="mult">x{result}</div>
-				{#if current.covered}
-					{@const won = `WIN ${formatMoney(result * chip)}`}
-					<div class="cash win-amount">
-						<span class="win-stroke" aria-hidden="true">{won}</span>
-						<span class="win-fill">{won}</span>
-					</div>
-				{:else}
-					<div class="cash muted">would have paid {formatMoney(result * chip)} per chip</div>
-				{/if}
-			{/if}
-		</div>
+		></div>
+
+		{#if centreSays && result !== null}
+			<div class="centre-result">
+				<MultiplierBurst value={result} rays />
+			</div>
+		{/if}
 	</div>
 {/if}
 
@@ -462,43 +452,22 @@
 	}
 	.footer {
 		height: 4.6vw;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		font-family: 'Alexandria', sans-serif;
-		opacity: 0;
-		transition: opacity 300ms ease;
-		/* The Bonus Wheel's frame runs down behind this line, and gold lettering on gilded wood is
-		   nothing at all. A soft plate of the room's own dark, faded out rather than boxed in, so it
-		   is invisible over the rooms that leave the footer on empty air. */
-		padding: 0 2vw;
-		background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 70%);
 	}
-	.footer.shown {
-		opacity: 1;
-	}
-	/* Pirate Plinko says it on its own board, so the footer gives its height back to the stage. */
+	/* Pirate Plinko gives the footer's height back to the stage. */
 	.footer.folded {
 		height: 0;
 	}
-	.mult {
-		font-size: 2.6vw;
-		font-weight: 700;
-		color: #ffe14d;
-		line-height: 1;
-		text-shadow: 0 0.2vw 0.6vw rgba(0, 0, 0, 0.8);
-	}
-	/* The win is set in the house's cash hand (`.win-amount`, global) — the same as the board's
-	   winning tile — so only its size lives here. A miss is a plain grey line. */
-	.cash {
-		font-size: 1.3vw;
-	}
-	.cash.muted {
-		font-family: 'Alexandria', sans-serif;
-		font-size: 1.1vw;
-		font-weight: 400;
-		color: #9aa3b4;
+	/* The result, dead centre on the screen and over everything the rooms draw. Sized to come out
+	   the same as the Treasure Chest's number on its grown last chest (a quarter of a chest column,
+	   times its zoom). */
+	.centre-result {
+		position: absolute;
+		inset: 0;
+		z-index: 5;
+		display: grid;
+		place-items: center;
+		font-size: 8vw;
+		pointer-events: none;
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------------
@@ -518,12 +487,12 @@
 	}
 	:global(.game.portrait) .footer {
 		height: 11vw;
-		/* The balance and the wager keep their corners over this screen, and a portrait frame is not
-		   wide enough for a centred line to pass between them: `would have paid $37,500.00 per chip`
-		   runs the width of the rail. So the footer gives the rail its line back and takes the one
-		   above, which the rooms have to spare in portrait. Landscape needs none of this — there the
-		   footer clears both read-outs by a couple of hundred pixels. */
+		/* The balance and the wager keep their corners over this screen; the footer's row sits above
+		   the rail rather than on it, and the rooms were laid out against that. */
 		margin-bottom: var(--rail-h, 0px);
+	}
+	:global(.game.portrait) .centre-result {
+		font-size: 19vw;
 	}
 	/* Pirate Plinko folds its footer away entirely, so there is nothing to lift off the rail. */
 	:global(.game.portrait) .footer.folded {
@@ -545,14 +514,5 @@
 		margin-bottom: 0;
 		z-index: 4;
 		pointer-events: none;
-	}
-	:global(.game.portrait) .mult {
-		font-size: 6.4vw;
-	}
-	:global(.game.portrait) .cash {
-		font-size: 3.2vw;
-	}
-	:global(.game.portrait) .cash.muted {
-		font-size: 2.8vw;
 	}
 </style>

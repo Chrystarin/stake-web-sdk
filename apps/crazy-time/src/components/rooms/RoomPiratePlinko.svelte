@@ -26,21 +26,12 @@
 		room: BookEventPiratePlinko;
 		/** False when the player was not in this bonus: the ball lets itself go. */
 		interactive?: boolean;
-		/** True when the player was on this room, so the win is theirs rather than a tease. */
-		covered?: boolean;
-		/** The multiplier the round paid, once it has. Null until then. */
-		result?: number | null;
-		/** That multiplier in money, already formatted and signed by the screen. */
-		cash?: string;
 		/** Tall viewport: the cabinet swaps to its upright drawing and the room re-scales with it. */
 		portrait?: boolean;
 	};
 	let {
 		room,
 		interactive = true,
-		covered = true,
-		result = null,
-		cash = '',
 		portrait = false,
 	}: Props = $props();
 
@@ -557,22 +548,6 @@
 					portraitSize="7.4vw"
 				/>
 			{/if}
-
-			<!-- What it paid, over the middle of the board. It comes up only once the ball is in a
-		     pocket, so it never covers the fall it is reporting on. -->
-			{#if result !== null}
-				<div class="win">
-					<div class="win-mult">x{result}</div>
-					{#if covered}
-						<div class="win-cash win-amount">
-							<span class="win-stroke" aria-hidden="true">WIN {cash}</span>
-							<span class="win-fill">WIN {cash}</span>
-						</div>
-					{:else}
-						<div class="win-cash muted">would have paid {cash} per chip</div>
-					{/if}
-				</div>
-			{/if}
 		</div>
 	</div>
 </div>
@@ -732,54 +707,6 @@
 		pointer-events: none;
 		user-select: none;
 	}
-	/* What the round paid, over the middle of the board. Above the pegs and the pockets, and
-	   with a soft ground of its own so it reads over timber rather than fighting the grain. */
-	.win {
-		position: absolute;
-		inset: 0;
-		z-index: 50;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.3vw;
-		font-family: 'Alexandria', sans-serif;
-		pointer-events: none;
-		animation: win-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
-	}
-	@keyframes win-in {
-		from {
-			opacity: 0;
-			scale: 0.86;
-		}
-		to {
-			opacity: 1;
-			scale: 1;
-		}
-	}
-	.win-mult {
-		font-size: 4.6vw;
-		font-weight: 700;
-		line-height: 1;
-		color: #ffe14d;
-		text-shadow:
-			0 0.2vw 0.5vw rgba(0, 0, 0, 0.9),
-			0 0 1.6vw rgba(0, 0, 0, 0.85);
-	}
-	/* The win is set in the house's cash hand (`.win-amount`, global) — the same as the board's
-	   winning tile — so only its size lives here. A miss is a plain line, shadowed to read over
-	   the board. */
-	.win-cash {
-		font-size: 1.7vw;
-	}
-	.win-cash.muted {
-		font-size: 1.5vw;
-		font-weight: 400;
-		color: #cbb9a4;
-		text-shadow:
-			0 0.15vw 0.4vw rgba(0, 0, 0, 0.9),
-			0 0 1.2vw rgba(0, 0, 0, 0.85);
-	}
 	/* ---- Portrait ----------------------------------------------------------------------
 	   A tall screen gets the upright cabinet: nearly the full width, and everything that is
 	   authored in vw scaled up to match, because a portrait vw is about a third of a landscape
@@ -793,14 +720,5 @@
 		   part that was surrendered is mostly the part that stands BEHIND the plaque. */
 		--cannon-h: 33vw;
 		--cannon-gap: 2.5vw;
-	}
-	:global(.game.portrait) .win-mult {
-		font-size: 11vw;
-	}
-	:global(.game.portrait) .win-cash {
-		font-size: 4vw;
-	}
-	:global(.game.portrait) .win-cash.muted {
-		font-size: 3.6vw;
 	}
 </style>

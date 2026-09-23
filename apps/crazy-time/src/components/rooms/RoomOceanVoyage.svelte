@@ -422,11 +422,11 @@
 	     stage over the header so the words are not cut off by the plaque. -->
 	<div class="caption">
 		{#if ended === 'kraken'}
-			<RoomHint size={HINT_SIZE}>
-				Kraken at stop {(kraken?.depth ?? 0) + 1}<br />You keep <b>{room.total}x</b>
-			</RoomHint>
+			<!-- What it paid is struck over the middle of the screen (`MultiplierBurst`, from
+			     BonusRound), so the caption only says how the voyage ended. -->
+			<RoomHint size={HINT_SIZE}>Kraken at stop {(kraken?.depth ?? 0) + 1}</RoomHint>
 		{:else if ended === 'port'}
-			<RoomHint size={HINT_SIZE}>Made port <b>{room.total}x</b></RoomHint>
+			<RoomHint size={HINT_SIZE}>Made port</RoomHint>
 		{:else if interactive && !autopilot}
 			{#key pickRound}
 				<RoomHint lines={HINT} durationMs={picking ? PICK_MS : null} size={HINT_SIZE} />

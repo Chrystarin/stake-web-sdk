@@ -39,11 +39,11 @@ export const SPOT_LABEL: Record<Spot, string> = {
  * one file and nothing else. Paths are relative to `static/`; the caller wraps them, because this
  * file is plain data and knows nothing about how assets resolve. `aspect` is width over height of
  * the file, which is what the wheel sizes its badge box from — so it has to be re-read whenever the
- * art is. All four are square today.
+ * art is. All square today but the bonus wheel's, which is 577x586.
  */
 export const ROOM_ICON: Record<RoomSpot, { src: string; aspect: number }> = {
 	piratePlinko: { src: 'img/wheel/pirate-plinko.png', aspect: 1 },
-	bonusWheel: { src: 'img/wheel/bonus-wheel.png', aspect: 1 },
+	bonusWheel: { src: 'img/bonus-wheel/wheel_icon.webp', aspect: 577 / 586 },
 	chest: { src: 'img/treasure_chest/wheel_icon_chest_closed.webp', aspect: 1 },
 	oceanVoyage: { src: 'img/wheel/ocean-voyage.png', aspect: 1 },
 };

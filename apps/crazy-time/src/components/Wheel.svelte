@@ -277,22 +277,72 @@
 	};
 
 	/** Where segment `index`'s badge art is on the screen, as a client rect; null if it has none. */
-	export const iconRect = (index: number): DOMRect | null =>
-		wheelEl?.querySelector(`image[data-seg="${index}"]`)?.getBoundingClientRect() ?? null;
+	/**
+	 * Something has just been slammed down onto segment `index`: its wedge flashes and its badge
+	 * shakes, for `SLAM_MS`.
+	 */
+	let slammed = $state<number | null>(null);
+	const SLAM_MS = 450;
+	let slamTimer: ReturnType<typeof setTimeout> | undefined;
+	export const slam = (index: number) => {
+		clearTimeout(slamTimer);
+		slammed = index;
+		slamTimer = setTimeout(() => (slammed = null), SLAM_MS);
+	};
+
+	export const iconRect = (index: number): DOMRect | null => {
+		// Worked out from the disc's RESTING angle rather than read off the drawn badge: a spin
+		// resolves on its safety timer when the page is not being painted (a background tab), with
+		// the transition still part-way round, and the drawn badge would be wherever that left it.
+		const img = wheelEl?.querySelector<SVGImageElement>(`image[data-seg="${index}"]`);
+		const disc = discOnScreen();
+		if (!img || !disc) return null;
+		const w = img.width.baseVal.value;
+		const h = img.height.baseVal.value;
+		const px = img.x.baseVal.value + w / 2 - R;
+		const py = img.y.baseVal.value + h / 2 - R;
+		const a = (rotation * Math.PI) / 180;
+		const k = disc.d / (R * 2);
+		const cx = disc.cx + (px * Math.cos(a) - py * Math.sin(a)) * k;
+		const cy = disc.cy + (px * Math.sin(a) + py * Math.cos(a)) * k;
+		return new DOMRect(cx - (w * k) / 2, cy - (h * k) / 2, w * k, h * k);
+	};
 
 	/**
-	 * The disc's centre and diameter on the screen, in client pixels. The disc turns, so its client
-	 * rect is the box round a rotated square: its width is the diameter times |cos| + |sin| of the
-	 * angle, which is taken back out.
+	 * The disc's centre and diameter on the screen, in client pixels, whatever angle it is at.
 	 */
 	export const discOnScreen = (): { cx: number; cy: number; d: number } | null => {
-		if (!wheelEl) return null;
+		const holder = wheelEl?.parentElement;
+		if (!wheelEl || !holder) return null;
+		// The centre does not move as the disc turns, so the turned rect's middle is good at any
+		// angle. The size is the disc's own layout width, scaled by whatever its holder is scaled by
+		// on the screen (the game's zoom), which a turn does not touch either.
 		const r = wheelEl.getBoundingClientRect();
-		const a = (rotation * Math.PI) / 180;
+		const scale = holder.offsetWidth ? holder.getBoundingClientRect().width / holder.offsetWidth : 1;
 		return {
 			cx: r.left + r.width / 2,
 			cy: r.top + r.height / 2,
-			d: r.width / (Math.abs(Math.cos(a)) + Math.abs(Math.sin(a))),
+			d: wheelEl.offsetWidth * scale,
+		};
+	};
+
+	/**
+	 * Segment `index`'s badge as it stands on the screen: its centre and drawn width in client
+	 * pixels, and the angle it is turned to in degrees — for something to be laid exactly over it.
+	 * Null if it has none.
+	 */
+	export const iconPose = (
+		index: number,
+	): { cx: number; cy: number; w: number; angle: number } | null => {
+		const img = wheelEl?.querySelector<SVGImageElement>(`image[data-seg="${index}"]`);
+		const disc = discOnScreen();
+		if (!img || !disc) return null;
+		const r = img.getBoundingClientRect();
+		return {
+			cx: r.left + r.width / 2,
+			cy: r.top + r.height / 2,
+			w: (img.width.baseVal.value * disc.d) / (R * 2),
+			angle: rotation + centreOf(index),
 		};
 	};
 
@@ -581,6 +631,7 @@
 					fill={seg.fill}
 					class="wedge"
 					class:lit={highlight === i}
+					class:slam={slammed === i}
 				/>
 			{/each}
 			<circle cx={R} cy={R} r={OUTER} fill="url(#rim)" />
@@ -596,6 +647,7 @@
 						transform="rotate({centreOf(i)} {c.cx} {c.cy})"
 						data-seg={i}
 						opacity={liftedIcon === i ? 0 : 1}
+						class:slam={slammed === i}
 					/>
 				{:else if seg.image}
 					{@const p = labelPos(i)}
@@ -609,6 +661,7 @@
 						transform="rotate({centreOf(i)} {p.x} {p.y})"
 						data-seg={i}
 						opacity={liftedIcon === i ? 0 : 1}
+						class:slam={slammed === i}
 					/>
 				{:else if !isRun(seg)}
 					{@const p = labelPos(i)}
@@ -759,6 +812,46 @@
 	}
 	.wedge.lit {
 		filter: brightness(1.35) saturate(1.2);
+	}
+	/* Slammed (see `slam`): the wedge flares and settles back, and its badge rattles in place. The
+	   badge's turn is its `transform` attribute, so the rattle is on `translate`, which adds to it
+	   rather than replacing it. */
+	.wedge.slam {
+		animation: wedge-slam 450ms ease-out;
+	}
+	@keyframes wedge-slam {
+		0% {
+			filter: brightness(2.1) saturate(1.3);
+		}
+		100% {
+			filter: brightness(1.35) saturate(1.2);
+		}
+	}
+	image.slam {
+		animation: badge-slam 380ms linear;
+	}
+	@keyframes badge-slam {
+		0% {
+			translate: 0 0;
+		}
+		15% {
+			translate: -4px 3px;
+		}
+		30% {
+			translate: 4px -3px;
+		}
+		45% {
+			translate: -3px 2px;
+		}
+		60% {
+			translate: 2px -2px;
+		}
+		80% {
+			translate: -1px 1px;
+		}
+		100% {
+			translate: 0 0;
+		}
 	}
 	/* Losing wedges are covered, not faded: a black copy of the wedge laid over everything drawn in
 	   it — fill, badge and lettering alike — so the winner reads as lit rather than merely opaque. */

@@ -46,6 +46,7 @@
 	import Background from './Background.svelte';
 	import BonusRound from './BonusRound.svelte';
 	import RoomReveal from './RoomReveal.svelte';
+	import WheelReveal from './WheelReveal.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
 	import BuyBonusModal from './BuyBonusModal.svelte';
@@ -442,55 +443,212 @@
 	/** True while the bonus screen is down over the table. */
 	let bonusUp = $state(false);
 
-	// --- The Treasure Chest's way in: its chest, opened, and its light (RoomReveal) -------------
+	// --- A room walked into through its own wedge's icon ----------------------------------------
+	// The Treasure Chest through its chest, opened, and its light (RoomReveal); the Bonus Wheel
+	// through its ship's wheel, spun up over the screen and back down onto the room's hub
+	// (WheelReveal).
 	let roomReveal: RoomReveal | undefined = $state();
-	/** The wedge whose chest has been lifted off the disc by the reveal. */
+	let wheelReveal: WheelReveal | undefined = $state();
+	/** The wedge whose icon has been lifted off the disc by the reveal. */
 	let revealIcon = $state<number | null>(null);
-	/** The screen is white with the chest's light: the bonus screen goes up under it, unmoving. */
+	/** The screen is covered by a reveal: the bonus screen goes up under it, unmoving. */
 	let revealLit = $state(false);
-	/** How big the opened chest is drawn in the middle of the wheel, as a share of the disc. */
+	/** Which reveal has the screen, so the right one takes itself off. */
+	let revealBy: 'chest' | 'wheel' | null = null;
+	/** How big the icon is drawn in the middle of the wheel, as a share of the disc. */
 	const REVEAL_CHEST_OF_DISC = 0.5;
+	const REVEAL_WHEEL_OF_DISC = 0.42;
 
 	/**
-	 * Lift wedge `target`'s chest, open it and fill the screen with its light. False, having done
-	 * nothing, when there is nothing on the screen to lift it from.
+	 * Lift wedge `target`'s icon into the middle of the wheel and cover the screen with it — the
+	 * chest's light, or the ship's wheel itself. False, having done nothing, when there is nothing
+	 * on the screen to lift it from.
 	 */
-	const revealChest = async (target: number): Promise<boolean> => {
+	const revealRoom = async (target: number, by: 'chest' | 'wheel'): Promise<boolean> => {
+		const reveal = by === 'chest' ? roomReveal : wheelReveal;
 		const icon = wheel?.iconRect(target);
 		const disc = wheel?.discOnScreen();
-		if (!roomReveal || !gameEl || !icon || !disc || !icon.width) return false;
+		// A disc not laid out yet (a page loaded in a background tab) measures 0: nothing to go by.
+		if (!reveal || !gameEl || !icon || !disc?.d || !icon.width) return false;
 		const host = gameEl.getBoundingClientRect();
-		const from = { ...centreIn(host, icon), size: Math.max(icon.width, icon.height) / fitScale };
-		const to = {
-			...pointIn(host, disc.cx, disc.cy),
-			size: (disc.d * REVEAL_CHEST_OF_DISC) / fitScale,
-		};
+		// The chest is square and sized by its longer side; the ship's wheel starts from exactly the
+		// badge it lifts off, turn and all, since it comes back down onto it on the way out.
+		const from =
+			by === 'chest'
+				? { ...centreIn(host, icon), size: Math.max(icon.width, icon.height) / fitScale }
+				: (wedgeBox(target) ?? { ...centreIn(host, icon), size: icon.width / fitScale });
+		const share = by === 'chest' ? REVEAL_CHEST_OF_DISC : REVEAL_WHEEL_OF_DISC;
+		const to = { ...pointIn(host, disc.cx, disc.cy), size: (disc.d * share) / fitScale };
 		revealIcon = target;
-		await roomReveal.play(from, to, { w: gameEl.clientWidth, h: gameEl.clientHeight });
+		revealBy = by;
+		if (by === 'wheel') {
+			wheelRoomTarget = target;
+			// The room comes up under the cover without its hub: the hub is this icon, on its way.
+			hubLifted = true;
+		} else chestRoomTarget = target;
+		await reveal.play(from, to, { w: gameEl.clientWidth, h: gameEl.clientHeight });
 		revealLit = true;
-		// The bonus screen is next and takes the light off (see `onBonusOpenChange`). Should it
-		// never come, the table is not left behind a white screen.
+		// The bonus screen is next and takes the cover off (see `onBonusOpenChange`). Should it
+		// never come, the table is not left behind a covered screen.
 		setTimeout(() => {
 			if (revealLit && !bonusUp) void endReveal();
 		}, 4000);
 		return true;
 	};
 
+	/**
+	 * The Bonus Wheel room's hub is its own icon, so while that icon is in the air there is none on
+	 * the room's wheel (RoomBonusWheel hides it under `.game.hub-lifted`): the one in flight is it.
+	 */
+	let hubLifted = $state(false);
+
+	/** The room wheel's hub, where the ship's wheel comes to rest, in the frame's own pixels. */
+	const bonusHubBox = () => {
+		const hub = gameEl?.querySelector('[data-bonus-hub]')?.getBoundingClientRect();
+		if (!gameEl || !hub?.width) return null;
+		return { ...centreIn(gameEl.getBoundingClientRect(), hub), size: hub.width / fitScale };
+	};
+
 	const endReveal = async () => {
 		revealIcon = null;
-		await roomReveal?.clear();
+		if (revealBy === 'wheel') await wheelReveal?.clear(bonusHubBox(), () => (hubLifted = false));
+		else await roomReveal?.clear();
+		hubLifted = false;
+		revealBy = null;
 		revealLit = false;
+	};
+
+	/** Wedge `index`'s badge on the table's wheel, turn and all, in the frame's own pixels. */
+	const wedgeBox = (index: number) => {
+		const pose = wheel?.iconPose(index);
+		if (!gameEl || !pose?.w) return null;
+		return {
+			...pointIn(gameEl.getBoundingClientRect(), pose.cx, pose.cy),
+			size: pose.w / fitScale,
+			angle: pose.angle,
+		};
+	};
+
+	// --- ...and back out of the Bonus Wheel and the Treasure Chest the same way -----------------
+	/** The wedge the Bonus Wheel was walked into from, which is where its way out lands. */
+	let wheelRoomTarget: number | null = null;
+	/** The same for the Treasure Chest. */
+	let chestRoomTarget: number | null = null;
+	/** Which reveal has the screen on the way out: the room comes down under it, unmoving. */
+	let exitCovered: 'chest' | 'wheel' | null = null;
+
+	/** The room's own chest — the last one, grown in the middle of the board — in frame pixels. */
+	const roomChestBox = () => {
+		const chest = gameEl?.querySelector('.chest.centred')?.getBoundingClientRect();
+		if (!gameEl || !chest?.width) return null;
+		return { ...centreIn(gameEl.getBoundingClientRect(), chest), size: chest.width / fitScale };
+	};
+
+	/**
+	 * Asked by the bonus screen as it is about to go: the Bonus Wheel's hub comes up over the screen,
+	 * or the Treasure Chest's chest lights it white, so the room can go unseen. False, having done
+	 * nothing, for any other way out — a room that was not walked into through its icon keeps the
+	 * slide.
+	 */
+	const coverRoomExit = async (room: RoomSpot): Promise<boolean> => {
+		const frame = gameEl ? { w: gameEl.clientWidth, h: gameEl.clientHeight } : null;
+		if (room === 'chest') {
+			const target = chestRoomTarget;
+			chestRoomTarget = null;
+			if (target === null || !roomReveal || !frame) return false;
+			// Light from the room's chest; failing that, from the middle of the screen.
+			const from = roomChestBox() ?? { x: frame.w / 2, y: frame.h / 2, size: frame.w * 0.2 };
+			revealIcon = target;
+			await roomReveal.cover(from, frame);
+			exitCovered = 'chest';
+			return true;
+		}
+		const target = wheelRoomTarget;
+		wheelRoomTarget = null;
+		const hub = bonusHubBox();
+		if (room !== 'bonusWheel' || target === null || !wheelReveal || !frame || !hub) return false;
+		revealIcon = target;
+		// The hub leaves the room's wheel in the same frame the flying one is laid over it.
+		hubLifted = true;
+		await wheelReveal.cover(hub, frame);
+		exitCovered = 'wheel';
+		return true;
+	};
+
+	/** The wheel rattling from the chest, or the Bonus Wheel's icon, being slammed back onto it. */
+	let wheelShaking = $state(false);
+	const WHEEL_SHAKE_MS = 420;
+	const shakeWheel = () => {
+		wheelShaking = false;
+		void tick().then(() => {
+			wheelShaking = true;
+			setTimeout(() => (wheelShaking = false), WHEEL_SHAKE_MS);
+		});
+	};
+
+	/** Where the chest waits on the table as the light fades: the middle of the wheel, as it left. */
+	const tableChestBox = () => {
+		const disc = wheel?.discOnScreen();
+		if (!gameEl || !disc?.d) return null;
+		return {
+			...pointIn(gameEl.getBoundingClientRect(), disc.cx, disc.cy),
+			size: (disc.d * REVEAL_CHEST_OF_DISC) / fitScale,
+		};
+	};
+
+	/** Wedge `index`'s chest, upright and sized by its longer side, in frame pixels. */
+	const wedgeChestBox = (index: number) => {
+		const icon = wheel?.iconRect(index);
+		if (!gameEl || !icon?.width) return null;
+		return {
+			...centreIn(gameEl.getBoundingClientRect(), icon),
+			size: Math.max(icon.width, icon.height) / fitScale,
+		};
 	};
 
 	const onBonusOpenChange = (open: boolean) => {
 		bonusUp = open;
 		if (open) {
-			// Give the room its first paint under the light before the light lifts off it.
+			// Give the room its first paint under the cover before the cover lifts off it.
 			if (revealLit)
 				void tick()
 					.then(() => waitForTimeout(150))
 					.then(endReveal);
 			return;
+		}
+		if (exitCovered) {
+			const by = exitCovered;
+			exitCovered = null;
+			// The table's first paint back, under the cover, before the icon backs off onto its wedge
+			// — whose own badge stays hidden until the icon is on it.
+			const target = revealIcon;
+			void tick()
+				.then(() => waitForTimeout(150))
+				.then(() =>
+					by === 'chest'
+						? roomReveal?.uncover(
+								tableChestBox(),
+								target === null ? null : wedgeChestBox(target),
+								{ w: gameEl?.clientWidth ?? 0, h: gameEl?.clientHeight ?? 0 },
+								// The chest hits its wedge: its own badge is back, and the wedge and
+								// the whole wheel take the knock.
+								() => {
+									revealIcon = null;
+									if (target !== null) wheel?.slam(target);
+									shakeWheel();
+								},
+							)
+						: wheelReveal?.uncover(target === null ? null : wedgeBox(target), () => {
+								// Slammed into its wedge, the same knock as the chest's.
+								revealIcon = null;
+								if (target !== null) wheel?.slam(target);
+								shakeWheel();
+							}),
+				)
+				.then(() => {
+					revealIcon = null;
+					hubLifted = false;
+				});
 		}
 		// The bonus sequence is over: the Top Slot's badge goes with it. With no badge parked, the
 		// payout skips the merge and the tile's readout reads the room's total straight away.
@@ -790,7 +948,7 @@
 	 * The win is written in full, so its length runs with the currency: up to READOUT_CHARS it is
 	 * set at the readout's own size (a tile holds that many), past that it is scaled to still fit.
 	 */
-	const READOUT_CHARS = 15;
+	const READOUT_CHARS = 11;
 	const readoutFit = (text: string) => Math.min(1, READOUT_CHARS / text.length).toFixed(3);
 	const fmtMult = (value: number) =>
 		`${Number.isInteger(value) ? value : value.toFixed(2).replace(/\.?0+$/, '')}x`;
@@ -1454,12 +1612,13 @@
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
 			playSound(event.covered ? 'merge' : 'pop');
-			// The Treasure Chest is walked into through its own chest (see RoomReveal) — when the
-			// wheel is on the stage to lift it from. A bought room has the wheel off, so it keeps the
-			// plain slide.
-			if (event.spot === 'chest' && !wheelOff) {
+			// The Treasure Chest and the Bonus Wheel are walked into through their own icons (see
+			// RoomReveal, WheelReveal) — when the wheel is on the stage to lift them from. A bought
+			// room has the wheel off, so it keeps the plain slide.
+			const by = event.spot === 'chest' ? 'chest' : event.spot === 'bonusWheel' ? 'wheel' : null;
+			if (by && !wheelOff) {
 				await waitForTimeout(400);
-				if (await revealChest(target)) return;
+				if (await revealRoom(target, by)) return;
 			}
 			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
 		},
@@ -1493,6 +1652,7 @@
 	<div
 		class="game"
 		class:portrait
+		class:hub-lifted={hubLifted}
 		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
 		bind:this={gameEl}
 	>
@@ -1592,7 +1752,7 @@
 					onReelStop={() => playSound('notify')}
 				/>
 			</div>
-			<div class="wheel-wrap" class:off={wheelOff}>
+			<div class="wheel-wrap" class:off={wheelOff} class:shaking={wheelShaking}>
 				<Wheel
 					bind:this={wheel}
 					segments={wheelDisc === 'buy' && buyDisc ? buyDisc : WHEEL_SEGMENTS}
@@ -1863,9 +2023,11 @@
 			chip={stateBet.betAmount}
 			{portrait}
 			litEntrance={revealLit}
+			coverExit={coverRoomExit}
 			onOpenChange={onBonusOpenChange}
 		/>
 		<RoomReveal bind:this={roomReveal} />
+		<WheelReveal bind:this={wheelReveal} />
 
 	</div>
 </div>
@@ -2383,6 +2545,34 @@
 			opacity 400ms ease,
 			visibility 0s 400ms;
 	}
+	/* The knock of the Treasure Chest's chest landing back on its wedge. On `translate`, which the
+	   wrap uses for nothing else. */
+	.wheel-wrap.shaking {
+		animation: wheel-shake 420ms linear;
+	}
+	@keyframes wheel-shake {
+		0% {
+			translate: 0 0;
+		}
+		12% {
+			translate: 0 0.7vw;
+		}
+		28% {
+			translate: -0.35vw -0.3vw;
+		}
+		44% {
+			translate: 0.3vw 0.25vw;
+		}
+		60% {
+			translate: -0.2vw -0.15vw;
+		}
+		78% {
+			translate: 0.1vw 0.08vw;
+		}
+		100% {
+			translate: 0 0;
+		}
+	}
 	.wheel-wrap.off .hub-spin {
 		pointer-events: none;
 	}
@@ -2583,7 +2773,7 @@
 	}
 	.game.portrait .tile-readout-win {
 		bottom: 0.4vw;
-		font-size: calc(2.6vw * var(--len-fit, 1));
+		font-size: calc(3.55vw * var(--len-fit, 1));
 	}
 	/* The Buy Bonus badge takes the corner beside the cabinet: 67vw centred leaves 16.5vw either side,
 	   and the frame's rope post starts a hair further in, so 2vw + 14.5vw just clears it. */
@@ -3000,7 +3190,7 @@
 	   here. */
 	.tile-readout-win {
 		bottom: 0.15vw;
-		font-size: calc(0.95vw * var(--len-fit, 1));
+		font-size: calc(1.3vw * var(--len-fit, 1));
 	}
 	/* The badge has landed in it: the readout swells and flares gold as the total appears, then
 	   settles with a glow it keeps. The badge's own hard shadow is carried through the flare. */

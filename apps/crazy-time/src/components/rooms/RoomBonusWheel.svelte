@@ -18,17 +18,29 @@
 	import RoomHint from './RoomHint.svelte';
 
 	/**
-	 * The gilded ring art (static/img/bonus-wheel/frame.png, 1971x2109), gem pointer at 12 o'clock,
-	 * carrying the same ship's-wheel hub as the main wheel's frame. `hole` is least-squares fitted to
-	 * the ring's inner edge over the clean stretches of wood: centre (985.8, 1115.5) px, radius
-	 * 752.0 px (residual ~1.2 px). The rope wraps, the side plates and the two gem pointers all reach
-	 * further in than that — the deepest of them starts at 774 px — so the wedges overscan to 782 px
-	 * (4%) and finish underneath the art instead of leaving a black crescent anywhere on the rim.
+	 * Where the Bonus Wheel's own icon sits as the hub, as fractions of the frame box: dead on the
+	 * hole's centre, 576 px of the frame wide — the size the old painted hub was (its spokes ran 539
+	 * px end to end, the icon's run 540 of its 577). It is the same file the way in and out
+	 * (WheelReveal) flies, so that lands on it and takes off from it without a seam.
+	 */
+	const HUB_ICON = { cx: 985.8 / 1971, cy: 1115.5 / 2109, w: 576 / 1971 };
+
+	/**
+	 * The gilded ring art (static/img/bonus-wheel/frame_bare.webp, 1971x2109), gem pointer at 12
+	 * o'clock, with no hub of its own: the hub is the Bonus Wheel's icon (`center`), laid on top.
+	 * The ring is pixel for pixel the one the hub used to be painted into, so `hole` still holds:
+	 * least-squares fitted to the ring's inner edge over the clean stretches of wood, centre (985.8,
+	 * 1115.5) px, radius 752.0 px (residual ~1.2 px). The rope wraps, the side plates and the two gem
+	 * pointers all reach further in than that — the deepest of them starts at 774 px — so the wedges
+	 * overscan to 782 px (4%) and finish underneath the art instead of leaving a black crescent
+	 * anywhere on the rim.
 	 */
 	const FRAME: WheelFrame = {
-		src: staticUrl('img/bonus-wheel/frame.png'),
+		src: staticUrl('img/bonus-wheel/frame_bare.webp'),
 		aspect: 1971 / 2109,
-		hole: { cx: 985.8 / 1971, cy: 1115.5 / 2109, r: 752.0 / 1971 },
+		hole: { cx: HUB_ICON.cx, cy: HUB_ICON.cy, r: 752.0 / 1971 },
+		center: staticUrl('img/bonus-wheel/wheel_icon.webp'),
+		centerWidth: HUB_ICON.w,
 		overscan: 0.04,
 		// A good deal of this frame hangs over the disc: at 733 px the art still covers 270° of the
 		// circle — 27 wedges of 36 — because of the rope wraps and the side plates, and the two gem
@@ -154,6 +166,11 @@
 		{highlight}
 		onTick={() => playSound('peg', 1.6)}
 	/>
+	<span
+		class="hub-icon"
+		data-bonus-hub
+		style="left:{HUB_ICON.cx * 100}%; top:{HUB_ICON.cy * 100}%; width:{HUB_ICON.w * 100}%"
+	></span>
 	{#if waiting}
 		<!-- The whole wheel is the button, not the hub: this is a thumb on a phone, and a target the
 		     size of the ship's wheel is a target that gets missed. The glow is drawn on the hub all
@@ -199,6 +216,18 @@
 		 */
 		margin-bottom: calc(var(--wheel-w, 44.5vw) * 0.062);
 		position: relative;
+	}
+	/* The hub is the Bonus Wheel's own icon, and while that icon is in the air on the way in or out
+	   (WheelReveal) the game marks itself `hub-lifted`: there is one of it, and it is the flying one. */
+	:global(.game.hub-lifted) .jackpot :global(img.center) {
+		visibility: hidden;
+	}
+	/* Nothing to see: only a place, measured by the way in. */
+	.hub-icon {
+		position: absolute;
+		translate: -50% -50%;
+		aspect-ratio: 577 / 586;
+		pointer-events: none;
 	}
 	.start {
 		position: absolute;

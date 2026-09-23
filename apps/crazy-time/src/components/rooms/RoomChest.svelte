@@ -22,6 +22,7 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 	import RoomHint from './RoomHint.svelte';
 	import ChestDragon from './ChestDragon.svelte';
+	import MultiplierBurst from './MultiplierBurst.svelte';
 
 	type Props = { room: BookEventChest; interactive: boolean };
 	let { room, interactive }: Props = $props();
@@ -318,10 +319,7 @@
 				<img class="art shut" src={CHEST_SHUT} alt="" />
 				<img class="art spilling" src={CHEST_OPEN} alt="" />
 				<div class="value">
-					<div class="mult-badge">
-						<span class="mult-stroke" aria-hidden="true">{valueOf(i)}x</span>
-						<span class="mult-fill">{valueOf(i)}x</span>
-					</div>
+					<MultiplierBurst value={valueOf(i)} shown={open} rays={mine} />
 				</div>
 			</button>
 		{/each}
@@ -450,13 +448,10 @@
 		transform: translateX(-50%) translateY(-5%);
 	}
 	/*
-	 * The multiplier, cut in the letters every other multiplier in the game is cut in —
-	 * `.mult-badge` is the table's own, and it is global on purpose so a number reads the same
-	 * wherever in the game it happens to be standing.
-	 *
-	 * It is written on the chest's front, over the drawing, where a gold number would otherwise be
-	 * lost in the gold coins of the open art — so it is laid on a warm glow (`::before`), and the
-	 * badge's own brown outline and drop shadow carry it off that.
+	 * Where the multiplier sits: on the chest's front, over the drawing. How it looks and how it
+	 * bursts out of the treasure is `MultiplierBurst`'s, shared with the other rooms' results. It
+	 * starts a little above this (the heap of coins inside the open drawing), which is where the
+	 * burst's rise comes from.
 	 */
 	.value {
 		position: absolute;
@@ -468,66 +463,6 @@
 		place-items: center;
 		font-size: calc(var(--cell) * 0.24);
 		pointer-events: none;
-		opacity: 0;
-		transform: translateY(0) scale(1);
-	}
-	/* A gradient rather than a blur filter: a filter is rasterised afresh at every size the last
-	   chest passes through on its way to three times its own, and a gradient is painted by the
-	   compositor for nothing. The transform on `.value` keeps the negative z-index inside it, under
-	   the number. */
-	.value::before {
-		content: '';
-		position: absolute;
-		inset: -22% -8%;
-		z-index: -1;
-		border-radius: 50%;
-		background: radial-gradient(
-			ellipse closest-side,
-			rgba(255, 214, 90, 0.85) 50%,
-			rgba(255, 180, 50, 0.45) 72%,
-			rgba(255, 160, 30, 0.12) 88%,
-			rgba(255, 160, 30, 0) 100%
-		);
-	}
-	/*
-	 * The number comes OUT of the treasure: it starts tiny and unseen in the heap of coins inside
-	 * the open drawing, then swells outwards towards the player as it fades in. It overshoots,
-	 * rebounds and settles on the chest's front, where it can be read.
-	 *
-	 * Where the heap is: its middle is 0.44 down the open canvas (1024px tall, drawn 0.7176 of a
-	 * column high off a 0.014 floor), so 0.416 of a column up the box. The number's own middle is
-	 * 0.41 of `--art-h` up, 0.317 of a column. So it starts 0.10 of a column higher than it ends.
-	 *
-	 * It waits a beat for the lid to come off (the drawings cross in 200ms), and the whole thing is
-	 * inside the 240ms + 1200ms the last chest holds open before the win line.
-	 */
-	.chest.open .value {
-		opacity: 1;
-		animation: value-burst 900ms 90ms both;
-	}
-	@keyframes value-burst {
-		0% {
-			opacity: 0;
-			transform: translateY(calc(var(--cell) * -0.1)) scale(0.2);
-			animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
-		}
-		42% {
-			opacity: 1;
-			transform: translateY(calc(var(--cell) * -0.01)) scale(1.16);
-			animation-timing-function: ease-in-out;
-		}
-		62% {
-			transform: translateY(0) scale(0.93);
-			animation-timing-function: ease-in-out;
-		}
-		80% {
-			transform: translateY(0) scale(1.04);
-			animation-timing-function: ease-in-out;
-		}
-		100% {
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
 	}
 	/* The eleven leaving. They go TOGETHER: each was read as it opened, and there is nothing left
 	   on any of them to walk the eye over. */

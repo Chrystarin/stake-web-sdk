@@ -101,7 +101,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/pirate-plinko/explosion.png',
 
 	// ── Bonus Wheel (RoomBonusWheel.svelte) ──────────────────────────────────────────────────────
-	'img/bonus-wheel/frame.png',
+	'img/bonus-wheel/frame_bare.webp',
 
 	// ── Treasure Chest (RoomChest.svelte) ────────────────────────────────────────────────────────
 	// Both backdrop cuts, for the same reason as the plinko boards above.
