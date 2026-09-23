@@ -182,6 +182,30 @@
 		return () => observer.disconnect();
 	});
 
+	/**
+	 * The chip row's span — the clear button's outer edge to the undo button's — in the frame's own
+	 * units. Portrait sizes the board to it, so the tiles line up with the row under them. Measured
+	 * rather than restated: the row's width is its chip count times the pitch plus the buttons and
+	 * their margins, and the count comes from the stake ladder.
+	 */
+	let actionsEl: HTMLElement | undefined = $state();
+	let chipRowW = $state(0);
+	const measureChipRow = () => {
+		const clear = actionsEl?.querySelector('.clear-btn')?.getBoundingClientRect();
+		const undo = actionsEl?.querySelector('.undo-btn')?.getBoundingClientRect();
+		if (!clear || !undo || undo.right <= clear.left) return;
+		chipRowW = (undo.right - clear.left) / fitScale;
+	};
+	$effect(() => {
+		void fitScale;
+		void portrait;
+		if (!actionsEl) return;
+		measureChipRow();
+		const observer = new ResizeObserver(measureChipRow);
+		observer.observe(actionsEl);
+		return () => observer.disconnect();
+	});
+
 	const BOARD: Spot[] = ['x1', 'x2', 'piratePlinko', 'bonusWheel', 'x5', 'x10', 'chest', 'oceanVoyage'];
 
 	/**
@@ -1886,7 +1910,7 @@
 				<div class="betting-panel">
 					<div class="inner-panel">
 						<!-- Bet board: LuckyWheel's 4x2 tile grid. -->
-						<div class="board">
+						<div class="board" style:--chip-row-w={chipRowW ? `${chipRowW}px` : null}>
 							<div class="tiles">
 								{#each BOARD as spot (spot)}
 									{@const backed = stateGameDerived.isBacked(spot)}
@@ -2003,7 +2027,7 @@
 							{/each}
 						</div>
 
-						<div class="actions-wrap" class:hidden={controlsHidden}>
+						<div class="actions-wrap" class:hidden={controlsHidden} bind:this={actionsEl}>
 							<div
 								class="clear-btn"
 								class:disabled={clearDisabled}
@@ -2787,11 +2811,12 @@
 		order: 1;
 	}
 	.game.portrait .board {
-		/* Half the panel's width, capped at the landscape tile's own proportion (10.4 : 4.6) — at a
-		   phone's width that is the cap, and the board sits centred and narrower than the panel. */
+		/* The board spans the chip row under it (`--chip-row-w`, measured), so the tiles' outer
+		   edges line up with the clear and undo buttons' — never wider than the panel. Until the row
+		   is measured, 3.1 times the tile's height stands in. */
 		--tile-w: min(
 			calc((100vw / var(--fit, 1) - 2 * var(--panel-inset) - var(--tile-gap-x)) / 2),
-			calc(var(--tile-h) * 10.4 / 4.6)
+			calc((var(--chip-row-w, calc(var(--tile-h) * 6.2)) - var(--tile-gap-x)) / 2)
 		);
 		--tile-h: 14vw;
 		--tile-gap-x: 0vw;
