@@ -44,7 +44,7 @@ export const SPOT_LABEL: Record<Spot, string> = {
 export const ROOM_ICON: Record<RoomSpot, { src: string; aspect: number }> = {
 	piratePlinko: { src: 'img/wheel/pirate-plinko.png', aspect: 1 },
 	bonusWheel: { src: 'img/wheel/bonus-wheel.png', aspect: 1 },
-	chest: { src: 'img/wheel/chest.png', aspect: 1 },
+	chest: { src: 'img/treasure_chest/wheel_icon_chest_closed.webp', aspect: 1 },
 	oceanVoyage: { src: 'img/wheel/ocean-voyage.png', aspect: 1 },
 };
 

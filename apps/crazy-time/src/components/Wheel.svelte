@@ -93,6 +93,8 @@
 		 * its ink there. The default fits the main wheel's ship's-wheel hub.
 		 */
 		hubRadius?: number;
+		/** A segment whose badge art is hidden: lifted off the disc by something drawn over it. */
+		liftedIcon?: number | null;
 	};
 
 	let {
@@ -106,6 +108,7 @@
 		hubRadius = 69,
 		sizeStep,
 		flash = false,
+		liftedIcon = null,
 	}: Props = $props();
 
 	const R = 200; // viewBox radius
@@ -271,6 +274,26 @@
 	export const jumpTo = (index: number) => {
 		if (spinning) return;
 		rotation = -centreOf(index);
+	};
+
+	/** Where segment `index`'s badge art is on the screen, as a client rect; null if it has none. */
+	export const iconRect = (index: number): DOMRect | null =>
+		wheelEl?.querySelector(`image[data-seg="${index}"]`)?.getBoundingClientRect() ?? null;
+
+	/**
+	 * The disc's centre and diameter on the screen, in client pixels. The disc turns, so its client
+	 * rect is the box round a rotated square: its width is the diameter times |cos| + |sin| of the
+	 * angle, which is taken back out.
+	 */
+	export const discOnScreen = (): { cx: number; cy: number; d: number } | null => {
+		if (!wheelEl) return null;
+		const r = wheelEl.getBoundingClientRect();
+		const a = (rotation * Math.PI) / 180;
+		return {
+			cx: r.left + r.width / 2,
+			cy: r.top + r.height / 2,
+			d: r.width / (Math.abs(Math.cos(a)) + Math.abs(Math.sin(a))),
+		};
 	};
 
 	const finish = (index: number) => {
@@ -571,6 +594,8 @@
 						width={c.w}
 						height={c.h}
 						transform="rotate({centreOf(i)} {c.cx} {c.cy})"
+						data-seg={i}
+						opacity={liftedIcon === i ? 0 : 1}
 					/>
 				{:else if seg.image}
 					{@const p = labelPos(i)}
@@ -582,6 +607,8 @@
 						width={box.w}
 						height={box.h}
 						transform="rotate({centreOf(i)} {p.x} {p.y})"
+						data-seg={i}
+						opacity={liftedIcon === i ? 0 : 1}
 					/>
 				{:else if !isRun(seg)}
 					{@const p = labelPos(i)}

@@ -36,10 +36,8 @@
 		onTick?: () => void;
 		/** Fired as each reel comes to rest — twice a spin, a couple of seconds apart. */
 		onReelStop?: () => void;
-		/** Run the reels at a fraction of their length — see `isForcedRound`. */
-		hurry?: boolean;
 	};
-	let { applied = false, onTick, onReelStop, hurry = false }: Props = $props();
+	let { applied = false, onTick, onReelStop }: Props = $props();
 
 	/** Copies of the strip to travel through. Enough that the right reel, which runs longest at the
 	 *  shared rate, always finds a copy far enough away to land on. */
@@ -47,9 +45,6 @@
 	/** How long the left reel runs. The right one runs longer, so it lands after it. */
 	const SPIN_MS = 2200;
 	const MULT_EXTRA_MS = 2000;
-	/** Both cut right down for a forced round — see `isForcedRound`. */
-	const spinMs = $derived(hurry ? 460 : SPIN_MS);
-	const multExtraMs = $derived(hurry ? 300 : MULT_EXTRA_MS);
 
 	// A number reads as its wheel badge alone; a bonus as the room's own icon plus its name, so a
 	// reel says the same thing the wedge does.
@@ -137,8 +132,8 @@
 		const m = targetMultIndex(multiplier);
 		const sTarget = (COPIES - 1) * spotItems.length + s;
 
-		const rate = (sTarget - spotOffset) / spinMs; // cells per ms, shared by both reels
-		multMs = spinMs + multExtraMs;
+		const rate = (sTarget - spotOffset) / SPIN_MS; // cells per ms, shared by both reels
+		multMs = SPIN_MS + MULT_EXTRA_MS;
 		const wanted = rate * multMs;
 		let mTarget = multItems.length + m;
 		for (let copy = 1; copy < COPIES; copy++) {
@@ -154,7 +149,7 @@
 			cancelAnimationFrame(raf);
 			raf = requestAnimationFrame(track);
 			// Each reel says so as it lands; the second one is still running when the first does.
-			setTimeout(() => onReelStop?.(), spinMs);
+			setTimeout(() => onReelStop?.(), SPIN_MS);
 			setTimeout(() => onReelStop?.(), multMs);
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
@@ -180,7 +175,7 @@
 	<div class="cabinet">
 		<img class="frame-art" src={FRAME_ART} alt="" draggable="false" />
 		<div class="reel spot-reel">
-			<div class="strip" bind:this={spotStripEl} style="--offset:{spotOffset}; --ms:{spinMs}ms">
+			<div class="strip" bind:this={spotStripEl} style="--offset:{spotOffset}; --ms:{SPIN_MS}ms">
 				{#each spotStrip as item, i (i)}
 					<div class="cell" style="--fill:{item.fill}; --text:{item.text}">
 						<img

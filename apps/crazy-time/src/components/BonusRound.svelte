@@ -29,10 +29,17 @@
 		chip: number;
 		/** Tall viewport: the rooms that care lay themselves out differently. */
 		portrait?: boolean;
+		/**
+		 * The screen is already white with light (the Treasure Chest's way in, RoomReveal): the room
+		 * goes up in place under it, with no slide and no door, and the light fading is the entrance.
+		 */
+		litEntrance?: boolean;
 		/** True for the whole time the screen is up. */
 		onOpenChange?: (open: boolean) => void;
 	};
-	let { chip, portrait = false, onOpenChange }: Props = $props();
+	let { chip, portrait = false, litEntrance = false, onOpenChange }: Props = $props();
+	/** `litEntrance` as it stood when this screen went up: the light lifting must not start a slide. */
+	let enteredLit = $state(false);
 
 	const context = getContext();
 
@@ -135,13 +142,14 @@
 
 	context.eventEmitter.subscribeOnMount({
 		bonusRound: async (event) => {
+			enteredLit = litEntrance;
 			onOpenChange?.(true);
 			result = null;
 			closing = false;
 			current = { room: event.room, covered: event.covered };
 			// The table track rides out under the door and the room's own comes up behind it.
 			setMusicScene(spotFor(event.room));
-			playSound('doorClose');
+			if (!enteredLit) playSound('doorClose');
 			await tick();
 			await waitForTimeout(700); // screen slide-in
 			try {
@@ -177,7 +185,7 @@
 		result !== null &&
 		current.room.type !== 'piratePlinkoRoom' &&
 		current.room.type !== 'chestRoom'}
-	<div class="screen" class:closing style="--room-base:{colour.base}; --room-deep:{colour.deep}">
+	<div class="screen" class:closing class:lit={enteredLit} style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
 		{#if still}
 			<div class="room-still" style="--room-still:{staticCssUrl(still)}"></div>
@@ -271,6 +279,9 @@
 			),
 			linear-gradient(180deg, #120a18 0%, #05030a 100%);
 		animation: screen-in 650ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+	}
+	.screen.lit {
+		animation: none;
 	}
 	.screen.closing {
 		animation: screen-out 450ms ease-in both;

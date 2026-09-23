@@ -43,15 +43,11 @@ It happens once per load. After that the board is yours again, bet and spun by h
 round. The other kinds — `win`, `loss`, `number`, `topslot`, `maxwin` — do not auto-start, because
 what you want to look at there is usually a board you chose yourself.
 
-### A shorter wind-up
+### Same pace as a live round
 
-Any forced round — every kind, not just the rooms — also skips most of its own build-up. The reels
-turn, the wheel turns and the multiplier flies exactly as they always do, in the same order, but at
-a fraction of the length: a forced round is being looked at rather than played, and twelve seconds
-of ceremony between a reload and the thing you are checking is twelve seconds in the way. Loading
-`?force=plinko` puts you in the room about three and a half seconds after the page does.
-
-Drop the parameter and the round plays at full length again.
+A forced round plays at full length: the reels, the wheel, the multiplier flight and the chest
+reveal all run exactly as they do in a normal game, so what you check is what a player sees. The
+auto-start waits for the intro splash to finish before it bets and spins.
 
 ### Coverage
 

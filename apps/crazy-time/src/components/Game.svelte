@@ -11,7 +11,7 @@
 	import { getContext } from '../game/context';
 	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
-	import { forcedRoomKind, isForcedRound } from '../game/devLocalBet';
+	import { forcedRoomKind } from '../game/devLocalBet';
 	import {
 		isReplay,
 		seedReplayStake,
@@ -45,6 +45,7 @@
 	import TopSlot from './TopSlot.svelte';
 	import Background from './Background.svelte';
 	import BonusRound from './BonusRound.svelte';
+	import RoomReveal from './RoomReveal.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
 	import BuyBonusModal from './BuyBonusModal.svelte';
@@ -441,9 +442,56 @@
 	/** True while the bonus screen is down over the table. */
 	let bonusUp = $state(false);
 
+	// --- The Treasure Chest's way in: its chest, opened, and its light (RoomReveal) -------------
+	let roomReveal: RoomReveal | undefined = $state();
+	/** The wedge whose chest has been lifted off the disc by the reveal. */
+	let revealIcon = $state<number | null>(null);
+	/** The screen is white with the chest's light: the bonus screen goes up under it, unmoving. */
+	let revealLit = $state(false);
+	/** How big the opened chest is drawn in the middle of the wheel, as a share of the disc. */
+	const REVEAL_CHEST_OF_DISC = 0.5;
+
+	/**
+	 * Lift wedge `target`'s chest, open it and fill the screen with its light. False, having done
+	 * nothing, when there is nothing on the screen to lift it from.
+	 */
+	const revealChest = async (target: number): Promise<boolean> => {
+		const icon = wheel?.iconRect(target);
+		const disc = wheel?.discOnScreen();
+		if (!roomReveal || !gameEl || !icon || !disc || !icon.width) return false;
+		const host = gameEl.getBoundingClientRect();
+		const from = { ...centreIn(host, icon), size: Math.max(icon.width, icon.height) / fitScale };
+		const to = {
+			...pointIn(host, disc.cx, disc.cy),
+			size: (disc.d * REVEAL_CHEST_OF_DISC) / fitScale,
+		};
+		revealIcon = target;
+		await roomReveal.play(from, to, { w: gameEl.clientWidth, h: gameEl.clientHeight });
+		revealLit = true;
+		// The bonus screen is next and takes the light off (see `onBonusOpenChange`). Should it
+		// never come, the table is not left behind a white screen.
+		setTimeout(() => {
+			if (revealLit && !bonusUp) void endReveal();
+		}, 4000);
+		return true;
+	};
+
+	const endReveal = async () => {
+		revealIcon = null;
+		await roomReveal?.clear();
+		revealLit = false;
+	};
+
 	const onBonusOpenChange = (open: boolean) => {
 		bonusUp = open;
-		if (open) return;
+		if (open) {
+			// Give the room its first paint under the light before the light lifts off it.
+			if (revealLit)
+				void tick()
+					.then(() => waitForTimeout(150))
+					.then(endReveal);
+			return;
+		}
 		// The bonus sequence is over: the Top Slot's badge goes with it. With no badge parked, the
 		// payout skips the merge and the tile's readout reads the room's total straight away.
 		multFlight = null;
@@ -1033,18 +1081,28 @@
 	 *
 	 * Once per load. Afterwards the board belongs to whoever is sitting at it, so a second round is
 	 * bet and spun by hand like any other.
+	 *
+	 * The game mounts behind the intro splash, which waits for it to stand before fading, so this
+	 * also waits for the splash to be gone: otherwise the wheel is already turning, or done, by the
+	 * time there is anything to see.
 	 */
 	let autoStarted = false;
+	/** `introLoaderComplete` flips at the START of the splash's fade-out; mirrors `FADE_OUT_MS` there. */
+	const SPLASH_HANDOVER_MS = 400;
 	$effect(() => {
 		if (autoStarted || online || !forcedRoomKind()) return;
+		if (!stateGame.introLoaderComplete) return;
 		// Everything has to be ready: the machine idle, a chip value in from the bet template, and
 		// enough balance to cover a board. Otherwise wait for the next run of this effect.
 		if (!bettingOpen || !stakes.length || !stateGame.stake) return;
 		if (!stateGameDerived.canBackAnother()) return;
-		autoStarted = true;
-		toggleBundle(SPOTS);
-		// A tick, so the board's new state has reached `canSpin` before the spin asks it.
-		void tick().then(spin);
+		const timer = setTimeout(() => {
+			autoStarted = true;
+			toggleBundle(SPOTS);
+			// A tick, so the board's new state has reached `canSpin` before the spin asks it.
+			void tick().then(spin);
+		}, SPLASH_HANDOVER_MS);
+		return () => clearTimeout(timer);
 	});
 
 	const undoBet = () => {
@@ -1286,12 +1344,6 @@
 	const TOP_SLOT_HOLD_MS = 1000;
 	/** And how long it sits on the tile before the wheel takes over. */
 	const MULT_SETTLE_MS = 1000;
-	/**
-	 * A forced round skips most of its own wind-up. Everything still happens, in the same order
-	 * and visibly — the reels turn, the wheel turns, the multiplier flies — just at a fraction of
-	 * the length, because a debug reload is not a moment being built for anybody.
-	 */
-	const hurried = $derived(!online && isForcedRound());
 	/** The board keeps full strength through the Top Slot; it only steps back for the wheel. */
 	let panelDimmed = $state(false);
 	/** In flight, from the Top Slot's multiplier window to the tile's top-right corner. */
@@ -1369,11 +1421,11 @@
 		topSlotSpin: async (event) => {
 			await topSlot?.spin(event.spot, event.multiplier);
 			// Let the pair be read before anything moves again.
-			await waitForTimeout(hurried ? 200 : TOP_SLOT_HOLD_MS);
+			await waitForTimeout(TOP_SLOT_HOLD_MS);
 			// A blank is the miss: nothing to carry over to the board.
 			if (event.spot && event.multiplier && event.multiplier > 1) {
 				await flyMultiplier(event.spot, event.multiplier);
-				await waitForTimeout(hurried ? 200 : MULT_SETTLE_MS);
+				await waitForTimeout(MULT_SETTLE_MS);
 			}
 			// Only now does the board give the floor to the wheel — unless a bought room took the
 			// wheel off the stage: nothing spins, so the board stays at full strength and goes
@@ -1394,7 +1446,7 @@
 				// Unseen, so there is nothing to wait for: the board shows the result at once.
 				wheel?.jumpTo(target);
 			} else {
-				await wheel?.spinTo(target, hurried ? { turns: 1, ms: 800 } : { turns: 5, ms: 4600 });
+				await wheel?.spinTo(target, { turns: 5, ms: 4600 });
 			}
 			wheelHighlight = target;
 			landedSpot = event.spot;
@@ -1402,7 +1454,14 @@
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
 			playSound(event.covered ? 'merge' : 'pop');
-			await waitForTimeout(hurried ? 250 : isRoomSpot(event.spot) ? 900 : 700);
+			// The Treasure Chest is walked into through its own chest (see RoomReveal) — when the
+			// wheel is on the stage to lift it from. A bought room has the wheel off, so it keeps the
+			// plain slide.
+			if (event.spot === 'chest' && !wheelOff) {
+				await waitForTimeout(400);
+				if (await revealChest(target)) return;
+			}
+			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
 		},
 		winShow: async (emitterEvent) => {
 			// Book amounts are x100 in units of the chip, so cash scales by betAmount.
@@ -1529,7 +1588,6 @@
 				<TopSlot
 					bind:this={topSlot}
 					applied={topSlotApplied}
-					hurry={hurried}
 					onTick={() => playSound('peg', 1.9, 0.5)}
 					onReelStop={() => playSound('notify')}
 				/>
@@ -1543,6 +1601,7 @@
 					frame={WHEEL_FRAME}
 					innerRadius={0}
 					highlight={wheelHighlight}
+					liftedIcon={revealIcon}
 					onTick={() => playSound('peg', 1.4, 0.5)}
 				/>
 				<!-- The gem at the middle of the hub is the play button: it spins, or plays again once a
@@ -1803,8 +1862,10 @@
 		<BonusRound
 			chip={stateBet.betAmount}
 			{portrait}
+			litEntrance={revealLit}
 			onOpenChange={onBonusOpenChange}
 		/>
+		<RoomReveal bind:this={roomReveal} />
 
 	</div>
 </div>

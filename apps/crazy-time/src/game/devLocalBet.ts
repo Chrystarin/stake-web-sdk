@@ -77,13 +77,6 @@ const readForce = (): Force => {
  * every single time, which is a lot of clicking to look at one screen. A live session never gets
  * here — the parameters do nothing with an `rgs_url`, and the caller checks that too.
  */
-/**
- * True when a `?force=` of any kind is in play. The wind-up before a result is there to build a
- * moment, and a forced round is being LOOKED at rather than played — twelve seconds of reels and
- * wheel between a reload and the thing you are checking is just twelve seconds in the way.
- */
-export const isForcedRound = (): boolean => readForce() !== null;
-
 export const forcedRoomKind = (): string | null => {
 	const force = readForce();
 	if (!force) return null;

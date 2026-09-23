@@ -45,6 +45,8 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// One picture per room, drawn on the wheel, on the bet tile, on the Top Slot reel and on the Buy
 	// Bonus cards — `ROOM_ICON` is the one place all four of those read it from.
 	...ROOM_SPOTS.map((spot) => ROOM_ICON[spot].src),
+	// The chest the Treasure Chest's icon opens into on the way into the room (RoomReveal.svelte).
+	'img/treasure_chest/wheel_icon_chest_opened.webp',
 
 	// ── Top Slot cabinet (TopSlot.svelte) ─────────────────────────────────────────────────────────
 	'img/top-slots/frame.png',
