@@ -84,6 +84,19 @@ combination, raise `--limit` and re-run the sync (default 14 books per mode, 252
 The offline balance starts at 1,000 and is debited `cost x chip` per spin; wins are credited from
 the book's `finalWin`. It is not persisted; reload to reset.
 
+`?balance=<amount>` starts it somewhere else, in whole currency units (not API units):
+
+```
+http://localhost:3021/?balance=0            # an empty wallet: every chip greyed out
+http://localhost:3021/?balance=12.5         # 12.50: a board the balance only partly covers
+http://localhost:3021/?balance=1000000      # enough for any buy at any chip
+```
+
+Anything that is not a number of 0 or more is ignored (with a console warning) and the balance
+starts at 1,000. It combines with the other parameters (`?balance=3&force=plinko`,
+`?balance=5000&currency=JPY`); it does nothing online, where the RGS owns the balance, or in a
+replay, which has none.
+
 ## The intro loader
 
 Every load opens on the casino TV logo splash (`src/components/LoaderCasinoTvLogo.svelte`), which

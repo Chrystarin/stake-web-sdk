@@ -59,6 +59,20 @@
 		context.stateXstate.value = 'idle';
 	};
 
+	/**
+	 * `?balance=<amount>` starts the offline wallet there, in whole currency units (`?balance=3.5`
+	 * is 3.50), to try a board the balance only half covers, greyed chips, or an empty wallet.
+	 * Anything that is not a number of 0 or more falls back to 1,000.
+	 */
+	const startingBalance = (): number => {
+		const raw = new URLSearchParams(window.location.search).get('balance');
+		if (raw === null || raw.trim() === '') return 1000;
+		const value = Number(raw);
+		if (Number.isFinite(value) && value >= 0) return value;
+		console.warn(`[crazy-time] ?balance=${raw} is not a usable balance; starting at 1,000`);
+		return 1000;
+	};
+
 	onMount(() => {
 		if (isReplay()) {
 			mountReplay();
@@ -67,7 +81,7 @@
 		// Fake an authenticated session so the game is playable offline (no RGS).
 		// `?currency=PLN` tries the table in another currency's form (game/currency.ts).
 		stateBet.currency = (stateUrlDerived.currency() || 'USD') as typeof stateBet.currency;
-		stateBet.balanceAmount = 1000;
+		stateBet.balanceAmount = startingBalance();
 		stateBet.betAmount = 5;
 		stateBet.wageredBetAmount = 5;
 		// Real mode + amount are set by stateGameDerived.beginSpin() from the selection; this is
