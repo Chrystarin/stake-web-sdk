@@ -14,9 +14,12 @@
 	 * book's own `slot` at worst: same value, shorter path. `room.dropZone` goes unused, because
 	 * choosing where to drop from is now the player's job.
 	 */
+	import { tick } from 'svelte';
+	import { waitForTimeout } from 'utils-shared/wait';
 	import { PlinkoBoard, buildPocketLadder, pocketForAward, shapeForPockets } from '../../plinko';
 	import type { BoardFrame, PlinkoBoardApi } from '../../plinko';
 	import type { BookEventPiratePlinko } from '../../game/typesBookEvent';
+	import { ROOM_ICON } from '../../game/constants';
 	import { playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
 	import { finePointer } from '../../lib/pointer.svelte';
@@ -28,11 +31,17 @@
 		interactive?: boolean;
 		/** Tall viewport: the cabinet swaps to its upright drawing and the room re-scales with it. */
 		portrait?: boolean;
+		/**
+		 * The ball was carried into the room (PlinkoReveal's `fall`) and is waiting under the mouth,
+		 * at `.load-mark`: it is loaded from there rather than from under the screen.
+		 */
+		caught?: boolean;
 	};
 	let {
 		room,
 		interactive = true,
 		portrait = false,
+		caught = false,
 	}: Props = $props();
 
 	/**
@@ -62,25 +71,27 @@
 	const hintLines = $derived(finePointer() ? HINT_FINE : HINT_COARSE);
 
 	/**
-	 * A coin falls instead of a ball. It is drawn as a disc filling its own file — centred, and
-	 * 496 of 512 across — so unlike the bomb it needs no correction: the picture IS the ball.
+	 * The ball is the room's own wheel icon: the skull-faced cannonball on the wedge the wheel
+	 * landed on, so the thing that brought the player here is the thing they fire. The disc (read
+	 * off the alpha at half opacity) runs 9..590 across and 7..592 down in the 600px file: centred
+	 * a hair up and left, and 583 across.
 	 */
-	const COIN = {
-		src: staticPath('img/pirate-plinko/coin.png'),
-		cx: 0.5,
-		cy: 0.5,
-		d: 496 / 512,
+	const BALL = {
+		src: staticPath(ROOM_ICON.piratePlinko.src),
+		cx: 299.5 / 600,
+		cy: 299.5 / 600,
+		d: 583 / 600,
 		// Framed, the board is squat: thirteen pockets across a short opening make the row gap small,
-		// and with it the ball. Drawn over size so the coin still reads as a coin, but only just: at
+		// and with it the ball. Drawn over size so it still reads as a cannonball, but only just: at
 		// this scale it covers about four tenths of a peg pitch, near enough the ball it stands for
 		// that it falls THROUGH the field rather than over the top of it. Everything either side of
-		// this number is measured in host pixels off the board's real box, so the coin tracks the
+		// this number is measured in host pixels off the board's real box, so the ball tracks the
 		// viewport on its own; this is only how much bigger than its own ball it is drawn.
 		scale: 1.35,
 	};
 	/**
-	 * The glow behind it. Over dark timber a coin can go quiet, so the light is what keeps it
-	 * findable all the way down — gold, taken off the coin itself.
+	 * The glow behind it. Over dark timber a black ball goes quiet, so the light is what keeps it
+	 * findable all the way down — gold, taken off the skull on its face.
 	 */
 	const GLOW = '#f5b431';
 
@@ -441,10 +452,81 @@
 		};
 	});
 
+	/**
+	 * The ball being loaded, straight up the barrel's line and into the muzzle, and the gun takes
+	 * the knock of it going home. Drawn under the cannon, so the part of it inside the barrel is
+	 * hidden by the barrel.
+	 *
+	 * Carried into the room (`caught`), the cannonball off the table's hub is already waiting under
+	 * the mouth, at `.load-mark`, and only has the last push to go. Otherwise — the room bought, with
+	 * no wheel to walk in from — it comes up from under the bottom of the screen.
+	 */
+	const LOAD_MS = 620;
+	const CAUGHT_LOAD_MS = 260;
+	/** Its size against the cannon's height: about the width of the mouth. */
+	const LOAD_BALL = 0.3;
+	/** Where it is caught: this much of its own size below the mouth, measured to its middle. */
+	const CATCH_BELOW = 0.6;
+	let loadEl: HTMLElement | undefined = $state();
+	let loading = $state<{ size: number } | null>(null);
+
+	const loadBall = async () => {
+		const pivot = pivotEl?.getBoundingClientRect();
+		const h = cannonHeight();
+		if (!pivot || !bayEl || !h) return;
+		const size = h * LOAD_BALL;
+		const mouth = MUZZLE_FROM_PIVOT * h;
+		// Up past the mouth to the trunnions: it goes out of sight into the barrel on the way.
+		const home = `translate(-50%, -50%) translateY(${mouth * 0.35}px) scale(0.9)`;
+		loading = { size };
+		await tick();
+		if (caught) {
+			// Upright, as the carried ball was set down.
+			loadEl?.animate(
+				[
+					{
+						transform: `translate(-50%, -50%) translateY(${mouth + size * CATCH_BELOW}px) scale(1) rotate(0deg)`,
+					},
+					{ transform: `${home} rotate(50deg)` },
+				],
+				{ duration: CAUGHT_LOAD_MS, easing: 'cubic-bezier(0.5, 0, 0.8, 0.6)', fill: 'both' },
+			);
+			await waitForTimeout(CAUGHT_LOAD_MS);
+		} else {
+			// From just under the bottom of the screen.
+			const below = (window.innerHeight - pivot.top) / zoomOf(bayEl) + size;
+			playSound('whoosh', 1.1);
+			loadEl?.animate(
+				[
+					{ transform: `translate(-50%, -50%) translateY(${below}px) scale(1.5) rotate(0deg)` },
+					{
+						transform: `translate(-50%, -50%) translateY(${mouth}px) scale(1) rotate(300deg)`,
+						offset: 0.8,
+						easing: 'ease-in',
+					},
+					{ transform: `${home} rotate(340deg)` },
+				],
+				{ duration: LOAD_MS, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)', fill: 'both' },
+			);
+			await waitForTimeout(LOAD_MS);
+		}
+		loading = null;
+		// Home: the gun is knocked up its own line by the ball going in.
+		playSound('pop', 0.75);
+		playSound('boom', 1.5, 0.3);
+		kick = { x: 0, y: -RECOIL * 0.45 * h };
+		firing = false;
+		requestAnimationFrame(() => (firing = true));
+		clearTimeout(recoilTimer);
+		recoilTimer = setTimeout(() => (firing = false), RECOIL_MS + 60);
+		await waitForTimeout(260);
+	};
+
 	export const play = async (): Promise<number> => {
 		const active = board;
 		if (!active) return room.total;
 		aimDeg = 0;
+		await loadBall();
 		armed = true;
 		/**
 		 * The clock the hint is drawing, and the one that actually takes the shot.
@@ -467,6 +549,17 @@
 
 <div class="plinko">
 	<div class="cannon-bay" bind:this={bayEl}>
+		{#if loading}
+			<!-- Before the cannon, so the barrel paints over the ball as it goes in. -->
+			<img
+				class="load-ball"
+				bind:this={loadEl}
+				src={BALL.src}
+				alt=""
+				draggable="false"
+				style="width:{loading.size}px; height:{loading.size}px"
+			/>
+		{/if}
 		<!-- Two elements, because a recoil and a swing are two different transforms and CSS applies
 		     its own in a fixed order: the mount takes the kick, the barrel takes the aim. -->
 		<div
@@ -489,6 +582,12 @@
 		     shifts with every degree — so reading the pivot off it would make the aim chase itself.
 		     This marker never turns. -->
 		<span class="cannon-pivot" bind:this={pivotEl}></span>
+		<!-- Where a ball carried into the room is set down for loading, the size it is drawn there
+		     (PlinkoReveal's `fall` measures it). -->
+		<span
+			class="load-mark"
+			style="--load-at:{MUZZLE_FROM_PIVOT + LOAD_BALL * CATCH_BELOW}; --load-size:{LOAD_BALL}"
+		></span>
 	</div>
 
 	<div class="board-wrap" bind:this={wrapEl}>
@@ -512,7 +611,7 @@
 				{shape}
 				{ladder}
 				accent={GLOW}
-				art={COIN}
+				art={BALL}
 				bombs={BOMBS}
 				frame={FRAME}
 				format={label}
@@ -599,6 +698,25 @@
 		width: 100%;
 		height: calc(var(--cannon-h) * (1 - var(--cannon-tuck)) + var(--cannon-gap));
 		overflow: visible;
+		pointer-events: none;
+	}
+	/* The ball on its way into the gun, centred on the trunnions (as the pivot marker is) and moved
+	   down from there by its animation. */
+	.load-ball {
+		position: absolute;
+		left: 50%;
+		top: calc(var(--cannon-h) * (var(--cannon-pivot) - var(--cannon-tuck)));
+		pointer-events: none;
+		filter: drop-shadow(0 0.25vw 0.5vw rgba(0, 0, 0, 0.6)) drop-shadow(0 0 0.7vw rgba(245, 180, 49, 0.6));
+	}
+	/* Under the mouth with the barrel straight down: the trunnions, then down the barrel. */
+	.load-mark {
+		position: absolute;
+		left: 50%;
+		top: calc(var(--cannon-h) * (var(--cannon-pivot) - var(--cannon-tuck) + var(--load-at)));
+		width: calc(var(--cannon-h) * var(--load-size));
+		height: calc(var(--cannon-h) * var(--load-size));
+		translate: -50% -50%;
 		pointer-events: none;
 	}
 	.cannon-pivot {

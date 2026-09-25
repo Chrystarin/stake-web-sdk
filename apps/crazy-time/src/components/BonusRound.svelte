@@ -30,11 +30,20 @@
 		/** Tall viewport: the rooms that care lay themselves out differently. */
 		portrait?: boolean;
 		/**
-		 * The screen is already covered (the Treasure Chest's light, RoomReveal, or the Bonus Wheel's
-		 * ship's wheel, WheelReveal): the room goes up in place under it, with no slide and no door,
-		 * and the cover coming off is the entrance.
+		 * How the screen comes on.
+		 * - `slide` (the default): down over the table from the top, behind the door's sound.
+		 * - `lit`: the screen is already covered (the Treasure Chest's light, RoomReveal, or the
+		 *   Bonus Wheel's ship's wheel, WheelReveal): the room goes up in place under it, with no
+		 *   slide and no door, and the cover coming off is the entrance.
+		 * - `wipe`: the screen goes up in place but clipped away to nothing, and `enter` draws it in
+		 *   (Ocean Voyage's ship, VoyageReveal); the room starts once `enter` resolves.
+		 * - `descend`: the screen goes up a whole frame BELOW the table, out of sight, and `enter`
+		 *   brings the camera down onto it (Pirate Plinko's cannonball, PlinkoReveal); the room starts
+		 *   once `enter` resolves.
 		 */
-		litEntrance?: boolean;
+		entrance?: 'slide' | 'lit' | 'wipe' | 'descend';
+		/** Runs a `wipe` or `descend` entrance on the screen element. */
+		enter?: (screen: HTMLElement) => Promise<void>;
 		/**
 		 * Asked as the screen is about to go: true once something has covered the screen for the way
 		 * out (the Bonus Wheel's ship's wheel, WheelReveal), and the room is taken down in place under
@@ -44,9 +53,15 @@
 		/** True for the whole time the screen is up. */
 		onOpenChange?: (open: boolean) => void;
 	};
-	let { portrait = false, litEntrance = false, coverExit, onOpenChange }: Props = $props();
-	/** `litEntrance` as it stood when this screen went up: the light lifting must not start a slide. */
-	let enteredLit = $state(false);
+	let { portrait = false, entrance = 'slide', enter, coverExit, onOpenChange }: Props = $props();
+	/** `entrance` as it stood when this screen went up: the light lifting must not start a slide. */
+	let enteredAs = $state<'slide' | 'lit' | 'wipe' | 'descend'>('slide');
+	/**
+	 * An entrance still waiting on `enter`: the screen is held out of sight until it runs — clipped
+	 * away for a wipe, a frame down for a descent.
+	 */
+	let held = $state(false);
+	let screenEl: HTMLElement | undefined = $state();
 
 	const context = getContext();
 
@@ -149,16 +164,25 @@
 
 	context.eventEmitter.subscribeOnMount({
 		bonusRound: async (event) => {
-			enteredLit = litEntrance;
+			const handed = entrance === 'wipe' || entrance === 'descend';
+			enteredAs = handed && !enter ? 'slide' : entrance;
+			held = enteredAs === 'wipe' || enteredAs === 'descend';
 			onOpenChange?.(true);
 			result = null;
 			closing = false;
 			current = { room: event.room, covered: event.covered };
 			// The table track rides out under the door and the room's own comes up behind it.
 			setMusicScene(spotFor(event.room));
-			if (!enteredLit) playSound('doorClose');
+			if (enteredAs === 'slide') playSound('doorClose');
 			await tick();
-			await waitForTimeout(700); // screen slide-in
+			if (held && enter && screenEl) {
+				// However the entrance goes, the screen is not left out of sight behind it.
+				await enter(screenEl).catch(() => undefined);
+				held = false;
+			} else {
+				held = false;
+				await waitForTimeout(700); // screen slide-in
+			}
 			try {
 				// A room resolves the moment it settles — for Pirate Plinko that is the frame the ball drops
 				// into the pocket, with the card lit and the land sound going. The number is held back
@@ -192,7 +216,14 @@
 	     own burst (`MultiplierBurst`). The chest writes it on its last chest instead, so it is left
 	     out here. No cash: the win is the balance's to report, not this screen's. -->
 	{@const centreSays = result !== null && current.room.type !== 'chestRoom'}
-	<div class="screen" class:closing class:lit={enteredLit} style="--room-base:{colour.base}; --room-deep:{colour.deep}">
+	<div
+		class="screen"
+		class:closing
+		class:lit={enteredAs !== 'slide'}
+		class:wiping={held && enteredAs === 'wipe'}
+		class:descending={held && enteredAs === 'descend'}
+		bind:this={screenEl}
+		style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
 		{#if still}
 			<div class="room-still" style="--room-still:{staticCssUrl(still)}"></div>
@@ -225,7 +256,13 @@
 
 		<div class="stage" class:over-plaque={current.room.type === 'oceanVoyageRoom'}>
 			{#if current.room.type === 'piratePlinkoRoom'}
-				<RoomPiratePlinko bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
+				<RoomPiratePlinko
+					bind:this={roomApi}
+					room={current.room}
+					interactive={handsOn}
+					{portrait}
+					caught={enteredAs === 'descend'}
+				/>
 			{:else if current.room.type === 'bonusWheelRoom'}
 				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={handsOn} />
 			{:else if current.room.type === 'chestRoom'}
@@ -272,6 +309,15 @@
 	}
 	.screen.lit {
 		animation: none;
+	}
+	/* Up, but not yet drawn in: the wipe (VoyageReveal's `cross`) animates the clip off it. */
+	.screen.wiping {
+		clip-path: inset(0 0 0 100%);
+	}
+	/* Up, but a frame down, under the table: the camera coming down (PlinkoReveal's `fall`)
+	   animates `translate` off it. */
+	.screen.descending {
+		translate: 0 100%;
 	}
 	.screen.closing {
 		animation: screen-out 450ms ease-in both;

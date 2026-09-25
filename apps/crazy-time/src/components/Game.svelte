@@ -35,6 +35,8 @@
 		buyPrice,
 		coverageOf,
 		isBuyMode,
+		motionOf,
+		ICON_MOTION_MS,
 		type RoomSpot,
 		type Spot,
 	} from '../game/constants';
@@ -47,6 +49,8 @@
 	import BonusRound from './BonusRound.svelte';
 	import RoomReveal from './RoomReveal.svelte';
 	import WheelReveal from './WheelReveal.svelte';
+	import PlinkoReveal from './PlinkoReveal.svelte';
+	import VoyageReveal from './VoyageReveal.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
 	import BuyBonusModal from './BuyBonusModal.svelte';
@@ -111,6 +115,15 @@
 	let cabinetVw = $state(22.5);
 	let soloCabinetVw = $state(45);
 	let lapVw = $state(1.29);
+	/**
+	 * The wheel while bets are being placed, when the Top Slot is up out of sight: it takes the
+	 * cabinet's room as well as its own. Landscape keeps the wheel's bottom where it is and runs its
+	 * top up to the frame's, so it grows by the cabinet's height less the lap. Portrait is already a
+	 * full-width wheel, so it only comes up to the top and grows a little past the sides — the ring's
+	 * outer rim runs off the edges, and the gem stays well clear of the board.
+	 */
+	let wheelBigVw = $state(54);
+	const PORTRAIT_BIG_WHEEL_VW = 108;
 	const updateFit = () => {
 		const w = window.innerWidth;
 		const h = window.innerHeight;
@@ -126,6 +139,7 @@
 			? PORTRAIT_SOLO_CABINET_VW
 			: localVw * SOLO_CABINET_SHARE * CABINET_ASPECT;
 		lapVw = (cabinetVw / CABINET_ASPECT) * WHEEL_LAP_SHARE;
+		wheelBigVw = portrait ? PORTRAIT_BIG_WHEEL_VW : (localVw - lapVw) / WHEEL_ASPECT;
 	};
 	$effect(() => {
 		updateFit();
@@ -482,6 +496,178 @@
 	/** How big the icon is drawn in the middle of the wheel, as a share of the disc. */
 	const REVEAL_CHEST_OF_DISC = 0.5;
 	const REVEAL_WHEEL_OF_DISC = 0.42;
+	/** The cannonball landing on the hub (PlinkoReveal). */
+	const REVEAL_BALL_OF_DISC = 0.26;
+
+	// --- Pirate Plinko and Ocean Voyage: their icons carry the player out of the table -----------
+	// The cannonball bounces off the hub and falls, and the camera goes down with it: the table
+	// slides up and away and the room, which lies under it, comes up from below (PlinkoReveal); the
+	// ship sails off to the right, comes back across the screen drawing the room in behind it, and
+	// docks where the room's own ship waits (VoyageReveal). Neither covers the screen, so the rooms
+	// keep their own ways out (the slide).
+	let plinkoReveal: PlinkoReveal | undefined = $state();
+	let voyageReveal: VoyageReveal | undefined = $state();
+	/** How the next bonus screen comes on (BonusRound's `entrance`) when no cover has it. */
+	let roomEntrance = $state<'slide' | 'wipe' | 'descend'>('slide');
+	/** The room's own ship is held back while the one that brought the player docks onto it. */
+	let shipArriving = $state(false);
+	/** The lifted wedge badge goes back on the table once the bonus screen is fully over it. */
+	let restoreIconOnOpen = false;
+	const ROOM_SLIDE_MS = 700;
+
+	const frameSize = () => ({ w: gameEl?.clientWidth ?? 0, h: gameEl?.clientHeight ?? 0 });
+
+	/**
+	 * Wedge `target`'s cannonball, landed on the hub. Its bounce off it, and the camera going down
+	 * after it, are the room's entrance (`descend`).
+	 */
+	const dropBall = async (target: number): Promise<boolean> => {
+		const icon = wheel?.iconRect(target);
+		const disc = wheel?.discOnScreen();
+		if (!plinkoReveal || !gameEl || !icon?.width || !disc?.d) return false;
+		const host = gameEl.getBoundingClientRect();
+		const from = { ...centreIn(host, icon), size: Math.max(icon.width, icon.height) / fitScale };
+		const to = { ...pointIn(host, disc.cx, disc.cy), size: (disc.d * REVEAL_BALL_OF_DISC) / fitScale };
+		revealIcon = target;
+		roomEntrance = 'descend';
+		await plinkoReveal.play(from, to);
+		// The room is next and takes the ball on down. Should it never come, the ball does not sit
+		// on the hub for good.
+		setTimeout(() => {
+			if (roomEntrance !== 'descend' || bonusUp) return;
+			plinkoReveal?.hide();
+			revealIcon = null;
+			roomEntrance = 'slide';
+		}, 4000);
+		return true;
+	};
+
+	/**
+	 * The clouds on the seam between the table and the room as the camera goes down: a bank of them
+	 * as tall as this share of the frame, laid end to end across it — every other one mirrored, and
+	 * each over the tapered end of the last — carried on the room's top edge. The picture is three
+	 * times as wide as it is tall, so one of them across a landscape frame would stand over half of
+	 * it. They come in and go out on the camera's first and last stretches, since at either end of
+	 * the move they would sit over one screen or the other.
+	 */
+	const SEAM_OF_FRAME = 0.3;
+	const SEAM_RATIO = 2172 / 724;
+	/** How much of each cloud bank the next one covers: the thin, tapered end. */
+	const SEAM_OVERLAP = 0.12;
+	/** The shares of the camera's move the clouds take to come in, and to go out. */
+	const SEAM_IN = 0.12;
+	const SEAM_OUT = 0.3;
+	let seam = $state<{ h: number; tiles: number } | null>(null);
+	let seamEl: HTMLElement | undefined = $state();
+
+	/**
+	 * BonusRound's `enter` for a descent: the ball's bounce off the hub, and the camera going down
+	 * after it — the table (its backdrop, the wheel, the board, and the buttons that sit under the
+	 * bonus screen) up and away by a whole frame, and the screen up from a frame below, with the
+	 * clouds on the seam between them. The balance and the wager stay put: they keep their corners
+	 * over the bonus screen anyway. The ball comes to rest under the room's cannon, where the room
+	 * takes it on (RoomPiratePlinko's `.load-mark`).
+	 */
+	const descend = async (screen: HTMLElement) => {
+		const frame = frameSize();
+		const table = gameEl
+			? [
+					...gameEl.querySelectorAll<HTMLElement>(
+						':scope > .stage, :scope > .bottom-panel, :scope > .buy-bonus-trigger, :scope > .menu-anchor',
+					),
+				]
+			: [];
+		// The backdrop is the game frame's sibling, the same size, and pans by its own height.
+		const backdrop = gameEl?.parentElement?.querySelector<HTMLElement>(':scope > .background');
+		// Where the cannon takes the ball, measured off the screen itself: it is held a frame down
+		// for now, and what is wanted is where the mark will be once it is up.
+		const mark = screen.querySelector('.load-mark')?.getBoundingClientRect();
+		const cannon = mark?.width
+			? { ...centreIn(screen.getBoundingClientRect(), mark), size: mark.width / fitScale }
+			: { x: frame.w / 2, y: frame.h * 0.25, size: frame.h * 0.08 };
+		const tileW = frame.h * SEAM_OF_FRAME * SEAM_RATIO;
+		seam = {
+			h: frame.h * SEAM_OF_FRAME,
+			tiles: Math.ceil(frame.w / (tileW * (1 - SEAM_OVERLAP))) + 1,
+		};
+		await tick();
+		const moves: Animation[] = [];
+		try {
+			await plinkoReveal?.fall(frame, cannon, (camera, ms) => {
+				const opts = { duration: ms, fill: 'forwards' } as const;
+				const up = camera.map((c) => ({ translate: `0 ${-c}px` }));
+				for (const el of table) moves.push(el.animate(up, opts));
+				if (backdrop)
+					moves.push(
+						backdrop.animate(
+							camera.map((c) => ({ translate: `0 ${(-100 * c) / frame.h}%` })),
+							opts,
+						),
+					);
+				// Left at rest where it lands: `translate` is the screen's for this alone, and its way
+				// out animates `transform`.
+				screen.animate(
+					camera.map((c) => ({ translate: `0 ${frame.h - c}px` })),
+					opts,
+				);
+				seamEl?.animate(
+					camera.map((c) => {
+						const k = c / frame.h;
+						return {
+							translate: `0 ${frame.h - c}px`,
+							opacity: Math.max(0, Math.min(1, k / SEAM_IN, (1 - k) / SEAM_OUT)),
+						};
+					}),
+					opts,
+				);
+			});
+		} finally {
+			// The screen is over the table now: it goes back where it was, unseen, badge and all.
+			moves.forEach((a) => a.cancel());
+			seam = null;
+			revealIcon = null;
+			roomEntrance = 'slide';
+		}
+	};
+
+	/** Wedge `target`'s ship, into the middle of the screen and off to the right. */
+	const sailShipOff = async (target: number): Promise<boolean> => {
+		const icon = wheel?.iconRect(target);
+		if (!voyageReveal || !gameEl || !icon?.width) return false;
+		const from = wedgeBox(target) ?? {
+			...centreIn(gameEl.getBoundingClientRect(), icon),
+			size: icon.width / fitScale,
+		};
+		revealIcon = target;
+		restoreIconOnOpen = true;
+		roomEntrance = 'wipe';
+		await voyageReveal.sailOff(from, frameSize());
+		return true;
+	};
+
+	/** The room's own ship, where the one that brought the player docks, in frame pixels. */
+	const roomShipBox = () => {
+		const ship = gameEl?.querySelector('.voyage .ship')?.getBoundingClientRect();
+		if (!gameEl || !ship?.height) return null;
+		return { ...centreIn(gameEl.getBoundingClientRect(), ship), size: ship.height / fitScale };
+	};
+
+	/**
+	 * BonusRound's `enter`: for a wipe, the ship across the screen, then onto the room's ship; for a
+	 * descent, the camera down after the cannonball.
+	 */
+	const enterRoom = async (screen: HTMLElement) => {
+		if (roomEntrance === 'descend') return descend(screen);
+		if (!voyageReveal) return;
+		shipArriving = true;
+		try {
+			await voyageReveal.cross(screen, frameSize());
+			await voyageReveal.dock(roomShipBox(), frameSize(), () => (shipArriving = false));
+		} finally {
+			shipArriving = false;
+			roomEntrance = 'slide';
+		}
+	};
 
 	/**
 	 * Lift wedge `target`'s icon into the middle of the wheel and cover the screen with it — the
@@ -641,6 +827,14 @@
 
 	const onBonusOpenChange = (open: boolean) => {
 		bonusUp = open;
+		if (open && restoreIconOnOpen) {
+			// The table is out of sight once the screen is over it: the badge can go back unseen.
+			restoreIconOnOpen = false;
+			setTimeout(() => {
+				if (bonusUp) revealIcon = null;
+			}, ROOM_SLIDE_MS);
+		}
+		if (!open) roomEntrance = 'slide';
 		if (open) {
 			// Give the room its first paint under the cover before the cover lifts off it.
 			if (revealLit)
@@ -793,24 +987,11 @@
 	 * Each tile's motion, played by its icons: a bonus tile does its room's own thing (the chest
 	 * rattles, the cannonball hops, the Bonus Wheel's wheel turns, the ship rides a swell) and a
 	 * number tile's badges pop. Only on cue: the mouse coming onto the tile, or a chip landing on
-	 * it — the latter once its side icons have sprung out to their slots.
+	 * it — the latter once its side icons have sprung out to their slots. (`motionOf` and the
+	 * lengths live in constants.ts: the wheel and the Top Slot play the same motions.)
 	 */
-	type TileMotion = 'shake' | 'bounce' | 'spin' | 'rock' | 'pop';
-	const ROOM_MOTION: Record<RoomSpot, TileMotion> = {
-		chest: 'shake',
-		piratePlinko: 'bounce',
-		bonusWheel: 'spin',
-		oceanVoyage: 'rock',
-	};
-	const motionOf = (spot: Spot): TileMotion => (isRoomSpot(spot) ? ROOM_MOTION[spot] : 'pop');
-	/** Each motion's length, plus the side icons' small lag behind the centre (`.side .tile-art`). */
-	const TILE_MOTION_MS: Record<TileMotion, number> = {
-		shake: 700,
-		bounce: 850,
-		spin: 1200,
-		rock: 2200,
-		pop: 600,
-	};
+	const TILE_MOTION_MS = ICON_MOTION_MS;
+	/** The side icons' small lag behind the centre (`.side .tile-art`). */
 	const TILE_MOTION_LAG_MS = 70;
 	/** The side icons' spring out to their slots (`.tile.chip-down .tile-icon.side`). */
 	const SIDE_SPRING_MS = 380;
@@ -1216,6 +1397,7 @@
 			tileMult = null;
 			multHidden = false;
 			panelDimmed = false;
+			if (!revealBy && !exitCovered) revealIcon = null;
 		});
 
 		await collecting;
@@ -1426,6 +1608,7 @@
 		stageReplayRound(round);
 		stateGame.rolling = true;
 		replayStarting = false;
+		void focusTopSlot();
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 	};
 
@@ -1473,6 +1656,8 @@
 		multHidden = false;
 		panelDimmed = false;
 		stateGame.rolling = true;
+		// The Top Slot comes down into the middle as the bet goes in, not once the book is back.
+		void focusTopSlot();
 		context.eventEmitter.broadcast({ type: 'bet' });
 	};
 
@@ -1575,6 +1760,7 @@
 		multHidden = false;
 		panelDimmed = false;
 		stateGame.rolling = true;
+		void focusTopSlot();
 		context.eventEmitter.broadcast({ type: 'bet' });
 	};
 
@@ -1661,7 +1847,10 @@
 			((parseFloat(getComputedStyle(gameEl).getPropertyValue('--mult-land')) || 1.45) *
 				window.innerWidth) /
 				100;
-		const size = (topSlot?.multFontPx() ?? 0) / fitScale || land;
+		// The reel's type size is its own, before the cabinet's grow in the middle of the screen
+		// (`topSlotMove.k`, a transform), which the copy leaves at when it flies from there.
+		const grown = topSlotFocus ? topSlotMove.k : 1;
+		const size = ((topSlot?.multFontPx() ?? 0) * grown) / fitScale || land;
 		multFlight = {
 			id,
 			label,
@@ -1686,22 +1875,368 @@
 	let wheelHighlight = $state<number | null>(null);
 	let topSlotApplied = $state(false);
 
+	/**
+	 * The Top Slot takes the floor for its spin. The moment SPIN is pressed the cabinet comes down
+	 * off its perch into the middle of the screen, grown, swinging slowly from side to side like a
+	 * sign on its ropes; once its pair has been read it goes back up to its place, and it is left
+	 * idling with a much smaller sway.
+	 *
+	 * The move is a transform on a box that has already painted untransformed (it has been on the
+	 * table since load), which is what keeps it clear of the iOS first-paint drop that a
+	 * transform-scaled box suffers in the Stake Engine iframe. A bought single room has the stage
+	 * to the Top Slot already (`wheelOff`): it stays where it is and only swings.
+	 */
+	let topSlotWrapEl: HTMLElement | undefined = $state();
+	let tsSwingEl: HTMLElement | undefined = $state();
+	/** In the middle, grown and swinging. */
+	let topSlotFocus = $state(false);
+	/** Over the wheel rather than under its lap: held until the cabinet is home again. */
+	let topSlotRaised = $state(false);
+	let topSlotMove = $state({ x: 0, y: 0, k: 1 });
+	const TS_FOCUS_MS = 700;
+	/**
+	 * How much bigger it comes in the middle of the screen, at most — and never wider or taller than
+	 * nearly the whole frame. Landscape reaches the full 2.3x; a portrait frame is only as wide as
+	 * the cabinet's round size allows, so there it is the width that stops it.
+	 */
+	const TS_FOCUS_SCALE = 2.3;
+	const TS_FOCUS_MAX_W = 0.96;
+	const TS_FOCUS_MAX_H = 0.94;
+	/** The swing while it has the floor: this far each way, once there and back in this long. */
+	const TS_SWING_DEG = 3;
+	const TS_SWING_PERIOD_MS = 3400;
+	/**
+	 * The trip home, the sway on the way, and the judder after it lands (`releaseTopSlot`). The trip
+	 * is brisk, three swings on the ropes (`swayHome`) in a second, and picks up at the very end,
+	 * into the slam.
+	 */
+	const TS_HOME_MS = 1000;
+	const TS_HOME_SWAY_DEG = 6;
+	/**
+	 * The swings of the trip home, as where each one peaks (a share of the trip) and how far it goes
+	 * (a share of TS_HOME_SWAY_DEG; positive is LEFT, see `swayHome`): left, right, left — the last
+	 * a little smaller — and then level for the slam.
+	 */
+	const TS_HOME_SWINGS: readonly { at: number; amp: number }[] = [
+		{ at: 0.25, amp: 1 },
+		{ at: 0.55, amp: -1 },
+		{ at: 0.82, amp: 0.7 },
+	];
+	/** Where the third swing begins — the second's peak — which is the wheel's cue to drop... */
+	const TS_DROP_SWING_AT = TS_HOME_SWINGS[1].at;
+	/** ...a beat into it rather than on it. Short enough for the drop to be done by the slam. */
+	const WHEEL_DROP_DELAY_MS = 100;
+	/**
+	 * The wheel's shrink and drop out of the way (`.wheel-wrap.dropped`), quicker than its other
+	 * resizes so it is done before the cabinet lands: third swing (0.55 of the trip) + the delay +
+	 * this has to stay under TS_HOME_MS.
+	 */
+	const WHEEL_DROP_MS = 300;
+	const TS_SLAM_SHAKE_MS = 480;
+	/** The bounce on landing in the middle, before the reels start (`arriveBounce`). */
+	const TS_ARRIVE_MS = 900;
+	const TS_ARRIVE_LEAD_MS = 40;
+
+	/** Start, or wind down, the big swing. Run from script so stopping eases out of wherever it is. */
+	const swingTopSlot = (on: boolean) => {
+		const el = tsSwingEl;
+		if (!el) return;
+		const now = parseFloat(getComputedStyle(el).rotate) || 0;
+		el.getAnimations().forEach((a) => a.cancel());
+		if (on) {
+			el.animate(
+				[
+					{ rotate: '0deg' },
+					{ rotate: `${TS_SWING_DEG}deg`, offset: 0.25 },
+					{ rotate: '0deg', offset: 0.5 },
+					{ rotate: `${-TS_SWING_DEG}deg`, offset: 0.75 },
+					{ rotate: '0deg' },
+				],
+				{ duration: TS_SWING_PERIOD_MS, iterations: Infinity, easing: 'linear' },
+			);
+		} else if (now) {
+			el.animate([{ rotate: `${now}deg` }, { rotate: '0deg' }], {
+				duration: TS_FOCUS_MS,
+				easing: 'ease-out',
+			});
+		}
+	};
+
+	/**
+	 * Betting has the wheel to itself: the Top Slot is hauled up out of sight on its ropes and the
+	 * wheel grows into its room (`bigWheel`, `wheelBigVw`). Pressing SPIN lets the Top Slot down on
+	 * its ropes straight into the middle of the screen, over the still-big wheel, for its spin; only
+	 * when it slams back onto its perch does the wheel give the room back, shrinking to its round
+	 * size and moving down into place under it (`releaseTopSlot`). It goes back up when betting opens
+	 * again.
+	 */
+	let bigWheel = $state(true);
+	let topSlotHidden = $state(true);
+	/** The wheel's resize (`.wheel-wrap` width and margin), and its drop out of the way with it. */
+	const WHEEL_RESIZE_MS = 500;
+	/** Down out of the cabinet's way while it comes home (`releaseTopSlot`), and back up after it. */
+	let wheelDropped = $state(false);
+	/** The wheel's slide back up into place (`.wheel-wrap`'s `translate` transition). */
+	const WHEEL_RISE_MS = 200;
+	/** From the cabinet slamming onto its perch to the wheel slamming into place under it. */
+	const WHEEL_SLAM_GAP_MS = 250;
+
+	let focusing: Promise<void> | null = null;
+	/**
+	 * Into the middle. Its perch is out of the flow and the middle is the screen's, so neither depends
+	 * on the wheel's size: the wheel is left big until the cabinet goes home (`releaseTopSlot`).
+	 *
+	 * Resolves once it has ARRIVED — come down into the middle, landed and bounced to a stop on its
+	 * ropes, and started swinging — so the reels (`topSlotSpin`) only start on a cabinet that is standing
+	 * there. A second call while it is on its way waits for the same arrival.
+	 */
+	const focusTopSlot = (): Promise<void> => {
+		if (focusing) return focusing;
+		if (topSlotFocus) return Promise.resolve();
+		focusing = (async () => {
+			placeTopSlot();
+			// The bounce starts a hair before the drop ends, so no frame sits still between them.
+			await waitForTimeout(TS_FOCUS_MS - TS_ARRIVE_LEAD_MS);
+			// Sent home in the meantime (a refused bet): nothing to land.
+			if (!topSlotFocus) return;
+			arriveBounce();
+			await waitForTimeout(TS_ARRIVE_MS);
+			if (topSlotFocus) swingTopSlot(true);
+		})().finally(() => (focusing = null));
+		return focusing;
+	};
+
+	/**
+	 * Landed in the middle: it bounces on its ropes, straight up and down — drops past its place,
+	 * springs back up above it, and each bounce after is smaller until it hangs still. Gravity in
+	 * each hop (eased in on the way down, out on the way up), a squash where it bottoms out and a
+	 * stretch as it springs back. No sideways shake: that is the slam home's (`slamShake`). The
+	 * bounce is on the swing element's `translate`; the squash on the hanger's `scale`, about its
+	 * own middle (the hanger uses `translate` for nothing but being hauled up).
+	 */
+	let tsHangEl: HTMLElement | undefined = $state();
+	const arriveBounce = () => {
+		playSound('boom', 1.5, 0.35);
+		const down = 'cubic-bezier(0.5, 0, 0.9, 0.5)';
+		const up = 'cubic-bezier(0.1, 0.5, 0.5, 1)';
+		// The first dip carries on at the speed the drop arrived with and is caught by the ropes at
+		// the bottom — it starts fast and slows, rather than starting from rest like the later hops.
+		const caught = 'cubic-bezier(0.25, 0.7, 0.55, 1)';
+		tsSwingEl?.getAnimations().forEach((a) => a.cancel());
+		tsSwingEl?.animate(
+			[
+				{ translate: '0 0', easing: caught },
+				{ translate: '0 7%', offset: 0.12, easing: up },
+				{ translate: '0 -6%', offset: 0.34, easing: down },
+				{ translate: '0 2.5%', offset: 0.52, easing: up },
+				{ translate: '0 -2.5%', offset: 0.68, easing: down },
+				{ translate: '0 0.8%', offset: 0.82, easing: up },
+				{ translate: '0 -0.6%', offset: 0.92, easing: down },
+				{ translate: '0 0' },
+			],
+			{ duration: TS_ARRIVE_MS },
+		);
+		tsHangEl?.animate(
+			[
+				{ scale: '1 1' },
+				{ scale: '1.07 0.9', offset: 0.12 },
+				{ scale: '0.96 1.05', offset: 0.24 },
+				{ scale: '1 1', offset: 0.34 },
+				{ scale: '1.03 0.96', offset: 0.52 },
+				{ scale: '1 1', offset: 0.64 },
+				{ scale: '1 1' },
+			],
+			{ duration: TS_ARRIVE_MS, easing: 'ease-out' },
+		);
+	};
+
+	const placeTopSlot = () => {
+		if (topSlotFocus) return;
+		const rect = topSlotWrapEl?.getBoundingClientRect();
+		if (!wheelOff && gameEl && rect?.width) {
+			const host = gameEl.getBoundingClientRect();
+			const k = Math.min(
+				TS_FOCUS_SCALE,
+				(host.width * TS_FOCUS_MAX_W) / rect.width,
+				(host.height * TS_FOCUS_MAX_H) / rect.height,
+			);
+			// Landscape: dead centre of the screen. Portrait: the middle of the wheel (still at its
+			// betting size — it only moves once the cabinet has gone home), since a phone's own middle
+			// falls on the board. Held inside the frame's top edge either way.
+			const disc = portrait ? wheel?.discOnScreen() : null;
+			const cx = disc?.d ? disc.cx : host.left + host.width / 2;
+			const cy = Math.max(
+				disc?.d ? disc.cy : host.top + host.height / 2,
+				host.top + (rect.height * k) / 2,
+			);
+			topSlotMove = {
+				x: (cx - (rect.left + rect.width / 2)) / fitScale,
+				y: (cy - (rect.top + rect.height / 2)) / fitScale,
+				k,
+			};
+		} else topSlotMove = { x: 0, y: 0, k: 1 };
+		topSlotFocus = true;
+		topSlotRaised = true;
+		topSlotHidden = false;
+	};
+
+	/**
+	 * Back up to its place, and the wheel to its round size under it. Resolves once both are home.
+	 *
+	 * The two take turns, so neither is drawn across the other until they are both in place: the
+	 * cabinet sways home, and a beat into its third swing the wheel shrinks to its round size and slides DOWN
+	 * out of its way (`wheelDropped` — clear of the perch by a gap, marker and all); the cabinet is
+	 * slammed onto its perch, and a quarter of a second later, while it is still juddering, the
+	 * wheel has slid back UP, faster and faster, and is slammed into place under it — its own boom and knock — and only at that impact
+	 * does its marker come to lap over the cabinet's lower rail (`topSlotRaised` off).
+	 *
+	 * With nothing in the middle to bring home (a resumed round) it still has the wheel make room,
+	 * and waits for it: the wheel is about to spin.
+	 */
+	const releaseTopSlot = async () => {
+		const wheelToRoundSize = async () => {
+			if (!bigWheel || betting) return;
+			bigWheel = false;
+			if (!wheelOff) await waitForTimeout(WHEEL_RESIZE_MS + 40);
+		};
+		if (!topSlotFocus) {
+			await wheelToRoundSize();
+			return;
+		}
+		const travels = topSlotMove.k !== 1 || topSlotMove.x !== 0 || topSlotMove.y !== 0;
+		topSlotFocus = false;
+		if (!travels || wheelOff) {
+			// A bought room's cabinet never left its place (and its wheel is off the stage): it only
+			// stops swinging.
+			swingTopSlot(false);
+			await Promise.all([waitForTimeout(TS_FOCUS_MS), wheelToRoundSize()]);
+			if (!topSlotFocus) topSlotRaised = false;
+			return;
+		}
+		// The cabinet home the hard way: swaying on its ropes, faster and faster at the end (the
+		// wrap's return transition is an ease-in, see `.topslot-wrap`), slammed onto its perch, and
+		// juddering there.
+		swayHome();
+		// The wheel waits until a beat into the third swing to get out of the way: to its round size
+		// and down, clear of the perch, done before the cabinet arrives.
+		const dropAt = TS_HOME_MS * TS_DROP_SWING_AT + WHEEL_DROP_DELAY_MS;
+		await waitForTimeout(dropAt);
+		if (topSlotFocus) return;
+		if (!betting) bigWheel = false;
+		wheelDropped = true;
+		await waitForTimeout(TS_HOME_MS - dropAt);
+		if (topSlotFocus) return;
+		playSound('boom', 1.3, 0.5);
+		slamShake();
+		// Then the wheel, hard on its heels — up into place under it and slammed home a quarter of a
+		// second after the cabinet (WHEEL_SLAM_GAP_MS), while the cabinet is still juddering. Its
+		// marker is over the rail from the impact on.
+		await waitForTimeout(WHEEL_SLAM_GAP_MS - WHEEL_RISE_MS);
+		wheelDropped = false;
+		await waitForTimeout(WHEEL_RISE_MS);
+		if (!topSlotFocus) topSlotRaised = false;
+		playSound('boom', 1.1, 0.55);
+		shakeWheel();
+		await waitForTimeout(WHEEL_SHAKE_MS);
+	};
+
+	/**
+	 * The trip home: three slow swings on the ropes — left, right, left — each eased at both ends
+	 * like a pendulum's, the last a little smaller (`TS_HOME_SWINGS`), and then straight down into
+	 * the slam, dead level as it lands. The third sends the wheel down out of the way
+	 * (`releaseTopSlot`). The swing turns about a pivot far up the ropes, so a clockwise
+	 * (positive) turn carries the cabinet to the LEFT.
+	 */
+	const swayHome = () => {
+		const el = tsSwingEl;
+		if (!el) return;
+		const now = parseFloat(getComputedStyle(el).rotate) || 0;
+		el.getAnimations().forEach((a) => a.cancel());
+		const swing = 'ease-in-out';
+		el.animate(
+			[
+				{ rotate: `${now}deg`, easing: swing },
+				...TS_HOME_SWINGS.map(({ at, amp }, i) => ({
+					rotate: `${TS_HOME_SWAY_DEG * amp}deg`,
+					offset: at,
+					// The last one comes out of its peak falling, straight into the slam.
+					easing: i === TS_HOME_SWINGS.length - 1 ? 'ease-in' : swing,
+				})),
+				{ rotate: '0deg' },
+			],
+			{ duration: TS_HOME_MS },
+		);
+	};
+
+	/**
+	 * The judder after the slam: knocked down onto the perch and bounced back up, rocking on its
+	 * ropes, each swing smaller than the last. The rock is about the swing's pivot far up the ropes,
+	 * so it reads as the cabinet shaken sideways rather than tipped; the bounce is on `translate`,
+	 * which the swing element uses for nothing else.
+	 */
+	const slamShake = () => {
+		const el = tsSwingEl;
+		if (!el) return;
+		el.getAnimations().forEach((a) => a.cancel());
+		el.animate(
+			[
+				{ rotate: '0deg', translate: '0 0' },
+				{ rotate: '-1.6deg', translate: '0 5%', offset: 0.1 },
+				{ rotate: '1.3deg', translate: '0 -2.5%', offset: 0.26 },
+				{ rotate: '-0.9deg', translate: '0 1.5%', offset: 0.42 },
+				{ rotate: '0.6deg', translate: '0 -0.8%', offset: 0.58 },
+				{ rotate: '-0.3deg', translate: '0 0.35%', offset: 0.76 },
+				{ rotate: '0deg', translate: '0 0' },
+			],
+			{ duration: TS_SLAM_SHAKE_MS, easing: 'ease-out' },
+		);
+	};
+
+	/**
+	 * Betting: the show steps back and the board steps up. Until a bet is down the wheel and the
+	 * Top Slot are dimmed and the panel is lit; once one is down the wheel comes back and its
+	 * middle — the SPIN gem — glows, which is the next thing to press. A buy has no board to bet
+	 * on, and a replay no betting at all.
+	 */
+	const betting = $derived(bettingOpen && stateGame.buying === null);
+	const betDown = $derived(betting && canSpin);
+
+	// Betting again: the Top Slot goes back up out of sight and the wheel grows into its room.
+	$effect(() => {
+		if (betting && !untrack(() => topSlotFocus)) {
+			bigWheel = true;
+			topSlotHidden = true;
+		}
+	});
+
+	// A round that never got as far as the Top Slot (a refused bet) still sends the cabinet home.
+	$effect(() => {
+		if (idle && untrack(() => topSlotFocus)) void releaseTopSlot();
+	});
+
 	context.eventEmitter.subscribeOnMount({
 		topSlotSpin: async (event) => {
+			// Normally already on its way from the press of SPIN; a resumed round comes straight here.
+			await focusTopSlot();
 			await topSlot?.spin(event.spot, event.multiplier);
 			// Let the pair be read before anything moves again.
 			await waitForTimeout(TOP_SLOT_HOLD_MS);
-			// A blank is the miss: nothing to carry over to the board.
-			if (event.spot && event.multiplier && event.multiplier > 1) {
-				await flyMultiplier(event.spot, event.multiplier);
-				await waitForTimeout(MULT_SETTLE_MS);
-			}
+			// The multiplier goes to the board first, straight out of the cabinet in the middle of the
+			// screen (a blank is the miss: nothing to carry over), and only once it has landed does
+			// the cabinet go home — the trip home counts towards the badge's settle on its tile.
+			const { spot, multiplier } = event;
+			const carried = spot !== null && multiplier !== null && multiplier > 1;
+			if (carried) await flyMultiplier(spot, multiplier);
+			await releaseTopSlot();
+			if (carried) await waitForTimeout(Math.max(0, MULT_SETTLE_MS - TS_FOCUS_MS));
 			// Only now does the board give the floor to the wheel — unless a bought room took the
 			// wheel off the stage: nothing spins, so the board stays at full strength and goes
 			// straight to the landed room's shadowing.
 			if (!wheelOff) panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
+			// The Top Slot is home before the wheel turns (it normally went on its own after its pair).
+			await releaseTopSlot();
 			// A Random Bonus round spins the buy disc, so the book's 54-segment index maps to the
 			// room; every other round spins the main wheel to the segment. A single-room buy has the
 			// wheel off the stage: it is set on the room's segment unseen, ready for its return.
@@ -1727,14 +2262,17 @@
 			// number pops. Not for a wheel off the stage — nobody would see it.
 			const landMotionMs = wheelOff ? 0 : TILE_MOTION_MS[motionOf(event.spot)];
 			if (!wheelOff) wheel?.playIcon(target, motionOf(event.spot), landMotionMs);
-			// The Treasure Chest and the Bonus Wheel are walked into through their own icons (see
-			// RoomReveal, WheelReveal) — when the wheel is on the stage to lift them from. A bought
-			// room has the wheel off, so it keeps the plain slide.
-			const by = event.spot === 'chest' ? 'chest' : event.spot === 'bonusWheel' ? 'wheel' : null;
-			if (by && !wheelOff) {
+			// Every room is walked into through its own icon (RoomReveal, WheelReveal, PlinkoReveal,
+			// VoyageReveal) — when the wheel is on the stage to lift it from. A bought room has the
+			// wheel off, so it keeps the plain slide.
+			if (isRoomSpot(event.spot) && !wheelOff) {
 				// The reveal lifts the badge off the wedge, so it waits for the motion to finish.
 				await waitForTimeout(Math.max(400, landMotionMs));
-				if (await revealRoom(target, by)) return;
+				if (event.spot === 'piratePlinko') {
+					if (await dropBall(target)) return;
+				} else if (event.spot === 'oceanVoyage') {
+					if (await sailShipOff(target)) return;
+				} else if (await revealRoom(target, event.spot === 'chest' ? 'chest' : 'wheel')) return;
 			}
 			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
 		},
@@ -1770,7 +2308,8 @@
 		class:portrait
 		class:hub-lifted={hubLifted}
 		class:hub-slammed={hubSlammed}
-		style="--wheel-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
+		class:ship-arriving={shipArriving}
+		style="--wheel-w:{bigWheel ? wheelBigVw : wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
 		bind:this={gameEl}
 	>
 		{#if stateGame.openRoundError || betNotice}
@@ -1860,16 +2399,44 @@
 		</div>
 
 		<!-- The show: Top Slot over the wheel — or, for a bought room, the Top Slot alone. -->
-		<div class="stage" class:solo={wheelOff}>
-			<div class="topslot-wrap">
-				<TopSlot
-					bind:this={topSlot}
-					applied={topSlotApplied}
-					onTick={() => playSound('peg', 1.9, 0.5)}
-					onReelStop={() => playSound('notify')}
-				/>
+		<div
+			class="stage"
+			class:solo={wheelOff}
+			class:betting
+			class:bet-down={betDown}
+			class:big-wheel={bigWheel}
+		>
+			<div
+				class="topslot-wrap"
+				class:focus={topSlotFocus}
+				class:raised={topSlotRaised}
+				style="--ts-x:{topSlotMove.x}px; --ts-y:{topSlotMove.y}px; --ts-k:{topSlotMove.k}; --ts-focus-ms:{TS_FOCUS_MS}ms; --ts-home-ms:{TS_HOME_MS}ms"
+				bind:this={topSlotWrapEl}
+			>
+				<!-- Two sways: the idle one always (CSS), the big one only while it has the floor
+				     (script, `swingTopSlot`, so it can ease out of wherever it is). -->
+				<!-- Hauled up out of sight while bets are placed, and let down on its ropes for the spin. -->
+				<div class="ts-hang" class:up={topSlotHidden} bind:this={tsHangEl}>
+					<div class="ts-sway">
+						<div class="ts-swing" bind:this={tsSwingEl}>
+							<TopSlot
+								bind:this={topSlot}
+								applied={topSlotApplied}
+								onTick={() => playSound('peg', 1.9, 0.5)}
+								onReelStop={() => playSound('notify')}
+							/>
+						</div>
+					</div>
+				</div>
 			</div>
-			<div class="wheel-wrap" class:off={wheelOff} class:shaking={wheelShaking}>
+			<div
+				class="wheel-wrap"
+				class:off={wheelOff}
+				class:shaking={wheelShaking}
+				class:under-focus={topSlotFocus}
+				class:dropped={wheelDropped}
+				style="--wheel-rise-ms:{WHEEL_RISE_MS}ms; --wheel-drop-ms:{WHEEL_DROP_MS}ms"
+			>
 				<Wheel
 					bind:this={wheel}
 					segments={wheelDisc === 'buy' && buyDisc ? buyDisc : WHEEL_SEGMENTS}
@@ -1881,6 +2448,16 @@
 					liftedIcon={revealIcon}
 					onTick={() => playSound('peg', 1.4, 0.5)}
 				/>
+				<!-- Once a bet is down the wheel stays dimmed and only its middle lights: the frame art again,
+				     undimmed, cut to a circle just past the hub (see `.hub-lit`), then a warm pool over it —
+				     the gem is what to press next. -->
+				<img class="hub-lit" class:on={betDown} src={WHEEL_FRAME.src} alt="" draggable="false" />
+				<div
+					class="hub-glow"
+					class:on={betDown}
+					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{WHEEL_FRAME.hole.cy * 100}%"
+					aria-hidden="true"
+				></div>
 				<!-- The gem at the middle of the hub is the play button: it spins, or plays again once a
 			     round has settled. It carries the prompt the old tab used to, and pulses while it can
 			     be pressed, since a gem is not self-evidently a button. -->
@@ -1905,7 +2482,7 @@
 			</div>
 		</div>
 
-		<div class="bottom-panel" class:dimmed={panelDimmed} bind:this={panelEl}>
+		<div class="bottom-panel" class:dimmed={panelDimmed} class:lit={betting} bind:this={panelEl}>
 			<div class="betting-panel-wrap">
 				<div class="betting-panel">
 					<div class="inner-panel">
@@ -2146,12 +2723,30 @@
 		<BonusRound
 			chip={stateBet.betAmount}
 			{portrait}
-			litEntrance={revealLit}
+			entrance={revealLit ? 'lit' : roomEntrance}
+			enter={enterRoom}
 			coverExit={coverRoomExit}
 			onOpenChange={onBonusOpenChange}
 		/>
 		<RoomReveal bind:this={roomReveal} />
 		<WheelReveal bind:this={wheelReveal} />
+		{#if seam}
+			<!-- Over the bonus screen and under the balance and the wager, like the screen's own edge. -->
+			<div class="seam" bind:this={seamEl} aria-hidden="true">
+				<div class="seam-row" style="--seam-h:{seam.h}px; --seam-overlap:{SEAM_OVERLAP}">
+					{#each { length: seam.tiles }, i (i)}
+						<img
+							src={staticUrl('img/pirate-plinko/divider.webp')}
+							alt=""
+							draggable="false"
+							class:mirrored={i % 2 === 1}
+						/>
+					{/each}
+				</div>
+			</div>
+		{/if}
+		<PlinkoReveal bind:this={plinkoReveal} />
+		<VoyageReveal bind:this={voyageReveal} />
 
 	</div>
 </div>
@@ -2293,6 +2888,39 @@
 			scale: 0.18;
 			opacity: 0;
 		}
+	}
+	/* The clouds on the seam as the camera goes down into Pirate Plinko: a line on the room's top
+	   edge, moved and faded by `descend`, with the bank centred on it — on the middle of the
+	   clouds' own weight, which sits a little below the middle of the picture. Unseen until the
+	   camera moves. */
+	.seam {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		height: 0;
+		z-index: 31;
+		opacity: 0;
+		pointer-events: none;
+	}
+	.seam-row {
+		position: absolute;
+		left: 50%;
+		top: 0;
+		display: flex;
+		transform: translate(-50%, -57%);
+	}
+	.seam-row img {
+		flex: none;
+		height: var(--seam-h);
+		width: auto;
+		aspect-ratio: 2172 / 724;
+	}
+	.seam-row img + img {
+		margin-left: calc(var(--seam-h) * 2172 / 724 * var(--seam-overlap) * -1);
+	}
+	.seam-row img.mirrored {
+		scale: -1 1;
 	}
 	.win-float {
 		position: absolute;
@@ -2614,21 +3242,163 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		z-index: 1;
+		/* No stacking context of its own: the wheel (z 1) and the Top Slot on its perch (z 0) stay
+		   under the board (z 2) in the frame's context, but the Top Slot in the middle for its spin
+		   (`.raised`, z 3) can stand over the board — on a phone the middle of the screen IS the
+		   board. */
 		pointer-events: none;
 	}
 	/* The Top Slot cabinet crowns the wheel, in flow above it and centred by the stage. Its own
 	   stacking context, so the frame art's z-index stays inside it and the wheel — which laps over
 	   the cabinet's lower edge — still paints in front. */
+	/* Out of the flow, at the top of the stage and centred: its perch is the same whether the wheel
+	   is at its betting size or its round size, so it never pushes the wheel about, and where it
+	   goes for its spin is measured from the one place it always is. The wheel keeps the room under
+	   it with its own margin (`.wheel-wrap`). */
 	.topslot-wrap {
-		position: relative;
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		width: fit-content;
+		margin: 0 auto;
 		z-index: 0;
 		isolation: isolate;
+		translate: 0 0;
+		scale: 1;
 		/* Registered below so the cabinet GROWS into its solo size rather than jumping to it; the
-		   move down to centre rides the same clock. */
+		   move down to centre rides the same clock. The trip into the middle of the wheel and back
+		   is on `translate`/`scale`, over the box it has already painted. */
+		/* This is the way HOME (the transition is the state being entered): a slow drift for most of
+		   the trip while it sways, then faster and faster at the end, so it arrives at speed and is
+		   slammed onto its perch (`releaseTopSlot` shakes it on arrival). */
 		transition:
 			--ts-width 600ms ease,
-			margin-top 600ms ease;
+			margin-top 600ms ease,
+			translate var(--ts-home-ms, 1000ms) cubic-bezier(0.4, 0.12, 0.93, 0.4),
+			scale var(--ts-home-ms, 1000ms) cubic-bezier(0.4, 0.12, 0.93, 0.4);
+	}
+	/* Its turn: in the middle of the wheel, grown, and over the wheel's lap rather than under it
+	   (`raised` outlasts `focus` by the trip home, so the lap does not cut across it on the way). */
+	.topslot-wrap.focus {
+		translate: var(--ts-x, 0px) var(--ts-y, 0px);
+		scale: var(--ts-k, 1);
+		/* The way in: dropped, not placed — the move gathers speed and arrives still moving, and the
+		   landing bounce (`arriveBounce`) takes that speed straight on into its first dip, with no
+		   stop in between. The grow is eased out, so it has reached full size by the landing. */
+		transition:
+			--ts-width 600ms ease,
+			margin-top 600ms ease,
+			translate var(--ts-focus-ms, 700ms) cubic-bezier(0.45, 0.05, 0.8, 0.5),
+			scale var(--ts-focus-ms, 700ms) cubic-bezier(0.3, 0.9, 0.3, 1);
+	}
+	.topslot-wrap.raised {
+		z-index: 3;
+	}
+	/* Hauled up out of sight: above the frame's top edge by its own height and a little more, on
+	   `translate` so it composes with the trip into the middle (on the wrap) — coming down, it drops
+	   out of the rigging straight into the middle of the wheel. */
+	.ts-hang {
+		translate: 0 0;
+		/* Let down: falling, faster and faster, into the landing bounce (same curve as the wrap's way in). */
+		transition: translate var(--ts-focus-ms, 700ms) cubic-bezier(0.45, 0.05, 0.8, 0.5);
+	}
+	.ts-hang.up {
+		translate: 0 calc(-100% - 3vw);
+		transition-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4);
+	}
+	/* The idle sway: a degree each way, slow. It swings about a point well up its ropes (TopSlot's
+	   `.rope`), not about its own rail, so it moves like a sign hung from the rigging rather than
+	   rocking in place. Held back a beat after load so the cabinet's first paint is an
+	   untransformed one (the iOS first-paint drop again). */
+	.ts-sway {
+		transform-origin: 50% -150%;
+		animation: ts-idle-sway 6s ease-in-out 1.2s infinite alternate both;
+		transition: filter 500ms ease;
+	}
+	@keyframes ts-idle-sway {
+		from {
+			rotate: -1deg;
+		}
+		to {
+			rotate: 1deg;
+		}
+	}
+	.ts-swing {
+		transform-origin: 50% -150%;
+	}
+	/* Betting: the wheel is dimmed the whole time bets are being placed — once one is down only its
+	   middle comes back (`.hub-lit`). While the Top Slot has the floor the wheel stays stepped back
+	   behind it. On the wheel itself rather than the wrap, so the gem, its glow and the lit hub,
+	   which sit over the wheel inside the wrap, are not dimmed with it. */
+	.wheel-wrap :global(.wheel) {
+		transition: filter 500ms ease;
+	}
+	.stage.betting .wheel-wrap :global(.wheel) {
+		filter: brightness(0.5) saturate(0.75);
+	}
+	.wheel-wrap.under-focus :global(.wheel) {
+		filter: brightness(0.62) saturate(0.85);
+	}
+	/* The hub, lit: the frame art laid exactly over the wheel's own (which fills the wheel's box, as
+	   this fills the wrap) and cut to a circle about the hole's centre (955.7, 972.8 of 1911x1925).
+	   The hub's art ends at r ≈ 290 px of the 1911 and the ring starts at r ≈ 720, so a cut at 330
+	   falls on nothing but transparency and leaves no edge anywhere. */
+	.hub-lit {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		user-select: none;
+		clip-path: circle(17.2% at 50.01% 50.54%);
+		opacity: 0;
+		transition: opacity 400ms ease;
+	}
+	.hub-lit.on {
+		opacity: 1;
+	}
+	/* The light at the wheel's middle once a bet is down: a warm pool screened over the hub, pulsing
+	   with the gem's own ring. */
+	.hub-glow {
+		position: absolute;
+		width: 30%;
+		aspect-ratio: 1;
+		translate: -50% -50%;
+		border-radius: 50%;
+		pointer-events: none;
+		mix-blend-mode: screen;
+		background: radial-gradient(
+			circle closest-side,
+			rgba(255, 240, 180, 0.85) 0%,
+			rgba(255, 210, 90, 0.45) 35%,
+			rgba(255, 170, 40, 0) 100%
+		);
+		opacity: 0;
+		scale: 0.6;
+		transition:
+			opacity 400ms ease,
+			scale 400ms ease;
+	}
+	.hub-glow.on {
+		opacity: 1;
+		scale: 1;
+		animation: hub-glow-pulse 1.7s ease-in-out infinite;
+	}
+	@keyframes hub-glow-pulse {
+		0%,
+		100% {
+			opacity: 0.65;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ts-sway,
+		.hub-glow.on {
+			animation: none;
+		}
 	}
 	@property --ts-width {
 		syntax: '<length>';
@@ -2652,12 +3422,38 @@
 		position: relative;
 		z-index: 1;
 		width: var(--wheel-w, 44.5vw);
-		/* Only as far as the cabinet's lower rail — see WHEEL_LAP_SHARE, which keeps the lap a share of
-		   the cabinet's height so it tracks the viewport with everything else. */
-		margin-top: calc(var(--wheel-lap, 1.29vw) * -1);
+		/* Under the cabinet's perch (half its width tall — the art is 2:1), lapped over its lower rail
+		   only as far as WHEEL_LAP_SHARE says, which keeps the lap a share of the cabinet's height so
+		   it tracks the viewport with everything else. A positive margin: the cabinet is out of the
+		   flow, so nothing here spends a negative one. */
+		margin-top: calc(var(--ts-width, 22.8vw) / 2 - var(--wheel-lap, 1.29vw));
+		/* `translate` is the way back UP from `.dropped`: faster and faster, into the slam. */
 		transition:
 			opacity 400ms ease,
-			visibility 0s;
+			visibility 0s,
+			width 500ms cubic-bezier(0.4, 0, 0.2, 1),
+			margin-top 500ms cubic-bezier(0.4, 0, 0.2, 1),
+			translate var(--wheel-rise-ms, 200ms) cubic-bezier(0.55, 0, 0.95, 0.45);
+	}
+	/* Down out of the Top Slot's way while it comes home (`releaseTopSlot`): below its round place by
+	   the lap and a gap, so its marker clears the perch. Eased out, alongside the shrink to round
+	   size. The slam's shake (`.shaking`) also runs on `translate`, but only once it is back up. */
+	.wheel-wrap.dropped {
+		translate: 0 calc(var(--wheel-lap, 1.29vw) + var(--wheel-drop-gap, 2vw));
+		transition:
+			opacity 400ms ease,
+			visibility 0s,
+			width var(--wheel-drop-ms, 300ms) cubic-bezier(0.4, 0, 0.2, 1),
+			margin-top var(--wheel-drop-ms, 300ms) cubic-bezier(0.4, 0, 0.2, 1),
+			translate var(--wheel-drop-ms, 300ms) cubic-bezier(0.25, 0.7, 0.4, 1);
+	}
+	.game.portrait .wheel-wrap.dropped {
+		--wheel-drop-gap: 4vw;
+	}
+	/* Betting: the Top Slot is up out of sight and the wheel has its room — up to the top of the
+	   stage, at `wheelBigVw`. */
+	.stage.big-wheel .wheel-wrap {
+		margin-top: 0;
 	}
 	/* Off the stage for a bought room: faded out and kept in flow (below the grown cabinet, out of
 	   the frame) so its return is the same fade back into place. */
@@ -2667,7 +3463,9 @@
 		pointer-events: none;
 		transition:
 			opacity 400ms ease,
-			visibility 0s 400ms;
+			visibility 0s 400ms,
+			width 500ms cubic-bezier(0.4, 0, 0.2, 1),
+			margin-top 500ms cubic-bezier(0.4, 0, 0.2, 1);
 	}
 	/* The knock of the Treasure Chest's chest landing back on its wedge. On `translate`, which the
 	   wrap uses for nothing else. */
@@ -2765,6 +3563,33 @@
 		z-index: 2;
 		transition: opacity 300ms ease;
 	}
+	/* Betting: the board is the thing to act on, so it is the lit thing — a shade brighter, on a
+	   warm pool of light behind it while the show above it is dimmed. */
+	.bottom-panel::before {
+		content: '';
+		position: absolute;
+		inset: -18% -6% -10%;
+		z-index: -1;
+		pointer-events: none;
+		border-radius: 50%;
+		background: radial-gradient(
+			ellipse closest-side,
+			rgba(255, 214, 120, 0.3) 0%,
+			rgba(255, 190, 80, 0.14) 55%,
+			rgba(255, 170, 60, 0) 100%
+		);
+		opacity: 0;
+		transition: opacity 500ms ease;
+	}
+	.bottom-panel.lit::before {
+		opacity: 1;
+	}
+	.bottom-panel .betting-panel-wrap {
+		transition: filter 500ms ease;
+	}
+	.bottom-panel.lit .betting-panel-wrap {
+		filter: brightness(1.12) saturate(1.05);
+	}
 	/* The wheel has the floor while it spins; the board steps back until it stops. */
 	.bottom-panel.dimmed {
 		opacity: 0.45;
@@ -2799,8 +3624,15 @@
 		   match, since its row would otherwise be the widest thing in the panel. */
 		--panel-inset: 6.5vw;
 	}
-	.game.portrait .stage {
-		gap: 1vw;
+	/* Betting on a tall screen: the grown wheel is centred in the room above the board rather than
+	   pinned to the top with a band of empty sea under it. Never above the top: on a short phone the
+	   room is less than the wheel, and it simply starts at the top as in landscape. */
+	.game.portrait .stage.big-wheel .wheel-wrap {
+		margin-top: max(0px, calc((var(--panel-top, 0px) - 0.4vw - var(--wheel-w) * 1.0073) / 2));
+	}
+	/* The 1vw that used to be the stage's gap between the cabinet and the wheel. */
+	.game.portrait .stage:not(.big-wheel) .wheel-wrap {
+		margin-top: calc(var(--ts-width, 67vw) / 2 + 1vw - var(--wheel-lap, 1.29vw));
 	}
 	.game.portrait .hub-cta {
 		font-size: 3.4vw;
@@ -3111,6 +3943,13 @@
 		box-shadow:
 			var(--inner-shade),
 			0 0.15vw 0.35vw rgba(0, 0, 0, 0.55);
+		transition: box-shadow 200ms ease;
+	}
+	/* Hovered while betting: the inner shadow turns into an inner glow of the ring's gold, reaching
+	   further in than the shadow did — the same turn the tiles take (`.bottom-panel.lit .tile:hover`). */
+	.bottom-panel.lit .bundle-btn:hover::before {
+		--inner-shade: inset 0 0 calc(var(--bundle-w) * 0.24) calc(var(--bundle-w) * 0.045)
+			rgba(255, 210, 74, 0.9);
 	}
 	.bundle-btn::after {
 		inset: 0;
@@ -3171,14 +4010,16 @@
 		   gold. */
 		--shade-from: calc(var(--frame-inner) - var(--fill-in));
 		--shade-len: var(--frame);
+		/* The edge's colour: black, a shadow — or gold on hover while betting, the same fades turned
+		   into an inner glow (see `.bottom-panel.lit .tile:hover`). */
 		--shade-stops:
-			rgba(0, 0, 0, 0.6) var(--shade-from),
-			rgba(0, 0, 0, 0.37) calc(var(--shade-from) + var(--shade-len) * 0.15),
-			rgba(0, 0, 0, 0.21) calc(var(--shade-from) + var(--shade-len) * 0.3),
-			rgba(0, 0, 0, 0.1) calc(var(--shade-from) + var(--shade-len) * 0.45),
-			rgba(0, 0, 0, 0.04) calc(var(--shade-from) + var(--shade-len) * 0.6),
-			rgba(0, 0, 0, 0.005) calc(var(--shade-from) + var(--shade-len) * 0.8),
-			rgba(0, 0, 0, 0) calc(var(--shade-from) + var(--shade-len));
+			color-mix(in srgb, var(--edge) 60%, transparent) var(--shade-from),
+			color-mix(in srgb, var(--edge) 37%, transparent) calc(var(--shade-from) + var(--shade-len) * 0.15),
+			color-mix(in srgb, var(--edge) 21%, transparent) calc(var(--shade-from) + var(--shade-len) * 0.3),
+			color-mix(in srgb, var(--edge) 10%, transparent) calc(var(--shade-from) + var(--shade-len) * 0.45),
+			color-mix(in srgb, var(--edge) 4%, transparent) calc(var(--shade-from) + var(--shade-len) * 0.6),
+			color-mix(in srgb, var(--edge) 0.5%, transparent) calc(var(--shade-from) + var(--shade-len) * 0.8),
+			transparent calc(var(--shade-from) + var(--shade-len));
 		/* Under the edge shade, two washes set the fill's light over its colour and grain: dimmed
 		   while the tile is empty, lifted once a chip sits on it (`.tile.chip-down`). */
 		background-image:
@@ -3199,16 +4040,44 @@
 		color: var(--tile-text);
 		--fill-dim: 0.32;
 		--fill-lift: 0;
+		--edge: #000;
 		transition:
 			opacity 300ms ease,
 			filter 150ms ease,
 			transform 150ms ease,
 			--fill-dim 250ms ease,
-			--fill-lift 250ms ease;
+			--fill-lift 250ms ease,
+			--edge 200ms ease,
+			--shade-len 200ms ease;
 	}
 	.tile.chip-down {
 		--fill-dim: 0;
 		--fill-lift: 0.08;
+	}
+	/* Betting: the board is the lit thing (`.bottom-panel.lit`), so an empty tile shows its fill at
+	   full colour too — no dark wash over it. A chip still lifts the fill it lands on. */
+	.bottom-panel.lit .tile {
+		--fill-dim: 0;
+	}
+	/* Hovered while betting: the inner shadow turns into an inner glow of gold, the frame's own
+	   colour, so the tile under the pointer lights from its edges in. */
+	.bottom-panel.lit .tile:hover {
+		--edge: #ffd24a;
+		/* Reaching further in than the shadow does: most of the shadow's run is under the bars,
+		   and a glow that stopped there would barely clear the gold. */
+		--shade-len: calc(var(--frame) * 2.2);
+	}
+	/* Registered so the edge fades from shadow to glow, and grows into the fill, rather than
+	   snapping. */
+	@property --edge {
+		syntax: '<color>';
+		inherits: false;
+		initial-value: #000;
+	}
+	@property --shade-len {
+		syntax: '<length>';
+		inherits: false;
+		initial-value: 0px;
 	}
 	/* Registered so the fill's light fades between empty and backed rather than snapping. */
 	@property --fill-dim {

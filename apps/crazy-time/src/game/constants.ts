@@ -48,6 +48,29 @@ export const ROOM_ICON: Record<RoomSpot, { src: string; aspect: number }> = {
 	oceanVoyage: { src: 'img/ocean-voyage/wheel_icon.webp', aspect: 1144 / 1163 },
 };
 
+/**
+ * The motion each spot's icon plays, wherever the icon stands: on its bet tile (hover, a chip
+ * landing), on the landed wedge, and on the Top Slot's reel when the reel stops on it. The chest
+ * rattles, the cannonball bounces, the ship's wheel turns, the ship rocks on a swell, and a number
+ * pops. The keyframes are the global `motion-*` classes in Game.svelte.
+ */
+export type IconMotion = 'shake' | 'bounce' | 'spin' | 'rock' | 'pop';
+const ROOM_MOTION: Record<RoomSpot, IconMotion> = {
+	chest: 'shake',
+	piratePlinko: 'bounce',
+	bonusWheel: 'spin',
+	oceanVoyage: 'rock',
+};
+export const motionOf = (spot: Spot): IconMotion => (isRoomSpot(spot) ? ROOM_MOTION[spot] : 'pop');
+/** Each motion's length: the `animation-duration` of its `motion-*` class. */
+export const ICON_MOTION_MS: Record<IconMotion, number> = {
+	shake: 700,
+	bounce: 850,
+	spin: 1200,
+	rock: 2200,
+	pop: 600,
+};
+
 /** Tile / segment palette. Number spots follow the LuckyWheel reference art (steel, gold, rose, violet). */
 export const SPOT_COLOUR: Record<Spot, { base: string; deep: string; text: string }> = {
 	x1: { base: '#5f8fb3', deep: '#2f5f84', text: '#dff3ff' },

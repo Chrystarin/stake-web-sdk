@@ -10,16 +10,17 @@
 	import { onDestroy } from 'svelte';
 
 	import {
+		ICON_MOTION_MS,
 		isRoomSpot,
+		motionOf,
 		NUMBER_PAY,
 		ROOM_ICON,
 		SPOTS,
 		SPOT_COLOUR,
-		SPOT_LABEL,
 		TOP_SLOT_MULTS,
 		type Spot,
 	} from '../game/constants';
-	import { staticUrl } from '../lib/staticUrl';
+	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 
 	/**
 	 * The cabinet art (static/img/top-slots/frame.png, 1774x887). Its two windows were read off the
@@ -28,6 +29,16 @@
 	 * height works out at 0.2452 of the frame's WIDTH, which is where `--cell` comes from.
 	 */
 	const FRAME_ART = staticUrl('img/top-slots/frame.png');
+	/**
+	 * The two ropes the cabinet hangs from, hooked onto the rope bindings drawn on its top rail
+	 * (left one centred at x 435 of 1774, the right its mirror at 1339; the rail's top edge at y 187
+	 * of 887). Each is the hook end (static/img/top-slots/rope.png from row 227 down, so its top is
+	 * where the twist repeats) under a strand cut from the same rope, one repeat (294 px, three turns)
+	 * tall and tiled on up past the top of the screen — so the rope still reaches the rigging when the
+	 * cabinet comes down into the middle of the wheel.
+	 */
+	const ROPE_END = staticUrl('img/top-slots/rope_end.webp');
+	const ROPE_STRAND = staticCssUrl('img/top-slots/rope_strand.webp');
 
 	type Props = {
 		/** Glow the pair: the wheel landed on the spot the Top Slot picked. */
@@ -46,11 +57,11 @@
 	const SPIN_MS = 2200;
 	const MULT_EXTRA_MS = 2000;
 
-	// A number reads as its wheel badge alone; a bonus as the room's own icon plus its name, so a
-	// reel says the same thing the wedge does.
+	// A number reads as its wheel badge, a bonus as the room's own icon: no names, the icon alone,
+	// set large and dead centre in the window, so a reel says the same thing the wedge does.
 	const spotItems = SPOTS.map((spot) => ({
 		key: spot,
-		label: isRoomSpot(spot) ? SPOT_LABEL[spot] : '',
+		room: isRoomSpot(spot),
 		icon: isRoomSpot(spot)
 			? staticUrl(ROOM_ICON[spot].src)
 			: staticUrl(`img/wheel/${NUMBER_PAY[spot]}.png`),
@@ -74,6 +85,18 @@
 		return cell ? parseFloat(getComputedStyle(cell).fontSize) : 0;
 	};
 
+	/**
+	 * What each reel stopped on, lit in its window until the next spin; and the left reel's icon
+	 * playing its own motion (the one it plays on its bet tile and its wedge) as it lands. The
+	 * motion goes on every copy of the spot in the strip, so the silent reset to the first copy
+	 * lands on one already mid-motion, in step.
+	 */
+	let landedSpot = $state<Spot | null>(null);
+	let spotMoving = $state(false);
+	/** The multiplier reel's landed item (its index in one copy of the strip); null for a miss. */
+	let multLanded = $state<number | null>(null);
+	let motionTimer: ReturnType<typeof setTimeout> | undefined;
+
 	let spotIndex = $state(0);
 	let multIndex = $state(1);
 	let animating = $state(false);
@@ -84,7 +107,10 @@
 	 *  before the first spin, so the seed only has to be a sane number. */
 	let multMs = $state(SPIN_MS + MULT_EXTRA_MS);
 
-	onDestroy(() => cancelAnimationFrame(raf));
+	onDestroy(() => {
+		cancelAnimationFrame(raf);
+		clearTimeout(motionTimer);
+	});
 
 	const strip = <T,>(items: T[]) => Array.from({ length: COPIES }, () => items).flat();
 	const spotStrip = strip(spotItems);
@@ -143,14 +169,28 @@
 			}
 		}
 
+		const landing = spotItems[s].key;
 		return new Promise((resolve) => {
 			animating = true;
+			landedSpot = null;
+			spotMoving = false;
+			multLanded = null;
+			clearTimeout(motionTimer);
 			lastCell = [spotOffset, multOffset];
 			cancelAnimationFrame(raf);
 			raf = requestAnimationFrame(track);
 			// Each reel says so as it lands; the second one is still running when the first does.
-			setTimeout(() => onReelStop?.(), SPIN_MS);
-			setTimeout(() => onReelStop?.(), multMs);
+			// The left one's icon lights and plays its motion the moment it stops.
+			setTimeout(() => {
+				onReelStop?.();
+				landedSpot = landing;
+				spotMoving = true;
+				motionTimer = setTimeout(() => (spotMoving = false), ICON_MOTION_MS[motionOf(landing)]);
+			}, SPIN_MS);
+			setTimeout(() => {
+				onReelStop?.();
+				multLanded = multiplier !== null ? m : null;
+			}, multMs);
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
 					spotOffset = sTarget;
@@ -173,27 +213,36 @@
 
 <div class="topslot" class:applied class:animating>
 	<div class="cabinet">
+		<!-- Behind the frame: the hook goes down behind the binding, so it reads as hooked on. -->
+		{#each ['left', 'right'] as side (side)}
+			<div class="rope {side}" style="--strand:{ROPE_STRAND}" aria-hidden="true">
+				<div class="rope-up"></div>
+				<img class="rope-end" src={ROPE_END} alt="" draggable="false" />
+			</div>
+		{/each}
 		<img class="frame-art" src={FRAME_ART} alt="" draggable="false" />
-		<div class="reel spot-reel">
+		<!-- Each window is shaded at its edges, like a drum turning away into the cabinet, and lit in
+		     the middle where the result stands (`::before` the light, `::after` the shade). -->
+		<div class="reel spot-reel" class:lit={landedSpot !== null}>
 			<div class="strip" bind:this={spotStripEl} style="--offset:{spotOffset}; --ms:{SPIN_MS}ms">
 				{#each spotStrip as item, i (i)}
-					<div class="cell" style="--fill:{item.fill}; --text:{item.text}">
+					{@const landed = landedSpot === item.key}
+					<div class="cell" class:landed style="--fill:{item.fill}; --text:{item.text}">
 						<img
-							class="badge"
-							class:crest={Boolean(item.label)}
+							class="badge {landed && spotMoving ? `motion-${motionOf(item.key)}` : ''}"
+							class:crest={item.room}
 							src={item.icon}
 							alt=""
 							draggable="false"
 						/>
-						{#if item.label}<span class="spot-lbl">{item.label}</span>{/if}
 					</div>
 				{/each}
 			</div>
 		</div>
-		<div class="reel mult-reel" bind:this={multReelEl}>
+		<div class="reel mult-reel" class:lit={multLanded !== null} bind:this={multReelEl}>
 			<div class="strip" bind:this={multStripEl} style="--offset:{multOffset}; --ms:{multMs}ms">
 				{#each multStrip as item, i (i)}
-					<div class="cell mult" class:blank={item.blank}>
+					<div class="cell mult" class:blank={item.blank} class:landed={i % multItems.length === multLanded}>
 						{#if !item.blank}
 							<span class="mult-stroke" aria-hidden="true">{item.label}</span>
 							<span class="mult-fill">{item.label}</span>
@@ -220,6 +269,45 @@
 		position: relative;
 		width: var(--frame-w);
 		aspect-ratio: 1774 / 887;
+	}
+	/*
+	 * A rope, in the cabinet's own units. The drawing is 887 px wide with the rope dead centre, and is
+	 * drawn at 0.45 of its size against the 1774 px frame: 22.5% of the cabinet's width, which makes
+	 * the ring about as wide as the binding it hooks. The hook's tip (row 1541 of the 1547-row end
+	 * piece) sits at 28.5% of the cabinet's height, 60 frame px down behind the binding, so the ring
+	 * hangs just above the rail. Everything above the end piece is strand, as tall as it needs to be.
+	 */
+	.rope {
+		--rope-w: calc(var(--frame-w) * 0.225);
+		position: absolute;
+		z-index: 1;
+		bottom: 71.5%;
+		width: var(--rope-w);
+		display: flex;
+		flex-direction: column;
+		pointer-events: none;
+	}
+	.rope.left {
+		left: calc(24.5% - var(--rope-w) / 2);
+	}
+	.rope.right {
+		left: calc(75.5% - var(--rope-w) / 2);
+	}
+	/* The strand, tiled up from the end piece's top edge — the tile starts on the row the end piece
+	   does, so the twist runs on through the join. Tall enough to clear the top of the screen from
+	   anywhere the cabinet goes (it comes down to the wheel's middle, grown, for its spin). */
+	.rope-up {
+		height: calc(var(--frame-w) * 3);
+		background: var(--strand) center bottom / 100% auto repeat-y;
+	}
+	.rope-end {
+		display: block;
+		width: 100%;
+		height: auto;
+		aspect-ratio: 887 / 1547;
+		/* A pixel of overlap, so rounding never opens a hairline at the join. */
+		margin-top: -1px;
+		user-select: none;
 	}
 	.frame-art {
 		position: absolute;
@@ -280,24 +368,96 @@
 		flex: none;
 		width: auto;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
+		transition: filter 250ms ease;
 	}
-	/* A number badge has the window to itself; a bonus shares it with its name, so the crest is set
-	   smaller and the pair is sized to clear the frame's opening rather than run under the wood. */
+	/* A bonus has the window to itself too, with no name under it: the room's icon, set big and
+	   dead centre. Its drawing is round-ish and fills its file, so it is set a little larger than
+	   a number badge (a tall, narrow plate) to read at the same weight. */
 	.crest {
-		height: calc(var(--cell) * 0.42);
+		height: calc(var(--cell) * 0.84);
 	}
-	/* The bonus name in the bet board's own hand. */
-	.spot-lbl {
-		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
-		font-weight: 400;
-		font-size: calc(var(--cell) * 0.145);
-		letter-spacing: calc(var(--cell) * 0.008);
-		line-height: 1.05;
-		text-align: center;
-		/* The window is narrower than a tile, so a two-word name wraps rather than shrinking to fit. */
-		white-space: normal;
-		paint-order: stroke;
-		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
+	/* The one that landed, lit from behind with the window's own light. */
+	.cell.landed .badge {
+		filter: drop-shadow(0 0 calc(var(--cell) * 0.06) rgba(255, 236, 160, 0.95))
+			drop-shadow(0 0 calc(var(--cell) * 0.16) rgba(255, 196, 70, 0.7));
+	}
+	/* The landed icon's own motion (the global `motion-*` classes), kept inside the window: the
+	   tile's cannonball hops a third of its height, which a window one cell tall would cut the top
+	   off, so on the reel it hops a lower hop in the same rhythm. */
+	.badge:global(.motion-bounce) {
+		animation-name: ts-bounce;
+	}
+	@keyframes ts-bounce {
+		0%,
+		100% {
+			transform: none;
+		}
+		10% {
+			transform: scale(1.1, 0.88);
+			animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+		}
+		36% {
+			transform: translateY(-9%) scale(0.95, 1.05);
+			animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+		}
+		58% {
+			transform: scale(1.08, 0.9);
+			animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+		}
+		74% {
+			transform: translateY(-3%);
+			animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+		}
+		88% {
+			transform: scale(1.03, 0.97);
+		}
+	}
+	/* The window's light: a warm pool in the middle, where the result stands, screened over the
+	   strip so it brightens what is under it rather than covering it. Brighter once the reel has
+	   stopped on something. */
+	.reel::before,
+	.reel::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		pointer-events: none;
+	}
+	.reel::before {
+		background: radial-gradient(
+			ellipse 46% 62% at 50% 50%,
+			rgba(255, 236, 170, 0.34) 0%,
+			rgba(255, 214, 120, 0.16) 45%,
+			rgba(255, 200, 100, 0) 100%
+		);
+		mix-blend-mode: screen;
+		opacity: 0.7;
+		transition: opacity 300ms ease;
+	}
+	.reel.lit::before {
+		opacity: 1;
+	}
+	/* And its shade: the edges fall away into soft shadow, top and bottom most (the drum turning
+	   away), the sides a little, so the middle reads as the one place the light is. */
+	.reel::after {
+		background:
+			linear-gradient(
+				180deg,
+				rgba(0, 0, 0, 0.62) 0%,
+				rgba(0, 0, 0, 0.18) 20%,
+				rgba(0, 0, 0, 0) 34%,
+				rgba(0, 0, 0, 0) 66%,
+				rgba(0, 0, 0, 0.18) 80%,
+				rgba(0, 0, 0, 0.62) 100%
+			),
+			linear-gradient(
+				90deg,
+				rgba(0, 0, 0, 0.4) 0%,
+				rgba(0, 0, 0, 0) 16%,
+				rgba(0, 0, 0, 0) 84%,
+				rgba(0, 0, 0, 0.4) 100%
+			);
+		box-shadow: inset 0 0 calc(var(--cell) * 0.14) rgba(0, 0, 0, 0.65);
 	}
 	/* The multiplier is set the way Pirate Plinko sets the win value on its congratulations screen: the
 	   AustereBlackCapsSSK face, a golden-brown stroke layer carrying the outline, glow and shadows,
@@ -331,6 +491,10 @@
 	}
 	.mult-fill {
 		color: #e9e4e4;
+	}
+	/* The multiplier it stopped on glows like the icon beside it. */
+	.cell.mult.landed {
+		filter: drop-shadow(0.034em 0.068em 0 #000) drop-shadow(0 0 0.14em rgba(255, 226, 120, 0.9));
 	}
 	/* A miss is a plate of its own — the same brown, with nothing on it — rather than a gap between
 	   two others, so the reel always shows one whole slot in the window. */

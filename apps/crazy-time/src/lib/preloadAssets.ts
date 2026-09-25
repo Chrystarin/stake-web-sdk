@@ -50,6 +50,8 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 
 	// ── Top Slot cabinet (TopSlot.svelte) ─────────────────────────────────────────────────────────
 	'img/top-slots/frame.png',
+	'img/top-slots/rope_end.webp',
+	'img/top-slots/rope_strand.webp',
 
 	// ── Chips (Game.svelte: the tray/board chips' base art and the balance rail's coin) ──────────
 	// Set as CSS custom properties on the frame, so the stylesheet's `url(var(--…))` picks up the
@@ -102,9 +104,11 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/pirate-plinko/board_v2.png',
 	'img/pirate-plinko/board_v2_portrait.png',
 	'img/pirate-plinko/cannon.png',
-	'img/pirate-plinko/coin.png',
+	// (The ball is the room's wheel icon, already in the ROOM_ICON row above.)
 	'img/pirate-plinko/bomb.png',
 	'img/pirate-plinko/explosion.png',
+	// The clouds on the seam as the camera goes down from the table into the room (Game.svelte).
+	'img/pirate-plinko/divider.webp',
 
 	// ── Bonus Wheel (RoomBonusWheel.svelte) ──────────────────────────────────────────────────────
 	'img/bonus-wheel/frame_bare.webp',
@@ -117,7 +121,8 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/treasure_chest/chest_open.webp',
 
 	// ── Ocean Voyage (RoomOceanVoyage.svelte) ────────────────────────────────────────────────────
-	'img/ocean-voyage/ship.png',
+	// (The ship is the room's wheel icon, already in the ROOM_ICON row above.)
+	'img/ocean-voyage/divider.webp',
 	'img/ocean-voyage/kraken.png',
 	'img/ocean-voyage/island.png',
 	'img/ocean-voyage/goal.png',

@@ -27,7 +27,7 @@
 	 * who has walked away is still only ever waited for once.
 	 */
 	import { onDestroy } from 'svelte';
-	import { PICK_SECONDS, TILES_PER_DEPTH } from '../../game/constants';
+	import { PICK_SECONDS, ROOM_ICON, TILES_PER_DEPTH } from '../../game/constants';
 	import type { BookEventOceanVoyage } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
@@ -40,11 +40,11 @@
 	const PICK_MS = PICK_SECONDS * 1000;
 
 	/**
-	 * The art. All four are PNGs with transparent air around them; the ship's is cut to the drawing
-	 * (204x216, the hull dead centre of it) so that putting its middle on a buoy puts the SHIP on
-	 * the buoy rather than a corner of its canvas.
+	 * The art, all with transparent air around it. The ship is the room's own wheel badge — the one
+	 * that sails the player in (VoyageReveal) and hands over to this one — drawn side-on with its
+	 * bow to the right, and cut to the drawing so that its middle on a buoy puts the SHIP there.
 	 */
-	const SHIP = staticPath('img/ocean-voyage/ship.png');
+	const SHIP = staticPath(ROOM_ICON.oceanVoyage.src);
 	const KRAKEN = staticPath('img/ocean-voyage/kraken.png');
 	const ISLAND = staticPath('img/ocean-voyage/island.png');
 	const GOAL = staticPath('img/ocean-voyage/goal.png');
@@ -178,13 +178,6 @@
 			y: w0 * l.a.y + w1 * l.c1.y + w2 * l.c2.y + w3 * l.b.y,
 		};
 	};
-	/** The bow's heading at `t`, in degrees clockwise from straight up the board. */
-	const heading = (l: Leg, t: number): number => {
-		const u = 1 - t;
-		const dx = 3 * (u * u * (l.c1.x - l.a.x) + 2 * u * t * (l.c2.x - l.c1.x) + t * t * (l.b.x - l.c2.x));
-		const dy = 3 * (u * u * (l.c1.y - l.a.y) + 2 * u * t * (l.c2.y - l.c1.y) + t * t * (l.b.y - l.c2.y));
-		return (Math.atan2(dx, -dy) * 180) / Math.PI;
-	};
 	/** The part of a leg from its start to `t` — de Casteljau's split, kept as a curve of its own. */
 	const upTo = (l: Leg, t: number): Leg => {
 		const mix = (p: Pt, q: Pt): Pt => ({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t });
@@ -225,9 +218,23 @@
 	const here = $derived(course[course.length - 1]);
 	const legs = $derived(course.slice(1).map((s, i) => leg(spot(course[i]), spot(s))));
 	const crossing = $derived(underway ? leg(spot(here), spot(underway.to)) : null);
-	/** The ship, in board shares, and its heading. */
+	/** The ship, in board shares. */
 	const ship = $derived(crossing && underway ? along(crossing, underway.t) : spot(here));
-	const tilt = $derived(crossing && underway ? Math.max(-75, Math.min(75, heading(crossing, underway.t))) : 0);
+	/**
+	 * Which way it faces: 1 with its bow to the right, as drawn, -1 turned about. It is seen side-on,
+	 * so it faces the way the leg it is on (or last sailed) crosses the board; a leg straight up keeps
+	 * the facing it had, and out of the harbour it faces right, as the ship that docked there did.
+	 */
+	const facing = $derived.by(() => {
+		const sailed = crossing ? [...legs, crossing] : legs;
+		for (let i = sailed.length - 1; i >= 0; i--) {
+			const dx = sailed[i].b.x - sailed[i].a.x;
+			if (Math.abs(dx) > 1e-6) return dx > 0 ? 1 : -1;
+		}
+		return 1;
+	});
+	/** Bow up as it climbs away from a stop, level again as it comes in over the next. */
+	const tilt = $derived(crossing && underway ? -facing * 9 * Math.sin(Math.PI * underway.t) : 0);
 
 	let alive = true;
 	onDestroy(() => (alive = false));
@@ -405,13 +412,13 @@
 			<path class="wake-line" d={wake} />
 		</svg>
 
-		<img
+		<div
 			class="ship"
 			class:sunk
-			src={SHIP}
-			alt=""
-			style="--sx:{ship.x}; --sy:{ship.y}; --tilt:{tilt.toFixed(2)}deg"
-		/>
+			style="--sx:{ship.x}; --sy:{ship.y}; --tilt:{tilt.toFixed(2)}deg; --face:{facing}; --ship-aspect:{ROOM_ICON.oceanVoyage.aspect}"
+		>
+			<img src={SHIP} alt="" draggable="false" />
+		</div>
 	</div>
 
 	<!-- What the voyage is doing, in the voice the other rooms speak in — see `RoomHint`. The pick
@@ -620,18 +627,32 @@
 	}
 
 	/* The ship. Its place is two shares of the board, written on the element; the translate puts
-	   its middle on them, and the heading is on top so it turns about its own hull. */
+	   its middle on them, and the pitch is on top so it rocks about its own hull. Which way it faces
+	   is on the drawing inside, so turning about is eased and the sinking below cannot undo it. */
 	.ship {
 		position: absolute;
 		left: 0;
 		top: 0;
-		height: calc(var(--voyage-w) * 0.14);
-		width: auto;
+		height: calc(var(--voyage-w) * 0.11);
+		width: calc(var(--voyage-w) * 0.11 * var(--ship-aspect));
 		transform: translate(calc(var(--voyage-w) * var(--sx)), calc(var(--voyage-w) * var(--sy)))
 			translate(-50%, -50%) rotate(var(--tilt));
 		filter: drop-shadow(0 calc(var(--voyage-w) * 0.008) calc(var(--voyage-w) * 0.012) rgba(0, 0, 0, 0.7));
 		pointer-events: none;
 		z-index: 2;
+		transition: opacity 280ms ease-out;
+	}
+	/* Held back while the wheel's ship sails in and docks on it (VoyageReveal): that ship IS this
+	   one, and fades into it. */
+	:global(.game.ship-arriving) .ship {
+		opacity: 0;
+	}
+	.ship img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		transform: scaleX(var(--face));
+		transition: transform 240ms ease-in-out;
 	}
 	/* Going down under the kraken: it slides down the board and fades as it goes, listing a little
 	   and drawing in as the water takes it. On the drawing's own `translate`/`scale`/`rotate`, which
