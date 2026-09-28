@@ -1024,9 +1024,13 @@
 			TILE_MOTION_MS[motionOf(spot)] + TILE_MOTION_LAG_MS,
 		);
 	};
-	/** Mouse only: on touch the same tap places a chip, and the landing plays it anyway. */
+	/**
+	 * Mouse only: on touch the same tap places a chip, and the landing plays it anyway. And only
+	 * while betting (the same gate as the hover glow, `.bottom-panel.lit`): once the wheel is
+	 * spinning or a room is up, the board is not asking to be touched.
+	 */
 	const onTileHover = (event: PointerEvent, spot: Spot) => {
-		if (event.pointerType === 'mouse') playTileMotion(spot);
+		if (event.pointerType === 'mouse' && betting) playTileMotion(spot);
 	};
 
 	// On a chip landing: whatever the tile was doing is cut short so its icons spring out still, and
@@ -4090,8 +4094,10 @@
 		--fill-dim: 0;
 	}
 	/* Hovered while betting: the inner shadow turns into an inner glow of gold, the frame's own
-	   colour, so the tile under the pointer lights from its edges in. */
+	   colour, so the tile under the pointer lights from its edges in, and the whole tile brightens.
+	   Neither happens off betting — the board is not asking to be touched then. */
 	.bottom-panel.lit .tile:hover {
+		filter: brightness(1.15);
 		--edge: #ffd24a;
 		/* Reaching further in than the shadow does: most of the shadow's run is under the bars,
 		   and a glow that stopped there would barely clear the gold. */
@@ -4137,9 +4143,6 @@
 	   covered group button does the same with its ring (`.bundle-btn.on::after`). */
 	.tile.backed::before {
 		filter: brightness(1);
-	}
-	.tile:hover {
-		filter: brightness(1.15);
 	}
 	/* Three of the spot's icon in a row, the middle one biggest, all on one centre line. A room's
 	   icon is square against a number badge's 30:48, so it runs a little shorter to keep the row
