@@ -188,6 +188,15 @@ const beginBuy = (mode: string): boolean => {
 	return true;
 };
 
+/** True when the balance covers a chip of `value`. The tray greys out every chip it does not. */
+const canAffordStake = (value: number): boolean => value <= stateBet.balanceAmount;
+
+/** The biggest tray chip the balance covers, or null when it covers none of them. */
+const largestAffordableStake = (): number | null =>
+	stakeOptions()
+		.filter(canAffordStake)
+		.reduce<number | null>((best, value) => (best === null || value > best ? value : best), null);
+
 /**
  * Switch the tray denomination. The board is cleared (every placed chip carries the tray's amount)
  * and the same spots are backed again at the new value, provided the balance covers all of them;
@@ -200,6 +209,7 @@ const selectStake = (value: number): Spot[] | null => {
 	if (stateGame.rolling) return null;
 	if (value === stateGame.stake) return null;
 	if (!stakeOptions().includes(value)) return null;
+	if (!canAffordStake(value)) return null;
 	const spots = backedSpots();
 	const placement = { ...stateGame.placement };
 	stateGame.stake = value;
@@ -350,6 +360,8 @@ export const stateGameDerived = {
 	canRepeat,
 	canBackAnother,
 	isBacked,
+	canAffordStake,
+	largestAffordableStake,
 	selectStake,
 	toggleSpot,
 	newPlacement,

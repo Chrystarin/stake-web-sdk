@@ -647,12 +647,46 @@
 	:global(.game.ship-arriving) .ship {
 		opacity: 0;
 	}
+	/* Riding the swell in place: rolled one way and the other about its waterline, lifting on the
+	   crest as it passes level — the wheel's `ride` (VoyageReveal), gentler and slower, since it
+	   never stops. On the drawing's own `rotate`/`translate`, which compose with its facing and
+	   with the sailing tilt and the sinking on the element outside. The negative delays start it
+	   level on a crest, so held back while the wheel's ship docks it waits there, level, as that
+	   one arrives. */
 	.ship img {
 		display: block;
 		width: 100%;
 		height: 100%;
 		transform: scaleX(var(--face));
+		transform-origin: 50% 85%;
 		transition: transform 240ms ease-in-out;
+		animation:
+			rock 1300ms ease-in-out -650ms infinite alternate,
+			heave 650ms ease-in-out -650ms infinite alternate;
+	}
+	:global(.game.ship-arriving) .ship img {
+		animation-play-state: paused;
+	}
+	@keyframes rock {
+		from {
+			rotate: -5deg;
+		}
+		to {
+			rotate: 5deg;
+		}
+	}
+	@keyframes heave {
+		from {
+			translate: 0 0;
+		}
+		to {
+			translate: 0 -4%;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ship img {
+			animation: none;
+		}
 	}
 	/* Going down under the kraken: it slides down the board and fades as it goes, listing a little
 	   and drawing in as the water takes it. On the drawing's own `translate`/`scale`/`rotate`, which

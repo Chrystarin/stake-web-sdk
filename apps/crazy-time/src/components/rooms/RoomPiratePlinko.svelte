@@ -73,14 +73,14 @@
 	/**
 	 * The ball is the room's own wheel icon: the skull-faced cannonball on the wedge the wheel
 	 * landed on, so the thing that brought the player here is the thing they fire. The disc (read
-	 * off the alpha at half opacity) runs 9..590 across and 7..592 down in the 600px file: centred
-	 * a hair up and left, and 583 across.
+	 * off the alpha at half opacity) runs 11..589 across and 2..598 down in the 600px file: centred,
+	 * and a touch taller than wide, so it is sized off the mean of the two, 588.
 	 */
 	const BALL = {
 		src: staticPath(ROOM_ICON.piratePlinko.src),
-		cx: 299.5 / 600,
-		cy: 299.5 / 600,
-		d: 583 / 600,
+		cx: 300 / 600,
+		cy: 300 / 600,
+		d: 588 / 600,
 		// Framed, the board is squat: thirteen pockets across a short opening make the row gap small,
 		// and with it the ball. Drawn over size so it still reads as a cannonball, but only just: at
 		// this scale it covers about four tenths of a peg pitch, near enough the ball it stands for

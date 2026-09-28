@@ -452,14 +452,19 @@
 
 	let stakePanelOpen = $state(false);
 
+	/** A chip worth more than the balance is greyed out and cannot be picked until the balance covers it. */
+	const chipDisabled = (value: number) => !stateGameDerived.canAffordStake(value);
+
 	const onChipClick = (value: number, isSelected: boolean) => {
 		if (settled || clearing) return;
+		// The selected chip still opens the panel even when the balance is under it (it only stays
+		// selected then when the balance covers no chip at all; see the step-down effect).
 		if (isSelected) stakePanelOpen = !stakePanelOpen;
-		else selectStake(value);
+		else if (!chipDisabled(value)) selectStake(value);
 	};
 
 	const pickStake = (value: number) => {
-		if (settled || clearing) return;
+		if (settled || clearing || chipDisabled(value)) return;
 		selectStake(value);
 		stakePanelOpen = false;
 	};
@@ -915,6 +920,13 @@
 			flyChip(spot, 'place', after + i * RESTAKE_STEP_MS, undefined, RESTAKE_PACE),
 		);
 	};
+	// The balance has fallen under the selected chip: step down to the biggest one it still covers.
+	// Only while betting is open, so a round in flight or on show keeps the chip it was played with.
+	$effect(() => {
+		if (!bettingOpen || stateGameDerived.canAffordStake(stateGame.stake)) return;
+		const fallback = stateGameDerived.largestAffordableStake();
+		if (fallback !== null) untrack(() => selectStake(fallback));
+	});
 	/** Gap between re-placed chips on a denomination switch. */
 	const RESTAKE_STEP_MS = 35;
 	/** Flight time of a re-placed chip, as a fraction of a hand-placed one. */
@@ -2622,6 +2634,7 @@
 													<div
 														class="chip"
 														class:selected={stateGame.stake === value}
+														class:disabled={chipDisabled(value)}
 														style="--chip-hue:{chipHueShift(i)}deg; --chip-text:{chipTextColour(i)}"
 														onclick={() => pickStake(value)}
 														aria-hidden="true"
@@ -2648,6 +2661,7 @@
 														class="chip"
 														class:selected={chip.selected}
 														class:open={chip.selected && stakePanelOpen}
+														class:disabled={chipDisabled(chip.value)}
 														style="--chip-hue:{chipHueShift(
 															chip.index,
 														)}deg; --chip-text:{chipTextColour(chip.index)}"
@@ -2796,6 +2810,22 @@
 	}
 	.chip.open {
 		outline-color: #ffffff;
+	}
+	/* Worth more than the balance: greyed out and not pickable. The selected chip keeps its click so
+	   its panel still opens (it is only ever greyed when the balance covers no chip at all). */
+	.chip.disabled {
+		cursor: not-allowed;
+	}
+	.chip.disabled::before {
+		filter: hue-rotate(var(--chip-hue, 0deg)) grayscale(1) brightness(0.6);
+		opacity: 0.5;
+	}
+	.chip.disabled span {
+		color: #c8c8c8;
+		opacity: 0.75;
+	}
+	.chip.disabled:not(.selected) {
+		pointer-events: none;
 	}
 
 	.flying-chip {
