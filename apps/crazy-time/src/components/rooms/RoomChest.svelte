@@ -74,8 +74,12 @@
 	 */
 	const HINT_SIZE = 'calc(var(--cell) * 0.355)';
 
-	/** Four across, three down. The transforms below are the only other place that shape matters. */
-	const COLS = 4;
+	/** Three across, four down. The transforms below are the only other place that shape matters. */
+	const COLS = 3;
+	const ROWS = 4;
+	/** How many columns and rows a chest stands out from the middle of the board (see `.centred`). */
+	const dx = (i: number) => (COLS - 1) / 2 - (i % COLS);
+	const dy = (i: number) => (ROWS - 1) / 2 - Math.floor(i / COLS);
 
 	/**
 	 * The reveal, one beat at a time.
@@ -277,7 +281,7 @@
 	};
 </script>
 
-<div class="chests" style="--shake-ms:{SHAKE_MS}ms">
+<div class="chests" style="--shake-ms:{SHAKE_MS}ms; --cols:{COLS}">
 	<!-- The rule of the room and the pick clock, in the game's one voice — see `RoomHint`. It stands
 	     over the grid rather than across it, because here the thing being read and the thing being
 	     tapped are the same twelve boxes. A player who was not in the bonus is only being shown the
@@ -308,7 +312,7 @@
 				class:centred={mine && (phase === 'centred' || phase === 'opened')}
 				class:burning={mine && burning}
 				bind:this={chestEls[i]}
-				style="--dx:{1.5 - (i % COLS)}; --dy:{1 - Math.floor(i / COLS)}; --shake-delay:{rattleDelay(i) ?? 0}ms"
+				style="--dx:{dx(i)}; --dy:{dy(i)}; --shake-delay:{rattleDelay(i) ?? 0}ms"
 				disabled={open || winner !== null || phase !== 'picking' || !interactive}
 				onclick={() => choose(i)}
 			>
@@ -340,7 +344,7 @@
 		     the chest has grown to. -->
 		<div
 			class="winner-value"
-			style="left:{el.offsetLeft}px; top:{el.offsetTop}px; --dx:{1.5 - (winner % COLS)}; --dy:{1 - Math.floor(winner / COLS)}"
+			style="left:{el.offsetLeft}px; top:{el.offsetTop}px; --dx:{dx(winner)}; --dy:{dy(winner)}"
 			aria-hidden="true"
 		>
 			<div class="value">
@@ -360,7 +364,9 @@
 	.chests {
 		/* The dragon's layer is laid over this box. */
 		position: relative;
-		--cell: 8vw;
+		/* 7 rather than the 8 it was at four across: four rows down, it is the most a wide screen's
+		   stage has room for with the hint over it, clear of the sign. */
+		--cell: 7vw;
 		--gap: calc(var(--cell) * 0.097);
 		/* The shut drawing, laid across the full column: 1102/1427 of its own width. */
 		--art-h: calc(var(--cell) * 0.7723);
@@ -369,15 +375,16 @@
 		--head: calc(var(--cell) * 0.27);
 		--chest-h: calc(var(--art-h) + var(--head));
 		/* How far the last chest grows once it reaches the middle — and the dragon with it, since it
-		   is sized off the chest's own box on the screen. The grid is 4.29 columns across and a
-		   little over 3.2 chests down; 3 stood clear of both, and this deliberately overhangs the
-		   board it came from. The eleven are gone by then and the hint has faded, so there is
-		   nothing under it to hide except the air — except the win line, which comes up under its
-		   foot. At this size the foot would still run a little under that line on a 16:9 screen, so
-		   the chest is also lifted (`--lift`) by the shortfall; the dragon on its lid still stands
-		   clear of the sign above. */
-		--zoom: 4.2;
-		--lift: calc(var(--cell) * 0.2);
+		   is sized off the chest's own box on the screen. The grid is 3.2 columns across and a
+		   little over 4.3 chests down; 3 stood clear of both, and this deliberately overhangs the
+		   board it came from; 4.8 of a 7vw column is the 4.2 of an 8vw one it was at four across,
+		   so the chest lands the same size it always did. The eleven are gone by then and the hint
+		   has faded, so there is nothing under it to hide except the air — except the win line,
+		   which comes up under its foot. At this size the foot would still run a little under that
+		   line on a 16:9 screen, so the chest is also lifted (`--lift`) by the shortfall; the dragon
+		   on its lid still stands clear of the sign above. */
+		--zoom: 4.8;
+		--lift: calc(var(--cell) * 0.23);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -385,7 +392,7 @@
 	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(4, var(--cell));
+		grid-template-columns: repeat(var(--cols), var(--cell));
 		gap: var(--gap);
 	}
 	.chest {
@@ -511,7 +518,7 @@
 	 *
 	 * The grid is regular, so the trip is arithmetic rather than a measurement: a column plus a gap
 	 * for every column it stands out from the middle, a chest plus a gap for every row. `--dx` and
-	 * `--dy` are those two counts, written on the element — 1.5 minus the column, 1 minus the row —
+	 * `--dy` are those two counts, written on the element — 1 minus the column, 1.5 minus the row —
 	 * and they are the only place the shape of the grid is stated twice (see `COLS`).
 	 *
 	 * The scale comes after the translate so the chest grows about where it ARRIVES rather than
@@ -584,12 +591,12 @@
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------
-	   The one number, given a taller screen: four chests across nearly the whole width, which is
-	   where the room was always meant to be — it was drawn for a wide screen and left at a quarter
-	   of a phone.
+	   The one number, given a taller screen. Three across is only half the width at this size, but
+	   the board is four chests down, and on a phone's short screen (h/w about 1.3) that is as tall
+	   as it can stand between the sign and the footer.
 
 	   The zoom is pulled in with it, by the same share as before the pair grew by half. A phone's
-	   board is the same three-and-a-bit chests tall as a desktop's, but there is far less air around
+	   board is the same four-and-a-bit chests tall as a desktop's, but there is far less air around
 	   it, and the sign above and the win line below are closer. */
 	:global(.game.portrait) .chests {
 		--cell: 19vw;
