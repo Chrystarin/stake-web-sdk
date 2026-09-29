@@ -71,6 +71,41 @@ buy mode (`buy_any`, `buy_tc`, `buy_pp`, `buy_ov`, `buy_bw`) and debits price x 
 narrows the pick within that mode the same way (`?force=wheel:1000` with a Bonus Wheel buy, or
 `?force=maxwin`). The room forcing auto-start still bets the full board, not a buy.
 
+### `?buy=<bonus>`: straight into a bought bonus
+
+Buys that bonus on load at the current chip, with no Yes/No prompt: the yellow chips fly, the wheel
+leaves (or turns into the four-wedge disc) and the room plays. Once per load, after the splash,
+like the room auto-start; it wins over `?force=<room>` if both are given.
+
+| Value    | Buys           |
+| -------- | -------------- |
+| `plinko` | `buy_pp`       |
+| `wheel`  | `buy_bw`       |
+| `chest`  | `buy_tc`       |
+| `voyage` | `buy_ov`       |
+| `any`    | `buy_any`      |
+
+The mode keys themselves (`?buy=buy_tc`) work too. If the balance cannot cover the price it waits;
+add `?balance=` for the dearer buys at a big chip.
+
+### `?mult=<x>`: what the bonus pays
+
+The win, in chips, the bonus round should pay. The sampled book is rewritten so the room lands
+there: the Plinko ball's pocket, the Bonus Wheel's wedge, the chest opened, how deep the Voyage
+dives. A figure the room has on its paytable plays with no Top Slot; one it does not is made up
+as room value x Top Slot on the room (`?buy=plinko&mult=1600` is 400 x a 4x Top Slot). Anything
+the room cannot reach either way plays the nearest figure it can, with a console warning.
+
+With `?buy=any` the wheel picks a room that can pay the figure exactly. `?mult=` works on any
+offline round with a bonus in it (bought, `?force=<room>`, or bet by hand), and in an offline replay.
+
+```
+http://localhost:3021/?buy=chest&mult=50        # Treasure Chest, the 50x chest
+http://localhost:3021/?buy=voyage&mult=80       # Ocean Voyage down to the 80x depth
+http://localhost:3021/?buy=wheel&mult=50000     # Bonus Wheel 1,000x under a 50x Top Slot
+http://localhost:3021/?buy=any&mult=400         # Random Bonus, any room that pays 400x
+```
+
 ## Where the books come from
 
 `pnpm --filter crazy-time sync-math-books` regenerates `base_books.ts` from the math publish

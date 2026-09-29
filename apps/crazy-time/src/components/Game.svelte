@@ -11,7 +11,7 @@
 	import { getContext } from '../game/context';
 	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
-	import { forcedRoomKind } from '../game/devLocalBet';
+	import { forcedBuyMode, forcedRoomKind } from '../game/devLocalBet';
 	import {
 		isReplay,
 		seedReplayStake,
@@ -1557,14 +1557,21 @@
 	/** `introLoaderComplete` flips at the START of the splash's fade-out; mirrors `FADE_OUT_MS` there. */
 	const SPLASH_HANDOVER_MS = 400;
 	$effect(() => {
-		if (autoStarted || online || !forcedRoomKind()) return;
+		// `?buy=<room|any>` does the same for a Buy Bonus: that buy, at the current chip, with no
+		// Yes/No prompt. It wins over `?force=<room>`, which would otherwise bet the board.
+		const buyMode = forcedBuyMode();
+		if (autoStarted || online || (!buyMode && !forcedRoomKind())) return;
 		if (!stateGame.introLoaderComplete) return;
 		// Everything has to be ready: the machine idle, a chip value in from the bet template, and
-		// enough balance to cover a board. Otherwise wait for the next run of this effect.
+		// enough balance to cover a board (or the buy). Otherwise wait for the next run of this effect.
 		if (!bettingOpen || !stakes.length || !stateGame.stake) return;
-		if (!stateGameDerived.canBackAnother()) return;
+		if (buyMode ? !stateGameDerived.canBuy(buyMode) : !stateGameDerived.canBackAnother()) return;
 		const timer = setTimeout(() => {
 			autoStarted = true;
+			if (buyMode) {
+				void startBuy(buyMode);
+				return;
+			}
 			toggleBundle(SPOTS);
 			// A tick, so the board's new state has reached `canSpin` before the spin asks it.
 			void tick().then(spin);

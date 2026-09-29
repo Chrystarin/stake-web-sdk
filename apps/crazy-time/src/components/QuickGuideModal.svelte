@@ -74,7 +74,7 @@
 	const isReplay = $derived(stateUrlDerived.replay());
 
 	/**
-	 * Dev harnesses (`?noLoader=1`) and forced offline rounds (`?force=`) step the game on their own
+	 * Dev harnesses (`?noLoader=1`) and forced offline rounds (`?force=`, `?buy=`) step the game on their own
 	 * clock, and a modal that opens itself over the table is in their way. Production never sees either.
 	 */
 	const isHarness =
@@ -82,7 +82,7 @@
 		typeof window !== 'undefined' &&
 		(() => {
 			const params = new URLSearchParams(window.location.search);
-			return params.get('noLoader') === '1' || params.has('force');
+			return params.get('noLoader') === '1' || params.has('force') || params.has('buy');
 		})();
 
 	let pageIndex = $state(0);
