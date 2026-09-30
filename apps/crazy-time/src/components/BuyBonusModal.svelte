@@ -8,15 +8,23 @@
 	 * title); what changed is the content of a card: the room's own badge instead of a chest, and its
 	 * max win instead of a free-ball count. Any Bonus is not a card: it sits in its own bar under the
 	 * chip, in the chip's frame, with just its name, price and Activate.
+	 *
+	 * A card's badge is the room's own icon, and it behaves like the one on the wheel and the bet
+	 * tiles: hovering Activate plays the room's motion on it, a bought room is walked into by that
+	 * badge popping out of its card (the caller flies it, off `artRect`, while `lifted` keeps the
+	 * card's own copy hidden), and the way back out slams it home onto the card (`slam`).
 	 */
+	import { fade } from 'svelte/transition';
 	import { stateBet } from 'state-shared';
 
 	import {
 		BUY_MODES,
 		BUY_MODE_NAMES,
+		ICON_MOTION_MS,
 		ROOM_ICON,
 		buyPrice,
 		maxWinForMode,
+		motionOf,
 		type RoomSpot,
 	} from '../game/constants';
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
@@ -29,6 +37,13 @@
 		open: boolean;
 		/** Disabled while a round is in progress (can't buy mid-round). */
 		disabled?: boolean;
+		/**
+		 * A room buy is out and its book not back yet: the screen stays up, and cannot be closed,
+		 * until the game takes the player straight into the room.
+		 */
+		busy?: boolean;
+		/** The room whose badge is off its card — in the air, or in the room — so the card shows none. */
+		lifted?: RoomSpot | null;
 		onClose: () => void;
 		onActivate: (mode: string) => void;
 	};
@@ -47,7 +62,66 @@
 	const CARD_MODES = BUY_MODE_NAMES.filter((mode) => BUY_MODES[mode].rooms.length === 1);
 	const ANY_MODE = BUY_MODE_NAMES.find((mode) => BUY_MODES[mode].rooms.length > 1);
 
-	const art = (mode: string) => staticUrl(ROOM_ICON[BUY_MODES[mode].rooms[0] as RoomSpot].src);
+	const roomOf = (mode: string) => BUY_MODES[mode].rooms[0] as RoomSpot;
+	const art = (mode: string) => staticUrl(ROOM_ICON[roomOf(mode)].src);
+
+	const artEls: Partial<Record<RoomSpot, HTMLImageElement>> = $state({});
+	const cardEls: Partial<Record<RoomSpot, HTMLElement>> = $state({});
+
+	/**
+	 * Room `room`'s badge as it is drawn on its card, in client pixels: the art is `object-fit:
+	 * contain` in its slot, so the picture is the slot's box shrunk to the drawing's own shape.
+	 */
+	export const artRect = (room: RoomSpot): DOMRect | null => {
+		const img = artEls[room];
+		const box = img?.getBoundingClientRect();
+		if (!img || !box?.width || !box.height) return null;
+		const aspect = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1;
+		const w = Math.min(box.width, box.height * aspect);
+		const h = w / aspect;
+		return new DOMRect(box.left + (box.width - w) / 2, box.top + (box.height - h) / 2, w, h);
+	};
+
+	/** The screen itself, for the caller to carry along with a room's way in or out. */
+	let backdropEl: HTMLElement | undefined = $state();
+	export const backdrop = () => backdropEl ?? null;
+
+	/**
+	 * The badge slammed back onto its card: the card takes the knock the wheel takes when a badge
+	 * lands on its wedge — a flare, and a judder down into the panel and back.
+	 */
+	export const slam = (room: RoomSpot) => {
+		cardEls[room]?.animate(
+			[
+				{ translate: '0 0', filter: 'brightness(1.6)' },
+				{ translate: '0 3%', offset: 0.12 },
+				{ translate: '-1.5% -1.2%', offset: 0.28 },
+				{ translate: '1.2% 1%', offset: 0.44 },
+				{ translate: '-0.8% -0.6%', offset: 0.6 },
+				{ translate: '0.4% 0.3%', offset: 0.8 },
+				{ translate: '0 0', filter: 'brightness(1)' },
+			],
+			{ duration: 420, easing: 'linear' },
+		);
+	};
+
+	/**
+	 * Hovering a card's Activate plays its badge's motion once through, the one it plays on the wheel
+	 * and on its bet tile (`motionOf`, whose classes are Game.svelte's global `motion-*`). Mouse only,
+	 * as on the tiles: a touch press here is the buy itself. A cue while it is playing is let go.
+	 */
+	let moving = $state<Partial<Record<RoomSpot, boolean>>>({});
+	const motionTimers: Partial<Record<RoomSpot, ReturnType<typeof setTimeout>>> = {};
+	function onActivateHover(event: PointerEvent, mode: string) {
+		if (event.pointerType !== 'mouse' || props.disabled || !affordable(mode)) return;
+		const room = roomOf(mode);
+		if (moving[room]) return;
+		moving[room] = true;
+		motionTimers[room] = setTimeout(
+			() => (moving[room] = false),
+			ICON_MOTION_MS[motionOf(room)],
+		);
+	}
 
 	const stakes = $derived(stateGameDerived.stakeOptions());
 	const chip = $derived(stateGame.stake);
@@ -58,6 +132,7 @@
 	const affordable = (mode: string) => price(mode) > 0 && price(mode) <= stateBet.balanceAmount;
 
 	function close() {
+		if (props.busy) return;
 		playSound('click');
 		props.onClose();
 	}
@@ -89,7 +164,14 @@
 </script>
 
 {#if props.open}
-	<div class="bb-backdrop" role="presentation" onclick={close}>
+	<div
+		class="bb-backdrop"
+		class:busy={props.busy}
+		role="presentation"
+		onclick={close}
+		bind:this={backdropEl}
+		out:fade={{ duration: 220 }}
+	>
 		<div class="bb-modal" role="dialog" aria-label="Buy Bonus" onclick={(event) => event.stopPropagation()}>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
 				<img src={staticUrl('img/buy-bonus/close_btn.webp')} alt="" aria-hidden="true" />
@@ -132,14 +214,19 @@
 
 			<div class="bb-cards">
 				{#each CARD_MODES as mode (mode)}
-					<div class="bb-card">
+					<div class="bb-card" bind:this={cardEls[roomOf(mode)]}>
 						<img class="bb-card-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel.webp')} alt="" aria-hidden="true" />
 						<div class="bb-card-inner">
 							<h3 class="bb-card-title">{BUY_MODES[mode].label}</h3>
 							<p class="bb-card-desc">{TAGLINE[mode]}</p>
 							<div class="bb-card-art-slot" aria-hidden="true">
-								<div class="bb-card-art-wrap">
-									<img class="bb-card-art" src={art(mode)} alt="" />
+								<div class="bb-card-art-wrap" class:lifted={props.lifted === roomOf(mode)}>
+									<img
+										class="bb-card-art {moving[roomOf(mode)] ? `motion-${motionOf(roomOf(mode))}` : ''}"
+										src={art(mode)}
+										alt=""
+										bind:this={artEls[roomOf(mode)]}
+									/>
 								</div>
 							</div>
 							<div class="bb-card-total">
@@ -151,6 +238,7 @@
 								type="button"
 								class="bb-activate"
 								disabled={props.disabled || !affordable(mode)}
+								onpointerenter={(event) => onActivateHover(event, mode)}
 								onpointerdown={(event) => onActivatePointerDown(event, mode)}
 								onclick={() => onActivateClick(mode)}
 							>
@@ -198,7 +286,8 @@
 		   content-box height of 100svh plus this padding would overflow the screen by the padding. */
 		height: 100svh;
 		box-sizing: border-box;
-		z-index: 60;
+		/* Under the reveals (60): a bought room's badge flies out of its card over this screen. */
+		z-index: 55;
 		display: flex;
 		/* (2) NOT `align-items: center` — that is the classic centred-scroll-container trap. When the
 		   column is taller than the backdrop, centring splits the overflow evenly above and below, and
@@ -296,6 +385,10 @@
 		   cards 151.7, balance 595.5 at 393×639 before and after). Do not reintroduce `gap` here. */
 	}
 
+	/* The buy is out: the close goes (nothing to back out of now) until the room takes over. */
+	.bb-backdrop.busy .bb-close {
+		visibility: hidden;
+	}
 	.bb-close {
 		position: absolute;
 		top: calc(-8 * var(--ui-px)); /* -0.5rem */
@@ -983,6 +1076,10 @@
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
+	}
+	/* Its badge is away (see `lifted`): the one in the air is it. */
+	.bb-card-art-wrap.lifted {
+		visibility: hidden;
 	}
 
 	/* ── ANY BONUS BAR ────────────────────────────────────────────────────────────────────────────

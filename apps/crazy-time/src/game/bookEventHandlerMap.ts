@@ -59,11 +59,15 @@ const logRound = (result: RoundResult) => {
 };
 
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
-	topSlot: async (bookEvent: BookEventOfType<'topSlot'>) => {
+	topSlot: async (bookEvent: BookEventOfType<'topSlot'>, { bookEvents }) => {
 		stateGame.gameType = bookEvent.gameType;
 		stateGame.resultReady = false;
 		stateGame.result = null;
 		stateGame.topSlot = { spot: bookEvent.spot, multiplier: bookEvent.multiplier };
+		// A buy only cares about the room it bought: unless the Top Slot's multiplier lands on it,
+		// the reels are not shown at all and the round goes straight to the wheel (or the room).
+		const wheelSpin = bookEvents.find((e) => e.type === 'wheelSpin');
+		if (stateGame.buying && wheelSpin && !wheelSpin.topSlotApplied) return;
 		await eventEmitter.broadcastAsync({
 			type: 'topSlotSpin',
 			spot: bookEvent.spot,

@@ -534,6 +534,7 @@
 		const from = { ...centreIn(host, icon), size: Math.max(icon.width, icon.height) / fitScale };
 		const to = { ...pointIn(host, disc.cx, disc.cy), size: (disc.d * REVEAL_BALL_OF_DISC) / fitScale };
 		revealIcon = target;
+		plinkoRoomTarget = target;
 		roomEntrance = 'descend';
 		await plinkoReveal.play(from, to);
 		// The room is next and takes the ball on down. Should it never come, the ball does not sit
@@ -542,6 +543,7 @@
 			if (roomEntrance !== 'descend' || bonusUp) return;
 			plinkoReveal?.hide();
 			revealIcon = null;
+			plinkoRoomTarget = null;
 			roomEntrance = 'slide';
 		}, 4000);
 		return true;
@@ -573,8 +575,31 @@
 	 * over the bonus screen anyway. The ball comes to rest under the room's cannon, where the room
 	 * takes it on (RoomPiratePlinko's `.load-mark`).
 	 */
-	const descend = async (screen: HTMLElement) => {
-		const frame = frameSize();
+	/** Puts the clouds up on the seam, unseen until the camera moves them. */
+	const raiseSeam = async (frame: { w: number; h: number }) => {
+		const tileW = frame.h * SEAM_OF_FRAME * SEAM_RATIO;
+		seam = {
+			h: frame.h * SEAM_OF_FRAME,
+			tiles: Math.ceil(frame.w / (tileW * (1 - SEAM_OVERLAP))) + 1,
+		};
+		await tick();
+	};
+
+	/**
+	 * The camera moving between the table and the room, which lies a frame under it, either way:
+	 * `camera` is how far down it is (px, 0 on the table, the frame's height on the room) at even
+	 * steps over `ms`. The table (its backdrop, the wheel, the board, and the buttons that sit under
+	 * the bonus screen) is moved up by that much, and the screen, with the clouds on its top edge,
+	 * up from a frame below by it. The balance and the wager stay put: they keep their corners over
+	 * the bonus screen anyway. Everything is left where the move ends; the table's moves are handed
+	 * back, for the caller to take off once the table is out of sight or back at rest.
+	 */
+	const panCamera = (
+		screen: HTMLElement,
+		frame: { w: number; h: number },
+		camera: number[],
+		ms: number,
+	): Animation[] => {
 		const table = gameEl
 			? [
 					...gameEl.querySelectorAll<HTMLElement>(
@@ -584,51 +609,61 @@
 			: [];
 		// The backdrop is the game frame's sibling, the same size, and pans by its own height.
 		const backdrop = gameEl?.parentElement?.querySelector<HTMLElement>(':scope > .background');
+		const opts = { duration: ms, fill: 'forwards' } as const;
+		const moves: Animation[] = [];
+		const up = camera.map((c) => ({ translate: `0 ${-c}px` }));
+		for (const el of table) moves.push(el.animate(up, opts));
+		// The Buy Bonus screen a bought room is walked into from, or back out to, goes with the table.
+		// It lies outside the frame's zoom, so a frame pixel is `fitScale` of its own. Left where it
+		// ends rather than handed back: going in it is taken down off the screen, coming out it stays.
+		if (buyBonusOpen)
+			buyModal
+				?.backdrop()
+				?.animate(camera.map((c) => ({ translate: `0 ${-c * fitScale}px` })), opts);
+		if (backdrop)
+			moves.push(
+				backdrop.animate(
+					camera.map((c) => ({ translate: `0 ${(-100 * c) / frame.h}%` })),
+					opts,
+				),
+			);
+		// Left where it ends: `translate` is the screen's for this alone, and its slide animates
+		// `transform`.
+		screen.animate(
+			camera.map((c) => ({ translate: `0 ${frame.h - c}px` })),
+			opts,
+		);
+		seamEl?.animate(
+			camera.map((c) => {
+				const k = c / frame.h;
+				return {
+					translate: `0 ${frame.h - c}px`,
+					opacity: Math.max(0, Math.min(1, k / SEAM_IN, (1 - k) / SEAM_OUT)),
+				};
+			}),
+			opts,
+		);
+		return moves;
+	};
+
+	const descend = async (screen: HTMLElement) => {
+		const frame = frameSize();
 		// Where the cannon takes the ball, measured off the screen itself: it is held a frame down
 		// for now, and what is wanted is where the mark will be once it is up.
 		const mark = screen.querySelector('.load-mark')?.getBoundingClientRect();
 		const cannon = mark?.width
 			? { ...centreIn(screen.getBoundingClientRect(), mark), size: mark.width / fitScale }
 			: { x: frame.w / 2, y: frame.h * 0.25, size: frame.h * 0.08 };
-		const tileW = frame.h * SEAM_OF_FRAME * SEAM_RATIO;
-		seam = {
-			h: frame.h * SEAM_OF_FRAME,
-			tiles: Math.ceil(frame.w / (tileW * (1 - SEAM_OVERLAP))) + 1,
-		};
-		await tick();
+		await raiseSeam(frame);
 		const moves: Animation[] = [];
 		try {
 			await plinkoReveal?.fall(frame, cannon, (camera, ms) => {
-				const opts = { duration: ms, fill: 'forwards' } as const;
-				const up = camera.map((c) => ({ translate: `0 ${-c}px` }));
-				for (const el of table) moves.push(el.animate(up, opts));
-				if (backdrop)
-					moves.push(
-						backdrop.animate(
-							camera.map((c) => ({ translate: `0 ${(-100 * c) / frame.h}%` })),
-							opts,
-						),
-					);
-				// Left at rest where it lands: `translate` is the screen's for this alone, and its way
-				// out animates `transform`.
-				screen.animate(
-					camera.map((c) => ({ translate: `0 ${frame.h - c}px` })),
-					opts,
-				);
-				seamEl?.animate(
-					camera.map((c) => {
-						const k = c / frame.h;
-						return {
-							translate: `0 ${frame.h - c}px`,
-							opacity: Math.max(0, Math.min(1, k / SEAM_IN, (1 - k) / SEAM_OUT)),
-						};
-					}),
-					opts,
-				);
+				moves.push(...panCamera(screen, frame, camera, ms));
 			});
 		} finally {
 			// The screen is over the table now: it goes back where it was, unseen, badge and all.
 			moves.forEach((a) => a.cancel());
+			if (buyWaiting) closeBuyScreen();
 			seam = null;
 			revealIcon = null;
 			roomEntrance = 'slide';
@@ -645,6 +680,7 @@
 		};
 		revealIcon = target;
 		restoreIconOnOpen = true;
+		voyageRoomTarget = target;
 		roomEntrance = 'wipe';
 		await voyageReveal.sailOff(from, frameSize());
 		return true;
@@ -666,7 +702,9 @@
 		if (!voyageReveal) return;
 		shipArriving = true;
 		try {
-			await voyageReveal.cross(screen, frameSize());
+			const over = buyWaiting ? buyModal?.backdrop() : null;
+			await voyageReveal.cross(screen, frameSize(), over ? { el: over, scale: fitScale } : null);
+			if (buyWaiting) closeBuyScreen();
 			await voyageReveal.dock(roomShipBox(), frameSize(), () => (shipArriving = false));
 		} finally {
 			shipArriving = false;
@@ -695,19 +733,174 @@
 		const share = by === 'chest' ? REVEAL_CHEST_OF_DISC : REVEAL_WHEEL_OF_DISC;
 		const to = { ...pointIn(host, disc.cx, disc.cy), size: (disc.d * share) / fitScale };
 		revealIcon = target;
+		if (by === 'wheel') wheelRoomTarget = target;
+		else chestRoomTarget = target;
+		await coverWith(by, from, to);
+		return true;
+	};
+
+	/** The chest, or the ship's wheel, from `from` into `to` and on over the whole screen. */
+	const coverWith = async (by: 'chest' | 'wheel', from: RevealBox, to: RevealBox) => {
+		const reveal = by === 'chest' ? roomReveal : wheelReveal;
 		revealBy = by;
-		if (by === 'wheel') {
-			wheelRoomTarget = target;
-			// The room comes up under the cover without its hub: the hub is this icon, on its way.
-			hubLifted = true;
-		} else chestRoomTarget = target;
-		await reveal.play(from, to, { w: gameEl.clientWidth, h: gameEl.clientHeight });
+		// The room comes up under the cover without its hub: the hub is this icon, on its way.
+		if (by === 'wheel') hubLifted = true;
+		await reveal?.play(from, to, frameSize());
 		revealLit = true;
 		// The bonus screen is next and takes the cover off (see `onBonusOpenChange`). Should it
 		// never come, the table is not left behind a covered screen.
 		setTimeout(() => {
 			if (revealLit && !bonusUp) void endReveal();
 		}, 4000);
+	};
+
+	// --- A bought room: walked into, and back out of, through its card on the Buy Bonus screen ------
+	// The same ways in and out as a room won on the wheel, with the card in the wedge's place: the
+	// badge pops up out of its card, over the screen that is still up, and goes on the way it
+	// would from the middle of the wheel. On the way out it comes back over the Buy Bonus screen,
+	// put up again under whatever carries the room off, and is slammed back onto its card.
+	type RevealBox = { x: number; y: number; size: number; angle?: number };
+	let buyModal: BuyBonusModal | undefined = $state();
+	/** The card whose badge is off it (BuyBonusModal's `lifted`). */
+	let buyLifted = $state<RoomSpot | null>(null);
+	/** The room walked into off its card, whose way out lands back on it. */
+	let buyRoom: RoomSpot | null = null;
+	/**
+	 * The table's disc, as a share of the frame's shorter side: the middle of the screen stands in
+	 * for the middle of the wheel, and the badge grows there to the size it would on the wheel.
+	 */
+	const BUY_DISC_OF_FRAME = 0.8;
+	/** The badge back on its card, and the screen left up that long before it goes. */
+	const BUY_HOME_HOLD_MS = 650;
+
+	/** Room `room`'s badge on its card, in frame pixels, sized the way its wedge's is measured. */
+	const cardBox = (room: RoomSpot): RevealBox | null => {
+		const rect = buyModal?.artRect(room);
+		if (!gameEl || !rect) return null;
+		const side =
+			room === 'chest' || room === 'piratePlinko' ? Math.max(rect.width, rect.height) : rect.width;
+		return { ...centreIn(gameEl.getBoundingClientRect(), rect), size: side / fitScale, angle: 0 };
+	};
+	/** The middle of the screen, with a badge `share` of the stand-in disc across. */
+	const screenMiddle = (share: number): RevealBox => {
+		const f = frameSize();
+		return { x: f.w / 2, y: f.h / 2, size: Math.min(f.w, f.h) * BUY_DISC_OF_FRAME * share };
+	};
+
+	/** The Buy Bonus screen goes, its buy handed over to the room. */
+	const closeBuyScreen = () => {
+		buyWaiting = false;
+		buyBonusOpen = false;
+		buyLifted = null;
+	};
+	/** ...and comes back for the badge to land on, its card empty. Resolves with it laid out. */
+	const reopenBuyScreen = async (room: RoomSpot) => {
+		buyLifted = room;
+		buyBonusOpen = true;
+		await tick();
+		return buyModal?.backdrop() ?? null;
+	};
+	/** The badge down on its card: it is the card's own again, and the card takes the knock. */
+	const landOnCard = (room: RoomSpot) => {
+		buyLifted = null;
+		buyModal?.slam(room);
+	};
+
+	/**
+	 * Out of its card and on into the room — each room its own way in, as off a wedge. False, having
+	 * done nothing, when the card cannot be measured: the room then keeps the plain slide.
+	 */
+	const enterFromCard = async (room: RoomSpot): Promise<boolean> => {
+		const from = cardBox(room);
+		const frame = frameSize();
+		if (!from || !frame.w) return false;
+		if (room === 'chest' || room === 'bonusWheel') {
+			const by = room === 'chest' ? 'chest' : 'wheel';
+			if (!(by === 'chest' ? roomReveal : wheelReveal)) return false;
+			buyRoom = room;
+			buyLifted = room;
+			const share = by === 'chest' ? REVEAL_CHEST_OF_DISC : REVEAL_WHEEL_OF_DISC;
+			await coverWith(by, from, screenMiddle(share));
+			// The screen is covered: the Buy Bonus screen goes under it with the table.
+			closeBuyScreen();
+			return true;
+		}
+		if (room === 'piratePlinko') {
+			if (!plinkoReveal) return false;
+			buyRoom = room;
+			buyLifted = room;
+			roomEntrance = 'descend';
+			await plinkoReveal.play(from, screenMiddle(REVEAL_BALL_OF_DISC));
+			// The camera takes the Buy Bonus screen up and away with the table (`descend`). Should the
+			// room never come, neither is left standing.
+			setTimeout(() => {
+				if (roomEntrance !== 'descend' || bonusUp) return;
+				plinkoReveal?.hide();
+				closeBuyScreen();
+				roomEntrance = 'slide';
+			}, 4000);
+			return true;
+		}
+		if (!voyageReveal) return false;
+		buyRoom = room;
+		buyLifted = room;
+		roomEntrance = 'wipe';
+		// Off the right-hand edge; the wave it comes back on takes the Buy Bonus screen off (`enterRoom`).
+		await voyageReveal.sailOff(from, frame);
+		return true;
+	};
+
+	/**
+	 * A bought room's way out (`coverRoomExit`), run to its end here rather than once the room has
+	 * gone: the Buy Bonus screen is put back up over the room, so the badge lands on its card
+	 * before the table is seen, and the book's win waits for it.
+	 */
+	const exitToCard = async (room: RoomSpot, screen: HTMLElement | null): Promise<boolean> => {
+		const frame = frameSize();
+		if (!frame.w) return false;
+		/** Under a cover, the room is simply taken out from under the Buy Bonus screen. */
+		const hideRoom = () => screen?.animate([{ opacity: 0 }], { duration: 0, fill: 'forwards' });
+		if (room === 'chest') {
+			if (!roomReveal) return false;
+			await roomReveal.cover(
+				roomChestBox() ?? { x: frame.w / 2, y: frame.h / 2, size: frame.w * 0.2 },
+				frame,
+			);
+			await reopenBuyScreen(room);
+			hideRoom();
+			// Its first paint under the light, before the light goes back into the chest.
+			await waitForTimeout(150);
+			await roomReveal.uncover(
+				screenMiddle(REVEAL_CHEST_OF_DISC),
+				cardBox(room),
+				frameSize(),
+				() => landOnCard(room),
+			);
+		} else if (room === 'bonusWheel') {
+			const hub = bonusHubBox();
+			if (!wheelReveal || !hub) return false;
+			hubLifted = true;
+			await wheelReveal.cover(hub, frame);
+			await reopenBuyScreen(room);
+			hideRoom();
+			await waitForTimeout(150);
+			await wheelReveal.uncover(cardBox(room), () => landOnCard(room));
+			hubLifted = false;
+		} else if (room === 'oceanVoyage') {
+			if (!voyageReveal || !screen) return false;
+			// Up again, and out of sight until the wave uncovers it behind the ship.
+			const over = await reopenBuyScreen(room);
+			over?.animate([{ clipPath: 'inset(0 100% 0 0)' }], { duration: 0, fill: 'forwards' });
+			await voyageReveal.leave(screen, frame, over ? { el: over, scale: fitScale } : null);
+			await voyageReveal.land(cardBox(room), frameSize(), () => landOnCard(room));
+		} else {
+			if (!screen || !(await climbOut(null, screen, room))) return false;
+			exitCovered = null;
+			await plinkoReveal?.home(cardBox(room), () => landOnCard(room));
+		}
+		buyLifted = null;
+		await waitForTimeout(BUY_HOME_HOLD_MS);
+		buyBonusOpen = false;
 		return true;
 	};
 
@@ -742,12 +935,20 @@
 		revealLit = false;
 	};
 
-	/** Wedge `index`'s badge on the table's wheel, turn and all, in the frame's own pixels. */
+	/**
+	 * Wedge `index`'s badge on the table's wheel, turn and all, in the frame's own pixels. Its place
+	 * is from the disc's resting angle (`iconRect`), not the drawn badge: a page that was not being
+	 * painted can leave the spin part-way round on the screen, and an icon flown home to where it is
+	 * drawn would land on the wrong wedge.
+	 */
 	const wedgeBox = (index: number) => {
 		const pose = wheel?.iconPose(index);
+		const rest = wheel?.iconRect(index);
 		if (!gameEl || !pose?.w) return null;
+		const cx = rest?.width ? rest.x + rest.width / 2 : pose.cx;
+		const cy = rest?.width ? rest.y + rest.height / 2 : pose.cy;
 		return {
-			...pointIn(gameEl.getBoundingClientRect(), pose.cx, pose.cy),
+			...pointIn(gameEl.getBoundingClientRect(), cx, cy),
 			size: pose.w / fitScale,
 			angle: pose.angle,
 		};
@@ -758,8 +959,20 @@
 	let wheelRoomTarget: number | null = null;
 	/** The same for the Treasure Chest. */
 	let chestRoomTarget: number | null = null;
-	/** Which reveal has the screen on the way out: the room comes down under it, unmoving. */
-	let exitCovered: 'chest' | 'wheel' | null = null;
+	/** And for Ocean Voyage, whose ship sails home onto it. */
+	let voyageRoomTarget: number | null = null;
+	/** And for Pirate Plinko, whose cannonball bounces back up to it. */
+	let plinkoRoomTarget: number | null = null;
+	/**
+	 * The room's own cannonball, in the pocket it took, is off the board (RoomPiratePlinko hides it
+	 * under `.game.ball-lifted`) while the one bouncing out of it is on the screen.
+	 */
+	let ballLifted = $state(false);
+	/**
+	 * Which reveal has the screen on the way out: the room comes down under it, unmoving. The ship
+	 * does not cover it — it has already wiped the room off — but still has its wedge to go home to.
+	 */
+	let exitCovered: 'chest' | 'wheel' | 'ship' | 'ball' | null = null;
 
 	/** The room's own chest — the last one, grown in the middle of the board — in frame pixels. */
 	const roomChestBox = () => {
@@ -769,13 +982,98 @@
 	};
 
 	/**
-	 * Asked by the bonus screen as it is about to go: the Bonus Wheel's hub comes up over the screen,
-	 * or the Treasure Chest's chest lights it white, so the room can go unseen. False, having done
-	 * nothing, for any other way out — a room that was not walked into through its icon keeps the
-	 * slide.
+	 * Pirate Plinko's way out, its way in run the other way up: the cannonball hops up out of its
+	 * pocket into the middle of the screen, grown, and bounces up again with the camera going up
+	 * after it — the room down and away, the table back down from above — onto the hub
+	 * (PlinkoReveal's `rise` and `climb`). Its hop from there into its wedge comes once the screen
+	 * has gone (`home`, see `onBonusOpenChange`).
 	 */
-	const coverRoomExit = async (room: RoomSpot): Promise<boolean> => {
+	const climbOut = async (
+		target: number | null,
+		screen: HTMLElement,
+		card: RoomSpot | null = null,
+	): Promise<boolean> => {
+		const disc = wheel?.discOnScreen();
+		if (!plinkoReveal || !gameEl || (!card && !disc?.d)) return false;
+		const frame = frameSize();
+		const host = gameEl.getBoundingClientRect();
+		// The table is at rest under the screen, so this is where the hub will be when the ball lands.
+		// Out to a card, it lands in the middle of the Buy Bonus screen instead.
+		const hub =
+			card || !disc
+				? screenMiddle(REVEAL_BALL_OF_DISC)
+				: { ...pointIn(host, disc.cx, disc.cy), size: (disc.d * REVEAL_BALL_OF_DISC) / fitScale };
+		// The drawing of the ball in its pocket, which is the picture PlinkoReveal draws.
+		const art = screen.querySelector('.pb-ball-art')?.getBoundingClientRect();
+		const from = art?.width
+			? { ...centreIn(host, art), size: art.width / fitScale }
+			: { x: frame.w / 2, y: frame.h * 0.85, size: frame.h * 0.05 };
+		// Its wedge stays empty from here: the ball is on its way back to it.
+		revealIcon = target;
+		ballLifted = true;
+		// The number has been read, and makes way for the ball coming into the middle.
+		screen
+			.querySelector('.centre-result')
+			?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 280, fill: 'forwards' });
+		const moves: Animation[] = [];
+		try {
+			await plinkoReveal.rise(from, frame);
+			await raiseSeam(frame);
+			if (card) {
+				// Back up a frame above, with the table, for the camera to bring down (`panCamera`).
+				const over = await reopenBuyScreen(card);
+				over?.animate([{ translate: `0 ${-frame.h * fitScale}px` }], {
+					duration: 0,
+					fill: 'forwards',
+				});
+			}
+			await plinkoReveal.climb(frame, hub, (camera, ms) => {
+				moves.push(...panCamera(screen, frame, camera, ms));
+			});
+		} finally {
+			// The table is back at rest, where its moves end, and the room is a frame down.
+			moves.forEach((a) => a.cancel());
+			seam = null;
+			ballLifted = false;
+			// Whatever became of it, the ball is taken home (or off) once the screen has gone.
+			exitCovered = 'ball';
+		}
+		return true;
+	};
+
+	/**
+	 * Asked by the bonus screen as it is about to go: the Bonus Wheel's hub comes up over the screen,
+	 * or the Treasure Chest's chest lights it white, so the room can go unseen; Ocean Voyage's ship
+	 * sails back across and takes the room off behind it, the way it drew it in; Pirate Plinko's
+	 * cannonball bounces back up to the table with the camera after it (`climbOut`). False, having
+	 * done nothing, for any other way out — a room that was not walked into through its icon keeps
+	 * the slide.
+	 */
+	const coverRoomExit = async (room: RoomSpot, screen: HTMLElement | null): Promise<boolean> => {
+		if (buyRoom !== null) {
+			const bought = buyRoom;
+			buyRoom = null;
+			if (bought === room && (await exitToCard(room, screen))) return true;
+		}
 		const frame = gameEl ? { w: gameEl.clientWidth, h: gameEl.clientHeight } : null;
+		if (room === 'piratePlinko') {
+			const target = plinkoRoomTarget;
+			plinkoRoomTarget = null;
+			if (target === null || !screen) return false;
+			return climbOut(target, screen);
+		}
+		if (room === 'oceanVoyage') {
+			// Needs no wedge to wipe the room off, so a bought voyage leaves this way too; only one
+			// that sailed off a wedge sails home to it.
+			const target = voyageRoomTarget;
+			voyageRoomTarget = null;
+			if (!voyageReveal || !frame?.w || !screen) return false;
+			// The ship is out on the water, so its wedge is empty as the table comes back.
+			if (target !== null) revealIcon = target;
+			await voyageReveal.leave(screen, frame);
+			if (target !== null) exitCovered = 'ship';
+			return true;
+		}
 		if (room === 'chest') {
 			const target = chestRoomTarget;
 			chestRoomTarget = null;
@@ -857,7 +1155,21 @@
 			void tick()
 				.then(() => waitForTimeout(150))
 				.then(() =>
-					by === 'chest'
+					by === 'ball'
+						? plinkoReveal?.home(target === null ? null : wedgeBox(target), () => {
+								// Down in its wedge: the badge is back, with the same knock as the chest's.
+								revealIcon = null;
+								if (target !== null) wheel?.slam(target);
+								shakeWheel();
+							})
+						: by === 'ship'
+						? voyageReveal?.land(target === null ? null : wedgeBox(target), frameSize(), () => {
+								// Down on its wedge: the badge is back, with the same knock as the chest's.
+								revealIcon = null;
+								if (target !== null) wheel?.slam(target);
+								shakeWheel();
+							})
+						: by === 'chest'
 						? roomReveal?.uncover(
 								tableChestBox(),
 								target === null ? null : wedgeChestBox(target),
@@ -1631,7 +1943,8 @@
 		stageReplayRound(round);
 		stateGame.rolling = true;
 		replayStarting = false;
-		void focusTopSlot();
+		// A bought round waits for the book to say whether its Top Slot is shown (see `startBuy`).
+		if (!isBuyMode(round.mode)) void focusTopSlot();
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 	};
 
@@ -1691,6 +2004,18 @@
 	// Activate raises the Yes/No prompt; Yes commits the buy mode as the round's mode.
 	let buyBonusOpen = $state(false);
 	const buyDisabled = $derived(!bettingOpen || Boolean(stateGame.openRoundError));
+	/**
+	 * A single-room buy stays on the Buy Bonus screen, locked, while its bet is out: nothing on the
+	 * table has anything to say about a room already bought. Once the book is back the screen goes
+	 * and the room comes straight on (`wheelSpin`). A bet that fails closes it as before.
+	 */
+	let buyWaiting = $state(false);
+	$effect(() => {
+		if (buyWaiting && !stateGame.rolling) {
+			buyWaiting = false;
+			buyBonusOpen = false;
+		}
+	});
 
 	const openBuyBonus = () => {
 		if (buyDisabled) return;
@@ -1730,14 +2055,19 @@
 	};
 
 	const startBuy = async (mode: string) => {
-		buyBonusOpen = false;
+		// A single room waits for its book on the Buy Bonus screen (`buyWaiting`); Random Bonus is
+		// played out on the table, so its screen goes now.
+		const direct = !usesBuyDisc(mode);
+		if (!direct) buyBonusOpen = false;
 		// Re-checked here: the prompt was open for a while and the round may have moved on.
 		if (buyDisabled) {
+			buyBonusOpen = false;
 			betNotice = 'Finishing the current round…';
 			return;
 		}
 		balanceHold = null;
 		if (online && hasActiveRoundToResume()) {
+			buyBonusOpen = false;
 			betNotice = 'Finishing your previous round…';
 			stateGame.rolling = true;
 			context.eventEmitter.broadcast({ type: 'resumeBet' });
@@ -1748,29 +2078,33 @@
 		const face = currentChipFace();
 		committedStake = stateGameDerived.buyTotal(mode);
 		if (!stateGameDerived.beginBuy(mode)) {
+			buyBonusOpen = false;
 			betNotice = 'Not enough balance for this buy.';
 			return;
 		}
 		sweepChips(placed, face);
-		// A yellow chip for the full price goes down on every room the buy can open — whichever
-		// opens, the whole price bought it — flown from the Buy Bonus button that bought it, one
-		// after another. The reels wait for the last one to land.
-		const rooms = BUY_MODES[mode].rooms;
-		rooms.forEach((room, i) =>
-			flyChip(room, 'place', i * 90, buyChipFace(), 1, { from: buyBonusEl }),
-		);
-		await waitForTimeout(FLIGHT_MS + (rooms.length - 1) * 90 + 150);
-		// Then, for Random Bonus, the wheel flashes white and comes back as the four-wedge disc — or,
-		// for a single room, leaves the stage to the Top Slot (see `wheelOff`).
-		if (usesBuyDisc(mode)) await swapDisc('buy', mode);
-		else {
+		if (direct) {
+			// Behind the Buy Bonus screen: the room's yellow chip is simply on its tile, and the wheel
+			// is off the stage (see `wheelOff`), set on the room unseen when the book comes back.
+			buyWaiting = true;
 			wheelOff = true;
-			await waitForTimeout(WHEEL_LEAVE_MS);
+		} else {
+			// A yellow chip for the full price goes down on every room the buy can open — whichever
+			// opens, the whole price bought it — flown from the Buy Bonus button that bought it, one
+			// after another. Then the wheel flashes white and comes back as the four-wedge disc.
+			const rooms = BUY_MODES[mode].rooms;
+			rooms.forEach((room, i) =>
+				flyChip(room, 'place', i * 90, buyChipFace(), 1, { from: buyBonusEl }),
+			);
+			await waitForTimeout(FLIGHT_MS + (rooms.length - 1) * 90 + 150);
+			await swapDisc('buy', mode);
 		}
 		const mismatch = online ? describeModeMismatch(stateBet.activeBetModeKey) : null;
 		if (mismatch) {
 			console.error(`[crazy-time] ${mismatch}`);
 			betNotice = mismatch;
+			buyWaiting = false;
+			buyBonusOpen = false;
 			stateGame.rolling = false;
 			stateGame.buying = null;
 			return;
@@ -1783,7 +2117,8 @@
 		multHidden = false;
 		panelDimmed = false;
 		stateGame.rolling = true;
-		void focusTopSlot();
+		// No Top Slot on the press: a buy only shows it when its multiplier lands on the bought
+		// room, which only the book knows — `topSlotSpin` lets it down then.
 		context.eventEmitter.broadcast({ type: 'bet' });
 	};
 
@@ -2123,6 +2458,9 @@
 			if (!wheelOff) await waitForTimeout(WHEEL_RESIZE_MS + 40);
 		};
 		if (!topSlotFocus) {
+			// A buy the Top Slot had nothing for never let it down: there is no cabinet to make room
+			// for, so the wheel keeps its betting size and place through the round and its result.
+			if (stateGame.buying && topSlotHidden) return;
 			await wheelToRoundSize();
 			return;
 		}
@@ -2239,6 +2577,9 @@
 
 	context.eventEmitter.subscribeOnMount({
 		topSlotSpin: async (event) => {
+			// A single-room buy never shows the Top Slot on the table: the multiplier it won for the
+			// room is brought on by the bonus screen itself (BonusRound's `introMultiplier`).
+			if (wheelOff) return;
 			// Normally already on its way from the press of SPIN; a resumed round comes straight here.
 			await focusTopSlot();
 			await topSlot?.spin(event.spot, event.multiplier);
@@ -2260,6 +2601,8 @@
 		wheelSpin: async (event) => {
 			// The Top Slot is home before the wheel turns (it normally went on its own after its pair).
 			await releaseTopSlot();
+			// A round that skipped the Top Slot (a buy it had nothing for) dims the board here instead.
+			if (!wheelOff) panelDimmed = true;
 			// A Random Bonus round spins the buy disc, so the book's 54-segment index maps to the
 			// room; every other round spins the main wheel to the segment. A single-room buy has the
 			// wheel off the stage: it is set on the room's segment unseen, ready for its return.
@@ -2280,7 +2623,8 @@
 			topSlotApplied = event.multiplier > 1;
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
-			playSound(event.covered ? 'merge' : 'pop');
+			// Not behind the Buy Bonus screen: the room's own entrance is the sound of that landing.
+			if (!buyWaiting) playSound(event.covered ? 'merge' : 'pop');
 			// The landed wedge's badge does its tile's motion: the chest rattles, the ball hops, the
 			// number pops. Not for a wheel off the stage — nobody would see it.
 			const landMotionMs = wheelOff ? 0 : TILE_MOTION_MS[motionOf(event.spot)];
@@ -2296,6 +2640,15 @@
 				} else if (event.spot === 'oceanVoyage') {
 					if (await sailShipOff(target)) return;
 				} else if (await revealRoom(target, event.spot === 'chest' ? 'chest' : 'wheel')) return;
+			}
+			// A single-room buy has been waiting on the Buy Bonus screen: its badge pops out of its card
+			// and takes the player in, the way a wedge's does, and the screen goes as the room comes on
+			// — failing that, it simply goes, with no beat on the table in between.
+			if (buyWaiting && isRoomSpot(event.spot) && (await enterFromCard(event.spot))) return;
+			if (buyWaiting) {
+				buyWaiting = false;
+				buyBonusOpen = false;
+				return;
 			}
 			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
 		},
@@ -2330,6 +2683,7 @@
 		class="game"
 		class:portrait
 		class:hub-lifted={hubLifted}
+		class:ball-lifted={ballLifted}
 		class:hub-slammed={hubSlammed}
 		class:ship-arriving={shipArriving}
 		style="--wheel-w:{bigWheel ? wheelBigVw : wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
@@ -2421,10 +2775,12 @@
 			{@render totalBet()}
 		</div>
 
-		<!-- The show: Top Slot over the wheel — or, for a bought room, the Top Slot alone. -->
+		<!-- The show: Top Slot over the wheel — or, for a bought room, the Top Slot alone. Only once it
+		     is let down: grown to its solo size while still hauled up, it would hang into view on a buy
+		     whose room the Top Slot has nothing for. -->
 		<div
 			class="stage"
-			class:solo={wheelOff}
+			class:solo={wheelOff && !topSlotHidden}
 			class:betting
 			class:bet-down={betDown}
 			class:big-wheel={bigWheel}
@@ -2748,6 +3104,7 @@
 		<BonusRound
 			chip={stateBet.betAmount}
 			{portrait}
+			introMultiplier={wheelOff}
 			entrance={revealLit ? 'lit' : roomEntrance}
 			enter={enterRoom}
 			coverExit={coverRoomExit}
@@ -2757,7 +3114,7 @@
 		<WheelReveal bind:this={wheelReveal} />
 		{#if seam}
 			<!-- Over the bonus screen and under the balance and the wager, like the screen's own edge. -->
-			<div class="seam" bind:this={seamEl} aria-hidden="true">
+			<div class="seam" class:over-buy={buyBonusOpen} bind:this={seamEl} aria-hidden="true">
 				<div class="seam-row" style="--seam-h:{seam.h}px; --seam-overlap:{SEAM_OVERLAP}">
 					{#each { length: seam.tiles }, i (i)}
 						<img
@@ -2774,14 +3131,19 @@
 		<VoyageReveal bind:this={voyageReveal} />
 
 	</div>
-</div>
 
-<BuyBonusModal
-	open={buyBonusOpen}
-	disabled={buyDisabled}
-	onClose={() => (buyBonusOpen = false)}
-	onActivate={handleBuyActivate}
-/>
+	<!-- In the frame's stacking context, beside the game rather than over the whole page, so the
+	     reveals (z 60) fly a bought room's badge out of its card, and back, over this screen (z 55). -->
+	<BuyBonusModal
+		bind:this={buyModal}
+		open={buyBonusOpen}
+		disabled={buyDisabled}
+		busy={buyWaiting || buyLifted !== null}
+		lifted={buyLifted}
+		onClose={() => (buyBonusOpen = false)}
+		onActivate={handleBuyActivate}
+	/>
+</div>
 <ConfirmPromptModal />
 
 <InfoModal />
@@ -2943,6 +3305,10 @@
 		z-index: 31;
 		opacity: 0;
 		pointer-events: none;
+	}
+	/* Carried on the Buy Bonus screen's edge as well, when a bought room is walked into off it. */
+	.seam.over-buy {
+		z-index: 56;
 	}
 	.seam-row {
 		position: absolute;
@@ -3342,11 +3708,19 @@
 	.ts-hang {
 		translate: 0 0;
 		/* Let down: falling, faster and faster, into the landing bounce (same curve as the wrap's way in). */
-		transition: translate var(--ts-focus-ms, 700ms) cubic-bezier(0.45, 0.05, 0.8, 0.5);
+		transition:
+			translate var(--ts-focus-ms, 700ms) cubic-bezier(0.45, 0.05, 0.8, 0.5),
+			visibility 0s;
 	}
+	/* Up there it is also hidden outright once the haul is done: the clearance above the frame is
+	   only a few vw, and a buy whose room the Top Slot has nothing for must not show any of it
+	   while the table shifts under it. */
 	.ts-hang.up {
 		translate: 0 calc(-100% - 3vw);
-		transition-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4);
+		visibility: hidden;
+		transition:
+			translate var(--ts-focus-ms, 700ms) cubic-bezier(0.5, 0, 0.8, 0.4),
+			visibility 0s var(--ts-focus-ms, 700ms);
 	}
 	/* The idle sway: a degree each way, slow. It swings about a point well up its ropes (TopSlot's
 	   `.rope`), not about its own rail, so it moves like a sign hung from the rigging rather than

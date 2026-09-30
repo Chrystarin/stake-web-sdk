@@ -47,13 +47,26 @@
 		/**
 		 * Asked as the screen is about to go: true once something has covered the screen for the way
 		 * out (the Bonus Wheel's ship's wheel, WheelReveal), and the room is taken down in place under
-		 * it, with no slide and no door. False keeps the slide.
+		 * it, with no slide and no door — or once something has taken the screen off itself (Ocean
+		 * Voyage's ship, wiping it away with VoyageReveal's `leave`). False keeps the slide.
 		 */
-		coverExit?: (room: RoomSpot) => Promise<boolean>;
+		coverExit?: (room: RoomSpot, screen: HTMLElement | null) => Promise<boolean>;
 		/** True for the whole time the screen is up. */
 		onOpenChange?: (open: boolean) => void;
+		/**
+		 * A bought room, come straight on from the Buy Bonus screen: the table never showed its Top
+		 * Slot, so a multiplier it carries is brought on here (`bringOnMultiplier`) before it plays.
+		 */
+		introMultiplier?: boolean;
 	};
-	let { portrait = false, entrance = 'slide', enter, coverExit, onOpenChange }: Props = $props();
+	let {
+		portrait = false,
+		entrance = 'slide',
+		enter,
+		coverExit,
+		onOpenChange,
+		introMultiplier = false,
+	}: Props = $props();
 	/** `entrance` as it stood when this screen went up: the light lifting must not start a slide. */
 	let enteredAs = $state<'slide' | 'lit' | 'wipe' | 'descend'>('slide');
 	/**
@@ -77,10 +90,11 @@
 	let roomApi = $state<{ play: () => Promise<number> } | undefined>();
 
 	/**
-	 * A room brings its own backdrop, which then shows through whatever it plays on. Three rooms have
-	 * a moving one (a video, see `roomVideo`); the Treasure Chest has a still, the dragon's lair,
-	 * painted from the preload's resident copy the same way the table's backdrop is, in a cut for
-	 * each orientation. A room with neither keeps the flat room-tinted gradient.
+	 * A room brings its own backdrop, which then shows through whatever it plays on. Two rooms have
+	 * a moving one (a video, see `roomVideo`); the Treasure Chest and Pirate Plinko have a still —
+	 * the dragon's lair, and the beach at sunset — painted from the preload's resident copy the same
+	 * way the table's backdrop is, in a cut for each orientation. A room with neither keeps the flat
+	 * room-tinted gradient.
 	 *
 	 * Nothing depends on video playback: a browser that refuses leaves the gradient underneath showing.
 	 */
@@ -89,9 +103,12 @@
 			landscape: 'img/treasure_chest/background_landscape.webp',
 			portrait: 'img/treasure_chest/background_portrait.webp',
 		},
+		piratePlinko: {
+			landscape: 'img/pirate-plinko/background_landscape.webp',
+			portrait: 'img/pirate-plinko/background_portrait.webp',
+		},
 	};
-	const isVideoRoom = (spot: Spot): spot is VideoKey =>
-		spot === 'piratePlinko' || spot === 'bonusWheel' || spot === 'oceanVoyage';
+	const isVideoRoom = (spot: Spot): spot is VideoKey => spot === 'bonusWheel' || spot === 'oceanVoyage';
 	/**
 	 * The board every room's name is written on. Its plaque — the timber inside the rope — runs
 	 * from 0.14 to 0.86 across and 0.26 to 0.70 down, read off the file; the text is laid in that
@@ -162,11 +179,60 @@
 	const SETTLE_MS = 1000;
 	const WIN_HOLD_MS = 3000;
 
+	/**
+	 * A bought room's Top Slot multiplier, brought on once the screen is in: up big in the middle
+	 * of the room, left there to be read, then carried up onto the skull at the top of the title
+	 * frame (`.ts`), where it stays for the round. The `.ts` badge is laid out the whole time but
+	 * kept invisible until the carried copy lands on it, so the flight is aimed at the box it will
+	 * actually occupy.
+	 */
+	let introShown = $state(false);
+	let tsLanded = $state(true);
+	let introEl: HTMLElement | undefined = $state();
+	let tsEl: HTMLElement | undefined = $state();
+	/** The pop in and the time it is held up to be read. */
+	const INTRO_HOLD_MS = 2200;
+	const INTRO_FLY_MS = 750;
+
+	const bringOnMultiplier = async () => {
+		introShown = true;
+		playSound('notify');
+		await tick();
+		await waitForTimeout(INTRO_HOLD_MS);
+		const from = introEl?.getBoundingClientRect();
+		const to = tsEl?.getBoundingClientRect();
+		if (introEl && from?.width && to?.width) {
+			// Rects are on the screen, and the frame is zoomed to fit it: a translate is in the frame's
+			// own pixels, so the distance is taken back out of the zoom (layout width vs drawn width).
+			const zoom = introEl.offsetWidth ? from.width / introEl.offsetWidth : 1;
+			const dx = (to.left + to.width / 2 - (from.left + from.width / 2)) / zoom;
+			const dy = (to.top + to.height / 2 - (from.top + from.height / 2)) / zoom;
+			playSound('whoosh');
+			const frames = [
+				{ translate: '0 0', scale: 1 },
+				{ translate: `${dx}px ${dy}px`, scale: to.width / from.width },
+			];
+			await introEl
+				.animate(frames, {
+					duration: INTRO_FLY_MS,
+					easing: 'cubic-bezier(0.32, 0.72, 0.24, 1)',
+					fill: 'forwards',
+				})
+				.finished.catch(() => undefined);
+		}
+		tsLanded = true;
+		introShown = false;
+		playSound('pop');
+	};
+
 	context.eventEmitter.subscribeOnMount({
 		bonusRound: async (event) => {
 			const handed = entrance === 'wipe' || entrance === 'descend';
 			enteredAs = handed && !enter ? 'slide' : entrance;
 			held = enteredAs === 'wipe' || enteredAs === 'descend';
+			const intro = introMultiplier && event.room.topSlotMultiplier > 1;
+			tsLanded = !intro;
+			introShown = false;
 			onOpenChange?.(true);
 			result = null;
 			closing = false;
@@ -184,6 +250,7 @@
 				await waitForTimeout(700); // screen slide-in
 			}
 			try {
+				if (intro) await bringOnMultiplier();
 				// A room resolves the moment it settles — for Pirate Plinko that is the frame the ball drops
 				// into the pocket, with the card lit and the land sound going. The number is held back
 				// from that frame rather than printed over it: the landing gets a beat of its own,
@@ -193,7 +260,7 @@
 				result = paid;
 				await waitForTimeout(WIN_HOLD_MS);
 			} finally {
-				const covered = await coverExit?.(spotFor(event.room)).catch(() => false);
+				const covered = await coverExit?.(spotFor(event.room), screenEl ?? null).catch(() => false);
 				setMusicScene('base');
 				if (!covered) {
 					closing = true;
@@ -238,7 +305,7 @@
 				{#if current.room.topSlotMultiplier > 1}
 					<!-- Struck over the skull at the top of the sign, written the way every other
 					     multiplier in the game is written rather than announced in a pill of its own. -->
-					<div class="ts mult-badge">
+					<div class="ts mult-badge" class:waiting={!tsLanded} bind:this={tsEl}>
 						<span class="mult-stroke" aria-hidden="true">{current.room.topSlotMultiplier}x</span>
 						<span class="mult-fill">{current.room.topSlotMultiplier}x</span>
 					</div>
@@ -266,7 +333,7 @@
 			{:else if current.room.type === 'bonusWheelRoom'}
 				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={handsOn} />
 			{:else if current.room.type === 'chestRoom'}
-				<RoomChest bind:this={roomApi} room={current.room} interactive={handsOn} />
+				<RoomChest bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
 			{:else}
 				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
 			{/if}
@@ -279,6 +346,15 @@
 			class:folded={current.room.type === 'piratePlinkoRoom'}
 			class:over-stage={current.room.type === 'oceanVoyageRoom'}
 		></div>
+
+		{#if introShown}
+			<div class="intro-mult">
+				<div class="mult-badge" bind:this={introEl}>
+					<span class="mult-stroke" aria-hidden="true">{current.room.topSlotMultiplier}x</span>
+					<span class="mult-fill">{current.room.topSlotMultiplier}x</span>
+				</div>
+			</div>
+		{/if}
 
 		{#if centreSays && result !== null}
 			<div class="centre-result">
@@ -485,6 +561,38 @@
 		translate: -50% -50%;
 		font-size: 2.4vw;
 	}
+	/* Laid out but not shown, while the bought room's multiplier is still on its way up to it. */
+	.ts.waiting {
+		visibility: hidden;
+	}
+	/* A bought room's multiplier, up big in the middle before it is carried to `.ts`: the same size
+	   as the round's result (`.centre-result`), popped in past its size and settled. */
+	.intro-mult {
+		position: absolute;
+		inset: 0;
+		z-index: 6;
+		display: grid;
+		place-items: center;
+		font-size: 8vw;
+		pointer-events: none;
+	}
+	.intro-mult .mult-badge {
+		white-space: nowrap;
+		animation: intro-mult-in 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+	}
+	@keyframes intro-mult-in {
+		from {
+			scale: 0.2;
+			opacity: 0;
+		}
+		40% {
+			opacity: 1;
+		}
+		to {
+			scale: 1;
+			opacity: 1;
+		}
+	}
 	.not-in {
 		font-size: 0.9vw;
 		color: #d6c6b4;
@@ -537,7 +645,8 @@
 		   the rail rather than on it, and the rooms were laid out against that. */
 		margin-bottom: var(--rail-h, 0px);
 	}
-	:global(.game.portrait) .centre-result {
+	:global(.game.portrait) .centre-result,
+	:global(.game.portrait) .intro-mult {
 		font-size: 19vw;
 	}
 	/* Pirate Plinko folds its footer away entirely, so there is nothing to lift off the rail. */

@@ -24,8 +24,8 @@
 	import ChestDragon from './ChestDragon.svelte';
 	import MultiplierBurst from './MultiplierBurst.svelte';
 
-	type Props = { room: BookEventChest; interactive: boolean };
-	let { room, interactive }: Props = $props();
+	type Props = { room: BookEventChest; interactive: boolean; portrait?: boolean };
+	let { room, interactive, portrait = false }: Props = $props();
 
 	/**
 	 * The pick clock, as one span rather than as a count of ticks.
@@ -74,9 +74,13 @@
 	 */
 	const HINT_SIZE = 'calc(var(--cell) * 0.355)';
 
-	/** Three across, four down. The transforms below are the only other place that shape matters. */
-	const COLS = 3;
-	const ROWS = 4;
+	/**
+	 * Four across and three down on a wide screen; three across and four down on a tall one, where
+	 * a narrower, taller board fills more of the phone. The transforms below are the only other
+	 * place that shape matters.
+	 */
+	const COLS = $derived(portrait ? 3 : 4);
+	const ROWS = $derived(portrait ? 4 : 3);
 	/** How many columns and rows a chest stands out from the middle of the board (see `.centred`). */
 	const dx = (i: number) => (COLS - 1) / 2 - (i % COLS);
 	const dy = (i: number) => (ROWS - 1) / 2 - Math.floor(i / COLS);
@@ -364,9 +368,7 @@
 	.chests {
 		/* The dragon's layer is laid over this box. */
 		position: relative;
-		/* 7 rather than the 8 it was at four across: four rows down, it is the most a wide screen's
-		   stage has room for with the hint over it, clear of the sign. */
-		--cell: 7vw;
+		--cell: 8vw;
 		--gap: calc(var(--cell) * 0.097);
 		/* The shut drawing, laid across the full column: 1102/1427 of its own width. */
 		--art-h: calc(var(--cell) * 0.7723);
@@ -375,16 +377,15 @@
 		--head: calc(var(--cell) * 0.27);
 		--chest-h: calc(var(--art-h) + var(--head));
 		/* How far the last chest grows once it reaches the middle — and the dragon with it, since it
-		   is sized off the chest's own box on the screen. The grid is 3.2 columns across and a
-		   little over 4.3 chests down; 3 stood clear of both, and this deliberately overhangs the
-		   board it came from; 4.8 of a 7vw column is the 4.2 of an 8vw one it was at four across,
-		   so the chest lands the same size it always did. The eleven are gone by then and the hint
-		   has faded, so there is nothing under it to hide except the air — except the win line,
-		   which comes up under its foot. At this size the foot would still run a little under that
-		   line on a 16:9 screen, so the chest is also lifted (`--lift`) by the shortfall; the dragon
-		   on its lid still stands clear of the sign above. */
-		--zoom: 4.8;
-		--lift: calc(var(--cell) * 0.23);
+		   is sized off the chest's own box on the screen. The grid is 4.29 columns across and a
+		   little over 3.2 chests down; 3 stood clear of both, and this deliberately overhangs the
+		   board it came from. The eleven are gone by then and the hint has faded, so there is
+		   nothing under it to hide except the air — except the win line, which comes up under its
+		   foot. At this size the foot would still run a little under that line on a 16:9 screen, so
+		   the chest is also lifted (`--lift`) by the shortfall; the dragon on its lid still stands
+		   clear of the sign above. */
+		--zoom: 4.2;
+		--lift: calc(var(--cell) * 0.2);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -518,8 +519,9 @@
 	 *
 	 * The grid is regular, so the trip is arithmetic rather than a measurement: a column plus a gap
 	 * for every column it stands out from the middle, a chest plus a gap for every row. `--dx` and
-	 * `--dy` are those two counts, written on the element — 1 minus the column, 1.5 minus the row —
-	 * and they are the only place the shape of the grid is stated twice (see `COLS`).
+	 * `--dy` are those two counts, written on the element — the middle column's index minus the
+	 * chest's, and the same for its row — and they are the only place the shape of the grid is
+	 * stated twice (see `COLS`).
 	 *
 	 * The scale comes after the translate so the chest grows about where it ARRIVES rather than
 	 * dragging its own new size across the board with it. `--lift` is taken off the trip in the
@@ -591,13 +593,14 @@
 	}
 
 	/* ---- Portrait ----------------------------------------------------------------------
-	   The one number, given a taller screen. Three across is only half the width at this size, but
-	   the board is four chests down, and on a phone's short screen (h/w about 1.3) that is as tall
-	   as it can stand between the sign and the footer.
+	   The one number, given a taller screen, and the board turned on its side to suit it: three
+	   across and four down (`COLS`). Three across is only half the width at this size, but four
+	   chests down on a phone's short screen (h/w about 1.3) is as tall as the board can stand
+	   between the sign and the footer.
 
-	   The zoom is pulled in with it, by the same share as before the pair grew by half. A phone's
-	   board is the same four-and-a-bit chests tall as a desktop's, but there is far less air around
-	   it, and the sign above and the win line below are closer. */
+	   The zoom is pulled in with it, by the same share as before the pair grew by half. There is
+	   far less air around a phone's board than a desktop's, and the sign above and the win line
+	   below are closer. */
 	:global(.game.portrait) .chests {
 		--cell: 19vw;
 		--zoom: 4.2;

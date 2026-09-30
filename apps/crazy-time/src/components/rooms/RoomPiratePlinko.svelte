@@ -825,6 +825,11 @@
 		pointer-events: none;
 		user-select: none;
 	}
+	/* On the way out the ball in the pocket is picked up by the one bouncing out of it
+	   (PlinkoReveal's `rise`), and the game marks itself `ball-lifted`: there is one of it. */
+	:global(.game.ball-lifted) .board :global(.pb-ball) {
+		visibility: hidden;
+	}
 	/* ---- Portrait ----------------------------------------------------------------------
 	   A tall screen gets the upright cabinet: nearly the full width, and everything that is
 	   authored in vw scaled up to match, because a portrait vw is about a third of a landscape

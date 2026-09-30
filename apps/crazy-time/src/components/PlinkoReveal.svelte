@@ -9,6 +9,12 @@
 	 * everything comes to rest, and the room loads it up the barrel from there (RoomPiratePlinko's
 	 * `loadBall`), so it is one ball all the way from the wedge to the shot.
 	 *
+	 * And back out, the same way up: once the room has shown what it paid, the ball hops back up out
+	 * of the pocket it took and into the middle of the screen, grown, with a squash (`rise`); bounces
+	 * again, up, with the camera going up after it — the room slides down and away and the table
+	 * comes back down from above — and drops onto the hub (`climb`); and from the hub it hops over
+	 * its wedge, shrinking, and is slammed back down into it (`home`).
+	 *
 	 * Laid out in the game frame's own pixels (the caller converts client rects, see `centreIn` in
 	 * Game.svelte), and every beat timed by the clock rather than by animation events, so a tab in
 	 * the background cannot leave the round waiting on a frame that never comes.
@@ -20,7 +26,8 @@
 	import { playSound } from '../game/sound';
 	import { staticUrl } from '../lib/staticUrl';
 
-	type Box = { x: number; y: number; size: number };
+	/** A centre and a size, in frame pixels; `angle` is how far a wedge's badge is turned. */
+	type Box = { x: number; y: number; size: number; angle?: number };
 	type Frame = { w: number; h: number };
 
 	const BALL = staticUrl(ROOM_ICON.piratePlinko.src);
@@ -48,11 +55,30 @@
 	/** One turn of the ball's roll. */
 	const ROLL_MS = 700;
 
+	/** The way out. From the top of its hop out of the pocket to the middle of the screen. */
+	const OUT_HOP_MS = 560;
+	/** How big it is drawn in the middle of the screen, as a share of the frame's shorter side. */
+	const MIDDLE_SHARE = 0.3;
+	/** The bounce up off the middle and down onto the hub, the camera going up after it. */
+	const CLIMB_MS = 1500;
+	/** How far into that bounce the camera sets off, as a share of it. */
+	const CLIMB_CAMERA_FROM = 0.22;
+	/** The top of that bounce, on the screen, as a share of the frame's height from its top. */
+	const CLIMB_APEX = 0.12;
+	/** Up off the hub and over its wedge, shrinking. */
+	const HOME_OVER_MS = 460;
+	/** Down into the wedge. */
+	const HOME_SLAM_MS = 200;
+
 	/** The camera's move: how far down it is (px) at even steps over `ms`. */
 	type Pan = (camera: number[], ms: number) => void;
 
+	type Pose = { dx: number; dy: number; k: number };
+
 	let shown = $state(false);
 	let box = $state<Box>({ x: 0, y: 0, size: 0 });
+	/** Where the ball was last left on the way out, off `box`: what the next beat starts from. */
+	let rest: Pose = { dx: 0, dy: 0, k: 1 };
 	let iconEl: HTMLDivElement | undefined = $state();
 	let spinEl: HTMLDivElement | undefined = $state();
 
@@ -87,6 +113,52 @@
 		return frames;
 	};
 
+	/** Swaps the ball's move for `frames`: the new one goes on before the old comes off. */
+	const move = (frames: Keyframe[], options: KeyframeAnimationOptions) => {
+		const old = iconEl?.getAnimations() ?? [];
+		iconEl?.animate(frames, { fill: 'both', ...options });
+		old.forEach((a) => a.cancel());
+	};
+
+	const pose = (p: Pose) => ({ transform: `translate(${p.dx}px, ${p.dy}px) scale(${p.k})` });
+
+	/** Rolling, a steady turn on an element of its own, apart from the moving. */
+	const roll = () => {
+		spinEl?.getAnimations().forEach((a) => a.cancel());
+		spinEl?.animate([{ rotate: '0deg' }, { rotate: '360deg' }], {
+			duration: ROLL_MS,
+			iterations: Infinity,
+		});
+	};
+
+	/** How far round the roll has the ball, in degrees. */
+	const rolled = () => {
+		const rolling = spinEl?.getAnimations()[0];
+		return (((Number(rolling?.currentTime) || 0) % ROLL_MS) / ROLL_MS) * 360;
+	};
+
+	/**
+	 * Landed at `p`: squashed flat, and straight back up, left in the stretch it comes up with —
+	 * the bounce off whatever it landed on is the next beat's.
+	 */
+	const squash = async (p: Pose) => {
+		playSound('peg', 0.7);
+		playSound('boom', 1.4, 0.35);
+		const lift = `translate(${p.dx}px, ${p.dy}px)`;
+		move(
+			[
+				pose(p),
+				{
+					transform: `${lift} translateY(${box.size * p.k * 0.08}px) scale(${p.k * 1.18}, ${p.k * 0.8})`,
+					offset: 0.45,
+				},
+				{ transform: `${lift} scale(${p.k * 0.94}, ${p.k * 1.08})` },
+			],
+			{ duration: SQUASH_MS, easing: 'ease-out' },
+		);
+		await waitForTimeout(SQUASH_MS);
+	};
+
 	/**
 	 * From the ball on its wedge (`from`) to the hub (`to`, where it lands at `to.size`). Resolves
 	 * with it squashed on the hub, stretching back up for `fall`.
@@ -96,49 +168,28 @@
 		shown = true;
 		await tick();
 
-		// Rolling the whole way: a steady turn on an element of its own, apart from the moving.
-		spinEl?.animate([{ rotate: '0deg' }, { rotate: '360deg' }], {
-			duration: ROLL_MS,
-			iterations: Infinity,
-		});
+		// Rolling the whole way.
+		roll();
 
 		// Hopped up out of its wedge, growing a little — the same hop the chest makes.
 		const k = from.size / to.size;
 		const wedge = { dx: from.x - to.x, dy: from.y - to.y, k };
 		const popped = { dx: wedge.dx, dy: wedge.dy - from.size * 1.4, k: k * 1.5 };
 		playSound('pop', 1.1);
-		iconEl?.animate(
-			[
-				{ transform: `translate(${wedge.dx}px, ${wedge.dy}px) scale(${wedge.k})` },
-				{ transform: `translate(${popped.dx}px, ${popped.dy}px) scale(${popped.k})` },
-			],
-			{ duration: POP_MS, easing: 'cubic-bezier(0.2, 0.9, 0.4, 1)', fill: 'both' },
-		);
+		move([pose(wedge), pose(popped)], {
+			duration: POP_MS,
+			easing: 'cubic-bezier(0.2, 0.9, 0.4, 1)',
+		});
 		await waitForTimeout(POP_MS);
 
 		// Over and down onto the hub: a short rise from the top of the hop, then a fall.
 		const hub = { dx: 0, dy: 0, k: 1 };
-		const hop = arc(popped, hub, to.size * 0.35);
-		let old = iconEl?.getAnimations() ?? [];
-		iconEl?.animate(hop, { duration: HOP_MS, fill: 'both' });
-		old.forEach((a) => a.cancel());
+		move(arc(popped, hub, to.size * 0.35), { duration: HOP_MS });
 		playSound('whoosh', 0.9);
 		await waitForTimeout(HOP_MS);
 
 		// Landed: squashed flat on the hub, and straight back up.
-		playSound('peg', 0.7);
-		playSound('boom', 1.4, 0.35);
-		old = iconEl?.getAnimations() ?? [];
-		iconEl?.animate(
-			[
-				{ transform: 'translate(0, 0) scale(1)' },
-				{ transform: `translate(0, ${to.size * 0.08}px) scale(1.18, 0.8)`, offset: 0.45 },
-				{ transform: 'translate(0, 0) scale(0.94, 1.08)' },
-			],
-			{ duration: SQUASH_MS, easing: 'ease-out', fill: 'both' },
-		);
-		old.forEach((a) => a.cancel());
-		await waitForTimeout(SQUASH_MS);
+		await squash({ dx: 0, dy: 0, k: 1 });
 
 		// Holding the stretch it came up out of the squash with: the bounce itself is `fall`, run
 		// as the room's entrance, since the camera goes down with it.
@@ -217,10 +268,117 @@
 		hide();
 	};
 
+	/**
+	 * The way out, first: from the ball in the pocket it took (`from`, the room's own ball, which
+	 * the caller takes off the board as this one goes up) — hopped up out of it, growing, and over
+	 * into the middle of the frame, where it lands grown to MIDDLE_SHARE with a squash. Resolves
+	 * with it there, stretching back up for `climb`.
+	 */
+	export const rise = async (from: Box, frame: Frame): Promise<void> => {
+		const size = Math.min(frame.w, frame.h) * MIDDLE_SHARE;
+		box = { x: frame.w / 2, y: frame.h / 2, size };
+		shown = true;
+		await tick();
+		roll();
+
+		// The hop the way in started with, out of the pocket instead of the wedge.
+		const k = from.size / size;
+		const slot = { dx: from.x - box.x, dy: from.y - box.y, k };
+		const popped = { dx: slot.dx, dy: slot.dy - from.size * 1.6, k: k * 1.6 };
+		playSound('pop', 1.1);
+		move([pose(slot), pose(popped)], { duration: POP_MS, easing: 'cubic-bezier(0.2, 0.9, 0.4, 1)' });
+		await waitForTimeout(POP_MS);
+
+		// Over and into the middle, growing all the way.
+		rest = { dx: 0, dy: 0, k: 1 };
+		move(arc(popped, rest, size * 0.35), { duration: OUT_HOP_MS });
+		playSound('whoosh', 0.9);
+		await waitForTimeout(OUT_HOP_MS);
+		await squash(rest);
+	};
+
+	/**
+	 * The bounce up off the middle, with the camera going up after it, and down onto the hub (`hub`,
+	 * in the frame's pixels as the table stands at rest, and the size the ball lands there at). The
+	 * ball flies one parabola on the screen, up near the top and down onto the hub; the camera sets
+	 * off as it rises and has come to rest on the table by the time it lands, so it is the table that
+	 * comes down to meet it. `pan` is handed the camera's move as `fall` hands it, how far down it is
+	 * at even steps over `ms` — from the frame's height on the room back to 0 on the table. Resolves
+	 * with the ball squashed on the hub, stretching back up for `home`.
+	 */
+	export const climb = async (frame: Frame, hub: Box, pan: Pan): Promise<void> => {
+		if (!shown) return;
+		const h = frame.h;
+		const end = { dx: hub.x - box.x, dy: hub.y - box.y, k: hub.size / box.size };
+		// The top of the bounce, set on the screen rather than above either end.
+		const top = h * CLIMB_APEX - box.y;
+		const steps = Math.max(2, Math.round((CLIMB_MS / 1000) * SAMPLES_PER_S));
+		move(arc({ ...rest, k: rest.k * 0.94 }, end, Math.min(rest.dy, end.dy) - top, steps), {
+			duration: CLIMB_MS,
+		});
+		playSound('whoosh');
+
+		const lead = CLIMB_MS * CLIMB_CAMERA_FROM;
+		const ms = CLIMB_MS - lead;
+		const smooth = (t: number) => t * t * (3 - 2 * t);
+		const camSteps = Math.max(2, Math.round((ms / 1000) * SAMPLES_PER_S));
+		const cams = Array.from({ length: camSteps + 1 }, (_, i) => h * (1 - smooth(i / camSteps)));
+		cams[cams.length - 1] = 0;
+		await waitForTimeout(lead);
+		pan(cams, ms);
+		await waitForTimeout(ms);
+
+		rest = end;
+		await squash(rest);
+	};
+
+	/**
+	 * Home: up off the hub and over its wedge (`to`, the badge with its turn), shrinking to it, and
+	 * slammed down into it, the roll brought round to stop dead on the badge's own angle. `onLand` is
+	 * the impact: the ball is gone in that frame, and the caller puts the wedge's badge back and
+	 * gives the wheel its knock. With no wedge to find it only goes.
+	 */
+	export const home = async (to: Box | null, onLand?: () => void): Promise<void> => {
+		if (!shown) return;
+		if (!to) {
+			hide();
+			onLand?.();
+			return;
+		}
+		const wedge = { dx: to.x - box.x, dy: to.y - box.y, k: to.size / box.size };
+		const over = { dx: wedge.dx, dy: wedge.dy - to.size * 1.4, k: wedge.k * 1.6 };
+
+		// The roll runs on and comes to rest on the badge's angle at the moment it hits, a whole turn
+		// or more on from wherever it is now, so it never turns back.
+		const from = rolled();
+		const angle = (((to.angle ?? 0) % 360) + 360) % 360;
+		const stop = angle + 360 * Math.ceil((from + 360 - angle) / 360);
+		spinEl?.getAnimations().forEach((a) => a.cancel());
+		spinEl?.animate([{ rotate: `${from}deg` }, { rotate: `${stop}deg` }], {
+			duration: HOME_OVER_MS + HOME_SLAM_MS,
+			easing: 'cubic-bezier(0.3, 0.5, 0.6, 1)',
+			fill: 'both',
+		});
+
+		playSound('whoosh', 1.1);
+		move(arc(rest, over, box.size * rest.k * 0.3), { duration: HOME_OVER_MS });
+		await waitForTimeout(HOME_OVER_MS);
+
+		move([pose(over), pose(wedge)], {
+			duration: HOME_SLAM_MS,
+			easing: 'cubic-bezier(0.6, 0, 0.9, 0.5)',
+		});
+		await waitForTimeout(HOME_SLAM_MS);
+		hide();
+		playSound('boom', 1.3, 0.5);
+		onLand?.();
+	};
+
 	/** Takes the ball off the screen wherever it is. */
 	export const hide = () => {
 		iconEl?.getAnimations().forEach((a) => a.cancel());
 		spinEl?.getAnimations().forEach((a) => a.cancel());
+		rest = { dx: 0, dy: 0, k: 1 };
 		shown = false;
 	};
 </script>

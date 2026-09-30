@@ -103,6 +103,9 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// the splash and the room would otherwise fetch its board on entry.
 	'img/pirate-plinko/board_v2.png',
 	'img/pirate-plinko/board_v2_portrait.png',
+	// Both backdrop cuts, for the same reason.
+	'img/pirate-plinko/background_landscape.webp',
+	'img/pirate-plinko/background_portrait.webp',
 	'img/pirate-plinko/cannon.png',
 	// (The ball is the room's wheel icon, already in the ROOM_ICON row above.)
 	'img/pirate-plinko/bomb.png',
@@ -155,9 +158,9 @@ const FONT_SPECS: readonly string[] = [
 ];
 
 /**
- * The three looping backdrops, one per bonus room (BonusRound.svelte) — all but the Treasure Chest,
- * whose backdrop is a still. That one and the table's own (Background.svelte) ride with the DOM
- * images above.
+ * The two looping backdrops, one per bonus room (BonusRound.svelte) — all but the Treasure Chest
+ * and Pirate Plinko, whose backdrops are stills. Those and the table's own (Background.svelte) ride
+ * with the DOM images above.
  *
  * Warmed as ELEMENTS, never as bytes. A Blob + `registerResidentUrl`, the way every image above is
  * warmed, cannot work for media on Stake: the page serves the game under
@@ -171,23 +174,21 @@ const FONT_SPECS: readonly string[] = [
  * element that plays in the game ({@link adoptVideo}). Nothing for CSP to refuse, nothing for the CDN
  * to answer twice.
  *
- * The splash blocks on a FIRST FRAME per clip, not on the bodies: all three together are ~107 MB, and
+ * The splash blocks on a FIRST FRAME per clip, not on the bodies: both together are ~82 MB, and
  * a splash that waited on that would sit for minutes on an ordinary connection. What the splash is
- * buying is a decode — the reveal must not paint black — and the files are faststart, so three first
+ * buying is a decode — the reveal must not paint black — and the files are faststart, so two first
  * frames is well under a megabyte. The bodies are pulled after reveal, the
  * rooms one at a time ({@link preloadPostRevealAssets}), so whatever is on screen keeps the link.
  */
-export type VideoKey = 'piratePlinko' | 'bonusWheel' | 'oceanVoyage';
+export type VideoKey = 'bonusWheel' | 'oceanVoyage';
 
 const VIDEO_PATHS: Record<VideoKey, string> = {
-	piratePlinko: 'videos/animated_background_pirate_plinko.mp4',
 	bonusWheel: 'videos/animated_background_bonus_wheel.mp4',
 	oceanVoyage: 'videos/animated_background_ocean_voyage.mp4',
 };
 
 /** The order the bodies are filled in after reveal. */
 const VIDEO_FILL_ORDER: readonly VideoKey[] = [
-	'piratePlinko',
 	'bonusWheel',
 	'oceanVoyage',
 ];

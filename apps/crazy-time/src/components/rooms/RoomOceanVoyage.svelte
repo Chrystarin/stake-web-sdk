@@ -60,8 +60,8 @@
 	const PORT_MS = 780;
 	/** A beat on a fresh island before the auto-pilot sails on, or before the last leg into port. */
 	const ARRIVE_MS = 420;
-	/** The ship going down under the kraken. Matches the `sink` animation below. */
-	const SINK_MS = 1100;
+	/** The ship rolled over by the kraken. Matches the `capsize` animation below. */
+	const SINK_MS = 1300;
 	/** The outcome on the board before the screen moves on to the win line. */
 	const END_HOLD_MS = 900;
 
@@ -417,7 +417,9 @@
 			class:sunk
 			style="--sx:{ship.x}; --sy:{ship.y}; --tilt:{tilt.toFixed(2)}deg; --face:{facing}; --ship-aspect:{ROOM_ICON.oceanVoyage.aspect}"
 		>
-			<img src={SHIP} alt="" draggable="false" />
+			<div class="hull">
+				<img src={SHIP} alt="" draggable="false" />
+			</div>
 		</div>
 	</div>
 
@@ -628,7 +630,7 @@
 
 	/* The ship. Its place is two shares of the board, written on the element; the translate puts
 	   its middle on them, and the pitch is on top so it rocks about its own hull. Which way it faces
-	   is on the drawing inside, so turning about is eased and the sinking below cannot undo it. */
+	   is on the drawing inside, so turning about is eased and the capsize below cannot undo it. */
 	.ship {
 		position: absolute;
 		left: 0;
@@ -650,7 +652,7 @@
 	/* Riding the swell in place: rolled one way and the other about its waterline, lifting on the
 	   crest as it passes level — the wheel's `ride` (VoyageReveal), gentler and slower, since it
 	   never stops. On the drawing's own `rotate`/`translate`, which compose with its facing and
-	   with the sailing tilt and the sinking on the element outside. The negative delays start it
+	   with the sailing tilt outside and the capsize around it. The negative delays start it
 	   level on a crest, so held back while the wheel's ship docks it waits there, level, as that
 	   one arrives. */
 	.ship img {
@@ -687,19 +689,47 @@
 		.ship img {
 			animation: none;
 		}
+		.ship.sunk .hull {
+			animation-duration: 1ms;
+		}
 	}
-	/* Going down under the kraken: it slides down the board and fades as it goes, listing a little
-	   and drawing in as the water takes it. On the drawing's own `translate`/`scale`/`rotate`, which
-	   compose with the transform that places it rather than replacing it. */
+	/* Rolled over by the kraken: a lurch back as it is seized, then over the way it was sailing,
+	   past upside down and back, and it settles low in the water, keel to the sky, its colours
+	   drowned. It stays on the board that way — the wreck is the outcome, as the island is for a
+	   ship that made port. On a wrapper of its own rather than on `.ship`: a `rotate` there turns
+	   about the element's untransformed box, the board's top-left corner, not the ship. Its swell
+	   (`rock`, `heave`, on the drawing inside) rides on, so the hull still floats. */
+	.hull {
+		width: 100%;
+		height: 100%;
+		transform-origin: 50% 60%;
+	}
+	/* Wrecked, it drops under the island that paid (z-index 2, below), so the number on the stop
+	   below is not left under its hull. It stays over the kraken and the other islands: their
+	   level, but later in the board. */
 	.ship.sunk {
-		animation: sink 1100ms ease-in both;
+		z-index: 1;
 	}
-	@keyframes sink {
-		to {
-			translate: 0 calc(var(--voyage-w) * 0.07);
-			scale: 0.7;
-			rotate: 14deg;
-			opacity: 0;
+	.ship.sunk .hull {
+		animation: capsize 1300ms cubic-bezier(0.45, 0, 0.3, 1) both;
+	}
+	@keyframes capsize {
+		0% {
+			transform: translateY(0) rotate(0deg);
+		}
+		18% {
+			transform: translateY(-4%) rotate(calc(var(--face) * -14deg));
+		}
+		62% {
+			transform: translateY(10%) rotate(calc(var(--face) * 200deg));
+			filter: brightness(0.85) saturate(0.8);
+		}
+		80% {
+			transform: translateY(14%) rotate(calc(var(--face) * 172deg));
+		}
+		100% {
+			transform: translateY(12%) rotate(calc(var(--face) * 180deg));
+			filter: brightness(0.65) saturate(0.55);
 		}
 	}
 
