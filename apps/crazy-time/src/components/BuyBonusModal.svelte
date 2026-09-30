@@ -1,8 +1,8 @@
 <script lang="ts">
 	/**
 	 * The Buy Bonus screen, ported from apps/plinko's BuyBonusModal: one card per room buy, each
-	 * priced at the current chip, with the chip steppable on the screen itself so the prices re-price
-	 * live. Activate hands the buy to the game, which raises the Yes/No prompt.
+	 * priced at the current chip, with the tray's own chips on the screen itself so the prices
+	 * re-price live. Activate hands the buy to the game, which raises the Yes/No prompt.
 	 *
 	 * The look and the grid are the Plinko ones (four cards, panel frame, gold plates, PiecesOfEight
 	 * title); what changed is the content of a card: the room's own badge instead of a chest, and its
@@ -14,6 +14,7 @@
 	 * badge popping out of its card (the caller flies it, off `artRect`, while `lifted` keeps the
 	 * card's own copy hidden), and the way back out slams it home onto the card (`slam`).
 	 */
+	import { tick } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { stateBet } from 'state-shared';
 
@@ -30,7 +31,7 @@
 	import { stateGame, stateGameDerived } from '../game/stateGame.svelte';
 	import { playSound } from '../game/sound';
 	import { staticUrl } from '../lib/staticUrl';
-	import BuyBonusBetField from './BuyBonusBetField.svelte';
+	import Chip from './Chip.svelte';
 	import { formatBalance, formatMoney } from '../game/currency';
 
 	type Props = {
@@ -61,6 +62,9 @@
 	/** The four room buys get cards; the buy that can land on any room gets the bar under the chip. */
 	const CARD_MODES = BUY_MODE_NAMES.filter((mode) => BUY_MODES[mode].rooms.length === 1);
 	const ANY_MODE = BUY_MODE_NAMES.find((mode) => BUY_MODES[mode].rooms.length > 1);
+	/** The Random Bonus bar is hidden for now; the buy itself stays in the math and the game. */
+	const SHOW_ANY_BONUS = false;
+	const anyShown = Boolean(ANY_MODE) && SHOW_ANY_BONUS;
 
 	const roomOf = (mode: string) => BUY_MODES[mode].rooms[0] as RoomSpot;
 	const art = (mode: string) => staticUrl(ROOM_ICON[roomOf(mode)].src);
@@ -126,6 +130,103 @@
 	const stakes = $derived(stateGameDerived.stakeOptions());
 	const chip = $derived(stateGame.stake);
 
+	/**
+	 * The chip rail windows the tray the way the table's own tray does: the selected chip in the
+	 * middle, its neighbours stepping down in size and strength, the window sliding as the choice
+	 * moves. Seven at a time, as the tray shows them, on every screen.
+	 */
+	const RAIL_CHIPS = 7;
+	const rail = $derived.by(() => {
+		const total = stakes.length;
+		const windowSize = Math.min(RAIL_CHIPS, total);
+		const selected = Math.max(0, stakes.indexOf(chip));
+		const start = Math.max(0, Math.min(selected - Math.floor(windowSize / 2), total - windowSize));
+		return {
+			windowSize,
+			start,
+			chips: stakes.map((value, index) => ({
+				value,
+				index,
+				depth: Math.min(Math.abs(index - selected), 2),
+				selected: index === selected,
+				shown: index >= start && index < start + windowSize,
+			})),
+		};
+	});
+
+	/**
+	 * The chip a room buy puts down on its card. On Yes it is flown off the rail onto the card's
+	 * Activate button, at the rail's own chip size, the way the table's chips fly onto their tiles (Game.svelte `chip-flight`: a lift, an
+	 * arc across, a drop and a settle), and it stays there until the screen goes. The caller holds
+	 * the room's entrance until `placeChip` resolves, so the badge only pops out once it is down.
+	 */
+	let cardChip = $state<{
+		room: RoomSpot;
+		value: number;
+		index: number;
+		x: number;
+		y: number;
+		size: number;
+	} | null>(null);
+	let cardChipEl: HTMLElement | undefined = $state();
+	const CARD_CHIP_FLIGHT_MS = 560;
+	/** The flight's share spent lifting off, and where it touches down (the table's 20% / 80%). */
+	const CARD_CHIP_LIFT = 0.2;
+	const CARD_CHIP_LAND = 0.8;
+
+	export const placeChip = async (room: RoomSpot): Promise<void> => {
+		const card = cardEls[room];
+		const button = card?.querySelector('.bb-activate');
+		const rail = backdropEl?.querySelector('.bb-chips .chip.selected');
+		const index = stakes.indexOf(chip);
+		if (!card || !button || !rail || index < 0) return;
+		const cardBox = card.getBoundingClientRect();
+		const buttonBox = button.getBoundingClientRect();
+		const railBox = rail.getBoundingClientRect();
+		// The rail chip's own size: its layout width, before the selected chip's 1.1 lift.
+		const size = (rail as HTMLElement).offsetWidth;
+		if (!cardBox.width || !size) return;
+		// Down on the middle of the card's Activate button.
+		const x = buttonBox.left + buttonBox.width / 2 - cardBox.left;
+		const y = buttonBox.top + buttonBox.height / 2 - cardBox.top;
+		cardChip = { room, value: chip, index, x, y, size };
+		await tick();
+		const el = cardChipEl;
+		if (!el) return;
+		const dx = railBox.left + railBox.width / 2 - (cardBox.left + x);
+		const dy = railBox.top + railBox.height / 2 - (cardBox.top + y);
+		const from = railBox.width / size;
+		const arc = size * 0.45;
+		playSound('whoosh');
+		const flight = el.animate(
+			[
+				{ translate: `${dx}px ${dy}px`, scale: from, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
+				{ translate: `${dx}px ${dy}px`, scale: from * 1.35, offset: CARD_CHIP_LIFT, easing: 'ease-in' },
+				{ translate: `${dx / 2}px ${dy / 2 - arc}px`, offset: 0.5, easing: 'ease-out' },
+				{ translate: '0px 0px', scale: 1.35, offset: CARD_CHIP_LAND, easing: 'ease-out' },
+				{ translate: '0px 0px', scale: 1 },
+			],
+			{ duration: CARD_CHIP_FLIGHT_MS },
+		);
+		const landed = setTimeout(() => playSound('pop'), CARD_CHIP_FLIGHT_MS * CARD_CHIP_LAND);
+		try {
+			await flight.finished;
+		} catch {
+			clearTimeout(landed);
+		}
+	};
+
+	// The screen gone, its chip goes with it: it is never there to greet the badge coming home.
+	$effect(() => {
+		if (!props.open) cardChip = null;
+	});
+
+	function pickChip(value: number) {
+		if (props.disabled || value === chip) return;
+		if (stateGameDerived.selectStake(value) === null) return;
+		playSound('click');
+	}
+
 	const formatMult = (value: number) => `${value.toLocaleString('en-US')}x`;
 
 	const price = (mode: string) => buyPrice(mode) * chip;
@@ -172,27 +273,39 @@
 		bind:this={backdropEl}
 		out:fade={{ duration: 220 }}
 	>
-		<div class="bb-modal" role="dialog" aria-label="Buy Bonus" onclick={(event) => event.stopPropagation()}>
+		<div class="bb-modal" class:no-any={!anyShown} role="dialog" aria-label="Buy Bonus" onclick={(event) => event.stopPropagation()}>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
 				<img src={staticUrl('img/buy-bonus/close_btn.webp')} alt="" aria-hidden="true" />
 			</button>
 
 			<h2 class="bb-title">Buy Bonus</h2>
 
-			<!-- The bet, as One-Eyed Willy's Plinko sets it on its own Buy Bonus screen. Every price below
-			     is cost x chip, so stepping it re-prices all five cards. -->
+			<!-- The bet, chosen off the table's own chips. Every price below is cost x chip, so picking
+			     another chip re-prices all five cards. A chip the balance does not cover is greyed out. -->
 			<div class="bb-bet-row">
-				<BuyBonusBetField
-					options={stakes}
-					value={chip}
-					onChange={(value) => stateGameDerived.selectStake(value)}
-					locked={props.disabled}
-				/>
+				<div class="bb-chips" class:locked={props.disabled} role="group" aria-label="Chip value">
+					<div class="bb-chips-viewport" style="--slots:{rail.windowSize}">
+						<div class="bb-chips-rail" style="--offset:{rail.start}">
+							{#each rail.chips as c (c.value)}
+								<div class="bb-chip-slot" class:shown={c.shown} style="--depth:{c.depth}">
+									<Chip
+										value={c.value}
+										index={c.index}
+										count={stakes.length}
+										selected={c.selected}
+										disabled={!stateGameDerived.canAffordStake(c.value)}
+										onclick={() => pickChip(c.value)}
+									/>
+								</div>
+							{/each}
+						</div>
+					</div>
+				</div>
 			</div>
 
 			<!-- Random Bonus: the cards' own panel turned on its side, holding only the name, the price
 			     and Activate, stacked. The frame is a pre-rotated copy of the art, not a CSS rotate. -->
-			{#if ANY_MODE}
+			{#if ANY_MODE && anyShown}
 				<div class="bb-any">
 					<img class="bb-any-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel_landscape.webp')} alt="" aria-hidden="true" />
 					<h3 class="bb-any-title">{BUY_MODES[ANY_MODE].label}</h3>
@@ -216,6 +329,17 @@
 				{#each CARD_MODES as mode (mode)}
 					<div class="bb-card" bind:this={cardEls[roomOf(mode)]}>
 						<img class="bb-card-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel.webp')} alt="" aria-hidden="true" />
+						{#if cardChip && cardChip.room === roomOf(mode)}
+							<div
+								class="bb-card-chip"
+								bind:this={cardChipEl}
+								style="left:{cardChip.x}px; top:{cardChip.y}px; --chip-size:{cardChip.size}px"
+								inert
+								aria-hidden="true"
+							>
+								<Chip value={cardChip.value} index={cardChip.index} count={stakes.length} />
+							</div>
+						{/if}
 						<div class="bb-card-inner">
 							<h3 class="bb-card-title">{BUY_MODES[mode].label}</h3>
 							<p class="bb-card-desc">{TAGLINE[mode]}</p>
@@ -361,6 +485,9 @@
 	   no longer fit the frame. */
 	.bb-modal {
 		position: relative;
+		/* The height the Random Bonus bar spends in the column, in --ui-px (133 tall, 16 below), for the
+		   two FIT budgets to charge; 0 while the bar is hidden (`SHOW_ANY_BONUS`). */
+		--bb-any-space: 149;
 		/* Held as a variable because the portrait card budget has to divide it between the columns, and a
 		   literal `100%` cannot be used there — that value is divided down into a font scale on `.bb-card`,
 		   where a percentage would resolve against the font size instead of the grid. */
@@ -473,6 +600,16 @@
 		   remaining rows still can on a narrow card, and the ratio is what every art percentage in
 		   this file is stated against, so this must stay.) */
 		min-height: 0;
+	}
+
+	/* The buy's chip on its card (`placeChip`), centred on its point by `transform` so the flight is
+	   free to animate `translate` and `scale`. Over the rail it takes off from (`.bb-bet-row` is 3). */
+	.bb-card-chip {
+		position: absolute;
+		z-index: 4;
+		transform: translate(-50%, -50%);
+		pointer-events: none;
+		filter: drop-shadow(0 calc(var(--chip-size) * 0.06) calc(var(--chip-size) * 0.12) rgba(0, 0, 0, 0.6));
 	}
 
 	.bb-card-frame {
@@ -882,12 +1019,12 @@
 	   construction at every portrait size — the backdrop keeps `overflow: auto` purely as a safety net
 	   that should now never fire.
 
-	   ⚠️ `326.2` is the rest of the column, in --ui-px, and has to be re-derived if any of it changes
+	   ⚠️ `177.2` + `--bb-any-space` is the rest of the column, in --ui-px, and has to be re-derived if
+	   any of it changes
 	   (the modal has no `gap`; every space is an item margin — see `.bb-modal`):
 	       37.0  .bb-title       (32ui-px × the 1.16 line-height pinned below)
-	       86.0  .bb-bet-row     (64ui-px plate, two 11.0ui-px margins: 16 less the 5.0 of shadow air
-	                             its art bakes in)
-	      149.0  .bb-any         (133ui-px tall, 16ui-px margin below)
+	       86.0  .bb-bet-row     (the 54.0ui-px chip pill — 64 x 260/308 — and two 16ui-px margins)
+	      149.0  .bb-any         (133ui-px tall, 16ui-px margin below) — `--bb-any-space`, 0 while hidden
 	       19.2  .bb-balance's margin-top
 	       27.0  .bb-balance     (18ui-px × the 1.5 line-height pinned below)
 	        8.0  slack, so a rounding or font-metric surprise costs a slightly smaller card rather than
@@ -914,7 +1051,9 @@
 			}
 
 			.bb-cards {
-				--bb-cards-budget: calc(100svh - var(--bb-pad-y) - 326.2 * var(--ui-px));
+				--bb-cards-budget: calc(
+					100svh - var(--bb-pad-y) - (177.2 + var(--bb-any-space)) * var(--ui-px)
+				);
 				/* The tighter of the two budgets. The height one is turned into a WIDTH by the same 0.74 the
 				   card carries as its `aspect-ratio`, so one number can drive the tracks. The outer `max()` is
 				   a floor for a viewport so short the budget goes negative — a negative track size would drop
@@ -974,9 +1113,9 @@
 	   every space is an item margin — see `.bb-modal`):
 	       1.2 x the title's own clamp()      .bb-title      (line-height pinned just below)
 	       80ui-px + 2 x (16ui-px - 80ui-px x 24/308)
-	                                          .bb-bet-row: its plate, and the two margins that give
-	                                          back the art's baked-in shadow air
-	       133ui-px + 16ui-px                 .bb-any, and its margin below
+	                                          .bb-bet-row: the same total as its chip pill
+	                                          (80 x 260/308) and two 16ui-px margins
+	       --bb-any-space (133 + 16, or 0)    .bb-any, and its margin below
 	       1.5 x the balance's own clamp()    .bb-balance, plus its 19.2ui-px margin-top
 	   The bet row's 80ui-px is stated as a literal because --bb-bet-h lives on `.bb-bet-row`, a
 	   SIBLING — custom properties only reach descendants, so `.bb-cards` cannot read it. ⚠️ Re-derive
@@ -1002,7 +1141,7 @@
 					100svh - var(--bb-pad-y) - 1.2 *
 						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) -
 						(80 * var(--ui-px) + 2 * (16 * var(--ui-px) - 80 * var(--ui-px) * 24 / 308)) -
-						(133 * var(--ui-px) + 16 * var(--ui-px)) -
+						var(--bb-any-space) * var(--ui-px) -
 						(
 							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) + 19.2 *
 								var(--ui-px)
@@ -1042,28 +1181,78 @@
 	}
 
 	/* ── BET ROW ──────────────────────────────────────────────────────────────────────────────────
-	   The buy is priced per chip, so the bet is chosen right here, in One-Eyed Willy's Plinko's own
-	   control (BuyBonusBetField.svelte). `--bb-bet-h` is its one size knob: 80ui-px is the plate
-	   Plinko draws at the 1024×576 reference, and 64 the one it draws on a 375×812 phone. The field
-	   takes its width from the art's ratio. Sized in LAYOUT (no transform) for the same iOS reason
-	   as the cards.
-	   The container art bakes its drop shadow into its canvas — the solid frame starts 24 px down a
-	   308 px canvas — so each margin gives that transparent air back, and the column spaces the
-	   VISIBLE frame 16ui-px from its neighbours. Both FIT budgets below count this row: re-derive them
-	   if the height or the margin changes.
-	   Over the cards (`z-index`), because the presets popup opens downward across them. */
+	   The buy is priced per chip, so the chip is chosen right here, off the table's own chips
+	   (Chip.svelte) on the tray's dark pill. `--bb-bet-h` is the row's one size knob, and the row is
+	   sized so it spends EXACTLY the height the old Plinko bet plate did: that plate was
+	   `--bb-bet-h` tall with margins of 16ui-px less the 24/308 of it its art spent on a baked-in
+	   shadow, so the pill is `--bb-bet-h` x 260/308 with plain 16ui-px margins. Both FIT budgets
+	   below still count the row by the plate's formula — re-derive them if the height or the margin
+	   changes. Sized in LAYOUT (no transform) for the same iOS reason as the cards. */
 	.bb-bet-row {
 		--bb-bet-h: calc(80 * var(--ui-px));
+		--bb-pill-h: calc(var(--bb-bet-h) * 260 / 308);
+		--chip-size: calc(var(--bb-pill-h) * 0.64);
+		--chip-pitch: calc(var(--chip-size) * 1.25);
 		position: relative;
 		z-index: 3;
 		display: flex;
 		justify-content: center;
-		margin: calc(16 * var(--ui-px) - var(--bb-bet-h) * 24 / 308) auto;
+		margin: calc(16 * var(--ui-px)) auto;
 	}
 	@media (max-aspect-ratio: 1/1) {
 		.bb-bet-row {
 			--bb-bet-h: calc(64 * var(--ui-px));
 		}
+	}
+	.bb-chips {
+		box-sizing: border-box;
+		height: var(--bb-pill-h);
+		padding: 0 calc(var(--chip-size) * 0.3);
+		display: flex;
+		align-items: center;
+		border-radius: calc(var(--bb-pill-h) / 2);
+		/* The tray's dark pill, with a faint rim so it still reads against the screen's own dimming. */
+		background: rgba(0, 0, 0, 0.45);
+		outline: calc(1 * var(--ui-px)) solid rgba(255, 255, 255, 0.14);
+		box-shadow: inset 0 calc(2 * var(--ui-px)) calc(1 * var(--ui-px)) rgba(0, 0, 0, 0.24);
+		transition: opacity 0.2s ease;
+	}
+	/* A round is running: the chips stay on show but cannot be picked. */
+	.bb-chips.locked {
+		opacity: 0.55;
+		pointer-events: none;
+	}
+	/* The window onto the rail. Its padding is room for the selected chip's ring and lift, which
+	   the clip would otherwise shave off at the window's ends. */
+	.bb-chips-viewport {
+		box-sizing: content-box;
+		width: calc(var(--slots, 7) * var(--chip-pitch));
+		height: 100%;
+		padding: 0 calc(var(--chip-size) * 0.15);
+		margin: 0 calc(var(--chip-size) * -0.15);
+		overflow: hidden;
+	}
+	.bb-chips-rail {
+		display: flex;
+		width: max-content;
+		height: 100%;
+		transform: translateX(calc(var(--offset, 0) * var(--chip-pitch) * -1));
+		transition: transform 0.26s cubic-bezier(0.22, 0.61, 0.36, 1);
+	}
+	.bb-chip-slot {
+		flex: 0 0 var(--chip-pitch);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		scale: calc(1 - var(--depth, 0) * 0.11);
+		opacity: calc(1 - var(--depth, 0) * 0.22);
+		z-index: calc(3 - var(--depth, 0));
+		transition:
+			scale 0.26s ease,
+			opacity 0.26s ease;
+	}
+	.bb-chip-slot:not(.shown) {
+		pointer-events: none;
 	}
 	/* The room badge on the card. Unlike Plinko's chest renders, the badge is solid art with no glow
 	   to spare, so it does not hang over the text: it fills the slot between the tagline and the max
@@ -1090,6 +1279,9 @@
 	   transformed-art first-paint clip this game has already hit in the Stake Engine iframe.
 	   Sized in --any-px, which is --ui-px until the modal is narrower than the panel, and then the
 	   whole panel scales down with it. Counted in both FIT budgets above at its full 133 + 16ui-px. */
+	.bb-modal.no-any {
+		--bb-any-space: 0;
+	}
 	.bb-any {
 		--any-px: min(var(--ui-px), calc(var(--bb-modal-width) / 180));
 		position: relative;

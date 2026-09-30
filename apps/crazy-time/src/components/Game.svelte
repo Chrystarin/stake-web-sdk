@@ -20,6 +20,12 @@
 		type ReplayRound,
 	} from '../game/replay';
 	import { formatBalance, formatMoney } from '../game/currency';
+	import {
+		CHIP_BASE_HUE,
+		chipHueShift as sharedChipHueShift,
+		chipTextColour as sharedChipTextColour,
+		fmtChip,
+	} from '../game/chips';
 	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
 	import {
 		NUMBER_PAY,
@@ -416,18 +422,10 @@
 		stateGameDerived.ensureValidStake();
 	});
 
-	// Chips all render the same `chip_base.svg` art, tinted per stake with a CSS hue-rotate.
-	const CHIP_BASE_HUE = 42;
-	const CHIP_HUES = [133, 222, 264, 324, 362];
-	const chipHue = (index: number) => {
-		if (stakes.length <= 1) return CHIP_HUES[0];
-		const position = (index / (stakes.length - 1)) * (CHIP_HUES.length - 1);
-		const stop = Math.min(Math.floor(position), CHIP_HUES.length - 2);
-		return CHIP_HUES[stop] + (CHIP_HUES[stop + 1] - CHIP_HUES[stop]) * (position - stop);
-	};
-	const chipHueShift = (index: number) => Math.round(chipHue(index) - CHIP_BASE_HUE);
-	const chipTextColour = (index: number) =>
-		`hsl(${Math.round(chipHue(index)) % 360}, 70%, ${Math.round(55 * 0.7)}%)`;
+	// Chips all render the same `chip_base.svg` art, tinted per stake with a CSS hue-rotate
+	// (game/chips.ts, shared with the Buy Bonus screen's chip rail so a denomination is one colour).
+	const chipHueShift = (index: number) => sharedChipHueShift(index, stakes.length);
+	const chipTextColour = (index: number) => sharedChipTextColour(index, stakes.length);
 
 	// --- Chip carousel (the whole tray is visible; it still windows if more levels arrive) -------
 	const VISIBLE_CHIPS = 7;
@@ -2039,6 +2037,12 @@
 	 * and the room comes straight on (`wheelSpin`). A bet that fails closes it as before.
 	 */
 	let buyWaiting = $state(false);
+	/**
+	 * The buy's chip flying onto its card on the Buy Bonus screen (`BuyBonusModal.placeChip`). The
+	 * bet goes out alongside it, so the RGS round trip is spent under the flight, but the room's
+	 * entrance off the card waits for the chip to be down.
+	 */
+	let buyChipLanding: Promise<void> | null = null;
 	$effect(() => {
 		if (buyWaiting && !stateGame.rolling) {
 			buyWaiting = false;
@@ -2114,9 +2118,11 @@
 		sweepChips(placed, face);
 		if (direct) {
 			// Behind the Buy Bonus screen: the room's yellow chip is simply on its tile, and the wheel
-			// is off the stage (see `wheelOff`), set on the room unseen when the book comes back.
+			// is off the stage (see `wheelOff`), set on the room unseen when the book comes back. On
+			// the screen itself the chip flies off the rail onto the bought card first.
 			buyWaiting = true;
 			wheelOff = true;
+			buyChipLanding = buyModal?.placeChip(BUY_MODES[mode].rooms[0] as RoomSpot) ?? null;
 		} else {
 			// A yellow chip for the full price goes down on every room the buy can open — whichever
 			// opens, the whole price bought it — flown from the Buy Bonus button that bought it, one
@@ -2159,9 +2165,6 @@
 		if (context.stateXstateDerived.isIdle() && stateGame.rolling) stateGame.rolling = false;
 	});
 
-	// Sums are written by game/currency.ts, exact and in the currency's own form. Only a chip's
-	// face is abbreviated: it names a denomination, it does not state an amount.
-	const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
 	/** A buy's chip is yellow — the chip art untinted — whatever the tray's denomination. */
 	const BUY_CHIP_TEXT = `hsl(${CHIP_BASE_HUE}, 70%, 36%)`;
 	/** The chip a buy puts on the room wears the chip the buy was priced in — the price bought the
@@ -2670,9 +2673,12 @@
 					if (await sailShipOff(target)) return;
 				} else if (await revealRoom(target, event.spot === 'chest' ? 'chest' : 'wheel')) return;
 			}
-			// A single-room buy has been waiting on the Buy Bonus screen: its badge pops out of its card
-			// and takes the player in, the way a wedge's does, and the screen goes as the room comes on
-			// — failing that, it simply goes, with no beat on the table in between.
+			// A single-room buy has been waiting on the Buy Bonus screen: once its chip is down on the
+			// card, its badge pops out of the card and takes the player in, the way a wedge's does, and
+			// the screen goes as the room comes on — failing that, it simply goes, with no beat on the
+			// table in between.
+			if (buyWaiting && buyChipLanding) await buyChipLanding;
+			buyChipLanding = null;
 			if (buyWaiting && isRoomSpot(event.spot) && (await enterFromCard(event.spot))) return;
 			if (buyWaiting) {
 				buyWaiting = false;

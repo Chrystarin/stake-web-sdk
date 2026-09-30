@@ -72,9 +72,6 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy-bonus/buy_bonus_panel_landscape.webp',
 	'img/buy-bonus/buy_bonus_button.webp',
 	'img/buy-bonus/buy_bonus_button_hover.webp',
-	'img/buy-bonus/buy_bonus_bet_container.webp',
-	'img/buy-bonus/buy_bonus_bet_button_decrease.webp',
-	'img/buy-bonus/buy_bonus_bet_button_increase.webp',
 
 	// ── Menu (Game.svelte + HudMenuPopup.svelte): the top-right button and the three entry icons ──
 	'img/menu/menu-btn.webp',

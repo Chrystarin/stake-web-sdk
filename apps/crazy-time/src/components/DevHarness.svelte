@@ -87,10 +87,12 @@
 		// Real mode + amount are set by stateGameDerived.beginSpin() from the selection; this is
 		// just a valid starting value before the first bet.
 		stateBet.activeBetModeKey = 'x1';
-		stateConfig.betAmountOptions = [1, 2, 5, 10, 25, 50, 100];
-		stateConfig.betMenuOptions = [1, 2, 5, 10, 25, 50, 100];
-		stateConfig.minBet = 1;
-		stateConfig.maxBet = 100;
+		// Sample bet template: the chip values the tray and the Buy Bonus screen offer offline.
+		const betLevels = [1, 2, 5, 10, 25, 50, 100, 150, 200, 250, 500, 1000, 2000];
+		stateConfig.betAmountOptions = [...betLevels];
+		stateConfig.betMenuOptions = [...betLevels];
+		stateConfig.minBet = betLevels[0];
+		stateConfig.maxBet = betLevels[betLevels.length - 1];
 		stateConfig.defaultBetLevel = 5;
 		context.stateXstate.value = 'idle';
 	});
