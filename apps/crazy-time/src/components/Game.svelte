@@ -1199,7 +1199,9 @@
 	const COLLECT_MERGE_MS = 200;
 	const COLLECT_MS = COLLECT_TRAVEL_MS + COLLECT_MERGE_MS;
 	const COLLECT_STAGGER_MS = 90;
-	const WIN_FLOAT_MS = 1100;
+	const WIN_FLOAT_MS = 1300;
+	/** The balance's count from what it held up to what the win made it. */
+	const BALANCE_COUNT_MS = 800;
 	/** How long the wheel's stop is left to read before the winning tile writes its readout. */
 	const PAYOUT_LEAD_MS = 420;
 	/** The readout's pop onto the tile. */
@@ -1593,15 +1595,51 @@
 		});
 	});
 
+	/**
+	 * Lets the held balance go. Anything that spends it (a spin, a buy) calls this, so a count-up
+	 * still running is cut short at the true balance rather than left writing over it.
+	 */
+	let balanceCountId = 0;
+	const releaseBalance = () => {
+		balanceCountId += 1;
+		balanceHold = null;
+	};
+
+	/**
+	 * The held balance counts up to the real one once the win is in, eased out so it slows onto the
+	 * total. The target is read every frame, so a balance that moves under it is still landed on.
+	 * A timer finishes it too: a tab with no frames (backgrounded, throttled) must not keep the old
+	 * figure.
+	 */
+	const countBalanceUp = () => {
+		const from = balanceHold;
+		if (from === null) return;
+		const id = ++balanceCountId;
+		const start = performance.now();
+		const step = () => {
+			if (id !== balanceCountId) return;
+			const t = Math.min(1, (performance.now() - start) / BALANCE_COUNT_MS);
+			if (t >= 1) {
+				balanceHold = null;
+				return;
+			}
+			const eased = 1 - (1 - t) ** 3;
+			balanceHold = from + (stateBet.balanceAmount - from) * eased;
+			requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
+		setTimeout(() => {
+			if (id === balanceCountId) releaseBalance();
+		}, BALANCE_COUNT_MS + 100);
+	};
+
 	let balancePulse = $state(0);
-	let winFloat = $state<{ id: number; amount: number; x: number; y: number } | null>(null);
+	let winFloat = $state<{ id: number; amount: number } | null>(null);
 
 	const showWinFloat = (amount: number) => {
-		if (!gameEl || !balanceChipEl) return;
-		const host = gameEl.getBoundingClientRect();
-		const at = centreIn(host, balanceChipEl.getBoundingClientRect());
+		if (!balanceChipEl) return;
 		const id = ++flightId;
-		winFloat = { id, amount, x: at.x, y: at.y };
+		winFloat = { id, amount };
 		setTimeout(() => {
 			if (winFloat?.id === id) winFloat = null;
 		}, WIN_FLOAT_MS);
@@ -1673,8 +1711,10 @@
 		});
 
 		await collecting;
-		balanceHold = null;
-		if (collected > 0) showWinFloat(collected);
+		if (collected > 0) {
+			showWinFloat(collected);
+			countBalanceUp();
+		} else releaseBalance();
 	};
 
 	const onConfirmClick = () => {
@@ -1908,7 +1948,7 @@
 	const spin = () => {
 		if (!canSpin) return;
 		stakePanelOpen = false;
-		balanceHold = null;
+		releaseBalance();
 
 		if (online && hasActiveRoundToResume()) {
 			betNotice = 'Finishing your previous round…';
@@ -2022,7 +2062,7 @@
 			betNotice = 'Finishing the current round…';
 			return;
 		}
-		balanceHold = null;
+		releaseBalance();
 		if (online && hasActiveRoundToResume()) {
 			buyBonusOpen = false;
 			betNotice = 'Finishing your previous round…';
@@ -2722,15 +2762,26 @@
 					</div>
 				</div>
 			{:else}
-				{#key balancePulse}
-					<div class="balance-hud" class:collected={balancePulse > 0}>
-						<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
-						<div class="balance-text">
-							<span class="hud-lbl">Balance</span>
-							<span class="hud-val">{formatBalance(shownBalance)}</span>
+				<!-- The win rises off the top of the balance, flush with its right edge. Outside the key,
+				     so a late chip's pulse does not restart it. -->
+				<div class="balance-slot">
+					{#key balancePulse}
+						<div class="balance-hud" class:collected={balancePulse > 0}>
+							<div bind:this={balanceChipEl} class="balance-chip" aria-hidden="true"></div>
+							<div class="balance-text">
+								<span class="hud-lbl">Balance</span>
+								<span class="hud-val">{formatBalance(shownBalance)}</span>
+							</div>
 						</div>
-					</div>
-				{/key}
+					{/key}
+					{#if winFloat}
+						{#key winFloat.id}
+							<div class="win-float" style="--float-ms:{WIN_FLOAT_MS}ms" aria-hidden="true">
+								+{formatMoney(winFloat.amount)}
+							</div>
+						{/key}
+					{/if}
+				</div>
 			{/if}
 			{@render totalBet()}
 		</div>
@@ -3051,16 +3102,6 @@
 			</div>
 		{/each}
 
-		{#if winFloat}
-			<div
-				class="win-float"
-				style="--float-x:{winFloat.x}px; --float-y:{winFloat.y}px; --float-ms:{WIN_FLOAT_MS}ms"
-				aria-hidden="true"
-			>
-				+{formatMoney(winFloat.amount)}
-			</div>
-		{/if}
-
 		<BonusRound
 			chip={stateBet.betAmount}
 			{portrait}
@@ -3291,32 +3332,41 @@
 	.seam-row img.mirrored {
 		scale: -1 1;
 	}
+	/* Sits on top of the balance, flush with its right edge, and rises away from it. The travel is in
+	   em so portrait's bigger type carries it proportionally further. */
+	.balance-slot {
+		position: relative;
+	}
 	.win-float {
 		position: absolute;
-		top: 0;
-		left: 0;
-		z-index: 46;
+		right: 0;
+		bottom: 100%;
 		pointer-events: none;
 		font-family: 'Alexandria', sans-serif;
 		font-size: 1.15vw;
 		font-weight: 700;
 		color: #ffe14d;
+		white-space: nowrap;
 		text-shadow: 0 0.1vw 0.3vw rgba(0, 0, 0, 0.85);
+		transform-origin: right bottom;
 		animation: win-float var(--float-ms) ease-out both;
 	}
 	@keyframes win-float {
 		0% {
-			translate: var(--float-x) calc(var(--float-y) + 0.6vw);
+			translate: 0 0.5em;
 			opacity: 0;
-			scale: 0.75;
+			scale: 0.8;
 		}
-		20% {
-			translate: var(--float-x) calc(var(--float-y) + 1.5vw);
+		22% {
+			translate: 0 -0.3em;
 			opacity: 1;
 			scale: 1;
 		}
+		65% {
+			opacity: 1;
+		}
 		100% {
-			translate: var(--float-x) calc(var(--float-y) + 4.4vw);
+			translate: 0 -2.4em;
 			opacity: 0;
 			scale: 1;
 		}
