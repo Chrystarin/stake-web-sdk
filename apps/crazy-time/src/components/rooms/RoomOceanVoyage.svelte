@@ -649,6 +649,12 @@
 	:global(.game.ship-arriving) .ship {
 		opacity: 0;
 	}
+	/* And gone at once as that ship takes it up again to sail the player out: laid over it in the
+	   same frame, so any fade would show two. */
+	:global(.game.ship-lifted) .ship {
+		opacity: 0;
+		transition: none;
+	}
 	/* Riding the swell in place: rolled one way and the other about its waterline, lifting on the
 	   crest as it passes level — the wheel's `ride` (VoyageReveal), gentler and slower, since it
 	   never stops. On the drawing's own `rotate`/`translate`, which compose with its facing and

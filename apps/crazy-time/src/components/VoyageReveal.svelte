@@ -17,6 +17,11 @@
 	 * (the caller shows it as this one fades), so the ship the player drives is the one that
 	 * brought them.
 	 *
+	 * And off the helm (`undock`): `dock` run backwards. The room's own ship, where the voyage left
+	 * it — at its last stop, in port, or rolled over by the kraken — is taken up where it stands,
+	 * lifts off the board (righting itself if it was wrecked), turns about and sails up and off the
+	 * left-hand edge.
+	 *
 	 * And back out (`leave`): the crossing again, the other way. In from the left, bow first, and the
 	 * width of the screen to the right with the wave on its stern, and the room is taken off behind
 	 * it, so the ship that brought the player into the voyage is the one that carries them out of it.
@@ -42,6 +47,8 @@
 	 * It lies outside the game frame, so `scale` is what one frame pixel measures on it.
 	 */
 	type Over = { el: HTMLElement; scale: number } | null;
+	/** The room's own ship as the board draws it: 1 bow right, -1 turned about; keel up if wrecked. */
+	type Berth = Box & { facing?: number; capsized?: boolean };
 
 	const SHIP = staticUrl(ROOM_ICON.oceanVoyage.src);
 	const ASPECT = ROOM_ICON.oceanVoyage.aspect;
@@ -69,6 +76,10 @@
 	const DOCK_MS = 1100;
 	/** The hand-over to the room's own ship. */
 	const FADE_MS = 320;
+	/** Up off the room's board, on the way out, righting itself if the kraken rolled it. */
+	const LIFT_MS = 420;
+	/** From there up and off the left-hand edge, growing: the dock run backwards. */
+	const UNDOCK_MS = 950;
 	/** Back in from the right, over the table, on the way home. */
 	const HOME_IN_MS = 650;
 	/** From the middle to over its wedge, shrinking and turning about. */
@@ -99,6 +110,7 @@
 	let wall = $state<{ x: number; w: number; mirrored?: boolean } | null>(null);
 
 	let iconEl: HTMLDivElement | undefined = $state();
+	let flipEl: HTMLDivElement | undefined = $state();
 	let wallEl: HTMLDivElement | undefined = $state();
 
 	type Pose = { dx: number; dy: number; k: number; r?: number };
@@ -217,6 +229,9 @@
 	): Promise<void> => {
 		const size = Math.min(frame.w, frame.h) * MIDDLE_SHARE;
 		box = { x: frame.w / 2, y: frame.h / 2, size };
+		// Off the frame, where `undock` left it facing left: it comes back already turned about.
+		flipEl?.getAnimations().forEach((a) => a.cancel());
+		turning = false;
 		flipped = false;
 		riding = true;
 		shown = true;
@@ -335,8 +350,62 @@
 		hide();
 	};
 
+	/**
+	 * `dock` run backwards: the room's own ship (`berth`, in frame pixels) is taken up where it
+	 * stands and lifted off the board, righting itself if the kraken rolled it over, then turns
+	 * about and sails up and off the left-hand edge, growing, for `leave` to bring back across.
+	 * `onLift` is the hand-over: the caller hides the room's ship in the same frame this one is
+	 * laid over it.
+	 */
+	export const undock = async (berth: Berth, frame: Frame, onLift?: () => void): Promise<void> => {
+		const size = Math.min(frame.w, frame.h) * MIDDLE_SHARE;
+		box = { x: frame.w / 2, y: frame.h / 2, size };
+		const face = (berth.facing ?? 1) < 0 ? -1 : 1;
+		turning = false;
+		flipped = face < 0;
+		riding = false;
+		shown = true;
+		await tick();
+
+		// Sized onto the room's ship, height for height, as `dock` put it there.
+		const k = (berth.size * ASPECT) / size;
+		// A wreck as the board draws it (RoomOceanVoyage's `capsize`): keel up, turned about a point
+		// low on the hull and sunk a little further, which puts its middle a third of a height down.
+		const docked: Pose = {
+			dx: berth.x - box.x,
+			dy: berth.y - box.y + (berth.capsized ? berth.size * 0.32 : 0),
+			k,
+			r: berth.capsized ? face * 180 : 0,
+		};
+		const lifted: Pose = { dx: docked.dx, dy: berth.y - box.y - berth.size * 1.2, k: k * 1.4 };
+		riding = true;
+		move(docked, lifted, LIFT_MS, 'cubic-bezier(0.2, 0.9, 0.4, 1)');
+		if (berth.capsized)
+			flipEl?.animate(
+				[{ filter: 'brightness(0.65) saturate(0.55)' }, { filter: 'brightness(1) saturate(1)' }],
+				{ duration: LIFT_MS, easing: 'ease-out', fill: 'both' },
+			);
+		onLift?.();
+		playSound('pop', 0.9);
+		await waitForTimeout(LIFT_MS);
+
+		// Turned about, and away to the left, gathering speed, bow a touch down into the swell.
+		const gone: Pose = {
+			dx: -(frame.w / 2 + size * DOCK_SHARE * 0.75),
+			dy: berth.y - box.y - size * 0.1,
+			k: DOCK_SHARE,
+			r: -4,
+		};
+		turning = true;
+		flipped = true;
+		playSound('whoosh', 0.9);
+		move(lifted, gone, UNDOCK_MS, 'cubic-bezier(0.7, 0, 0.75, 0.4)');
+		await waitForTimeout(UNDOCK_MS);
+	};
+
 	export const hide = () => {
 		iconEl?.getAnimations().forEach((a) => a.cancel());
+		flipEl?.getAnimations().forEach((a) => a.cancel());
 		shown = false;
 		riding = false;
 		flipped = false;
@@ -364,7 +433,7 @@
 			bind:this={iconEl}
 			style="left:{box.x - box.size / 2}px; top:{box.y - box.size / ASPECT / 2}px; width:{box.size}px; height:{box.size / ASPECT}px"
 		>
-			<div class="flip" class:flipped class:turning>
+			<div class="flip" class:flipped class:turning bind:this={flipEl}>
 				<div class="ride" class:riding>
 					<img src={SHIP} alt="" draggable="false" />
 				</div>

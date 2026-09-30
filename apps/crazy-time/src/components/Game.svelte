@@ -516,6 +516,8 @@
 	let roomEntrance = $state<'slide' | 'wipe' | 'descend'>('slide');
 	/** The room's own ship is held back while the one that brought the player docks onto it. */
 	let shipArriving = $state(false);
+	/** And gone from the board once the reveal's ship has taken it up to sail the player out. */
+	let shipLifted = $state(false);
 	/** The lifted wedge badge goes back on the table once the bonus screen is fully over it. */
 	let restoreIconOnOpen = false;
 	const ROOM_SLIDE_MS = 700;
@@ -694,12 +696,33 @@
 	};
 
 	/**
+	 * The way out starts from the room's own ship, wherever the voyage left it — which way it faces,
+	 * and keel up if the kraken rolled it — lifted off the board and sailed off to the left, for
+	 * the crossing (`leave`) to bring back. Nothing, with no ship on the board to take up.
+	 */
+	const undockShip = async () => {
+		const el = gameEl?.querySelector<HTMLElement>('.voyage .ship');
+		const berth = roomShipBox();
+		if (!voyageReveal || !el || !berth) return;
+		await voyageReveal.undock(
+			{
+				...berth,
+				facing: Number(getComputedStyle(el).getPropertyValue('--face')) || 1,
+				capsized: el.classList.contains('sunk'),
+			},
+			frameSize(),
+			() => (shipLifted = true),
+		);
+	};
+
+	/**
 	 * BonusRound's `enter`: for a wipe, the ship across the screen, then onto the room's ship; for a
 	 * descent, the camera down after the cannonball.
 	 */
 	const enterRoom = async (screen: HTMLElement) => {
 		if (roomEntrance === 'descend') return descend(screen);
 		if (!voyageReveal) return;
+		shipLifted = false;
 		shipArriving = true;
 		try {
 			const over = buyWaiting ? buyModal?.backdrop() : null;
@@ -888,6 +911,7 @@
 			hubLifted = false;
 		} else if (room === 'oceanVoyage') {
 			if (!voyageReveal || !screen) return false;
+			await undockShip();
 			// Up again, and out of sight until the wave uncovers it behind the ship.
 			const over = await reopenBuyScreen(room);
 			over?.animate([{ clipPath: 'inset(0 100% 0 0)' }], { duration: 0, fill: 'forwards' });
@@ -1043,8 +1067,9 @@
 
 	/**
 	 * Asked by the bonus screen as it is about to go: the Bonus Wheel's hub comes up over the screen,
-	 * or the Treasure Chest's chest lights it white, so the room can go unseen; Ocean Voyage's ship
-	 * sails back across and takes the room off behind it, the way it drew it in; Pirate Plinko's
+	 * or the Treasure Chest's chest lights it white, so the room can go unseen; Ocean Voyage's own
+	 * ship lifts off its board, sails back across and takes the room off behind it, the way it drew
+	 * it in; Pirate Plinko's
 	 * cannonball bounces back up to the table with the camera after it (`climbOut`). False, having
 	 * done nothing, for any other way out — a room that was not walked into through its icon keeps
 	 * the slide.
@@ -1070,6 +1095,7 @@
 			if (!voyageReveal || !frame?.w || !screen) return false;
 			// The ship is out on the water, so its wedge is empty as the table comes back.
 			if (target !== null) revealIcon = target;
+			await undockShip();
 			await voyageReveal.leave(screen, frame);
 			if (target !== null) exitCovered = 'ship';
 			return true;
@@ -1137,7 +1163,10 @@
 				if (bonusUp) revealIcon = null;
 			}, ROOM_SLIDE_MS);
 		}
-		if (!open) roomEntrance = 'slide';
+		if (!open) {
+			roomEntrance = 'slide';
+			shipLifted = false;
+		}
 		if (open) {
 			// Give the room its first paint under the cover before the cover lifts off it.
 			if (revealLit)
@@ -2686,6 +2715,7 @@
 		class:ball-lifted={ballLifted}
 		class:hub-slammed={hubSlammed}
 		class:ship-arriving={shipArriving}
+		class:ship-lifted={shipLifted}
 		style="--wheel-w:{bigWheel ? wheelBigVw : wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
 		bind:this={gameEl}
 	>
