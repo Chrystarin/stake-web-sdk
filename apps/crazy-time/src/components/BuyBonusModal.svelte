@@ -12,7 +12,7 @@
 	 * A card's badge is the room's own icon, and it behaves like the one on the wheel and the bet
 	 * tiles: hovering Activate plays the room's motion on it, a bought room is walked into by that
 	 * badge popping out of its card (the caller flies it, off `artRect`, while `lifted` keeps the
-	 * card's own copy hidden), and the way back out slams it home onto the card (`slam`).
+	 * card's own copy hidden). The way back out ends on the table, on the room's wedge.
 	 */
 	import { tick } from 'svelte';
 	import { fade } from 'svelte/transition';
@@ -33,6 +33,7 @@
 	import { staticUrl } from '../lib/staticUrl';
 	import Chip from './Chip.svelte';
 	import { formatBalance, formatMoney } from '../game/currency';
+	import { CHIP_FLIGHT_MS, CHIP_GROW_MS, CHIP_TRAVEL_MS } from '../game/chips';
 
 	type Props = {
 		open: boolean;
@@ -91,25 +92,6 @@
 	export const backdrop = () => backdropEl ?? null;
 
 	/**
-	 * The badge slammed back onto its card: the card takes the knock the wheel takes when a badge
-	 * lands on its wedge — a flare, and a judder down into the panel and back.
-	 */
-	export const slam = (room: RoomSpot) => {
-		cardEls[room]?.animate(
-			[
-				{ translate: '0 0', filter: 'brightness(1.6)' },
-				{ translate: '0 3%', offset: 0.12 },
-				{ translate: '-1.5% -1.2%', offset: 0.28 },
-				{ translate: '1.2% 1%', offset: 0.44 },
-				{ translate: '-0.8% -0.6%', offset: 0.6 },
-				{ translate: '0.4% 0.3%', offset: 0.8 },
-				{ translate: '0 0', filter: 'brightness(1)' },
-			],
-			{ duration: 420, easing: 'linear' },
-		);
-	};
-
-	/**
 	 * Hovering a card's Activate plays its badge's motion once through, the one it plays on the wheel
 	 * and on its bet tile (`motionOf`, whose classes are Game.svelte's global `motion-*`). Mouse only,
 	 * as on the tiles: a touch press here is the buy itself. A cue while it is playing is let go.
@@ -156,23 +138,25 @@
 
 	/**
 	 * The chip a room buy puts down on its card. On Yes it is flown off the rail onto the card's
-	 * Activate button, at the rail's own chip size, the way the table's chips fly onto their tiles (Game.svelte `chip-flight`: a lift, an
-	 * arc across, a drop and a settle), and it stays there until the screen goes. The caller holds
-	 * the room's entrance until `placeChip` resolves, so the badge only pops out once it is down.
+	 * Activate button, at the rail's own chip size, by the very flight the table's chips fly onto
+	 * their tiles (the global `chip-flight` and game/chips.ts timings: a swell, an arc across, a
+	 * settle), and it stays there until the screen goes. The caller holds the room's entrance until
+	 * `placeChip` resolves, so the badge only pops out once it is down.
 	 */
 	let cardChip = $state<{
 		room: RoomSpot;
 		value: number;
 		index: number;
+		/** Where it lands on the card, and where it takes off from, relative to that. */
 		x: number;
 		y: number;
+		dx: number;
+		dy: number;
 		size: number;
+		/** In the air: the table's `chip-flight`, in the table's flying-chip shadow. */
+		flying: boolean;
 	} | null>(null);
 	let cardChipEl: HTMLElement | undefined = $state();
-	const CARD_CHIP_FLIGHT_MS = 560;
-	/** The flight's share spent lifting off, and where it touches down (the table's 20% / 80%). */
-	const CARD_CHIP_LIFT = 0.2;
-	const CARD_CHIP_LAND = 0.8;
 
 	export const placeChip = async (room: RoomSpot): Promise<void> => {
 		const card = cardEls[room];
@@ -189,36 +173,41 @@
 		// Down on the middle of the card's Activate button.
 		const x = buttonBox.left + buttonBox.width / 2 - cardBox.left;
 		const y = buttonBox.top + buttonBox.height / 2 - cardBox.top;
-		cardChip = { room, value: chip, index, x, y, size };
-		await tick();
-		const el = cardChipEl;
-		if (!el) return;
 		const dx = railBox.left + railBox.width / 2 - (cardBox.left + x);
 		const dy = railBox.top + railBox.height / 2 - (cardBox.top + y);
-		const from = railBox.width / size;
-		const arc = size * 0.45;
-		playSound('whoosh');
-		const flight = el.animate(
-			[
-				{ translate: `${dx}px ${dy}px`, scale: from, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-				{ translate: `${dx}px ${dy}px`, scale: from * 1.35, offset: CARD_CHIP_LIFT, easing: 'ease-in' },
-				{ translate: `${dx / 2}px ${dy / 2 - arc}px`, offset: 0.5, easing: 'ease-out' },
-				{ translate: '0px 0px', scale: 1.35, offset: CARD_CHIP_LAND, easing: 'ease-out' },
-				{ translate: '0px 0px', scale: 1 },
-			],
-			{ duration: CARD_CHIP_FLIGHT_MS },
-		);
-		const landed = setTimeout(() => playSound('pop'), CARD_CHIP_FLIGHT_MS * CARD_CHIP_LAND);
-		try {
-			await flight.finished;
-		} catch {
-			clearTimeout(landed);
+		cardChip = { room, value: chip, index, x, y, dx, dy, size, flying: true };
+		// The table's two sounds, on the table's beats: the whoosh as it takes off, the pop as it
+		// touches down.
+		const sounds = [
+			setTimeout(() => playSound('whoosh'), CHIP_GROW_MS),
+			setTimeout(() => playSound('pop'), CHIP_GROW_MS + CHIP_TRAVEL_MS),
+		];
+		await tick();
+		const el = cardChipEl;
+		if (!el) {
+			sounds.forEach(clearTimeout);
+			return;
 		}
+		// Down when the flight ends — or, should the event never come (a background tab), when it
+		// would have.
+		await new Promise<void>((done) => {
+			const timer = setTimeout(done, CHIP_FLIGHT_MS + 100);
+			el.addEventListener(
+				'animationend',
+				() => {
+					clearTimeout(timer);
+					done();
+				},
+				{ once: true },
+			);
+		});
+		if (cardChip?.room === room) cardChip.flying = false;
 	};
 
-	// The screen gone, its chip goes with it: it is never there to greet the badge coming home.
+	// Each time the screen comes up it starts with no chip on any card. Cleared on the way up rather
+	// than the way down, so the chip fades out with the screen instead of vanishing mid-fade.
 	$effect(() => {
-		if (!props.open) cardChip = null;
+		if (props.open) cardChip = null;
 	});
 
 	function pickChip(value: number) {
@@ -333,7 +322,8 @@
 							<div
 								class="bb-card-chip"
 								bind:this={cardChipEl}
-								style="left:{cardChip.x}px; top:{cardChip.y}px; --chip-size:{cardChip.size}px"
+								class:flying={cardChip.flying}
+								style="left:{cardChip.x}px; top:{cardChip.y}px; --chip-size:{cardChip.size}px; --from-x:{cardChip.dx}px; --from-y:{cardChip.dy}px; --to-x:0px; --to-y:0px; --flight-ms:{CHIP_FLIGHT_MS}ms"
 								inert
 								aria-hidden="true"
 							>
@@ -603,13 +593,19 @@
 	}
 
 	/* The buy's chip on its card (`placeChip`), centred on its point by `transform` so the flight is
-	   free to animate `translate` and `scale`. Over the rail it takes off from (`.bb-bet-row` is 3). */
+	   free to animate `translate` and `scale`. Over the rail it takes off from (`.bb-bet-row` is 3).
+	   Put down exactly as the table puts a chip on a tile: the global `chip-flight` (Game.svelte) in
+	   the table's flying-chip shadow, then the table's placed-chip shadow once it is down. */
 	.bb-card-chip {
 		position: absolute;
 		z-index: 4;
 		transform: translate(-50%, -50%);
 		pointer-events: none;
-		filter: drop-shadow(0 calc(var(--chip-size) * 0.06) calc(var(--chip-size) * 0.12) rgba(0, 0, 0, 0.6));
+		filter: drop-shadow(0 0.15vw 0.25vw rgba(0, 0, 0, 0.5));
+	}
+	.bb-card-chip.flying {
+		animation: chip-flight var(--flight-ms) both;
+		filter: drop-shadow(0 0.2vw 0.35vw rgba(0, 0, 0, 0.55));
 	}
 
 	.bb-card-frame {

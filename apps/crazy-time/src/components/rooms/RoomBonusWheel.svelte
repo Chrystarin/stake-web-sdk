@@ -190,7 +190,7 @@
 				<RoomHint
 					lines={hintLines}
 					durationMs={SPIN_MS}
-					size="calc(var(--wheel-w, 44.5vw) * 0.058)"
+					size="calc(var(--room-wheel-w) * 0.058)"
 				/>
 			</span>
 		</button>
@@ -200,13 +200,17 @@
 <style>
 	.jackpot {
 		/*
-		 * The same width the base game's wheel is fitted to (`--wheel-w`, set on `.game`), so the
-		 * bonus wheel arrives at the size the one it came from just left — anything smaller reads
-		 * as a lesser wheel. This art is taller than the main frame for the same width, so the box
+		 * The base game's wheel at its ROUND size (`--wheel-round-w`, set on `.game`), so the bonus
+		 * wheel arrives at the size the one it came from just left — anything smaller reads as a
+		 * lesser wheel. Not `--wheel-w`, which is the table's CURRENT size: a buy the Top Slot had
+		 * nothing for keeps the wheel at its big betting size all round, and read from that this
+		 * wheel came up far enough to swallow the sign. At the round size only its top pointer and
+		 * rim tuck under the sign's bottom edge. This art is taller than the main frame for the same width, so the box
 		 * runs past the stage at both ends; the sign draws over the top of it, and the footer's
 		 * multiplier sits on the bottom of the ring rather than under it.
 		 */
-		width: var(--wheel-w, 44.5vw);
+		--room-wheel-w: var(--wheel-round-w, 44.5vw);
+		width: var(--room-wheel-w);
 		/*
 		 * Centring the BOX leaves the wheel looking low, because the hole is not in the middle of
 		 * the art: its centre sits at 0.529 of the height, the bottom pointer being the heavier of
@@ -214,7 +218,7 @@
 		 * centred instead — which also lifts the frame's bottom gem clear of the screen's edge on a
 		 * short viewport, where the box is taller than the stage between the sign and the footer.
 		 */
-		margin-bottom: calc(var(--wheel-w, 44.5vw) * 0.062);
+		margin-bottom: calc(var(--room-wheel-w) * 0.062);
 		position: relative;
 	}
 	/* The hub is the Bonus Wheel's own icon, and while that icon is in the air on the way in or out
@@ -296,7 +300,7 @@
 	.cta {
 		position: absolute;
 		translate: -50% 0;
-		margin-top: calc(var(--wheel-w, 44.5vw) * 0.085);
+		margin-top: calc(var(--room-wheel-w) * 0.085);
 		display: block;
 		white-space: nowrap;
 	}

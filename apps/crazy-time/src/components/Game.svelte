@@ -22,6 +22,9 @@
 	import { formatBalance, formatMoney } from '../game/currency';
 	import {
 		CHIP_BASE_HUE,
+		CHIP_FLIGHT_MS,
+		CHIP_GROW_MS,
+		CHIP_TRAVEL_MS,
 		chipHueShift as sharedChipHueShift,
 		chipTextColour as sharedChipTextColour,
 		fmtChip,
@@ -775,24 +778,20 @@
 		}, 4000);
 	};
 
-	// --- A bought room: walked into, and back out of, through its card on the Buy Bonus screen ------
-	// The same ways in and out as a room won on the wheel, with the card in the wedge's place: the
-	// badge pops up out of its card, over the screen that is still up, and goes on the way it
-	// would from the middle of the wheel. On the way out it comes back over the Buy Bonus screen,
-	// put up again under whatever carries the room off, and is slammed back onto its card.
+	// --- A bought room: walked into through its card on the Buy Bonus screen -----------------------
+	// The same way in as a room won on the wheel, with the card in the wedge's place: the badge pops
+	// up out of its card, over the screen that is still up, and goes on the way it would from the
+	// middle of the wheel. The way out is a won room's own: the wheel is back on the stage by then,
+	// set on the room's segment (see `wheelOff`), and the badge goes home onto that wedge.
 	type RevealBox = { x: number; y: number; size: number; angle?: number };
 	let buyModal: BuyBonusModal | undefined = $state();
 	/** The card whose badge is off it (BuyBonusModal's `lifted`). */
 	let buyLifted = $state<RoomSpot | null>(null);
-	/** The room walked into off its card, whose way out lands back on it. */
-	let buyRoom: RoomSpot | null = null;
 	/**
 	 * The table's disc, as a share of the frame's shorter side: the middle of the screen stands in
 	 * for the middle of the wheel, and the badge grows there to the size it would on the wheel.
 	 */
 	const BUY_DISC_OF_FRAME = 0.8;
-	/** The badge back on its card, and the screen left up that long before it goes. */
-	const BUY_HOME_HOLD_MS = 650;
 
 	/** Room `room`'s badge on its card, in frame pixels, sized the way its wedge's is measured. */
 	const cardBox = (room: RoomSpot): RevealBox | null => {
@@ -814,31 +813,21 @@
 		buyBonusOpen = false;
 		buyLifted = null;
 	};
-	/** ...and comes back for the badge to land on, its card empty. Resolves with it laid out. */
-	const reopenBuyScreen = async (room: RoomSpot) => {
-		buyLifted = room;
-		buyBonusOpen = true;
-		await tick();
-		return buyModal?.backdrop() ?? null;
-	};
-	/** The badge down on its card: it is the card's own again, and the card takes the knock. */
-	const landOnCard = (room: RoomSpot) => {
-		buyLifted = null;
-		buyModal?.slam(room);
-	};
-
 	/**
-	 * Out of its card and on into the room — each room its own way in, as off a wedge. False, having
-	 * done nothing, when the card cannot be measured: the room then keeps the plain slide.
+	 * Out of its card and on into the room — each room its own way in, as off a wedge. `target` is the
+	 * room's segment, which the wheel was set on unseen: it is where the way out takes the badge home.
+	 * False, having done nothing, when the card cannot be measured: the room then keeps the plain
+	 * slide.
 	 */
-	const enterFromCard = async (room: RoomSpot): Promise<boolean> => {
+	const enterFromCard = async (room: RoomSpot, target: number): Promise<boolean> => {
 		const from = cardBox(room);
 		const frame = frameSize();
 		if (!from || !frame.w) return false;
 		if (room === 'chest' || room === 'bonusWheel') {
 			const by = room === 'chest' ? 'chest' : 'wheel';
 			if (!(by === 'chest' ? roomReveal : wheelReveal)) return false;
-			buyRoom = room;
+			if (by === 'chest') chestRoomTarget = target;
+			else wheelRoomTarget = target;
 			buyLifted = room;
 			const share = by === 'chest' ? REVEAL_CHEST_OF_DISC : REVEAL_WHEEL_OF_DISC;
 			await coverWith(by, from, screenMiddle(share));
@@ -848,7 +837,7 @@
 		}
 		if (room === 'piratePlinko') {
 			if (!plinkoReveal) return false;
-			buyRoom = room;
+			plinkoRoomTarget = target;
 			buyLifted = room;
 			roomEntrance = 'descend';
 			await plinkoReveal.play(from, screenMiddle(REVEAL_BALL_OF_DISC));
@@ -858,71 +847,17 @@
 				if (roomEntrance !== 'descend' || bonusUp) return;
 				plinkoReveal?.hide();
 				closeBuyScreen();
+				plinkoRoomTarget = null;
 				roomEntrance = 'slide';
 			}, 4000);
 			return true;
 		}
 		if (!voyageReveal) return false;
-		buyRoom = room;
+		voyageRoomTarget = target;
 		buyLifted = room;
 		roomEntrance = 'wipe';
 		// Off the right-hand edge; the wave it comes back on takes the Buy Bonus screen off (`enterRoom`).
 		await voyageReveal.sailOff(from, frame);
-		return true;
-	};
-
-	/**
-	 * A bought room's way out (`coverRoomExit`), run to its end here rather than once the room has
-	 * gone: the Buy Bonus screen is put back up over the room, so the badge lands on its card
-	 * before the table is seen, and the book's win waits for it.
-	 */
-	const exitToCard = async (room: RoomSpot, screen: HTMLElement | null): Promise<boolean> => {
-		const frame = frameSize();
-		if (!frame.w) return false;
-		/** Under a cover, the room is simply taken out from under the Buy Bonus screen. */
-		const hideRoom = () => screen?.animate([{ opacity: 0 }], { duration: 0, fill: 'forwards' });
-		if (room === 'chest') {
-			if (!roomReveal) return false;
-			await roomReveal.cover(
-				roomChestBox() ?? { x: frame.w / 2, y: frame.h / 2, size: frame.w * 0.2 },
-				frame,
-			);
-			await reopenBuyScreen(room);
-			hideRoom();
-			// Its first paint under the light, before the light goes back into the chest.
-			await waitForTimeout(150);
-			await roomReveal.uncover(
-				screenMiddle(REVEAL_CHEST_OF_DISC),
-				cardBox(room),
-				frameSize(),
-				() => landOnCard(room),
-			);
-		} else if (room === 'bonusWheel') {
-			const hub = bonusHubBox();
-			if (!wheelReveal || !hub) return false;
-			hubLifted = true;
-			await wheelReveal.cover(hub, frame);
-			await reopenBuyScreen(room);
-			hideRoom();
-			await waitForTimeout(150);
-			await wheelReveal.uncover(cardBox(room), () => landOnCard(room));
-			hubLifted = false;
-		} else if (room === 'oceanVoyage') {
-			if (!voyageReveal || !screen) return false;
-			await undockShip();
-			// Up again, and out of sight until the wave uncovers it behind the ship.
-			const over = await reopenBuyScreen(room);
-			over?.animate([{ clipPath: 'inset(0 100% 0 0)' }], { duration: 0, fill: 'forwards' });
-			await voyageReveal.leave(screen, frame, over ? { el: over, scale: fitScale } : null);
-			await voyageReveal.land(cardBox(room), frameSize(), () => landOnCard(room));
-		} else {
-			if (!screen || !(await climbOut(null, screen, room))) return false;
-			exitCovered = null;
-			await plinkoReveal?.home(cardBox(room), () => landOnCard(room));
-		}
-		buyLifted = null;
-		await waitForTimeout(BUY_HOME_HOLD_MS);
-		buyBonusOpen = false;
 		return true;
 	};
 
@@ -1010,21 +945,16 @@
 	 * (PlinkoReveal's `rise` and `climb`). Its hop from there into its wedge comes once the screen
 	 * has gone (`home`, see `onBonusOpenChange`).
 	 */
-	const climbOut = async (
-		target: number | null,
-		screen: HTMLElement,
-		card: RoomSpot | null = null,
-	): Promise<boolean> => {
+	const climbOut = async (target: number | null, screen: HTMLElement): Promise<boolean> => {
 		const disc = wheel?.discOnScreen();
-		if (!plinkoReveal || !gameEl || (!card && !disc?.d)) return false;
+		if (!plinkoReveal || !gameEl || !disc?.d) return false;
 		const frame = frameSize();
 		const host = gameEl.getBoundingClientRect();
 		// The table is at rest under the screen, so this is where the hub will be when the ball lands.
-		// Out to a card, it lands in the middle of the Buy Bonus screen instead.
-		const hub =
-			card || !disc
-				? screenMiddle(REVEAL_BALL_OF_DISC)
-				: { ...pointIn(host, disc.cx, disc.cy), size: (disc.d * REVEAL_BALL_OF_DISC) / fitScale };
+		const hub = {
+			...pointIn(host, disc.cx, disc.cy),
+			size: (disc.d * REVEAL_BALL_OF_DISC) / fitScale,
+		};
 		// The drawing of the ball in its pocket, which is the picture PlinkoReveal draws.
 		const art = screen.querySelector('.pb-ball-art')?.getBoundingClientRect();
 		const from = art?.width
@@ -1041,14 +971,6 @@
 		try {
 			await plinkoReveal.rise(from, frame);
 			await raiseSeam(frame);
-			if (card) {
-				// Back up a frame above, with the table, for the camera to bring down (`panCamera`).
-				const over = await reopenBuyScreen(card);
-				over?.animate([{ translate: `0 ${-frame.h * fitScale}px` }], {
-					duration: 0,
-					fill: 'forwards',
-				});
-			}
 			await plinkoReveal.climb(frame, hub, (camera, ms) => {
 				moves.push(...panCamera(screen, frame, camera, ms));
 			});
@@ -1073,11 +995,6 @@
 	 * the slide.
 	 */
 	const coverRoomExit = async (room: RoomSpot, screen: HTMLElement | null): Promise<boolean> => {
-		if (buyRoom !== null) {
-			const bought = buyRoom;
-			buyRoom = null;
-			if (bought === room && (await exitToCard(room, screen))) return true;
-		}
 		const frame = gameEl ? { w: gameEl.clientWidth, h: gameEl.clientHeight } : null;
 		if (room === 'piratePlinko') {
 			const target = plinkoRoomTarget;
@@ -1272,10 +1189,10 @@
 	const RESTAKE_PACE = 0.6;
 
 	// --- Chip flight (copied from colour-dice: place / return / sweep / collect) -----------------
-	const GROW_MS = 80;
-	const TRAVEL_MS = 240;
-	const SETTLE_MS = 80;
-	const FLIGHT_MS = GROW_MS + TRAVEL_MS + SETTLE_MS;
+	// The placement's timing is shared with the Buy Bonus screen's (game/chips.ts).
+	const GROW_MS = CHIP_GROW_MS;
+	const TRAVEL_MS = CHIP_TRAVEL_MS;
+	const FLIGHT_MS = CHIP_FLIGHT_MS;
 	const SWEEP_WINDOW_MS = 260;
 	const SWEEP_FALL_MS = 220;
 	const COLLECT_TRAVEL_MS = 560;
@@ -2083,7 +2000,14 @@
 		stateGame.quickGuideOpen = true;
 	};
 
+	/** The Yes/No prompt before a buy is off for now: Activate starts the buy at once. */
+	const CONFIRM_BUY = false;
+
 	const handleBuyActivate = (mode: string) => {
+		if (!CONFIRM_BUY) {
+			void startBuy(mode);
+			return;
+		}
 		requestConfirmPrompt('buyBonus', () => startBuy(mode));
 	};
 
@@ -2679,7 +2603,7 @@
 			// table in between.
 			if (buyWaiting && buyChipLanding) await buyChipLanding;
 			buyChipLanding = null;
-			if (buyWaiting && isRoomSpot(event.spot) && (await enterFromCard(event.spot))) return;
+			if (buyWaiting && isRoomSpot(event.spot) && (await enterFromCard(event.spot, target))) return;
 			if (buyWaiting) {
 				buyWaiting = false;
 				buyBonusOpen = false;
@@ -2722,7 +2646,7 @@
 		class:hub-slammed={hubSlammed}
 		class:ship-arriving={shipArriving}
 		class:ship-lifted={shipLifted}
-		style="--wheel-w:{bigWheel ? wheelBigVw : wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
+		style="--wheel-w:{bigWheel ? wheelBigVw : wheelVw}vw; --wheel-round-w:{wheelVw}vw; --ts-width:{cabinetVw}vw; --ts-solo:{soloCabinetVw}vw; --wheel-lap:{lapVw}vw; --panel-top:{panelTop}px; --rail-h:{railH}px"
 		bind:this={gameEl}
 	>
 		{#if stateGame.openRoundError || betNotice}
@@ -3262,7 +3186,9 @@
 		animation: chip-collect var(--collect-ms) var(--collect-delay) both;
 		z-index: 46;
 	}
-	@keyframes chip-flight {
+	/* Global, so the Buy Bonus screen's chip (BuyBonusModal `.bb-card-chip`) is put down by exactly
+	   this flight too. */
+	@keyframes -global-chip-flight {
 		0% {
 			translate: var(--from-x) var(--from-y);
 			scale: 1;

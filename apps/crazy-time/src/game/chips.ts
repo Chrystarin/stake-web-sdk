@@ -32,3 +32,14 @@ export const chipTextColour = (index: number, count: number) =>
  * only a chip's face is abbreviated, to fit the disc.
  */
 export const fmtChip = (value: number) => (value >= 1000 ? `${value / 1000}k` : `${value}`);
+
+/**
+ * A chip being put down, wherever it is put down — from the tray onto a tile (Game.svelte) or from
+ * the Buy Bonus rail onto a card (BuyBonusModal.svelte). It swells where it stands, travels on an
+ * arc still swollen, and settles where it lands: the global `chip-flight` keyframes (Game.svelte),
+ * run over CHIP_FLIGHT_MS, with the whoosh as it takes off and the pop as it touches down.
+ */
+export const CHIP_GROW_MS = 80;
+export const CHIP_TRAVEL_MS = 240;
+export const CHIP_SETTLE_MS = 80;
+export const CHIP_FLIGHT_MS = CHIP_GROW_MS + CHIP_TRAVEL_MS + CHIP_SETTLE_MS;
