@@ -35,8 +35,11 @@ import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvL
  * one referenced through `staticUrl` / `staticPath`, which is what lets the resident copy take over.
  */
 const DOM_IMAGE_PATHS: readonly string[] = [
-	// ── The table's backdrop (Background.svelte): both cuts, since a phone can turn mid-session ──
-	'img/background_base_landscape.webp',
+	// ── The table's backdrop (Background.svelte): the landscape layers and the portrait still, since
+	// a phone can turn mid-session ──
+	'img/background_layered_components/sea.webp',
+	'img/background_layered_components/deck.webp',
+	'img/background_layered_components/fog.webp',
 	'img/background_base_portrait.webp',
 
 	// ── The wheel (Game.svelte + Wheel.svelte): ring art, number badges, room badges ─────────────
