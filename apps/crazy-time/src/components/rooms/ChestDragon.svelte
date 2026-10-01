@@ -60,13 +60,15 @@
 	/** Where its body is centred across the chest, as a share of the chest's box. */
 	const BODY_X = 0.5;
 	/**
-	 * The top edge of the chest's lid, as a share of the chest's box from the top — where the dragon
-	 * sits. Measured off the two drawings (the flat of the lid, a third of the way across, below the
-	 * headroom the box carries over the art): row 108 of the shut drawing's 1102, row 75 of the open
-	 * one's 1024. The open lid stands a little lower in its box, so the dragon settles with it.
+	 * The top edge of the chest's lid, as a share of the chest's WIDTH up from the foot of its box —
+	 * where the dragon sits. Measured off the two drawings (the flat of the lid, a third of the way
+	 * across): row 108 of the shut drawing's 1102, row 75 of the open one's 1024, as `RoomChest`
+	 * lays them across the column. Off the foot rather than the top, so the headroom the room keeps
+	 * over the art can change without moving the dragon off the lid. The open lid stands a little
+	 * lower, so the dragon settles with it.
 	 */
-	const LID_Y_SHUT = 0.332;
-	const LID_Y_OPEN = 0.348;
+	const LID_UP_SHUT = 0.6963;
+	const LID_UP_OPEN = 0.6796;
 	/** How quickly the dragon follows the lid down as it comes off, per millisecond. */
 	const LID_FOLLOW = 0.012;
 
@@ -81,7 +83,7 @@
 	 *  (see the note at the top). */
 	let pose = { x: 0, feet: 0, width: 1 };
 	/** Where the dragon is sitting now, on its way from the shut lid's line to the open one's. */
-	let lidY = LID_Y_SHUT;
+	let lidUp = LID_UP_SHUT;
 	let shown = false;
 	let destroyed = false;
 
@@ -152,7 +154,7 @@
 		const width = chest.width / zoom;
 		const scale = (width * DRAGON_WIDTH) / pose.width;
 		const bodyX = (chest.left - box.left) / zoom + width * BODY_X;
-		const feetY = (chest.top - box.top) / zoom + (chest.height / zoom) * lidY;
+		const feetY = (chest.bottom - box.top) / zoom - width * lidUp;
 		spine.scale.set(scale);
 		spine.position.set(bodyX - pose.x * scale, feetY - pose.feet * scale);
 	};
@@ -162,8 +164,8 @@
 		const dt = Math.min(48, Math.max(0, ticker.deltaMS));
 		if (shown && spine.alpha < 1) spine.alpha = Math.min(1, spine.alpha + dt / FADE_IN_MS);
 		spine.visible = spine.alpha > 0;
-		const lid = open ? LID_Y_OPEN : LID_Y_SHUT;
-		lidY += (lid - lidY) * Math.min(1, dt * LID_FOLLOW);
+		const lid = open ? LID_UP_OPEN : LID_UP_SHUT;
+		lidUp += (lid - lidUp) * Math.min(1, dt * LID_FOLLOW);
 		place();
 		spine.update(dt / 1000);
 		const current = breath;
