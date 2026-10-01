@@ -8,7 +8,7 @@
 	 * balusters. The deck covers the viewport and stays put; the sea, drawn the same size, rises and
 	 * settles slowly behind it, so the view over the rail swells like a ship under way.
 	 * A bank of fog, the deck's size, lies over the deck along the rail and drifts against the sea's
-	 * swell — down where the sea goes up — on a quicker beat of its own.
+	 * swell — down where the sea goes up — twice to each of the sea's swells.
 	 *
 	 * Portrait keeps its own tall still: the landscape layers cropped to cover a phone would lose the
 	 * deck to the sides and blow the ship up past the frame.
@@ -66,13 +66,13 @@
 
 	.sea {
 		background-image: var(--art-sea);
-		animation: sea-swell 14s ease-in-out infinite;
+		animation: sea-swell 10s ease-in-out infinite;
 		will-change: transform;
 	}
 
 	.fog {
 		background-image: var(--art-fog);
-		animation: fog-drift 8s ease-in-out infinite;
+		animation: fog-drift 5s ease-in-out infinite;
 		will-change: transform;
 	}
 
@@ -90,9 +90,9 @@
 		}
 	}
 
-	/* The sea's swell mirrored, on a shorter clock (8 s against the sea's 14 s), so the two drift in
-	   and out of step rather than moving as one piece. The fog art is clear above its row 497 and below
-	   its row 972, so moving it 2% opens nothing at either edge. */
+	/* Against the sea's swell, at twice its pace (5 s to the sea's 10 s): the fog sinks and lifts once
+	   while the sea rises and once more while it settles. The fog art is clear above its row 497 and
+	   below its row 972, so moving it 2% opens nothing at either edge. */
 	@keyframes fog-drift {
 		0%,
 		100% {
