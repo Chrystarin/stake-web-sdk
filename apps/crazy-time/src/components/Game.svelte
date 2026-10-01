@@ -1219,6 +1219,8 @@
 	const TIER_RISE_VW = 0.5;
 	/** How long the board is given to sweep before its bets are cleared. */
 	const RESULT_CLOSE_MS = 340;
+	/** The losing chips' fade off their tiles, alongside the winning chip's flight to the balance. */
+	const LOSER_FADE_MS = 320;
 
 	type ChipFlight = {
 		id: number;
@@ -1251,7 +1253,13 @@
 	 * is backed the moment it is clicked, while its chip is still in flight.
 	 */
 	const chipDown = (spot: Spot) =>
-		stateGameDerived.isBacked(spot) && !arrivingSpots.has(spot) && !clearing;
+		stateGameDerived.isBacked(spot) &&
+		!arrivingSpots.has(spot) &&
+		(!clearing || losingChips.includes(spot));
+
+	/** PLAY AGAIN's losing chips: kept on their tiles, fading off, while the win is collected. */
+	let losingChips = $state<Spot[]>([]);
+	let losersFading = $state(false);
 
 	/**
 	 * Each tile's motion, played by its icons: a bonus tile does its room's own thing (the chest
@@ -1695,12 +1703,14 @@
 		const collected = winCash;
 
 		context.eventEmitter.broadcast({ type: 'boardClear' });
-		sweepChips(losers, face);
+		// The losing chips fade off their tiles while the win flies into the balance; the bets are
+		// only cleared once both are done.
+		losingChips = losers;
+		losersFading = losers.length > 0;
+		const fading = losers.length ? waitForTimeout(LOSER_FADE_MS) : Promise.resolve();
 		const collecting = collectChips(winners, face);
 
 		void waitForTimeout(RESULT_CLOSE_MS).then(() => {
-			stateGameDerived.clearBets();
-			clearing = false;
 			landedSpot = null;
 			wheelHighlight = null;
 			topSlotApplied = false;
@@ -1715,6 +1725,12 @@
 			showWinFloat(collected);
 			countBalanceUp();
 		} else releaseBalance();
+
+		await fading;
+		stateGameDerived.clearBets();
+		losingChips = [];
+		losersFading = false;
+		clearing = false;
 	};
 
 	const onConfirmClick = () => {
@@ -2890,8 +2906,8 @@
 									<div
 										bind:this={tileEls[spot]}
 										class="tile"
-										class:win
-										class:landed={landed && !win}
+										class:win={win && !clearing}
+										class:landed={landed && !win && !clearing}
 										class:dimmed={shadowed(spot)}
 										class:room={isRoomSpot(spot)}
 										class:locked={bettingOpen && !backed && !stateGameDerived.canBackAnother()}
@@ -2936,11 +2952,12 @@
 											</div>
 										{/if}
 
-										{#if backed && !arrivingSpots.has(spot) && !clearing}
+										{#if chipDown(spot)}
 											{@const chipFace = placedChipFace()}
 											<div
 												class="placed-chip chip"
-												style="--tier:0; --rise:{TIER_RISE_VW}vw; --chip-hue:{chipFace.hue}deg; --chip-text:{chipFace.text}"
+												class:fading={losersFading}
+												style="--tier:0; --rise:{TIER_RISE_VW}vw; --chip-hue:{chipFace.hue}deg; --chip-text:{chipFace.text}; --fade-ms:{LOSER_FADE_MS}ms"
 											>
 												<span>{chipFace.label}</span>
 											</div>
@@ -4861,6 +4878,16 @@
 		margin: 0 !important;
 		pointer-events: none;
 		filter: drop-shadow(0 0.15vw 0.25vw rgba(0, 0, 0, 0.5));
+	}
+	/* PLAY AGAIN: a chip that won nothing fades off its tile while the win flies to the balance. */
+	.tile .placed-chip.fading {
+		animation: placed-chip-fade var(--fade-ms) ease-out forwards;
+	}
+	@keyframes placed-chip-fade {
+		to {
+			opacity: 0;
+			scale: 0.85;
+		}
 	}
 	/* The round's readout on the tile that paid. Both lines are centred on the tile and kept inside
 	   it — the multiplier hugs the top edge in the Top Slot's own hand, a touch smaller than the
