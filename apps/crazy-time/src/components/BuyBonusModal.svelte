@@ -586,23 +586,25 @@
 		position: relative;
 		z-index: 0;
 	}
-	/* The shadow beneath the title — a crisp dark copy of the letters just under them and a soft one
-	   that drops further. It cannot be a text-shadow on the title itself: the outline and the fill are
-	   painted as two passes, each with its own shadows, so the fill's shadow lands ON the outline. So
-	   it is a second copy of the word laid exactly under the first, same face and outline but painted
-	   transparent, so all that shows of it is its shadow — which then falls behind the whole outlined
-	   word. */
+	/* The shadow beneath the title — a thick dark silhouette of the word hugging the outline, over a
+	   soft shadow just under it. It cannot be a text-shadow on the title itself: the outline and the
+	   fill are painted as two passes, each with its own shadows, so the fill's shadow lands ON the
+	   outline. So it is a second copy of the word BEHIND the first (z -1), and the copy itself is the
+	   shadow: solid dark, fill and outline alike.
+	   What makes it THICK: its outline is wider than the title's — 0.09em past the letters against
+	   the visible 0.06em. Moved down only 0.06em, it then sits close round the outline: a dark band
+	   just below it and a hairline at the sides, rather than a separate copy further down. (A
+	   TRANSPARENT copy throwing a text-shadow cannot do this: a transparent outline casts no shadow,
+	   so only the thin letters did.) */
 	.bb-title-shadow {
 		position: absolute;
-		inset: 0;
+		top: 0.06em;
+		left: 0;
+		right: 0;
 		z-index: -1;
-		color: transparent;
-		-webkit-text-stroke-color: transparent;
-		/* The outline already reaches 0.06em past the letters, so the crisp copy drops twice that to
-		   show clearly below it. */
-		text-shadow:
-			0 0.13em 0 rgba(18, 7, 1, 0.95),
-			0 0.24em 0.2em rgba(0, 0, 0, 0.85);
+		color: #120701;
+		-webkit-text-stroke: 0.18em #120701;
+		text-shadow: 0 0.1em 0.14em rgba(0, 0, 0, 0.6);
 		pointer-events: none;
 		user-select: none;
 	}
