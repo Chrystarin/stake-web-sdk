@@ -1185,10 +1185,19 @@
 	const FLIGHT_MS = CHIP_FLIGHT_MS;
 	const SWEEP_WINDOW_MS = 260;
 	const SWEEP_FALL_MS = 220;
-	const COLLECT_TRAVEL_MS = 560;
-	const COLLECT_MERGE_MS = 200;
-	const COLLECT_MS = COLLECT_TRAVEL_MS + COLLECT_MERGE_MS;
-	const COLLECT_STAGGER_MS = 90;
+	// The win's collect (see `collectChips`): the chip bursts into copies of itself that hang over
+	// the board, then stream one by one into the balance chip.
+	/** The burst's launches are spread over this, so the copies are thrown rather than popped. */
+	const SCATTER_THROW_MS = 160;
+	/** One copy's flight out of the tile to where it hangs (± 15%). */
+	const SCATTER_OUT_MS = 380;
+	/** The hang before the first copy turns for the balance; the rest turn over SCATTER_STREAM_MS. */
+	const SCATTER_HANG_MS = 180;
+	const SCATTER_STREAM_MS = 460;
+	/** One copy's run into the balance chip (-15% / +20%). */
+	const SCATTER_HOME_MS = 560;
+	/** Landings closer together than this share one pulse and one clink. */
+	const SCATTER_PULSE_GAP_MS = 90;
 	const WIN_FLOAT_MS = 1300;
 	/** The balance's count from what it held up to what the win made it. */
 	const BALANCE_COUNT_MS = 800;
@@ -1224,8 +1233,10 @@
 		delay: number;
 		spin: number;
 		turned: boolean;
-		/** A place/return flight's duration, when it is not the standard FLIGHT_MS. */
+		/** A place/return flight's duration, when it is not the standard FLIGHT_MS; a collect's. */
 		ms?: number;
+		/** A collect copy's own path, played by `playKeyframes`: no two copies fly alike. */
+		keyframes?: Keyframe[];
 	};
 
 	let flights = $state<ChipFlight[]>([]);
@@ -1643,43 +1654,117 @@
 		}, WIN_FLOAT_MS);
 	};
 
-	const collectChips = async (winners: Spot[], face = currentChipFace()) => {
-		if (!gameEl || !balanceChipEl || !winners.length) return;
+	/** The most copies a win bursts into, however big the multiplier: what the page flies smoothly. */
+	const SCATTER_MAX = 20;
+	/** One copy per multiple won (the tile's readout: 5x bursts into five), up to SCATTER_MAX. */
+	const scatterCount = (mult: number) => Math.max(1, Math.min(SCATTER_MAX, Math.round(mult)));
+
+	/**
+	 * The win's collect, after Willy's plinko (apps/plinko lib/winCoinShower.ts): the winning chip
+	 * bursts into copies of itself, thrown out in a wide fan over the board, that hang a moment as
+	 * they sag, then turn one after another and stream into the balance chip, shrinking as they land.
+	 * Each landing pulses the balance and clinks. `landed` settles on the first copy home (the
+	 * balance counts up from there), `done` once the last one is.
+	 */
+	const collectChips = (winners: Spot[], face = currentChipFace(), mult = 1) => {
+		const none = { landed: Promise.resolve(), done: Promise.resolve() };
+		if (!gameEl || !balanceChipEl || !winners.length) return none;
 		const host = gameEl.getBoundingClientRect();
 		const to = centreIn(host, balanceChipEl.getBoundingClientRect());
-		const picks: { spot: Spot; x: number; y: number }[] = [];
-		for (const spot of winners) {
+		const tiles = winners.flatMap((spot) => {
 			const box = tileEls[spot];
-			if (!box) continue;
-			const centre = centreIn(host, box.getBoundingClientRect());
-			picks.push({ spot, x: centre.x, y: centre.y });
-		}
-		if (!picks.length) return;
-		const launched = picks.map((pick, index) => ({
-			id: ++flightId,
-			kind: 'collect' as const,
-			spot: pick.spot,
-			...face,
-			from: { x: pick.x, y: pick.y },
-			to,
-			delay: index * COLLECT_STAGGER_MS,
-			spin: 0,
-			turned: false,
-		}));
-		flights = [...flights, ...launched.slice().reverse()];
-		launched.forEach(({ id, delay }) => {
-			schedule(id, () => playSound('whoosh'), delay);
-			schedule(
-				id,
-				() => {
-					playSound('merge');
-					balancePulse += 1;
-				},
-				delay + COLLECT_TRAVEL_MS,
-			);
-			schedule(id, () => dropFlight(id), delay + COLLECT_MS);
+			return box ? [{ spot, rect: box.getBoundingClientRect() }] : [];
 		});
-		await waitForTimeout((picks.length - 1) * COLLECT_STAGGER_MS + COLLECT_TRAVEL_MS);
+		if (!tiles.length) return none;
+
+		let firstHome!: () => void;
+		const landed = new Promise<void>((resolve) => (firstHome = resolve));
+		let lastPulse = -Infinity;
+		const land = () => {
+			const now = performance.now();
+			if (now - lastPulse >= SCATTER_PULSE_GAP_MS) {
+				lastPulse = now;
+				playSound('merge', 0.92 + Math.random() * 0.16);
+				balancePulse += 1;
+			}
+			firstHome();
+		};
+
+		const px = (p: Point) => `${p.x}px ${p.y}px`;
+		const frameW = host.width / fitScale;
+		const count = scatterCount(mult);
+		const launched: ChipFlight[] = [];
+		let end = 0;
+		for (let i = 0; i < count; i++) {
+			const { spot, rect } = tiles[i % tiles.length];
+			const from = centreIn(host, rect);
+			// Off the tile's height, not its width: a portrait tile is half the screen wide.
+			const unit = (rect.height / fitScale) * 2.2;
+			// A wide fan, mostly up and out over the board, the odd one low to a side.
+			const angle = -Math.PI / 2 + (Math.random() * 2 - 1) * 1.9;
+			const reach = unit * (0.55 + Math.random() * 0.95);
+			// Thrown higher than wide: the board sits low, and the copies hang over the wheel.
+			const mid = {
+				x: Math.min(frameW - unit * 0.3, Math.max(unit * 0.3, from.x + Math.cos(angle) * reach)),
+				y: from.y + Math.sin(angle) * reach * 1.3,
+			};
+			// The sag while it hangs, as if under a little gravity.
+			const hang = { x: mid.x, y: mid.y + unit * (0.05 + Math.random() * 0.07) };
+			// Home on a gentle bow, to either side, lifted a touch.
+			const dx = to.x - hang.x;
+			const dy = to.y - hang.y;
+			const dist = Math.hypot(dx, dy) || 1;
+			const bow = dist * (0.06 + Math.random() * 0.1) * (Math.random() < 0.5 ? -1 : 1);
+			const arc = {
+				x: hang.x + dx / 2 - (dy / dist) * bow,
+				y: hang.y + dy / 2 + (dx / dist) * bow - unit * 0.15,
+			};
+
+			const delay = Math.round((i / count) * SCATTER_THROW_MS + Math.random() * 40);
+			const out = SCATTER_OUT_MS * (0.85 + Math.random() * 0.3);
+			// The turn for home is drawn at random rather than in throw order, so they stream in mixed.
+			const turn =
+				SCATTER_THROW_MS + SCATTER_OUT_MS + SCATTER_HANG_MS + Math.random() * SCATTER_STREAM_MS - delay; // prettier-ignore
+			const home = SCATTER_HOME_MS * (0.85 + Math.random() * 0.35);
+			const ms = Math.round(turn + home);
+			const size = 0.62 + Math.random() * 0.3;
+			const spin = Math.round((Math.random() * 2 - 1) * 70);
+			const id = ++flightId;
+			launched.push({
+				id,
+				kind: 'collect',
+				spot,
+				...face,
+				from,
+				to,
+				delay,
+				spin,
+				turned: false,
+				ms,
+				// All stacked full size on the tile at first, so the copies come out of the one chip.
+				keyframes: [
+					{ offset: 0, translate: px(from), scale: 1, rotate: '0deg', opacity: 1, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' },
+					{ offset: out / ms, translate: px(mid), scale: size, rotate: `${spin * 0.6}deg`, opacity: 1, easing: 'ease-in-out' },
+					{ offset: turn / ms, translate: px(hang), scale: size, rotate: `${spin}deg`, opacity: 1, easing: 'cubic-bezier(0.55, 0, 0.85, 0.5)' },
+					{ offset: (turn + home / 2) / ms, translate: px(arc), scale: size * 0.85, rotate: `${spin / 2}deg`, opacity: 1, easing: 'cubic-bezier(0.15, 0.5, 0.45, 1)' },
+					{ offset: 1, translate: px(to), scale: size * 0.4, rotate: '0deg', opacity: 0.25 },
+				], // prettier-ignore
+			});
+			schedule(id, land, delay + ms);
+			schedule(id, () => dropFlight(id), delay + ms);
+			end = Math.max(end, delay + ms);
+		}
+		flights = [...flights, ...launched];
+		playSound('whoosh');
+		setTimeout(() => playSound('whoosh', 1.1), SCATTER_THROW_MS + SCATTER_OUT_MS + SCATTER_HANG_MS);
+		return { landed, done: waitForTimeout(end) };
+	};
+
+	/** Plays a flight's own keyframes, for the paths one shared CSS animation cannot give (`collectChips`). */
+	const playKeyframes = (node: HTMLElement, flight: ChipFlight) => {
+		if (!flight.keyframes) return;
+		const options = { duration: flight.ms, delay: flight.delay, fill: 'both' as const };
+		node.animate(flight.keyframes, options);
 	};
 
 	const finishRound = async () => {
@@ -1698,7 +1783,7 @@
 		losingChips = losers;
 		losersFading = losers.length > 0;
 		const fading = losers.length ? waitForTimeout(LOSER_FADE_MS) : Promise.resolve();
-		const collecting = collectChips(winners, face);
+		const collecting = collectChips(winners, face, baseMult * topMult);
 
 		void waitForTimeout(RESULT_CLOSE_MS).then(() => {
 			landedSpot = null;
@@ -1710,13 +1795,13 @@
 			if (!revealBy && !exitCovered) revealIcon = null;
 		});
 
-		await collecting;
+		await collecting.landed;
 		if (collected > 0) {
 			showWinFloat(collected);
 			countBalanceUp();
 		} else releaseBalance();
 
-		await fading;
+		await Promise.all([collecting.done, fading]);
 		stateGameDerived.clearBets();
 		losingChips = [];
 		losersFading = false;
@@ -1773,8 +1858,6 @@
 			`--flight-ms:${flight.ms ?? FLIGHT_MS}ms`,
 			`--sweep-ms:${SWEEP_FALL_MS}ms`,
 			`--sweep-delay:${flight.delay}ms`,
-			`--collect-ms:${COLLECT_MS}ms`,
-			`--collect-delay:${flight.delay}ms`,
 			`--spin:${flight.spin}deg`,
 			`--chip-hue:${flight.hue}deg`,
 			`--chip-text:${flight.text}`,
@@ -3187,6 +3270,7 @@
 				bind:this={flightEls[flight.id]}
 				class="chip flying-chip {flight.kind}"
 				style={flightStyle(flight)}
+				use:playKeyframes={flight}
 				aria-hidden="true"
 			>
 				<span>{flight.label}</span>
@@ -3325,8 +3409,8 @@
 	.flying-chip.sweep {
 		animation: chip-sweep var(--sweep-ms) var(--sweep-delay) ease-in both;
 	}
+	/* Animated by `playKeyframes`: each copy of the winning chip has its own path home. */
 	.flying-chip.collect {
-		animation: chip-collect var(--collect-ms) var(--collect-delay) both;
 		z-index: 46;
 	}
 	/* Global, so the Buy Bonus screen's chip (BuyBonusModal `.bb-card-chip`) is put down by exactly
@@ -3365,36 +3449,6 @@
 		100% {
 			translate: var(--to-x) var(--to-y);
 			rotate: var(--spin);
-		}
-	}
-	@keyframes chip-collect {
-		0% {
-			translate: var(--from-x) var(--from-y);
-			scale: 1;
-			opacity: 1;
-			animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-		}
-		14% {
-			translate: var(--from-x) var(--from-y);
-			scale: 1.3;
-			animation-timing-function: ease-in-out;
-		}
-		48% {
-			translate: calc((var(--from-x) + var(--to-x)) / 2)
-				calc((var(--from-y) + var(--to-y)) / 2 - 2.4vw);
-			scale: 1.15;
-			animation-timing-function: ease-in;
-		}
-		74% {
-			translate: var(--to-x) var(--to-y);
-			scale: 0.95;
-			opacity: 1;
-			animation-timing-function: ease-in;
-		}
-		100% {
-			translate: var(--to-x) var(--to-y);
-			scale: 0.18;
-			opacity: 0;
 		}
 	}
 	/* The clouds on the seam as the camera goes down into Pirate Plinko: a line on the room's top
