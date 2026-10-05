@@ -15,7 +15,6 @@
 	 * card's own copy hidden). The way back out ends on the table, on the room's wedge.
 	 */
 	import { tick } from 'svelte';
-	import { fade } from 'svelte/transition';
 	import { stateBet } from 'state-shared';
 
 	import {
@@ -46,10 +45,21 @@
 		busy?: boolean;
 		/** The room whose badge is off its card — in the air, or in the room — so the card shows none. */
 		lifted?: RoomSpot | null;
+		/**
+		 * How the screen goes when `open` drops: 'pan' (the player closed it) at once, since the
+		 * caller has already panned it off the left-hand edge (Game.svelte `panBuy`, which also brings
+		 * it in); 'fade' (a bought room took over, or the buy failed) is the plain short fade it
+		 * always had.
+		 */
+		exit?: 'pan' | 'fade';
 		onClose: () => void;
 		onActivate: (mode: string) => void;
 	};
 	const props: Props = $props();
+
+	/** Gone at once once panned off, or a short fade for any way out but the player's. */
+	const leave = (_node: Element) =>
+		props.exit === 'pan' ? { duration: 0 } : { duration: 220, css: (t: number) => `opacity: ${t}` };
 
 	/** A line under each title, in the rooms' own voice. */
 	const TAGLINE: Record<string, string> = {
@@ -260,14 +270,20 @@
 		role="presentation"
 		onclick={close}
 		bind:this={backdropEl}
-		out:fade={{ duration: 220 }}
+		out:leave
+		style:--bb-bg-landscape={`url("${staticUrl('img/buy-bonus/background_landscape.webp')}")`}
+		style:--bb-bg-portrait={`url("${staticUrl('img/buy-bonus/background_portrait.webp')}")`}
 	>
+		<!-- Landscape only: the captain, standing on the right of her cabin, with the column to her left. -->
+		<img class="bb-character" src={staticUrl('img/buy-bonus/character.webp')} alt="" aria-hidden="true" />
+
 		<div class="bb-modal" class:no-any={!anyShown} role="dialog" aria-label="Buy Bonus" onclick={(event) => event.stopPropagation()}>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
 				<img src={staticUrl('img/buy-bonus/close_btn.webp')} alt="" aria-hidden="true" />
 			</button>
 
-			<h2 class="bb-title">Buy Bonus</h2>
+			<!-- The shadow is a copy of the word behind it (see `.bb-title-shadow`). -->
+			<h2 class="bb-title"><span class="bb-title-shadow" aria-hidden="true">Buy Bonus</span>Buy Bonus</h2>
 
 			<!-- The bet, chosen off the table's own chips. Every price below is cost x chip, so picking
 			     another chip re-prices all five cards. A chip the balance does not cover is greyed out. -->
@@ -394,8 +410,7 @@
 		   i.e. the smallest the visible area can ever be, so the overlay fits every chrome state of
 		   every browser. Same unit and same reasoning as `.game-root` / `.plinko-app-shell`, which is
 		   also why the strip this leaves uncovered when the toolbar does hide is a non-issue: the game
-		   root ends there too, and what shows through is the flat dark body colour behind a 93%-black
-		   dim. Left after `inset` so a browser without `svh` keeps exactly the old behaviour.
+		   root ends there too, and what shows through is the flat dark body colour. Left after `inset` so a browser without `svh` keeps exactly the old behaviour.
 		   `border-box` is required with it — there is no global box-sizing reset in this app, so a
 		   content-box height of 100svh plus this padding would overflow the screen by the padding. */
 		height: 100svh;
@@ -412,7 +427,14 @@
 		   top of the column reachable. */
 		align-items: flex-start;
 		justify-content: center;
-		background: rgba(0, 0, 0, 0.93);
+		/* The captain's cabin, one cut per orientation (the portrait one is swapped in below). On the
+		   backdrop itself, so it neither scrolls with the column nor lags the screen when a bought room
+		   pans it away. Black under it for the frame before the art paints. */
+		background-color: #000;
+		background-image: var(--bb-bg-landscape);
+		background-position: center;
+		background-size: cover;
+		background-repeat: no-repeat;
 		/* The safe-area insets are what hold the close button clear of a notch/cutout or a gesture bar;
 		   `viewport-fit=cover` is set in app.html, so without them the overlay draws under both. They
 		   add nothing (0px) on a desktop or an iframe, so the tuned landscape budget is untouched — see
@@ -438,6 +460,7 @@
 	   notes on `.bb-bet-row` and `.bb-balance`) and must not be charged for this. */
 	@media (max-aspect-ratio: 1/1) {
 		.bb-backdrop {
+			background-image: var(--bb-bg-portrait);
 			/* PORTRAIT UI SCALE. The root only scales --ui-px in LANDSCAPE (see +layout.svelte) — portrait
 			   holds it at a flat 1px, which is why this column used to be a fixed 667px tall no matter how
 			   short the viewport was, and why anything under ~730px of height scrolled. Re-pointing the
@@ -540,9 +563,42 @@
 		font-size: clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))); /* 2rem … 3.4rem */
 		letter-spacing: 0.02em;
 		color: #f6c54a;
+		/* A dark brown outline OUTSIDE the letters: `paint-order` lays the stroke under the fill, so half
+		   of its 0.12em is hidden by the glyph and 0.06em shows round it, without thinning the gold.
+		   (Where paint-order is not honoured on HTML text the stroke paints over the fill instead, which
+		   only makes the edge read heavier.) In em, so it stays the same share of the title at every
+		   size. */
+		-webkit-text-stroke: 0.12em #3a1d0b;
+		paint-order: stroke fill;
+		/* A slight warm glow round the outlined word: a tight bright pass and a wide soft one. */
 		text-shadow:
-			0 0 calc(12 * var(--ui-px)) rgba(246, 168, 32, 0.65),
-			0 calc(2 * var(--ui-px)) calc(2 * var(--ui-px)) rgba(0, 0, 0, 0.8);
+			0 0 0.18em rgba(255, 214, 120, 0.5),
+			0 0 0.5em rgba(246, 168, 32, 0.38);
+		/* Its own stacking context, so the shadow copy's z -1 puts it behind this word and nothing
+		   else. `relative` places that copy in portrait, where the title is in the column's flow;
+		   landscape makes it `absolute`, which serves as well. */
+		position: relative;
+		z-index: 0;
+	}
+	/* The shadow beneath the title — a crisp dark copy of the letters just under them and a soft one
+	   that drops further. It cannot be a text-shadow on the title itself: the outline and the fill are
+	   painted as two passes, each with its own shadows, so the fill's shadow lands ON the outline. So
+	   it is a second copy of the word laid exactly under the first, same face and outline but painted
+	   transparent, so all that shows of it is its shadow — which then falls behind the whole outlined
+	   word. */
+	.bb-title-shadow {
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		color: transparent;
+		-webkit-text-stroke-color: transparent;
+		/* The outline already reaches 0.06em past the letters, so the crisp copy drops twice that to
+		   show clearly below it. */
+		text-shadow:
+			0 0.13em 0 rgba(18, 7, 1, 0.95),
+			0 0.24em 0.2em rgba(0, 0, 0, 0.85);
+		pointer-events: none;
+		user-select: none;
 	}
 
 	/* Plain white readout under the tier grid — no plaque, no gold, so it reads as information rather
@@ -1000,6 +1056,19 @@
 		}
 	}
 
+	/* Landscape — 2×2 as well, in the column left of the captain (see CAPTAIN'S CABIN at the foot of
+	   this stylesheet). The LANDSCAPE FIT below solves the card size against both rows; this `1fr` is
+	   only what a browser without `svh` is left with. */
+	@media (min-aspect-ratio: 1/1) {
+		.bb-cards {
+			--bb-cols: 2;
+			--bb-rows: 2;
+			--bb-card-gap: calc(12 * var(--ui-px));
+			grid-template-columns: repeat(2, 1fr);
+			gap: var(--bb-card-gap);
+		}
+	}
+
 	/* ── PORTRAIT FIT ────────────────────────────────────────────────────────────────────────────────
 	   The tier cards are the whole vertical budget: they carry a fixed `aspect-ratio`, so their HEIGHT
 	   is decided by the modal's WIDTH, and in portrait that width is 96vw. Nothing in the column ever
@@ -1015,10 +1084,10 @@
 	   construction at every portrait size — the backdrop keeps `overflow: auto` purely as a safety net
 	   that should now never fire.
 
-	   ⚠️ `177.2` + `--bb-any-space` is the rest of the column, in --ui-px, and has to be re-derived if
+	   ⚠️ `188.9` + `--bb-any-space` is the rest of the column, in --ui-px, and has to be re-derived if
 	   any of it changes
 	   (the modal has no `gap`; every space is an item margin — see `.bb-modal`):
-	       37.0  .bb-title       (32ui-px × the 1.16 line-height pinned below)
+	       48.7  .bb-title       (42ui-px × the 1.16 line-height pinned below)
 	       86.0  .bb-bet-row     (the 54.0ui-px chip pill — 64 x 260/308 — and two 16ui-px margins)
 	      149.0  .bb-any         (133ui-px tall, 16ui-px margin below) — `--bb-any-space`, 0 while hidden
 	       19.2  .bb-balance's margin-top
@@ -1037,7 +1106,7 @@
 				/* Portrait drops the vw term — 5vw is only ~19px on a phone, so the clamp's --ui-px floor was
 				   already winning; stating it plainly keeps the title a true multiple of the unit at every
 				   height instead of catching on the vw preference once --ui-px shrinks. */
-				font-size: calc(32 * var(--ui-px));
+				font-size: calc(42 * var(--ui-px));
 				line-height: 1.16;
 			}
 
@@ -1048,7 +1117,7 @@
 
 			.bb-cards {
 				--bb-cards-budget: calc(
-					100svh - var(--bb-pad-y) - (177.2 + var(--bb-any-space)) * var(--ui-px)
+					100svh - var(--bb-pad-y) - (188.9 + var(--bb-any-space)) * var(--ui-px)
 				);
 				/* The tighter of the two budgets. The height one is turned into a WIDTH by the same 0.74 the
 				   card carries as its `aspect-ratio`, so one number can drive the tracks. The outer `max()` is
@@ -1101,21 +1170,21 @@
 	   has and the column scrolls.
 
 	   So the card is sized from BOTH budgets and takes the smaller, exactly as portrait does:
-	     • WIDTH  — the modal's width split between the four columns (what it always did), and
+	     • WIDTH  — the modal's width split between the columns (what it always did), and
 	     • HEIGHT — whatever `100svh` has left once the rest of the column is paid for.
 
-	   ⚠️ Unlike portrait's, this budget is not a MEASURED constant — every term below is the same
-	   expression as the declaration it accounts for, so the two cannot drift (the modal has no `gap`;
-	   every space is an item margin — see `.bb-modal`):
-	       1.2 x the title's own clamp()      .bb-title      (line-height pinned just below)
-	       80ui-px + 2 x (16ui-px - 80ui-px x 24/308)
+	   ⚠️ Unlike portrait's, this budget is not a MEASURED constant — every term below reads the same
+	   knob as the declaration it accounts for (set on `.bb-backdrop` in CAPTAIN'S CABIN, so the
+	   padding, the bet row and this grid all inherit one value), so the two cannot drift (the modal
+	   has no `gap`; every space is an item margin — see `.bb-modal`):
+	       --bb-pad-y                         the backdrop's padding, which includes the header at
+	                                          the top of the screen (--bb-head-h: the title's line
+	                                          and the balance's under it)
+	       units + 2 x (16ui-px - units x 24/308), units = --bb-bet-units
 	                                          .bb-bet-row: the same total as its chip pill
-	                                          (80 x 260/308) and two 16ui-px margins
+	                                          (units x 260/308) and two 16ui-px margins
 	       --bb-any-space (133 + 16, or 0)    .bb-any, and its margin below
-	       1.5 x the balance's own clamp()    .bb-balance, plus its 19.2ui-px margin-top
-	   The bet row's 80ui-px is stated as a literal because --bb-bet-h lives on `.bb-bet-row`, a
-	   SIBLING — custom properties only reach descendants, so `.bb-cards` cannot read it. ⚠️ Re-derive
-	   it if that height or the row's margin changes.
+	   ⚠️ Re-derive it if the bet row's 16ui-px margin changes — that one is still a literal.
 	   Both line-heights are pinned, as in portrait, so the sum is exact before the display faces load.
 	   NO slack term here, deliberately: the reference frame clears its width budget by ~1.5px, and
 	   slack would tip the min() over and shrink the cards on the very frame this was tuned at.
@@ -1128,20 +1197,14 @@
 				line-height: 1.2;
 			}
 
-			.bb-balance {
-				line-height: 1.5;
-			}
-
 			.bb-cards {
 				--bb-cards-budget: calc(
-					100svh - var(--bb-pad-y) - 1.2 *
-						clamp(calc(32 * var(--ui-px)), 5vw, calc(54.4 * var(--ui-px))) -
-						(80 * var(--ui-px) + 2 * (16 * var(--ui-px) - 80 * var(--ui-px) * 24 / 308)) -
-						var(--bb-any-space) * var(--ui-px) -
+					100svh - var(--bb-pad-y) -
 						(
-							1.5 * clamp(calc(18 * var(--ui-px)), 2.1vw, calc(28 * var(--ui-px))) + 19.2 *
-								var(--ui-px)
-						)
+							var(--bb-bet-units) * var(--ui-px) + 2 *
+								(16 * var(--ui-px) - var(--bb-bet-units) * var(--ui-px) * 24 / 308)
+						) -
+						var(--bb-any-space) * var(--ui-px)
 				);
 				/* The tighter of the two budgets, the height one turned into a WIDTH by the same 0.74 the
 				   card carries as its `aspect-ratio`. The outer max() is the floor for a viewport so short
@@ -1166,10 +1229,10 @@
 
 			/* The portrait trick, one orientation over: inside a card "one pixel" is one pixel of a
 			   REFERENCE CARD, so everything the card contains stays a fixed fraction of it once the height
-			   budget starts shrinking it. 231.36 is what a card measures at the 1024x576 frame this
-			   landscape layout was tuned at — (96vw - 3 x 19.2ui-px) / 4 — so the ratio is exactly 1 there
-			   and the `1px` cap keeps every viewport at or above the reference rendering as it does today
-			   (a wide desktop's card is the wider 260.6ui-px, and must NOT scale its contents UP). */
+			   budget starts shrinking it. 231.36 is what a card measured at 1024x576 in the old one-row
+			   grid — (96vw - 3 x 19.2ui-px) / 4 — which is the size every type size in the card was tuned
+			   at; the 2x2 grid's cards are smaller than that on most frames and scale down from it. The
+			   `1px` cap keeps a card that is bigger still (a tall desktop) from scaling its contents UP. */
 			.bb-card {
 				--ui-px: min(1px, calc(var(--bb-card-w) / 231.36));
 			}
@@ -1337,5 +1400,93 @@
 	}
 	.bb-any .bb-activate-text {
 		font-size: calc(14 * var(--any-px));
+	}
+
+	/* ── CAPTAIN'S CABIN (landscape) ───────────────────────────────────────────────────────────────
+	   The captain stands on the right of the screen, feet off its bottom edge, and the column — chips
+	   and the 2x2 cards — is centred in what is left to her left.
+	   --bb-char-w is her width: 98% of the screen's height in her own 932x1070 shape, which at 16:9 is
+	   the right ~49% of it, as the comp has her. Capped at half the width so a squarer landscape
+	   (4:3) shrinks her, standing lower, rather than squeezing the column. The backdrop's right padding
+	   is that width again, so the column can never run under her; `vh` first, `svh` where it exists,
+	   for the same reason the backdrop's own height is written that way.
+	   The chrome over and under the cards is lighter than the old one-row screen's, because the 2x2
+	   grid is height-bound: every ui-px the chips and balance give back goes to the cards. The knobs
+	   live on `.bb-backdrop` so its padding and the LANDSCAPE FIT can read the very values these
+	   rules set.
+	   The title, the balance and the close are not the column's: they head the SCREEN — the title at
+	   the top centre with the balance on the line under it, the X in the top-right corner level with
+	   the title, over the captain's shoulder. The header is those two line boxes (`--bb-head-h`), paid
+	   for in the backdrop's top padding (and so in --bb-pad-y, which the FIT subtracts), so the column
+	   starts under it and the chip rail can never run into it. All three are placed against the
+	   backdrop, which is why the modal drops its `position` here; the captain goes to z -1 so the
+	   column, now out of a positioned box, still paints over her. */
+	.bb-character {
+		display: none;
+	}
+	@media (min-aspect-ratio: 1/1) {
+		.bb-backdrop {
+			--bb-char-w: min(calc(98vh * 932 / 1070), 50vw);
+			--bb-title-fs: clamp(calc(38 * var(--ui-px)), 5vw, calc(60 * var(--ui-px)));
+			--bb-balance-fs: clamp(calc(16 * var(--ui-px)), 1.6vw, calc(22 * var(--ui-px)));
+			/* The title's line (1.2) and the balance's (1.3) under it. */
+			--bb-head-h: calc(1.2 * var(--bb-title-fs) + 1.3 * var(--bb-balance-fs));
+			--bb-bet-units: 64;
+			--bb-pad-y: calc(
+				6vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) +
+					var(--bb-head-h)
+			);
+			padding-top: calc(3vh + env(safe-area-inset-top, 0px) + var(--bb-head-h));
+			padding-right: calc(2vw + var(--bb-char-w) + env(safe-area-inset-right, 0px));
+		}
+		@supports (height: 100svh) {
+			.bb-backdrop {
+				--bb-char-w: min(calc(98svh * 932 / 1070), 50vw);
+			}
+		}
+		.bb-character {
+			display: block;
+			position: absolute;
+			right: 0;
+			bottom: 0;
+			z-index: -1;
+			width: var(--bb-char-w);
+			height: auto;
+			pointer-events: none;
+			user-select: none;
+		}
+		.bb-modal {
+			position: static;
+			--bb-modal-width: min(calc(1100 * var(--ui-px)), calc(96vw - var(--bb-char-w)));
+		}
+		.bb-title,
+		.bb-balance {
+			position: absolute;
+			left: 50%;
+			translate: -50% 0;
+			margin: 0;
+		}
+		.bb-title {
+			top: calc(3vh + env(safe-area-inset-top, 0px));
+			font-size: var(--bb-title-fs);
+			line-height: 1.2;
+			white-space: nowrap;
+		}
+		/* Centred on the title's line. */
+		.bb-close {
+			top: calc(
+				3vh + env(safe-area-inset-top, 0px) +
+					(1.2 * var(--bb-title-fs) - 41.6 * var(--ui-px)) / 2
+			);
+			right: calc(2vw + env(safe-area-inset-right, 0px));
+		}
+		.bb-bet-row {
+			--bb-bet-h: calc(var(--bb-bet-units) * var(--ui-px));
+		}
+		.bb-balance {
+			top: calc(3vh + env(safe-area-inset-top, 0px) + 1.2 * var(--bb-title-fs));
+			font-size: var(--bb-balance-fs);
+			line-height: 1.3;
+		}
 	}
 </style>

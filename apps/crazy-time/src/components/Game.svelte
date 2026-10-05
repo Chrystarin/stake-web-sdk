@@ -2023,11 +2023,95 @@
 		}
 	});
 
-	const openBuyBonus = () => {
-		if (buyDisabled) return;
+	/**
+	 * The way between the table and the Buy Bonus screen: a pan to the right — the Buy Bonus screen,
+	 * a band of black, the table — so the table is pushed off the right-hand edge with the band on
+	 * its heels and the screen behind that. Nothing fades: the screens travel `core` apart, the
+	 * band's solid black core is that gap, and its manga halftone (transition_halftone.webp) breaks
+	 * up over `fade` of each screen's edge, the dots shrinking away into the picture. The player
+	 * closing the screen pans it all back to the left. Both are shares of the frame's width; the band
+	 * art is drawn at that core:fade ratio (20:22), so keep the two in step. Portrait's band is wider
+	 * so its dots are not too fine on a narrow phone.
+	 * The band goes from just off the left edge to just off the right, so it travels its own width
+	 * further than the screens do: it sits exactly over the gap mid-pan and trails it by up to
+	 * `fade` either side, which only ever opens onto the frame's floor, held black for the pan. At
+	 * rest it is parked off the left edge, and once the screen is up the table is put back behind it,
+	 * unseen, so a bought room's way in finds both as it always has. `buySliding` holds off a second
+	 * press while a pan is under way.
+	 */
+	const BUY_PAN = { ms: 1400, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' } as const;
+	const buyBand = $derived(portrait ? { core: 30, fade: 33 } : { core: 20, fade: 22 });
+	let buyBandEl: HTMLDivElement | undefined = $state();
+	let buySliding = false;
+	let buyExit = $state<'pan' | 'fade'>('fade');
+
+	/**
+	 * The pan from `from` to `to` (0: the table in view, 1: the screen in view). Every part is moved
+	 * by `transform` on the one easing, in shares of its own width — and each is the frame's width —
+	 * so they keep step: the table off by a screen and the gap, the screen in from as far behind,
+	 * the band's carrier across by a screen and the band. `transform`, not `translate`: the camera's
+	 * pans (`panCamera`) own `translate` on the table and the screen.
+	 */
+	const panBuy = (screen: HTMLElement | null, from: number, to: number): Animation[] => {
+		const travel = 100 + buyBand.core;
+		const bandTravel = 100 + buyBand.core + 2 * buyBand.fade;
+		const opts = { duration: BUY_PAN.ms, easing: BUY_PAN.easing, fill: 'both' } as const;
+		const backdrop = gameEl?.parentElement?.querySelector<HTMLElement>(':scope > .background');
+		/** `el` from `x0`% (pan 0) to `x1`% (pan 1). */
+		const move = (el: HTMLElement | null | undefined, x0: number, x1: number) =>
+			el?.animate(
+				[from, to].map((p) => ({ transform: `translateX(${x0 + p * (x1 - x0)}%)` })),
+				opts,
+			);
+		const floor = gameEl?.parentElement;
+		return [
+			move(backdrop, 0, travel),
+			move(gameEl, 0, travel),
+			move(screen, -travel, 0),
+			move(buyBandEl, 0, bandTravel),
+			// The frame's floor is a dark purple; black for the pan, so the gap is all black.
+			floor?.animate([{ backgroundColor: '#000' }, { backgroundColor: '#000' }], opts),
+		].filter((a): a is Animation => Boolean(a));
+	};
+	/** Done when they finish — or when they would have, should a hidden tab never run them. */
+	const panDone = (moves: Animation[]) =>
+		Promise.race([
+			Promise.all(moves.map((a) => a.finished.catch(() => undefined))),
+			waitForTimeout(BUY_PAN.ms + 100),
+		]);
+
+	const openBuyBonus = async () => {
+		if (buyDisabled || buySliding || buyBonusOpen) return;
 		playSound('click');
 		stakePanelOpen = false;
+		buySliding = true;
+		buyExit = 'fade';
 		buyBonusOpen = true;
+		// Mounted, and put a whole pan to the left before it is ever painted.
+		await tick();
+		const moves = panBuy(buyModal?.backdrop() ?? null, 0, 1);
+		await panDone(moves);
+		// The screen is up and opaque: the table goes home behind it, the band back to its parking.
+		moves.forEach((a) => a.cancel());
+		buySliding = false;
+	};
+
+	/** The player backing out: the pan played backwards, the table back in from the right. */
+	const closeBuyBonus = async () => {
+		if (buySliding || !buyBonusOpen) return;
+		buySliding = true;
+		const screen = buyModal?.backdrop() ?? null;
+		// Nothing on it can be pressed on its way off.
+		if (screen) screen.inert = true;
+		const moves = panBuy(screen, 1, 0);
+		await panDone(moves);
+		// Already off the left-hand edge: it goes at once, and only then does its pan come off.
+		buyExit = 'pan';
+		buyBonusOpen = false;
+		await tick();
+		moves.forEach((a) => a.cancel());
+		buyExit = 'fade';
+		buySliding = false;
 	};
 
 	// --- Menu (top-right): rules, history, how to play, sound and music --------------------------
@@ -3152,13 +3236,24 @@
 
 	<!-- In the frame's stacking context, beside the game rather than over the whole page, so the
 	     reveals (z 60) fly a bought room's badge out of its card, and back, over this screen (z 55). -->
+	<!-- The black band between the table and the Buy Bonus screen as one pans into the other (see
+	     `panBuy`). The carrier is the frame's size; the band hangs off its left edge. -->
+	<div
+		class="buy-band"
+		bind:this={buyBandEl}
+		style="--band-core:{buyBand.core}; --band-fade:{buyBand.fade}; --art-band:{staticCssUrl('img/buy-bonus/transition_halftone.webp')}"
+		aria-hidden="true"
+	>
+		<div class="buy-band-art"></div>
+	</div>
 	<BuyBonusModal
 		bind:this={buyModal}
 		open={buyBonusOpen}
 		disabled={buyDisabled}
 		busy={buyWaiting || buyLifted !== null}
 		lifted={buyLifted}
-		onClose={() => (buyBonusOpen = false)}
+		exit={buyExit}
+		onClose={closeBuyBonus}
 		onActivate={handleBuyActivate}
 	/>
 </div>
@@ -3650,6 +3745,24 @@
 		inset: 0;
 		overflow: hidden;
 		background-color: #160b26;
+	}
+	/* See `panBuy`. Over both screens (the Buy Bonus one is 55), since its halftone lies over the edge
+	   of each. The carrier is the frame's size and stays on it at rest; the band hangs just off its
+	   left edge, so it is parked off screen, and a pan of the carrier carries it across. */
+	.buy-band {
+		position: absolute;
+		inset: 0;
+		z-index: 57;
+		pointer-events: none;
+	}
+	.buy-band-art {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		right: 100%;
+		width: calc(1% * (var(--band-core) + 2 * var(--band-fade)));
+		/* The art's width is the band's, its height whatever keeps the dots round, tiled down. */
+		background: var(--art-band) repeat-y left top / 100% auto;
 	}
 	/* Width in vw (not the shared sheet's 100%) so `zoom` scales the box along with its vw interior:
 	   a percentage resolves against the unzoomed parent and would leave the frame full size. The

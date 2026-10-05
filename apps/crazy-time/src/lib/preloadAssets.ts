@@ -75,6 +75,13 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy-bonus/buy_bonus_panel_landscape.webp',
 	'img/buy-bonus/buy_bonus_button.webp',
 	'img/buy-bonus/buy_bonus_button_hover.webp',
+	// The screen's own room, both cuts (a phone can turn while it is up), and the landscape pirate.
+	'img/buy-bonus/background_landscape.webp',
+	'img/buy-bonus/background_portrait.webp',
+	'img/buy-bonus/character.webp',
+	// The halftone band between the table and the screen as one pans into the other (Game.svelte),
+	// through the same custom-property route as the chips.
+	'img/buy-bonus/transition_halftone.webp',
 
 	// ── Menu (Game.svelte + HudMenuPopup.svelte): the top-right button and the three entry icons ──
 	'img/menu/menu-btn.webp',
