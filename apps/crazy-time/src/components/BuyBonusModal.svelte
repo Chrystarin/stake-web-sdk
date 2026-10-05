@@ -333,7 +333,13 @@
 			<div class="bb-cards">
 				{#each CARD_MODES as mode (mode)}
 					<div class="bb-card" bind:this={cardEls[roomOf(mode)]}>
-						<img class="bb-card-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel.webp')} alt="" aria-hidden="true" />
+						<!-- A wide landscape screen's cards are wide, so they take the frame turned on its
+						     side: its heavy rails then run along the card's long edges, as they do on a tall
+						     card. Same query as the WIDE layout (CAPTAIN'S CABIN), so card and frame agree. -->
+						<picture>
+							<source media="(min-aspect-ratio: 7001/5000)" srcset={staticUrl('img/buy-bonus/buy_bonus_panel_landscape.webp')} />
+							<img class="bb-card-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel.webp')} alt="" aria-hidden="true" />
+						</picture>
 						{#if cardChip && cardChip.room === roomOf(mode)}
 							<div
 								class="bb-card-chip"
@@ -626,6 +632,8 @@
 		--bb-cols: 4;
 		--bb-rows: 1;
 		--bb-card-gap: calc(19.2 * var(--ui-px)); /* 1.2rem */
+		/* A card's width over its height: tall here, wide in landscape (CAPTAIN'S CABIN). */
+		--bb-card-ratio: 0.74;
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
 		gap: var(--bb-card-gap);
@@ -634,7 +642,7 @@
 
 	.bb-card {
 		position: relative;
-		aspect-ratio: 0.74;
+		aspect-ratio: var(--bb-card-ratio, 0.74);
 		display: flex;
 		/* ⚠️ Load-bearing on WebKit, and the reason this modal used to scroll on iOS while every
 		   Chromium browser fitted. `aspect-ratio` only sets a box's PREFERRED size: a grid item still
@@ -1056,10 +1064,18 @@
 		}
 	}
 
-	/* Landscape — 2×2 as well, in the column left of the captain (see CAPTAIN'S CABIN at the foot of
-	   this stylesheet). The LANDSCAPE FIT below solves the card size against both rows; this `1fr` is
-	   only what a browser without `svh` is left with. */
+	/* Landscape (see CAPTAIN'S CABIN at the foot of this stylesheet): on a NEAR-SQUARE screen the
+	   tall cards stand in one row across the full width; on a WIDE one the wide cards are 2x2 in the
+	   column left of the captain. The LANDSCAPE FIT below solves the card size for either; these
+	   `1fr` tracks are only what a browser without `svh` is left with. */
 	@media (min-aspect-ratio: 1/1) {
+		.bb-cards {
+			--bb-cols: 4;
+			--bb-rows: 1;
+			grid-template-columns: repeat(4, 1fr);
+		}
+	}
+	@media (min-aspect-ratio: 7001/5000) {
 		.bb-cards {
 			--bb-cols: 2;
 			--bb-rows: 2;
@@ -1178,8 +1194,9 @@
 	   padding, the bet row and this grid all inherit one value), so the two cannot drift (the modal
 	   has no `gap`; every space is an item margin — see `.bb-modal`):
 	       --bb-pad-y                         the backdrop's padding, which includes the header at
-	                                          the top of the screen (--bb-head-h: the title's line
-	                                          and the balance's under it)
+	                                          the top of the screen (--bb-head-h: the title's line)
+	                                          and the footer at the bottom (--bb-foot-h: the
+	                                          balance's)
 	       units + 2 x (16ui-px - units x 24/308), units = --bb-bet-units
 	                                          .bb-bet-row: the same total as its chip pill
 	                                          (units x 260/308) and two 16ui-px margins
@@ -1206,33 +1223,38 @@
 						) -
 						var(--bb-any-space) * var(--ui-px)
 				);
-				/* The tighter of the two budgets, the height one turned into a WIDTH by the same 0.74 the
-				   card carries as its `aspect-ratio`. The outer max() is the floor for a viewport so short
-				   the budget goes negative — a negative track size drops the declaration and the grid with
-				   it. */
-				--bb-card-w: max(
-					calc(48 * var(--ui-px)),
-					min(
-						calc(
-							(var(--bb-modal-width) - (var(--bb-cols) - 1) * var(--bb-card-gap)) / var(--bb-cols)
-						),
-						calc(
-							(var(--bb-cards-budget) - (var(--bb-rows) - 1) * var(--bb-card-gap)) /
-								var(--bb-rows) * 0.74
+				/* The tighter of the two budgets, the height one turned into a WIDTH by the card's own
+				   `--bb-card-ratio` (wide in landscape), then taken down to `--bb-card-scale` of it: the
+				   cards need not fill all the room they have. The outer max() is the floor for a viewport
+				   so short the budget goes negative — a negative track size drops the declaration and the
+				   grid with it. */
+				--bb-card-w: calc(
+					var(--bb-card-scale, 1) *
+						max(
+							calc(48 * var(--ui-px)),
+							min(
+								calc(
+									(var(--bb-modal-width) - (var(--bb-cols) - 1) * var(--bb-card-gap)) /
+										var(--bb-cols)
+								),
+								calc(
+									(var(--bb-cards-budget) - (var(--bb-rows) - 1) * var(--bb-card-gap)) /
+										var(--bb-rows) * var(--bb-card-ratio)
+								)
+							)
 						)
-					)
 				);
 				grid-template-columns: repeat(var(--bb-cols), var(--bb-card-w));
-				grid-template-rows: repeat(var(--bb-rows), calc(var(--bb-card-w) / 0.74));
+				grid-template-rows: repeat(var(--bb-rows), calc(var(--bb-card-w) / var(--bb-card-ratio)));
 				justify-content: center;
 			}
 
 			/* The portrait trick, one orientation over: inside a card "one pixel" is one pixel of a
 			   REFERENCE CARD, so everything the card contains stays a fixed fraction of it once the height
-			   budget starts shrinking it. 231.36 is what a card measured at 1024x576 in the old one-row
-			   grid — (96vw - 3 x 19.2ui-px) / 4 — which is the size every type size in the card was tuned
-			   at; the 2x2 grid's cards are smaller than that on most frames and scale down from it. The
-			   `1px` cap keeps a card that is bigger still (a tall desktop) from scaling its contents UP. */
+			   budget starts shrinking it. This is the NEAR-SQUARE screen's tall card, four in a row:
+			   231.36 is what such a card measures at 1024x576 — (96vw - 3 x 19.2ui-px) / 4 — the size its
+			   type was tuned at, and the `1px` cap keeps a bigger one from scaling its contents UP. The
+			   WIDE screen's card has its own reference (CAPTAIN'S CABIN). */
 			.bb-card {
 				--ui-px: min(1px, calc(var(--bb-card-w) / 231.36));
 			}
@@ -1403,41 +1425,101 @@
 	}
 
 	/* ── CAPTAIN'S CABIN (landscape) ───────────────────────────────────────────────────────────────
-	   The captain stands on the right of the screen, feet off its bottom edge, and the column — chips
-	   and the 2x2 cards — is centred in what is left to her left.
-	   --bb-char-w is her width: 98% of the screen's height in her own 932x1070 shape, which at 16:9 is
-	   the right ~49% of it, as the comp has her. Capped at half the width so a squarer landscape
-	   (4:3) shrinks her, standing lower, rather than squeezing the column. The backdrop's right padding
-	   is that width again, so the column can never run under her; `vh` first, `svh` where it exists,
-	   for the same reason the backdrop's own height is written that way.
-	   The chrome over and under the cards is lighter than the old one-row screen's, because the 2x2
-	   grid is height-bound: every ui-px the chips and balance give back goes to the cards. The knobs
-	   live on `.bb-backdrop` so its padding and the LANDSCAPE FIT can read the very values these
-	   rules set.
-	   The title, the balance and the close are not the column's: they head the SCREEN — the title at
-	   the top centre with the balance on the line under it, the X in the top-right corner level with
-	   the title, over the captain's shoulder. The header is those two line boxes (`--bb-head-h`), paid
-	   for in the backdrop's top padding (and so in --bb-pad-y, which the FIT subtracts), so the column
-	   starts under it and the chip rail can never run into it. All three are placed against the
-	   backdrop, which is why the modal drops its `position` here; the captain goes to z -1 so the
-	   column, now out of a positioned box, still paints over her. */
+	   Two landscape layouts, split at a 7:5 screen:
+	     • WIDE (wider than 7:5 — 16:9, 16:10, 3:2, a phone on its side): the captain stands on the
+	       right of the screen, feet off its bottom edge, and the column — chips and the 2x2 grid of
+	       WIDE cards — is centred in what is left to her left.
+	     • NEAR-SQUARE (7:5 and squarer — 4:3, 5:4, a tablet on its side): there is no room for her
+	       beside the cards, so she is left out, the column takes the full width (the chips centred
+	       across it), and the cards are the portrait screen's tall ones, four in a single row — the
+	       one-row layout this screen's tall-card type sizes were first tuned for.
+	   The split is written as `min-aspect-ratio: 7001/5000` for WIDE so it never overlaps the
+	   near-square `max-aspect-ratio: 7/5` at exactly 7:5; the card frame's <picture> uses the same
+	   query, so a card and its frame always agree.
+	   --bb-char-w is her width (0 when she is left out): 98% of the screen's height in her own
+	   932x1070 shape, which at 16:9 is the right ~49% of it, as the comp has her, capped at half the
+	   width. The backdrop's right padding is that width again, so the column can never run under her;
+	   `vh` first, `svh` where it exists, for the same reason the backdrop's own height is written
+	   that way.
+	   The chrome over and under the cards is lighter than portrait's, so every ui-px the chips and
+	   balance give back goes to the cards. The knobs live on `.bb-backdrop` so its padding and the
+	   LANDSCAPE FIT can read the very values these rules set.
+	   The title, the close and the balance are not the column's: they frame the SCREEN — the title at
+	   the top centre with the X in the top-right corner level with it (over the captain's shoulder),
+	   and the balance at the bottom, centred under the cards' side of the screen: in the column left
+	   of the captain on a WIDE screen, across the full width on a NEAR-SQUARE one. The header and the
+	   footer are their line boxes (`--bb-head-h`, `--bb-foot-h`), paid for in the backdrop's top and
+	   bottom padding (and so in --bb-pad-y, which the FIT subtracts), so the column sits between them
+	   and can never run into either. All three are placed against the backdrop, which is why the
+	   modal drops its `position` here; the captain goes to z -1 so the column, now out of a
+	   positioned box, still paints over her. */
 	.bb-character {
 		display: none;
 	}
 	@media (min-aspect-ratio: 1/1) {
 		.bb-backdrop {
-			--bb-char-w: min(calc(98vh * 932 / 1070), 50vw);
+			/* No captain until the screen is wide enough for her (WIDE, below). */
+			--bb-char-w: 0px;
 			--bb-title-fs: clamp(calc(38 * var(--ui-px)), 5vw, calc(60 * var(--ui-px)));
 			--bb-balance-fs: clamp(calc(16 * var(--ui-px)), 1.6vw, calc(22 * var(--ui-px)));
-			/* The title's line (1.2) and the balance's (1.3) under it. */
-			--bb-head-h: calc(1.2 * var(--bb-title-fs) + 1.3 * var(--bb-balance-fs));
-			--bb-bet-units: 64;
+			/* The title's line (1.2) at the top, the balance's (1.3) at the bottom. */
+			--bb-head-h: calc(1.2 * var(--bb-title-fs));
+			--bb-foot-h: calc(1.3 * var(--bb-balance-fs));
+			/* The chip row's height (`.bb-bet-row`), and with it the chips: up from the 64 it shared with
+			   portrait, so the row holds its own beside the cards. */
+			--bb-bet-units: 88;
 			--bb-pad-y: calc(
 				6vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) +
-					var(--bb-head-h)
+					var(--bb-head-h) + var(--bb-foot-h)
 			);
 			padding-top: calc(3vh + env(safe-area-inset-top, 0px) + var(--bb-head-h));
 			padding-right: calc(2vw + var(--bb-char-w) + env(safe-area-inset-right, 0px));
+			padding-bottom: calc(3vh + env(safe-area-inset-bottom, 0px) + var(--bb-foot-h));
+		}
+		.bb-modal {
+			position: static;
+			--bb-modal-width: min(calc(1100 * var(--ui-px)), calc(96vw - var(--bb-char-w)));
+		}
+		.bb-title {
+			position: absolute;
+			left: 50%;
+			translate: -50% 0;
+			margin: 0;
+			top: calc(3vh + env(safe-area-inset-top, 0px));
+			font-size: var(--bb-title-fs);
+			line-height: 1.2;
+			white-space: nowrap;
+		}
+		/* Centred on the title's line. */
+		.bb-close {
+			top: calc(
+				3vh + env(safe-area-inset-top, 0px) +
+					(1.2 * var(--bb-title-fs) - 41.6 * var(--ui-px)) / 2
+			);
+			right: calc(2vw + env(safe-area-inset-right, 0px));
+		}
+		.bb-bet-row {
+			--bb-bet-h: calc(var(--bb-bet-units) * var(--ui-px));
+		}
+		/* Across the cards' side of the screen — the same left and right edges as the column, so it is
+		   centred on it, with the captain or without — and down in the footer band. */
+		.bb-balance {
+			position: absolute;
+			left: calc(2vw + env(safe-area-inset-left, 0px));
+			right: calc(2vw + var(--bb-char-w) + env(safe-area-inset-right, 0px));
+			bottom: calc(3vh + env(safe-area-inset-bottom, 0px));
+			margin: 0;
+			text-align: center;
+			font-size: var(--bb-balance-fs);
+			line-height: 1.3;
+			pointer-events: none;
+		}
+	}
+
+	/* WIDE landscape: the captain, and the wide cards 2x2 beside her. */
+	@media (min-aspect-ratio: 7001/5000) {
+		.bb-backdrop {
+			--bb-char-w: min(calc(98vh * 932 / 1070), 50vw);
 		}
 		@supports (height: 100svh) {
 			.bb-backdrop {
@@ -1455,38 +1537,77 @@
 			pointer-events: none;
 			user-select: none;
 		}
-		.bb-modal {
-			position: static;
-			--bb-modal-width: min(calc(1100 * var(--ui-px)), calc(96vw - var(--bb-char-w)));
+
+		/* The wide card, in the frame turned on its side (the <picture> swaps it in), 2x2 beside
+		   the captain. Laid out at 320 x 236.5 ui-px: the title in one line across
+		   the top; under it the badge on the left, and the tagline, max win, price and Activate
+		   stacked down the right, centred in the height left (the empty `1fr` rows either side).
+		   Every size is in the card's own --ui-px (see the LANDSCAPE FIT), so it all scales with the
+		   card, and nothing here leans on a vw term the way the portrait card's clamps do. */
+		.bb-cards {
+			--bb-card-ratio: 1.353;
+			/* 80% of the room the column gives them, which leaves the cards a little air. */
+			--bb-card-scale: 0.8;
 		}
-		.bb-title,
-		.bb-balance {
-			position: absolute;
-			left: 50%;
-			translate: -50% 0;
-			margin: 0;
+		.bb-card-inner {
+			display: grid;
+			grid-template-columns: 42% 1fr;
+			grid-template-rows: auto 1fr auto auto auto auto 1fr;
+			grid-template-areas:
+				'title title'
+				'art .'
+				'art desc'
+				'art total'
+				'art price'
+				'art button'
+				'art .';
+			/* Spacing is on the items, so the two empty rows add none of their own. */
+			gap: 0 calc(8 * var(--ui-px));
+			justify-items: center;
+			padding: calc(18 * var(--ui-px));
 		}
-		.bb-title {
-			top: calc(3vh + env(safe-area-inset-top, 0px));
-			font-size: var(--bb-title-fs);
-			line-height: 1.2;
+		.bb-card-title {
+			grid-area: title;
+			margin-bottom: calc(8 * var(--ui-px));
+			/* TREASURE CHEST, the longest, is ~9em: 252 of the 284 the card leaves it. */
+			font-size: calc(28 * var(--ui-px));
+			line-height: 1;
 			white-space: nowrap;
 		}
-		/* Centred on the title's line. */
-		.bb-close {
-			top: calc(
-				3vh + env(safe-area-inset-top, 0px) +
-					(1.2 * var(--bb-title-fs) - 41.6 * var(--ui-px)) / 2
-			);
-			right: calc(2vw + env(safe-area-inset-right, 0px));
+		.bb-card-art-slot {
+			grid-area: art;
+			height: 100%;
 		}
-		.bb-bet-row {
-			--bb-bet-h: calc(var(--bb-bet-units) * var(--ui-px));
+		.bb-card-desc {
+			grid-area: desc;
+			margin-bottom: calc(7 * var(--ui-px));
+			/* Its longest line, ONE IS DESTINED FOR YOU, is ~151 of the column's ~160. */
+			font-size: calc(10.5 * var(--ui-px));
 		}
-		.bb-balance {
-			top: calc(3vh + env(safe-area-inset-top, 0px) + 1.2 * var(--bb-title-fs));
-			font-size: var(--bb-balance-fs);
-			line-height: 1.3;
+		.bb-card-total {
+			grid-area: total;
+			margin-bottom: calc(4 * var(--ui-px));
+			font-size: calc(15 * var(--ui-px));
+		}
+		.bb-price {
+			grid-area: price;
+			margin: 0 0 calc(6 * var(--ui-px));
+			font-size: calc(18 * var(--ui-px));
+		}
+		.bb-card .bb-activate {
+			grid-area: button;
+			width: calc(140 * var(--ui-px));
+		}
+		.bb-card .bb-activate-text {
+			font-size: calc(14 * var(--ui-px));
+		}
+		/* The wide card's own reference: laid out at 320 across, and NOT capped at 1px, so a big
+		   desktop's card scales its contents up with it rather than leaving small type adrift in a
+		   big frame. Only where `--bb-card-w` exists (the LANDSCAPE FIT's @supports). */
+		@supports (height: 100svh) {
+			.bb-card {
+				--ui-px: calc(var(--bb-card-w) / 320);
+			}
 		}
 	}
 </style>
