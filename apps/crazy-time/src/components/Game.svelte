@@ -1038,6 +1038,9 @@
 		return true;
 	};
 
+	/** The backdrop, for the sea's lurch as a bonus room's icon slams home (`lurch`). */
+	let background: Background | undefined = $state();
+
 	/** The wheel rattling from the chest, or the Bonus Wheel's icon, being slammed back onto it. */
 	let wheelShaking = $state(false);
 	const WHEEL_SHAKE_MS = 420;
@@ -1096,42 +1099,29 @@
 			// The table's first paint back, under the cover, before the icon backs off onto its wedge
 			// — whose own badge stays hidden until the icon is on it.
 			const target = revealIcon;
+			// Every room's icon home the same way: down on its wedge, its badge is back, and the wedge,
+			// the whole wheel and the sea behind the deck all take the knock.
+			const iconHome = () => {
+				revealIcon = null;
+				if (target !== null) wheel?.slam(target);
+				shakeWheel();
+				background?.lurch();
+			};
 			void tick()
 				.then(() => waitForTimeout(150))
 				.then(() =>
 					by === 'ball'
-						? plinkoReveal?.home(target === null ? null : wedgeBox(target), () => {
-								// Down in its wedge: the badge is back, with the same knock as the chest's.
-								revealIcon = null;
-								if (target !== null) wheel?.slam(target);
-								shakeWheel();
-							})
+						? plinkoReveal?.home(target === null ? null : wedgeBox(target), iconHome)
 						: by === 'ship'
-						? voyageReveal?.land(target === null ? null : wedgeBox(target), frameSize(), () => {
-								// Down on its wedge: the badge is back, with the same knock as the chest's.
-								revealIcon = null;
-								if (target !== null) wheel?.slam(target);
-								shakeWheel();
-							})
+						? voyageReveal?.land(target === null ? null : wedgeBox(target), frameSize(), iconHome)
 						: by === 'chest'
 						? roomReveal?.uncover(
 								tableChestBox(),
 								target === null ? null : wedgeChestBox(target),
 								{ w: gameEl?.clientWidth ?? 0, h: gameEl?.clientHeight ?? 0 },
-								// The chest hits its wedge: its own badge is back, and the wedge and
-								// the whole wheel take the knock.
-								() => {
-									revealIcon = null;
-									if (target !== null) wheel?.slam(target);
-									shakeWheel();
-								},
+								iconHome,
 							)
-						: wheelReveal?.uncover(target === null ? null : wedgeBox(target), () => {
-								// Slammed into its wedge, the same knock as the chest's.
-								revealIcon = null;
-								if (target !== null) wheel?.slam(target);
-								shakeWheel();
-							}),
+						: wheelReveal?.uncover(target === null ? null : wedgeBox(target), iconHome),
 				)
 				.then(() => {
 					revealIcon = null;
@@ -2777,7 +2767,7 @@
 	class="viewport-fit"
 	style="--fit:{fitScale}; --art-chip-base:{staticCssUrl('img/chip_base.svg')}; --art-chip-yellow:{staticCssUrl('img/chip_yellow.svg')}; --art-tile-frame:{staticCssUrl('img/bet_tile_frame_rectangle.webp')}; --art-bundle-frame:{staticCssUrl('img/bet_tile_frame_circle.webp')}; --art-tile-texture:{staticCssUrl('img/bet_tile_texture.webp')}"
 >
-	<Background {portrait} />
+	<Background {portrait} bind:this={background} />
 	<div
 		class="game"
 		class:portrait
