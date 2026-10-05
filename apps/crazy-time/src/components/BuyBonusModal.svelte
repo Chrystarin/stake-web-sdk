@@ -46,20 +46,20 @@
 		/** The room whose badge is off its card — in the air, or in the room — so the card shows none. */
 		lifted?: RoomSpot | null;
 		/**
-		 * How the screen goes when `open` drops: 'pan' (the player closed it) at once, since the
-		 * caller has already panned it off the left-hand edge (Game.svelte `panBuy`, which also brings
+		 * How the screen goes when `open` drops: 'slide' (the player closed it) at once, since the
+		 * caller has already slid it off the bottom edge (Game.svelte `slideBuy`, which also brings
 		 * it in); 'fade' (a bought room took over, or the buy failed) is the plain short fade it
 		 * always had.
 		 */
-		exit?: 'pan' | 'fade';
+		exit?: 'slide' | 'fade';
 		onClose: () => void;
 		onActivate: (mode: string) => void;
 	};
 	const props: Props = $props();
 
-	/** Gone at once once panned off, or a short fade for any way out but the player's. */
+	/** Gone at once once slid off, or a short fade for any way out but the player's. */
 	const leave = (_node: Element) =>
-		props.exit === 'pan' ? { duration: 0 } : { duration: 220, css: (t: number) => `opacity: ${t}` };
+		props.exit === 'slide' ? { duration: 0 } : { duration: 220, css: (t: number) => `opacity: ${t}` };
 
 	/** A line under each title, in the rooms' own voice. */
 	const TAGLINE: Record<string, string> = {

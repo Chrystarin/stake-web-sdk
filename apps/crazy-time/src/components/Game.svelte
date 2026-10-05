@@ -2104,60 +2104,76 @@
 	});
 
 	/**
-	 * The way between the table and the Buy Bonus screen: a pan to the right — the Buy Bonus screen,
-	 * a band of black, the table — so the table is pushed off the right-hand edge with the band on
-	 * its heels and the screen behind that. Nothing fades: the screens travel `core` apart, the
-	 * band's solid black core is that gap, and its manga halftone (transition_halftone.webp) breaks
-	 * up over `fade` of each screen's edge, the dots shrinking away into the picture. The player
-	 * closing the screen pans it all back to the left. Both are shares of the frame's width; the band
-	 * art is drawn at that core:fade ratio (20:22), so keep the two in step. Portrait's band is wider
-	 * so its dots are not too fine on a narrow phone.
-	 * The band goes from just off the left edge to just off the right, so it travels its own width
-	 * further than the screens do: it sits exactly over the gap mid-pan and trails it by up to
-	 * `fade` either side, which only ever opens onto the frame's floor, held black for the pan. At
-	 * rest it is parked off the left edge, and once the screen is up the table is put back behind it,
-	 * unseen, so a bought room's way in finds both as it always has. `buySliding` holds off a second
-	 * press while a pan is under way.
+	 * The way between the table and the Buy Bonus screen: a slide up. The table — its backdrop and
+	 * the frame — goes up off the top edge while the screen comes up from below on its heels, edge
+	 * to edge, so nothing fades and there is no gap between them. The player closing the screen
+	 * plays it backwards: the screen slides back down and the table comes down after it.
+	 * Once the screen is up, the table is put back behind it, unseen, so a bought room's way in finds
+	 * it where it always has. `buySliding` holds off a second press while a slide is under way.
 	 */
-	const BUY_PAN = { ms: 1400, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' } as const;
-	const buyBand = $derived(portrait ? { core: 30, fade: 33 } : { core: 20, fade: 22 });
-	let buyBandEl: HTMLDivElement | undefined = $state();
+	/**
+	 * Slow, fast, slow, on an ease-in-out cubic: gentle at both ends, its top speed only ~1.5x the
+	 * average, so the middle is a glide rather than a lurch (a quint's ~2.5x read as a jolt).
+	 */
+	const BUY_SLIDE = { ms: 1000, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' } as const;
 	let buySliding = false;
-	let buyExit = $state<'pan' | 'fade'>('fade');
+	let buyExit = $state<'slide' | 'fade'>('fade');
 
 	/**
-	 * The pan from `from` to `to` (0: the table in view, 1: the screen in view). Every part is moved
-	 * by `transform` on the one easing, in shares of its own width — and each is the frame's width —
-	 * so they keep step: the table off by a screen and the gap, the screen in from as far behind,
-	 * the band's carrier across by a screen and the band. `transform`, not `translate`: the camera's
-	 * pans (`panCamera`) own `translate` on the table and the screen.
+	 * The slide from `from` to `to` (0: the table in view, 1: the screen in view). Every part moves
+	 * by `transform` on the one easing, by its own height, so they keep step whatever the frame's
+	 * `zoom` (a % of its own box is immune to it, a px length on the zoomed frame is not). The screen
+	 * is `100svh` tall and the table the frame's height, which a phone's toolbar can make a little
+	 * taller: the two then OVERLAP by the difference mid-slide, with the screen on top, rather than
+	 * open a gap. `transform`, not `translate`: the camera's pans (`panCamera`) own `translate` on
+	 * the table and the screen.
 	 */
-	const panBuy = (screen: HTMLElement | null, from: number, to: number): Animation[] => {
-		const travel = 100 + buyBand.core;
-		const bandTravel = 100 + buyBand.core + 2 * buyBand.fade;
-		const opts = { duration: BUY_PAN.ms, easing: BUY_PAN.easing, fill: 'both' } as const;
-		const backdrop = gameEl?.parentElement?.querySelector<HTMLElement>(':scope > .background');
-		/** `el` from `x0`% (pan 0) to `x1`% (pan 1). */
-		const move = (el: HTMLElement | null | undefined, x0: number, x1: number) =>
+	const slideBuy = (screen: HTMLElement | null, from: number, to: number): Animation[] => {
+		const opts = { duration: BUY_SLIDE.ms, easing: BUY_SLIDE.easing, fill: 'both' } as const;
+		/** `el` from `y0`% (slide 0) to `y1`% (slide 1). */
+		const move = (el: HTMLElement | null | undefined, y0: number, y1: number) =>
 			el?.animate(
-				[from, to].map((p) => ({ transform: `translateX(${x0 + p * (x1 - x0)}%)` })),
+				[from, to].map((p) => ({ transform: `translateY(${y0 + p * (y1 - y0)}%)` })),
 				opts,
 			);
-		const floor = gameEl?.parentElement;
-		return [
-			move(backdrop, 0, travel),
-			move(gameEl, 0, travel),
-			move(screen, -travel, 0),
-			move(buyBandEl, 0, bandTravel),
-			// The frame's floor is a dark purple; black for the pan, so the gap is all black.
-			floor?.animate([{ backgroundColor: '#000' }, { backgroundColor: '#000' }], opts),
-		].filter((a): a is Animation => Boolean(a));
+		return [move(tableBackdrop(), 0, -100), move(gameEl, 0, -100), move(screen, 100, 0)].filter(
+			(a): a is Animation => Boolean(a),
+		);
 	};
+	const tableBackdrop = () =>
+		gameEl?.parentElement?.querySelector<HTMLElement>(':scope > .background') ?? null;
 	/** Done when they finish — or when they would have, should a hidden tab never run them. */
-	const panDone = (moves: Animation[]) =>
+	const slideDone = (moves: Animation[]) =>
 		Promise.race([
 			Promise.all(moves.map((a) => a.finished.catch(() => undefined))),
-			waitForTimeout(BUY_PAN.ms + 100),
+			waitForTimeout(BUY_SLIDE.ms + 100),
+		]);
+	/**
+	 * The FIRST time the screen is shown in a session, the GPU has one-off work to do for it — the
+	 * programs for its glows, drop shadows and outlined type — measured at ~140-180 ms, even on a
+	 * desktop GPU. Done on the slide, it froze the slide for that long on the frame the screen's top
+	 * edge first came into view; every later open slid at a steady 60 fps. So the first open does
+	 * that work up front instead: the screen drawn in place at 1% opacity (unseen, but on screen, so
+	 * it is really drawn — hidden under the table it was skipped as covered), held long enough for
+	 * the GPU to finish, and only then slid in. It is inert meanwhile, so a click in that moment
+	 * cannot land on a card nobody can see. Costs the first open a ~0.3 s pause before it moves.
+	 */
+	const BUY_WARM_MS = 300;
+	let buyScreenWarmed = false;
+	const warmBuyScreen = async (screen: HTMLElement) => {
+		screen.inert = true;
+		screen.style.opacity = '0.01';
+		await nextPaint();
+		await waitForTimeout(BUY_WARM_MS);
+		screen.style.opacity = '';
+		screen.inert = false;
+		buyScreenWarmed = true;
+	};
+	/** Once the frame now being drawn is on screen — or a beat later, should a hidden tab never draw it. */
+	const nextPaint = () =>
+		Promise.race([
+			new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+			waitForTimeout(250),
 		]);
 
 	const openBuyBonus = async () => {
@@ -2167,26 +2183,32 @@
 		buySliding = true;
 		buyExit = 'fade';
 		buyBonusOpen = true;
-		// Mounted, and put a whole pan to the left before it is ever painted.
 		await tick();
-		const moves = panBuy(buyModal?.backdrop() ?? null, 0, 1);
-		await panDone(moves);
-		// The screen is up and opaque: the table goes home behind it, the band back to its parking.
+		const screen = buyModal?.backdrop() ?? null;
+		if (screen) {
+			// On a layer of its own from the start, so the slide does not have to make one.
+			screen.style.willChange = 'transform';
+			if (!buyScreenWarmed) await warmBuyScreen(screen);
+		}
+		const moves = slideBuy(screen, 0, 1);
+		await slideDone(moves);
+		if (screen) screen.style.willChange = '';
+		// The screen is up and opaque: the table goes home behind it.
 		moves.forEach((a) => a.cancel());
 		buySliding = false;
 	};
 
-	/** The player backing out: the pan played backwards, the table back in from the right. */
+	/** The player backing out: the slide played backwards, the table back down from the top. */
 	const closeBuyBonus = async () => {
 		if (buySliding || !buyBonusOpen) return;
 		buySliding = true;
 		const screen = buyModal?.backdrop() ?? null;
 		// Nothing on it can be pressed on its way off.
 		if (screen) screen.inert = true;
-		const moves = panBuy(screen, 1, 0);
-		await panDone(moves);
-		// Already off the left-hand edge: it goes at once, and only then does its pan come off.
-		buyExit = 'pan';
+		const moves = slideBuy(screen, 1, 0);
+		await slideDone(moves);
+		// Already off the bottom edge: it goes at once, and only then does its slide come off.
+		buyExit = 'slide';
 		buyBonusOpen = false;
 		await tick();
 		moves.forEach((a) => a.cancel());
@@ -3317,16 +3339,6 @@
 
 	<!-- In the frame's stacking context, beside the game rather than over the whole page, so the
 	     reveals (z 60) fly a bought room's badge out of its card, and back, over this screen (z 55). -->
-	<!-- The black band between the table and the Buy Bonus screen as one pans into the other (see
-	     `panBuy`). The carrier is the frame's size; the band hangs off its left edge. -->
-	<div
-		class="buy-band"
-		bind:this={buyBandEl}
-		style="--band-core:{buyBand.core}; --band-fade:{buyBand.fade}; --art-band:{staticCssUrl('img/buy-bonus/transition_halftone.webp')}"
-		aria-hidden="true"
-	>
-		<div class="buy-band-art"></div>
-	</div>
 	<BuyBonusModal
 		bind:this={buyModal}
 		open={buyBonusOpen}
@@ -3815,24 +3827,6 @@
 		inset: 0;
 		overflow: hidden;
 		background-color: #160b26;
-	}
-	/* See `panBuy`. Over both screens (the Buy Bonus one is 55), since its halftone lies over the edge
-	   of each. The carrier is the frame's size and stays on it at rest; the band hangs just off its
-	   left edge, so it is parked off screen, and a pan of the carrier carries it across. */
-	.buy-band {
-		position: absolute;
-		inset: 0;
-		z-index: 57;
-		pointer-events: none;
-	}
-	.buy-band-art {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		right: 100%;
-		width: calc(1% * (var(--band-core) + 2 * var(--band-fade)));
-		/* The art's width is the band's, its height whatever keeps the dots round, tiled down. */
-		background: var(--art-band) repeat-y left top / 100% auto;
 	}
 	/* Width in vw (not the shared sheet's 100%) so `zoom` scales the box along with its vw interior:
 	   a percentage resolves against the unzoomed parent and would leave the frame full size. The
