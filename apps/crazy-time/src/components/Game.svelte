@@ -4605,7 +4605,6 @@
 		--fill-in: calc(var(--frame) * 0.28);
 		position: relative;
 		isolation: isolate;
-		cursor: pointer;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -4666,6 +4665,8 @@
 	   full colour too — no dark wash over it. A chip still lifts the fill it lands on. */
 	.bottom-panel.lit .tile {
 		--fill-dim: 0;
+		/* Only a tile that takes a bet shows the hand; off betting it keeps the default arrow. */
+		cursor: pointer;
 	}
 	/* Hovered while betting: the inner shadow turns into an inner glow of gold, the frame's own
 	   colour, so the tile under the pointer lights from its edges in, and the whole tile brightens.
