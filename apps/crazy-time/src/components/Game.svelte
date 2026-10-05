@@ -3374,6 +3374,25 @@
 	.chip.selected {
 		outline: 0.3vw solid #ffe14d;
 		border-radius: 50%;
+		animation: chip-pulse 1.2s ease-in-out infinite;
+	}
+	/* The selected chip breathes in the tray (and in the stake panel), as it does on the Buy Bonus
+	   rail (Chip.svelte). On `transform`, which multiplies onto table.scss's `scale` lift instead of
+	   replacing it. About its centre, so a flight that takes off from it (`flyChip`, which reads only
+	   the centre) is not thrown off by the beat it leaves on. */
+	@keyframes chip-pulse {
+		0%,
+		100% {
+			transform: scale(1);
+		}
+		50% {
+			transform: scale(1.08);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.chip.selected {
+			animation: none;
+		}
 	}
 	.chip.open {
 		outline-color: #ffffff;

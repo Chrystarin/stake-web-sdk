@@ -77,13 +77,32 @@
 	.chip:hover:not(:disabled):not(.selected) {
 		translate: 0 calc(var(--chip-size) * -0.05);
 	}
+	/* Enlarged about its own centre, NOT lifted: a raise here took the selected chip off the middle
+	   of the Buy Bonus pill it sits in, ~3.5px above every other chip. */
 	.chip.selected {
 		scale: 1.1;
-		translate: 0 calc(var(--chip-size) * -0.1);
 		background-color: #f3aa40;
 		box-shadow: 0 0 calc(var(--chip-size) * 0.035) calc(var(--chip-size) * 0.05) #f3aa40;
 		outline: calc(var(--chip-size) * 0.09) solid #ffe14d;
 		cursor: default;
+		animation: chip-pulse 1.2s ease-in-out infinite;
+	}
+	/* The selected chip breathes, as the table tray's does (Game.svelte). On `transform`, which
+	   multiplies onto the `scale` above rather than replacing it, so the enlargement's own transition
+	   still runs when the choice moves. */
+	@keyframes chip-pulse {
+		0%,
+		100% {
+			transform: scale(1);
+		}
+		50% {
+			transform: scale(1.08);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.chip.selected {
+			animation: none;
+		}
 	}
 	.chip:focus-visible {
 		outline: calc(var(--chip-size) * 0.09) solid #ffffff;
