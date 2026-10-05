@@ -1525,8 +1525,15 @@
 	 */
 	const READOUT_CHARS = 11;
 	const readoutFit = (text: string) => Math.min(1, READOUT_CHARS / text.length).toFixed(3);
-	const fmtMult = (value: number) =>
-		`${Number.isInteger(value) ? value : value.toFixed(2).replace(/\.?0+$/, '')}x`;
+	const fmtFigure = (value: number) =>
+		`${Number.isInteger(value) ? value : value.toFixed(2).replace(/\.?0+$/, '')}`;
+	const fmtMult = (value: number) => `${fmtFigure(value)}x`;
+	/** A number tile pays odds, so it reads them: 5:1, not 5x. A room's result stays a multiplier. */
+	const readoutText = $derived.by(() => {
+		const spot = stateGame.result?.spot;
+		if (spot === undefined || isRoomSpot(spot)) return fmtMult(readoutMult);
+		return `${fmtFigure(readoutMult)}:1`;
+	});
 
 	$effect(() => {
 		if (!stateGame.resultReady) {
@@ -3130,8 +3137,8 @@
 												bind:this={readoutMultEl}
 												aria-hidden="true"
 											>
-												<span class="mult-stroke" aria-hidden="true">{fmtMult(readoutMult)}</span>
-												<span class="mult-fill">{fmtMult(readoutMult)}</span>
+												<span class="mult-stroke" aria-hidden="true">{readoutText}</span>
+												<span class="mult-fill">{readoutText}</span>
 											</div>
 											{#if payoutStage >= 2}
 												{@const winText = formatMoney(winCash)}
