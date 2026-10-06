@@ -11,6 +11,8 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
+	import { stateGame } from '../game/stateGame.svelte';
+	import { voyageVersion } from '../game/voyageVersion.svelte';
 	import { SPOT_LABEL, SPOT_COLOUR, type RoomSpot, type Spot } from '../game/constants';
 	import type { BookEventRoom } from '../game/typesBookEvent';
 	import { playSound, setMusicScene } from '../game/sound';
@@ -22,6 +24,7 @@
 	import RoomBonusWheel from './rooms/RoomBonusWheel.svelte';
 	import RoomChest from './rooms/RoomChest.svelte';
 	import RoomOceanVoyage from './rooms/RoomOceanVoyage.svelte';
+	import RoomOceanVoyageV2 from './rooms/RoomOceanVoyageV2.svelte';
 	import MultiplierBurst from './rooms/MultiplierBurst.svelte';
 
 	type Props = {
@@ -78,7 +81,11 @@
 
 	const context = getContext();
 
-	let current = $state<{ room: BookEventRoom; covered: boolean } | null>(null);
+	/**
+	 * `helm`: the Ocean Voyage played at the wheel (v2). Only a voyage the player BOUGHT with the Buy
+	 * Bonus screen's v2 button is; the wheel's own landing, and any replay, is the original.
+	 */
+	let current = $state<{ room: BookEventRoom; covered: boolean; helm: boolean } | null>(null);
 	/**
 	 * A room is played by hand only by the player who covered it. A replay has nobody at the table
 	 * (it is a recording being watched, often by someone else), so its rooms play themselves out
@@ -236,7 +243,13 @@
 			onOpenChange?.(true);
 			result = null;
 			closing = false;
-			current = { room: event.room, covered: event.covered };
+			const helm =
+				event.room.type === 'oceanVoyageRoom' &&
+				voyageVersion.v2 &&
+				stateGame.buying === 'buy_ov' &&
+				!isReplay();
+			voyageVersion.v2 = false;
+			current = { room: event.room, covered: event.covered, helm };
 			// The table track rides out under the door and the room's own comes up behind it.
 			setMusicScene(spotFor(event.room));
 			if (enteredAs === 'slide') playSound('doorClose');
@@ -289,6 +302,7 @@
 		class:lit={enteredAs !== 'slide'}
 		class:wiping={held && enteredAs === 'wipe'}
 		class:descending={held && enteredAs === 'descend'}
+		class:helm={current.helm}
 		bind:this={screenEl}
 		style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
@@ -334,10 +348,23 @@
 				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={handsOn} />
 			{:else if current.room.type === 'chestRoom'}
 				<RoomChest bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
-			{:else}
+			{:else if !current.helm}
 				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
 			{/if}
 		</div>
+
+		<!-- Ocean Voyage v2 takes the whole screen, under the header's multiplier and above the
+		     backdrop, rather than the stage: its sea runs edge to edge. -->
+		{#if current.helm && current.room.type === 'oceanVoyageRoom'}
+			<div class="helm-layer">
+				<RoomOceanVoyageV2
+					bind:this={roomApi}
+					room={current.room}
+					interactive={handsOn}
+					{portrait}
+				/>
+			</div>
+		{/if}
 
 		<!-- Empty now, but it keeps its height: the rooms' layouts (the wheel's frame, the chest's lift
 		     off the floor) are measured against it. -->
@@ -474,6 +501,19 @@
 			transform: translateY(-100%);
 			opacity: 0.6;
 		}
+	}
+	/* Ocean Voyage v2 has no title frame: the header keeps its place for the Top Slot multiplier
+	   (and the "not in this bonus" banner) but draws neither the timber nor the room's name. */
+	.helm-layer {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+	}
+	.screen.helm .plate {
+		background: none;
+	}
+	.screen.helm .title {
+		display: none;
 	}
 	.header {
 		text-align: center;
