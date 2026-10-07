@@ -97,6 +97,9 @@
 	const FLOW_TILE = 0.3;
 	const FLOW_SECONDS = 36;
 	const FLOW_FADE = 0.45;
+	/** How far the view beyond the rail rises at the top of its swell, as a share of the height (the
+	    sea reaches this much further down so none of the foot of the screen is ever left bare). */
+	const VIEW_SWELL = 0.02;
 	/** The sky picture, height over width. Its foot stands on the sea's horizon. */
 	const SKY_ASPECT = 597 / 1526;
 	const SKY_PAN = 0.15;
@@ -299,7 +302,7 @@
 		return { w, top: foot - w * SKY_ASPECT };
 	});
 	/** The sea, from its top to the foot of the screen, wide enough to pan with the wheel. */
-	const sea = $derived({ w: Math.max(W + 2 * pitch * SEA_PAN + 8, (H - seaTop) / SEA_ASPECT + 8) });
+	const sea = $derived({ w: Math.max(W + 2 * pitch * SEA_PAN + 8, (H * (1 + VIEW_SWELL) - seaTop) / SEA_ASPECT + 8) });
 	/** The ripples over it: one tile's size, and how much they reach past the screen each side to pan. */
 	const flow = $derived.by(() => {
 		const w = FLOW_TILE * Math.max(W, H);
@@ -409,7 +412,7 @@
 			// The row the book ends the voyage at: whichever gate is at the middle, the kraken is behind it.
 			kraken = { depth, tile };
 			stop();
-			playSound('doorClose');
+			playSound('kraken');
 			void waitForTimeout(SINK_MS).then(() => {
 				ended = 'kraken';
 				finish();
@@ -557,102 +560,107 @@
 
 <svelte:window onkeydown={keyDown} />
 
-<div class="voyage" bind:this={rootEl} style="--voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px">
-	<!-- The sky, standing on the horizon. Farthest of all, so it pans least. -->
-	<img
-		class="sky"
-		src={SKY}
-		alt=""
-		draggable="false"
-		style="left:{cx - sky.w / 2 - offset * SKY_PAN}px; top:{sky.top}px; width:{sky.w}px"
-	/>
-
-	<!-- The sea, from the horizon down, as painted: wide enough to pan as the wheel turns, fading in
-	     just below the horizon over the haze at the foot of the sky. -->
-	<img
-		class="sea"
-		src={SEA}
-		alt=""
-		draggable="false"
-		style="left:{cx - sea.w / 2 - offset * SEA_PAN}px; top:{seaTop}px; width:{sea.w}px; --blend:{blend}px"
-	/>
-	<!-- Its ripples, running down towards the player without a seam and panning with the wheel. Only
-	     their light shows: the tile's dark drops out, laid over the sea as a screen. -->
-	<div class="sea-flow" style="top:{seaTop}px; --fade:{((H - seaTop) * FLOW_FADE).toFixed(1)}px">
-		<div
-			class="sea-flow-run"
-			style="left:{(-flow.spare - offset * SEA_PAN).toFixed(1)}px; width:{(W + 2 * flow.spare).toFixed(1)}px; height:{(H - seaTop + flow.h).toFixed(1)}px; background-image:url('{SEA_FLOW}'); background-size:{flow.w.toFixed(1)}px {flow.h.toFixed(1)}px; --tile-h:{flow.h.toFixed(1)}px; animation-duration:{FLOW_SECONDS}s"
-		></div>
-	</div>
-
-	<!-- The cave, standing in the sea, its rocks fading into the water at the foot. Through the hole of
-	     its mouth, the treasure cave inside — black far off, and only ever partly seen on the way. -->
-	<div
-		class="cave"
-		style="left:{caveLeft}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; opacity:{(1 - zoom).toFixed(3)}; --sink:{CAVE_SINK * 100}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
-	>
-		<div class="cave-dark"></div>
+<div class="voyage" bind:this={rootEl} style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px">
+	<!-- Everything out beyond the rail, swelling up and settling under the ship as the table's own
+	     view does (Background's `sea-swell`), while the deck and the wheel hold still in front. -->
+	<div class="view">
+		<!-- The sky, standing on the horizon. Farthest of all, so it pans least. -->
 		<img
-			class="cave-inside"
-			src={INSIDE}
+			class="sky"
+			src={SKY}
 			alt=""
 			draggable="false"
-			style="width:{INSIDE_W * 100}%; left:{(INSIDE_CX - INSIDE_W / 2) * 100}%"
+			style="left:{cx - sky.w / 2 - offset * SKY_PAN}px; top:{sky.top}px; width:{sky.w}px"
 		/>
-		<div class="cave-dark" style="opacity:{veil.toFixed(3)}"></div>
-		<img class="cave-front" src={CAVE} alt="" draggable="false" style="filter:brightness({litAt(grow).toFixed(3)})" />
-	</div>
 
-	<!-- The gates, on a layer of their own: a row that came out of the cave earlier is nearer, so it
-	     stands in front of every row after it. -->
-	<div class="gates">
-		{#each Array.from({ length: depths }, (_, d) => d) as depth (depth)}
-			{@const row = rowAt(depth)}
-			{#if row.live}
-				{@const done = depth < reached || kraken?.depth === depth}
-				{#each Array.from({ length: cols }, (_, t) => t) as tile (tile)}
-					{@const wreck = kraken?.depth === depth && kraken.tile === tile}
-					{@const chosen = opened?.depth === depth && opened.tile === tile}
-					<div
-						class="gate"
-						class:wreck
-						class:chosen
-						class:near={!done && depth === reached && tile === centred && row.size > 0.6}
-						class:gone={done && !wreck && !chosen}
-						style="z-index:{depths - depth}; transform:{place(laneX(tile, row.size), row.y)} translate(-50%, -100%) scale({row.size.toFixed(4)})"
-					>
-						<div class="float" style="--bob:{(depth * 3 + tile * 5) % 7}; --lit:{litAt(row.size).toFixed(3)}">
-							<img class="barrel" src={BARREL} alt="" draggable="false" />
-						</div>
-					</div>
-				{/each}
-			{/if}
-		{/each}
-	</div>
-
-	<!-- The way in, once the top multiplier is reached: the inside of the cave grows from the mouth to
-	     fill the screen, coming out of the dark as it goes, over a black that hides the sea behind it. -->
-	{#if zoom > 0}
-		<div class="zoom-dark" style="opacity:{zoom.toFixed(3)}"></div>
-		<div
-			class="inside-zoom"
-			style="left:{insideRect.x.toFixed(1)}px; top:{insideRect.y.toFixed(1)}px; width:{insideRect.w.toFixed(1)}px; height:{insideRect.h.toFixed(1)}px; opacity:{Math.min(1, zoom * 3).toFixed(3)}"
-		>
-			<img src={INSIDE} alt="" draggable="false" style="filter:brightness({(1 - (1 - INSIDE_PEEK) * (1 - zoom)).toFixed(3)})" />
+		<!-- The sea, from the horizon down, as painted: wide enough to pan as the wheel turns, fading in
+		     just below the horizon over the haze at the foot of the sky. -->
+		<img
+			class="sea"
+			src={SEA}
+			alt=""
+			draggable="false"
+			style="left:{cx - sea.w / 2 - offset * SEA_PAN}px; top:{seaTop}px; width:{sea.w}px; --blend:{blend}px"
+		/>
+		<!-- Its ripples, running down towards the player without a seam and panning with the wheel. Only
+		     their light shows: the tile's dark drops out, laid over the sea as a screen. -->
+		<div class="sea-flow" style="top:{seaTop}px; --fade:{((H - seaTop) * FLOW_FADE).toFixed(1)}px">
+			<div
+				class="sea-flow-run"
+				style="left:{(-flow.spare - offset * SEA_PAN).toFixed(1)}px; width:{(W + 2 * flow.spare).toFixed(1)}px; height:{(H - seaTop + flow.h).toFixed(1)}px; background-image:url('{SEA_FLOW}'); background-size:{flow.w.toFixed(1)}px {flow.h.toFixed(1)}px; --tile-h:{flow.h.toFixed(1)}px; animation-duration:{FLOW_SECONDS}s"
+			></div>
 		</div>
-	{/if}
 
-	<!-- The kraken, when it comes: up from behind the deck, the night closing in behind it. -->
-	{#if kraken}
-		<div class="kraken-dark"></div>
-		<img
-			class="kraken"
-			src={KRAKEN}
-			alt=""
-			draggable="false"
-			style="width:{krakenSize}px; height:{krakenSize}px; left:{cx}px; top:{krakenY}px; --hide:{krakenHide.toFixed(1)}px; --peek:{krakenPeek.toFixed(1)}px; --kraken-ms:{KRAKEN_MS}ms"
-		/>
-	{/if}
+		<!-- The cave, standing in the sea, its rocks fading into the water at the foot. Through the hole of
+		     its mouth, the treasure cave inside — black far off, and only ever partly seen on the way. -->
+		<div
+			class="cave"
+			style="left:{caveLeft}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; opacity:{(1 - zoom).toFixed(3)}; --sink:{CAVE_SINK * 100}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
+		>
+			<div class="cave-dark"></div>
+			<img
+				class="cave-inside"
+				src={INSIDE}
+				alt=""
+				draggable="false"
+				style="width:{INSIDE_W * 100}%; left:{(INSIDE_CX - INSIDE_W / 2) * 100}%"
+			/>
+			<div class="cave-dark" style="opacity:{veil.toFixed(3)}"></div>
+			<img class="cave-front" src={CAVE} alt="" draggable="false" style="filter:brightness({litAt(grow).toFixed(3)})" />
+		</div>
+
+		<!-- The gates, on a layer of their own: a row that came out of the cave earlier is nearer, so it
+		     stands in front of every row after it. -->
+		<div class="gates">
+			{#each Array.from({ length: depths }, (_, d) => d) as depth (depth)}
+				{@const row = rowAt(depth)}
+				{#if row.live}
+					{@const done = depth < reached || kraken?.depth === depth}
+					{#each Array.from({ length: cols }, (_, t) => t) as tile (tile)}
+						{@const wreck = kraken?.depth === depth && kraken.tile === tile}
+						{@const chosen = opened?.depth === depth && opened.tile === tile}
+						<div
+							class="gate"
+							class:wreck
+							class:chosen
+							class:near={!done && depth === reached && tile === centred && row.size > 0.6}
+							class:gone={done && !wreck && !chosen}
+							style="z-index:{depths - depth}; transform:{place(laneX(tile, row.size), row.y)} translate(-50%, -100%) scale({row.size.toFixed(4)})"
+						>
+							<div class="float" style="--bob:{(depth * 3 + tile * 5) % 7}; --lit:{litAt(row.size).toFixed(3)}">
+								<img class="barrel" src={BARREL} alt="" draggable="false" />
+							</div>
+						</div>
+					{/each}
+				{/if}
+			{/each}
+		</div>
+
+		<!-- The way in, once the top multiplier is reached: the inside of the cave grows from the mouth to
+		     fill the screen, coming out of the dark as it goes, over a black that hides the sea behind it. -->
+		{#if zoom > 0}
+			<div class="zoom-dark" style="opacity:{zoom.toFixed(3)}"></div>
+			<div
+				class="inside-zoom"
+				style="left:{insideRect.x.toFixed(1)}px; top:{insideRect.y.toFixed(1)}px; width:{insideRect.w.toFixed(1)}px; height:{insideRect.h.toFixed(1)}px; opacity:{Math.min(1, zoom * 3).toFixed(3)}"
+			>
+				<img src={INSIDE} alt="" draggable="false" style="filter:brightness({(1 - (1 - INSIDE_PEEK) * (1 - zoom)).toFixed(3)})" />
+			</div>
+		{/if}
+
+		<!-- The kraken, when it comes: up from behind the deck, the night closing in behind it. -->
+		{#if kraken}
+			<div class="kraken-dark"></div>
+			<img
+				class="kraken"
+				src={KRAKEN}
+				alt=""
+				draggable="false"
+				style="width:{krakenSize}px; height:{krakenSize}px; left:{cx}px; top:{krakenY}px; --hide:{krakenHide.toFixed(1)}px; --peek:{krakenPeek.toFixed(1)}px; --kraken-ms:{KRAKEN_MS}ms"
+			/>
+		{/if}
+
+	</div>
 
 	<!-- The ship's deck, in front of the sea, the gates and the kraken, with the wheel set into its ring. -->
 	<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px" />
@@ -707,6 +715,31 @@
 		position: absolute;
 		inset: 0;
 		overflow: hidden;
+	}
+	/* The table's own swell: up and back over ten seconds, eased at both ends so it reads as the sea
+	   lifting the ship rather than a bounce. Only ever up: down would open bare sky at the top, while
+	   up opens the foot of the screen, which the deck covers and the sea reaches past anyway. Under
+	   the deck (4), with everything in it layered among itself. */
+	.view {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		will-change: transform;
+		animation: view-swell 10s ease-in-out infinite;
+	}
+	@keyframes view-swell {
+		0%,
+		100% {
+			transform: translate3d(0, 0, 0);
+		}
+		50% {
+			transform: translate3d(0, calc(var(--view-swell) * -100%), 0);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.view {
+			animation: none;
+		}
 	}
 	.sky {
 		position: absolute;

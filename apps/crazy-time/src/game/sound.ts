@@ -25,7 +25,8 @@ export type SoundName =
 	| 'notify'
 	| 'win'
 	| 'doorClose'
-	| 'doorOpen';
+	| 'doorOpen'
+	| 'kraken';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
@@ -62,6 +63,9 @@ const SOURCES: Record<SoundName, string> = {
 	// the same game's bonus screen. Both are SPRITE windows; see `SPRITES`.
 	doorClose: staticUrl('sound/door_close.ogg'),
 	doorOpen: staticUrl('sound/door_open.ogg'),
+	// The kraken rising over the rail in Ocean Voyage v2 (rooms/RoomOceanVoyageV2.svelte). A SPRITE
+	// window: the recording runs nearly 13s, and the room is gone long before that.
+	kraken: staticUrl('sound/kraken_sfx.mp3'),
 };
 
 /**
@@ -97,6 +101,13 @@ const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, f
 		 * recording, which is already silent by 1.9s, so there is nothing to fade.
 		 */
 		cannon: [80, 2040],
+		/**
+		 * The kraken's first swell: a rumble under its peek over the rail, the loudest of it from 1.7s
+		 * to 2.3s, which is where it rears up (the room's surge lands at ~1.8s), then riding down as
+		 * the room moves on. The recording swells again from 4.9s and runs to 11s; none of that is
+		 * wanted.
+		 */
+		kraken: [0, 4200, 800],
 	};
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
@@ -124,6 +135,9 @@ const MIX: Record<SoundName, number> = {
 	// The thud is quieter again than the creak — it arrives on top of the word.
 	doorClose: 0.25,
 	doorOpen: 0.5,
+	// Recorded quiet (its loudest stretch is well under the cannon's), and it is the moment the
+	// voyage is lost on, so it plays at full level.
+	kraken: 1,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
