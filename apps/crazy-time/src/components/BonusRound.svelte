@@ -502,18 +502,12 @@
 			opacity: 0.6;
 		}
 	}
-	/* Ocean Voyage v2 has no title frame: the header keeps its place for the Top Slot multiplier
-	   (and the "not in this bonus" banner) but draws neither the timber nor the room's name. */
+	/* Ocean Voyage v2 runs edge to edge under the header, which hangs its title frame over the sky
+	   just as every other room's does. */
 	.helm-layer {
 		position: absolute;
 		inset: 0;
 		z-index: 1;
-	}
-	.screen.helm .plate {
-		background: none;
-	}
-	.screen.helm .title {
-		display: none;
 	}
 	.header {
 		text-align: center;
