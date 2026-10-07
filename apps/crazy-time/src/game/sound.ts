@@ -26,7 +26,8 @@ export type SoundName =
 	| 'win'
 	| 'doorClose'
 	| 'doorOpen'
-	| 'kraken';
+	| 'kraken'
+	| 'shipWheel';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
@@ -66,6 +67,8 @@ const SOURCES: Record<SoundName, string> = {
 	// The kraken rising over the rail in Ocean Voyage v2 (rooms/RoomOceanVoyageV2.svelte). A SPRITE
 	// window: the recording runs nearly 13s, and the room is gone long before that.
 	kraken: staticUrl('sound/kraken_sfx.mp3'),
+	// The ship's wheel creaking round under the player's hands in Ocean Voyage v2. A SPRITE window.
+	shipWheel: staticUrl('sound/ship_wheel_sfx.mp3'),
 };
 
 /**
@@ -108,6 +111,12 @@ const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, f
 		 * wanted.
 		 */
 		kraken: [0, 4200, 800],
+		/**
+		 * One turn's creak: off the recording's 0.2s of silence, through the steady creaking, and down
+		 * before the last knock at 1.9s and the decay after it. The room plays it again as each one
+		 * ends while the wheel is still being turned, so it is the length of a stretch of turning.
+		 */
+		shipWheel: [180, 1700, 300],
 	};
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
@@ -135,9 +144,11 @@ const MIX: Record<SoundName, number> = {
 	// The thud is quieter again than the creak — it arrives on top of the word.
 	doorClose: 0.25,
 	doorOpen: 0.5,
-	// Recorded quiet (its loudest stretch is well under the cannon's), and it is the moment the
-	// voyage is lost on, so it plays at full level.
+	// Recorded quiet, so the file itself carries +6dB (it still peaks near -18dBFS), and it is the
+	// moment the voyage is lost on, so it plays at full level besides.
 	kraken: 1,
+	// Well under everything else: it plays for as long as the wheel is being turned.
+	shipWheel: 0.3,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
@@ -349,6 +360,34 @@ export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 	// `readyState >= HAVE_METADATA` is the point at which a seek will take.
 	if (node.readyState >= 1) start();
 	else node.addEventListener('loadedmetadata', start, { once: true });
+};
+
+/**
+ * Ride a playing SPRITE effect down to silence over `fadeMs` and stop it there, ahead of the end of
+ * its window — for a sound that lasts only as long as something is happening (the ship's wheel
+ * creaking while it is turned). Does nothing to an effect that is not playing. A play of the same
+ * effect during the fade calls the fade off and starts clean, at its proper level.
+ */
+export const fadeOutSound = (name: SoundName, fadeMs = 250): void => {
+	const node = preloaded.get(name);
+	if (!node || !SPRITES[name] || node.paused) return;
+	cancelSprite(name);
+	const full = node.volume;
+	const steps = Math.max(1, Math.round(fadeMs / 30));
+	let step = 0;
+	const ramp = setInterval(() => {
+		step += 1;
+		node.volume = Math.max(0, full * (1 - step / steps));
+		if (step < steps) return;
+		clearInterval(ramp);
+		node.pause();
+		node.volume = full;
+		spriteRuns.delete(name);
+	}, fadeMs / steps);
+	spriteRuns.set(name, () => {
+		clearInterval(ramp);
+		node.volume = full;
+	});
 };
 
 // --- Background music ---------------------------------------------------------------------

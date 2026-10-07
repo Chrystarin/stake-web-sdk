@@ -33,7 +33,7 @@
 	import { onDestroy } from 'svelte';
 	import { TILES_PER_DEPTH } from '../../game/constants';
 	import type { BookEventOceanVoyage } from '../../game/typesBookEvent';
-	import { playSound } from '../../game/sound';
+	import { fadeOutSound, playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
 	import RoomHint from './RoomHint.svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
@@ -63,7 +63,8 @@
 	 * Behind it, and over it as a veil, is black in the box the hole takes up (shares of the cave) —
 	 * the veil pitch black far off, and lifting as the cave comes near, so the treasure is revealed.
 	 */
-	const INSIDE_ASPECT = 941 / 1671;
+	/** How far the skull around the mouth is dimmed when the treasure is revealed. */
+	const SKULL_DIM = 0.45;
 	/** How much of the inside the lifting veil shows on the way to the cave. */
 	const INSIDE_PEEK = 0.3;
 	const INSIDE_W = 0.49;
@@ -80,9 +81,6 @@
 		landscape: { horizon: 0.49, startW: 0.33, startFoot: 0.015, endW: 1.02, endFoot: 0.66 },
 		portrait: { horizon: 0.24, startW: 0.63, startFoot: 0.047, endW: 3.05, endFoot: 0.68 },
 	};
-	/** The line of rows reaches back to the cave's waterline, but never further up than this share of
-	    the way from the horizon down to the bow. */
-	const CAVE_FOOT_MAX = 0.6;
 	/** The barrel's picture, height over width. */
 	const BARREL_ASPECT = 352 / 512;
 	/** The sea picture (its own perspective painted in: its top edge is the far horizon), height over width. */
@@ -103,8 +101,10 @@
 	/** The sky picture, height over width. Its foot stands on the sea's horizon. */
 	const SKY_ASPECT = 597 / 1526;
 	const SKY_PAN = 0.15;
-	/** The deck's picture, and where the ring its wheel sits in is centred in it. */
-	const DECK_PX = { w: 1928, ring: 710, ringY: 690, tip: 250 };
+	/** The deck's picture, and where the ring its wheel sits in is centred in it. `pick` is the row a
+	    barrel's foot comes down to as it is taken: below the tip of the bow's spike (250) and above
+	    the rail (419), so the spike stands over the barrel as it is picked. */
+	const DECK_PX = { w: 1928, ring: 710, ringY: 690, tip: 250, pick: 330 };
 	/** How far a landscape deck is let down below the foot of the screen, as a share of the height. */
 	const DECK_SINK = 0.1;
 	/** How far the sea fades in below the horizon, over the haze at the foot of the sky (layout pixels at 1024 wide). */
@@ -148,6 +148,11 @@
 	/** The wheel's lock, each way, and how far an arrow key turns it a press. */
 	const WHEEL_LOCK = 110;
 	const KEY_NOTCH_DEG = 12;
+	/** How long one creak of the wheel runs (sound.ts's `shipWheel` window, short of its fade); how
+	    long the wheel can sit still before it is taken to have stopped; and the fade it stops on. */
+	const CREAK_MS = 1500;
+	const CREAK_IDLE_MS = 180;
+	const CREAK_FADE_MS = 250;
 	/** What to tell the player at the helm. One line per drain — see `RoomHint`. */
 	const HINT = ['Steer the wheel', 'to pick barrels'];
 	/** The visible foot of BonusRound's title frame, as a share of its box (the rest is glow). */
@@ -197,8 +202,7 @@
 	 * the middle of the screen, and growing — its foot coming down the screen towards the player — to
 	 * its size on the last row, when it is as wide as the screen in landscape and three times that in
 	 * portrait (the sides off the screen, the top behind the title frame). It stands in the sea with
-	 * its waterline at the foot of its mouth; the line of rows reaches back to it, but never further
-	 * up than CAVE_FOOT_MAX of the way from the horizon to the bow, so there is always water for it.
+	 * its waterline at the foot of its mouth; the line of rows reaches back to its bottom edge.
 	 */
 	const caveAt = (p: number) => {
 		const w = W * (layout.startW + (layout.endW - layout.startW) * p);
@@ -206,9 +210,7 @@
 		const foot0 = horizonY + layout.startFoot * H;
 		const foot = foot0 + (layout.endFoot * H - foot0) * p;
 		const top = foot - h;
-		const waterY = top + h * CAVE_MOUTH;
-		const lowest = horizonY + CAVE_FOOT_MAX * (hitY - horizonY);
-		return { w, h, top, waterY, mouthY: Math.min(waterY, lowest) };
+		return { w, h, top, bottom: foot };
 	};
 	/**
 	 * How far the cave has grown (0-1) at `t` seconds: it comes in with the last row of barrels, growing
@@ -217,7 +219,7 @@
 	 * start (`chainFrom` the cave's first foot), since the line itself closes up as the cave comes in.
 	 */
 	const approach = (t: number) => {
-		const { r } = chainFrom(caveAt(0).mouthY);
+		const { r } = chainFrom(caveAt(0).bottom);
 		const last = depths - 1;
 		const at = (time: number) => r ** ((rowStart(last) + TRAVEL_SECONDS - time) / ROW_SECONDS);
 		const from = at(0);
@@ -235,32 +237,20 @@
 	const cave = $derived(caveAt(grow));
 
 	/**
-	 * The way into the treasure: with the last gate open — the voyage's top multiplier — the skull
-	 * fades away and the inside of the cave grows from its mouth to fill the screen, the whole of it
-	 * shown at last (0 to 1, over the scene's settling).
+	 * The treasure revealed: with the last gate open — the voyage's top multiplier — the inside of the
+	 * cave comes all the way out of the dark, and the skull around it is dimmed so the eye goes to
+	 * what is in its mouth (0 to 1, over the scene's settling).
 	 */
-	const zoom = $derived.by(() => {
+	const reveal = $derived.by(() => {
 		if (ended === 'port') return 1;
 		if (!settling) return 0;
 		return dock * dock * (3 - 2 * dock);
 	});
 	/** The veil over the inside of the cave: pitch black far off, and lifting as the cave comes near —
-	    but only so far (INSIDE_PEEK); the rest of it lifts only on the way in. */
+	    but only so far (INSIDE_PEEK); the rest of it lifts only with the treasure revealed. */
 	const veil = $derived.by(() => {
 		const t = clamp((grow - 0.15) / 0.8, 0, 1);
-		return (1 - INSIDE_PEEK * t * t * (3 - 2 * t)) * (1 - zoom);
-	});
-	/** The inside of the cave, where it stands in the mouth, and where it ends up: the whole picture, as
-	    big as fits the screen (above the wheel, in portrait). */
-	const insideRect = $derived.by(() => {
-		const w = INSIDE_W * cave.w;
-		const h = w * INSIDE_ASPECT;
-		const from = { x: caveLeft + (INSIDE_CX - INSIDE_W / 2) * cave.w, y: cave.top + cave.h - h, w, h };
-		const tw = Math.min(W, H / INSIDE_ASPECT);
-		const th = tw * INSIDE_ASPECT;
-		const to = { x: (W - tw) / 2, y: (portrait ? H * 0.4 : H / 2) - th / 2, w: tw, h: th };
-		const mix = (a: number, b: number) => a + (b - a) * zoom;
-		return { x: mix(from.x, to.x), y: mix(from.y, to.y), w: mix(from.w, to.w), h: mix(from.h, to.h) };
+		return (1 - INSIDE_PEEK * t * t * (3 - 2 * t)) * (1 - reveal);
 	});
 	/** The horizon, down the screen: the sky stands on it, the sea runs from it, the cave starts on it. */
 	const horizonY = $derived(H * layout.horizon);
@@ -292,8 +282,8 @@
 	const gateH = $derived(gateW * BARREL_ASPECT);
 	const pitch = $derived(PW * (portrait ? 0.4 : 0.3));
 	const cx = $derived(W / 2);
-	/** A row is opened as its barrels' feet come right up to the tip of the deck's bow. */
-	const hitY = $derived(deckTop + DECK_PX.tip * deckScale - 4);
+	/** A row is opened as its barrels' feet come in under the deck's bow, the spike over them. */
+	const hitY = $derived(deckTop + DECK_PX.pick * deckScale);
 	/** The sky stands on the sea (its foot under the sea's fade), wide enough to fill the screen above
 	    it however far it is panned. */
 	const sky = $derived.by(() => {
@@ -328,10 +318,11 @@
 	let reached = $state(0);
 	let kraken = $state<{ depth: number; tile: number } | null>(null);
 	let ended = $state<'kraken' | 'port' | null>(null);
-	/** The gate of the row just opened, for its flash. */
-	let opened = $state<{ depth: number; tile: number } | null>(null);
+	/** The gate taken in each row opened so far (row -> lane): it flashes and is gone, and stays gone —
+	    the rest of its row sink away (`.gone`), and it must never be taken for one of them. */
+	let taken = $state<Record<number, number>>({});
 	/** Multipliers just collected, each floating up off the gate it came from. */
-	type Pop = { id: number; value: number; x: number; y: number; last: boolean };
+	type Pop = { id: number; value: number; x: number; y: number };
 	let pops = $state<Pop[]>([]);
 	let popId = 0;
 	/** True while the voyage is under way. */
@@ -354,16 +345,17 @@
 	 * the top of a barrel never reaches the foot of the one behind: each is smaller than the one in
 	 * front, the gaps close up with distance the way they do far off, and none overlaps another.
 	 *
-	 * The line reaches back no further than the cave's foot (the bottom middle of its mouth), so as the
-	 * cave comes in the rows behind close up (`r` falls; at the very end, with the cave at the bow and
-	 * no room left, the last rows may touch). Each row still comes to the bow exactly when it always
+	 * The line reaches back no further than the bottom edge of the cave, so no barrel is ever laid over
+	 * it (and the cave stands in front of the barrels besides): as the cave comes in the rows behind
+	 * close up (`r` falls; at the very end, with the cave at the bow and no room left, the last rows
+	 * may touch). Each row still comes to the bow exactly when it always
 	 * has, ROW_SECONDS after the one before it.
 	 */
 	const chainFrom = (footY: number) => {
 		const reach = Math.max(gateH * 0.5, hitY - footY - gateH * 0.05);
 		return { reach, r: clamp(1 - ((1 + ROW_GAP) * gateH) / reach, ROW_SHRINK_MIN, 0.95) };
 	};
-	const rowChain = $derived(chainFrom(cave.mouthY));
+	const rowChain = $derived(chainFrom(cave.bottom));
 	/** Where row `i` is and how big, as a share of its size at the bow. */
 	const rowAt = (i: number) => {
 		const n = (rowStart(i) + TRAVEL_SECONDS - T) / ROW_SECONDS;
@@ -407,7 +399,7 @@
 	const finished = new Promise<void>((resolve) => (finish = resolve));
 
 	const open = (depth: number, tile: number) => {
-		opened = { depth, tile };
+		taken = { ...taken, [depth]: tile };
 		if (depth >= room.dived) {
 			// The row the book ends the voyage at: whichever gate is at the middle, the kraken is behind it.
 			kraken = { depth, tile };
@@ -419,13 +411,13 @@
 			});
 			return;
 		}
-		const id = popId++;
-		pops = [
-			...pops,
-			{ id, value: room.depths[depth], x: cx, y: hitY - gateH * 0.55, last: depth === depths - 1 },
-		];
-		// The last one stays up for the win line; the rest are gone once they have floated off.
-		if (depth < depths - 1) void waitForTimeout(POP_MS + 100).then(() => (pops = pops.filter((q) => q.id !== id)));
+		// Each row's multiplier floats up and away — all but the last, the voyage's total, which is left
+		// to the end result (BonusRound's win line) rather than hung at the cave.
+		if (depth < depths - 1) {
+			const id = popId++;
+			pops = [...pops, { id, value: room.depths[depth], x: cx, y: hitY - gateH * 0.55 }];
+			void waitForTimeout(POP_MS + 100).then(() => (pops = pops.filter((q) => q.id !== id)));
+		}
 		reached = depth + 1;
 		playSound('pop', 1 + depth * 0.04);
 		if (reached >= depths) {
@@ -535,9 +527,39 @@
 		if (d > 180) d -= 360;
 		if (d < -180) d += 360;
 		lastAngle = a;
+		const before = wheelDeg;
 		wheelDeg = clamp(wheelDeg + d, -WHEEL_LOCK, WHEEL_LOCK);
+		if (Math.abs(wheelDeg - before) > 0.5) creak();
 	};
-	const release = () => (dragging = false);
+	const release = () => {
+		dragging = false;
+		creakStop();
+	};
+
+	/**
+	 * The wheel creaks while the player turns it: one creak at a time, played again as each runs out
+	 * (`CREAK_MS`) rather than restarted on every movement of the hand — and faded out early the
+	 * moment the wheel stops (let go, or no movement for CREAK_IDLE_MS), so it never creaks on after
+	 * the hand has stopped. Not for the wheel turning by itself — only a player's turn.
+	 */
+	let creakAt = -Infinity;
+	let creakIdle: ReturnType<typeof setTimeout> | undefined;
+	const creak = () => {
+		const now = performance.now();
+		if (now - creakAt >= CREAK_MS) {
+			creakAt = now;
+			playSound('shipWheel');
+		}
+		clearTimeout(creakIdle);
+		creakIdle = setTimeout(creakStop, CREAK_IDLE_MS);
+	};
+	const creakStop = () => {
+		clearTimeout(creakIdle);
+		if (creakAt === -Infinity) return;
+		creakAt = -Infinity;
+		fadeOutSound('shipWheel', CREAK_FADE_MS);
+	};
+	onDestroy(creakStop);
 
 	const keyOf = (event: KeyboardEvent) =>
 		event.key === 'ArrowLeft' || event.key === 'a' || event.key === 'A'
@@ -549,7 +571,9 @@
 		const d = keyOf(event);
 		if (!d || !hands) return;
 		// A press (and each repeat of a held key) turns the wheel a notch.
+		const before = wheelDeg;
 		wheelDeg = clamp(wheelDeg + d * KEY_NOTCH_DEG, -WHEEL_LOCK, WHEEL_LOCK);
+		if (wheelDeg !== before) creak();
 		steered = true;
 		event.preventDefault();
 	};
@@ -595,7 +619,7 @@
 		     its mouth, the treasure cave inside — black far off, and only ever partly seen on the way. -->
 		<div
 			class="cave"
-			style="left:{caveLeft}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; opacity:{(1 - zoom).toFixed(3)}; --sink:{CAVE_SINK * 100}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
+			style="left:{caveLeft}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; --sink:{CAVE_SINK * 100}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
 		>
 			<div class="cave-dark"></div>
 			<img
@@ -606,7 +630,13 @@
 				style="width:{INSIDE_W * 100}%; left:{(INSIDE_CX - INSIDE_W / 2) * 100}%"
 			/>
 			<div class="cave-dark" style="opacity:{veil.toFixed(3)}"></div>
-			<img class="cave-front" src={CAVE} alt="" draggable="false" style="filter:brightness({litAt(grow).toFixed(3)})" />
+			<img
+				class="cave-front"
+				src={CAVE}
+				alt=""
+				draggable="false"
+				style="filter:brightness({(litAt(grow) * (1 - SKULL_DIM * reveal)).toFixed(3)})"
+			/>
 		</div>
 
 		<!-- The gates, on a layer of their own: a row that came out of the cave earlier is nearer, so it
@@ -618,7 +648,7 @@
 					{@const done = depth < reached || kraken?.depth === depth}
 					{#each Array.from({ length: cols }, (_, t) => t) as tile (tile)}
 						{@const wreck = kraken?.depth === depth && kraken.tile === tile}
-						{@const chosen = opened?.depth === depth && opened.tile === tile}
+						{@const chosen = taken[depth] === tile}
 						<div
 							class="gate"
 							class:wreck
@@ -635,18 +665,6 @@
 				{/if}
 			{/each}
 		</div>
-
-		<!-- The way in, once the top multiplier is reached: the inside of the cave grows from the mouth to
-		     fill the screen, coming out of the dark as it goes, over a black that hides the sea behind it. -->
-		{#if zoom > 0}
-			<div class="zoom-dark" style="opacity:{zoom.toFixed(3)}"></div>
-			<div
-				class="inside-zoom"
-				style="left:{insideRect.x.toFixed(1)}px; top:{insideRect.y.toFixed(1)}px; width:{insideRect.w.toFixed(1)}px; height:{insideRect.h.toFixed(1)}px; opacity:{Math.min(1, zoom * 3).toFixed(3)}"
-			>
-				<img src={INSIDE} alt="" draggable="false" style="filter:brightness({(1 - (1 - INSIDE_PEEK) * (1 - zoom)).toFixed(3)})" />
-			</div>
-		{/if}
 
 		<!-- The kraken, when it comes: up from behind the deck, the night closing in behind it. -->
 		{#if kraken}
@@ -666,7 +684,7 @@
 	<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px" />
 
 	{#each pops as pop (pop.id)}
-		<div class="pop mult-badge" class:last={pop.last} style="left:{pop.x}px; top:{pop.y}px; --rise:{H * 0.22}px; --pop-ms:{POP_MS}ms">
+		<div class="pop mult-badge" style="left:{pop.x}px; top:{pop.y}px; --rise:{H * 0.22}px; --pop-ms:{POP_MS}ms">
 			<span class="mult-stroke" aria-hidden="true">{pop.value}x</span>
 			<span class="mult-fill">{pop.value}x</span>
 		</div>
@@ -676,13 +694,13 @@
 	     title frame. -->
 	<div class="caption" style="top:{plateFoot.toFixed(1)}px">
 		{#if ended === 'kraken'}
-			<RoomHint size="2.6vw" portraitSize="7.4vw">Kraken at stop {(kraken?.depth ?? 0) + 1}</RoomHint>
-		{:else if ended === 'port'}
-			<RoomHint size="2.6vw" portraitSize="7.4vw">Made port</RoomHint>
-		{:else if interactive}
-			<RoomHint lines={HINT} shown={!steered} size="2.6vw" portraitSize="7.4vw" />
-		{:else}
-			<RoomHint lines={['Sailing on']} size="2.6vw" portraitSize="7.4vw" />
+			<RoomHint size="2.6vw" portraitSize="7.4vw">Kraken encountered!</RoomHint>
+		{:else if !kraken && reached < depths}
+			{#if interactive}
+				<RoomHint lines={HINT} shown={!steered} size="2.6vw" portraitSize="7.4vw" />
+			{:else}
+				<RoomHint lines={['Sailing on']} size="2.6vw" portraitSize="7.4vw" />
+			{/if}
 		{/if}
 	</div>
 
@@ -782,6 +800,9 @@
 	/* The whole cave — the front and what is seen through its mouth — fades into the sea at its foot. */
 	.cave {
 		position: absolute;
+		/* In front of the barrels (`.gates`, 2): none of them is ever laid over the cave. Under the
+		   kraken and its darkness, which come after it at this level. */
+		z-index: 3;
 		pointer-events: none;
 		mask-image: linear-gradient(180deg, #000 var(--sink), transparent 100%);
 		-webkit-mask-image: linear-gradient(180deg, #000 var(--sink), transparent 100%);
@@ -809,24 +830,6 @@
 		top: var(--hole-t);
 		height: var(--hole-h);
 		background: #000;
-	}
-	/* Over the gates, under the deck and the multiplier. */
-	.zoom-dark {
-		position: absolute;
-		inset: 0;
-		z-index: 3;
-		background: #000;
-		pointer-events: none;
-	}
-	.inside-zoom {
-		position: absolute;
-		z-index: 3;
-		pointer-events: none;
-	}
-	.inside-zoom img {
-		display: block;
-		width: 100%;
-		height: 100%;
 	}
 	.sea {
 		position: absolute;
@@ -868,10 +871,14 @@
 		transform-origin: 50% 85%;
 		animation: bob 2400ms linear calc(var(--bob) * -340ms) infinite;
 	}
+	/* Stood on the gate's foot at the gate's width. */
 	.barrel {
+		position: absolute;
+		left: 0;
+		bottom: 0;
 		display: block;
 		width: 100%;
-		height: 100%;
+		height: auto;
 		transition: filter 200ms ease-out;
 		/* Dark far off, coming into its colours as it comes near (`--lit`). */
 		filter: brightness(calc(0.85 * var(--lit, 1))) drop-shadow(0 calc(var(--gw) * 0.03) calc(var(--gw) * 0.04) rgba(0, 20, 40, 0.5));
@@ -908,8 +915,20 @@
 	.gate.near .barrel {
 		filter: brightness(calc(1.15 * var(--lit, 1)));
 	}
-	.gate.gone {
-		opacity: 0 !important;
+	/* The rest of a row once its barrel is taken: they sink and fade as they float on in under the
+	   deck. */
+	.gate.gone .barrel {
+		animation: drift-away 900ms ease-in forwards;
+	}
+	@keyframes drift-away {
+		from {
+			transform: translateY(0);
+			opacity: 1;
+		}
+		to {
+			transform: translateY(45%);
+			opacity: 0;
+		}
 	}
 	/* The chosen barrel flashes and is gone, so the multiplier — or the kraken, which stays — is all
 	   that is left where it stood. */
@@ -996,8 +1015,7 @@
 	}
 
 	/* A multiplier collected: it pops up glowing where the gate opened and floats up and away, as if
-	   gathered. It carries the game's own multiplier lettering (`.mult-badge`). The last one of a
-	   voyage stays up, glowing, for the win line. */
+	   gathered. It carries the game's own multiplier lettering (`.mult-badge`). */
 	.pop {
 		position: absolute;
 		z-index: 6;
@@ -1008,9 +1026,6 @@
 		filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.016) rgba(255, 220, 90, 1))
 			drop-shadow(0 0 calc(var(--voyage-w) * 0.04) rgba(255, 180, 40, 0.85));
 		animation: collect var(--pop-ms) cubic-bezier(0.2, 0.7, 0.3, 1) both;
-	}
-	.pop.last {
-		animation: collect-last 700ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
 	}
 	@keyframes collect {
 		0% {
@@ -1028,16 +1043,6 @@
 		100% {
 			transform: translate(-50%, calc(-50% - var(--rise))) scale(0.9);
 			opacity: 0;
-		}
-	}
-	@keyframes collect-last {
-		0% {
-			transform: translate(-50%, -50%) scale(0.3);
-			opacity: 0;
-		}
-		100% {
-			transform: translate(-50%, calc(-50% - var(--rise) * 0.4)) scale(1.3);
-			opacity: 1;
 		}
 	}
 
