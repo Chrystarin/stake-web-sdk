@@ -95,7 +95,7 @@
 	 */
 	const FLOW_ASPECT = 1536 / 1024;
 	const FLOW_TILE = 0.3;
-	const FLOW_SECONDS = 18;
+	const FLOW_SECONDS = 36;
 	const FLOW_FADE = 0.45;
 	/** The sky picture, height over width. Its foot stands on the sea's horizon. */
 	const SKY_ASPECT = 597 / 1526;
@@ -111,8 +111,14 @@
 	const START_MS = 900;
 	/** How long a collected multiplier floats up before it fades. */
 	const POP_MS = 1500;
-	/** The kraken's beat before the screen moves on. */
-	const SINK_MS = 1300;
+	/** The kraken's coming (`.kraken`'s animation: a peek, a sink, a surge), and its beat before the
+	    screen moves on, which waits for all of it. */
+	const KRAKEN_MS = 2150;
+	const SINK_MS = KRAKEN_MS + 500;
+	/** Where its eyes end, as a share of its picture's height: the peek shows it down to here. */
+	const KRAKEN_EYES = 0.44;
+	/** The top of the deck's rail at its middle, in the deck picture's pixels. */
+	const DECK_RAIL = 419;
 	const END_HOLD_MS = 900;
 
 	/** Seconds between one row reaching the bow and the next, and before the first one does (after LEAD_SECONDS). */
@@ -300,11 +306,20 @@
 		return { w, h: w * FLOW_ASPECT, spare: pitch * SEA_PAN + 8 };
 	});
 
-	/** The kraken takes up the whole height in landscape and the whole width in portrait. */
+	/** The kraken takes up the whole height in landscape and the whole width in portrait, standing low
+	    enough that the title frame does not cover its head. */
 	const krakenSize = $derived(portrait ? W : H);
-	const krakenY = $derived(portrait ? H * 0.45 : H / 2);
-	/** How far it rises: from wholly below the foot of the screen to where it stands. */
-	const krakenRise = $derived(H - (krakenY - krakenSize / 2));
+	const krakenY = $derived(portrait ? H * 0.52 : H * 0.6);
+	/**
+	 * How far below where it stands it starts (wholly under the foot of the screen), and how far
+	 * below it it peeks from: just its eyes showing over whatever stands highest in front of it — the
+	 * rail, or the wheel set into it.
+	 */
+	const krakenHide = $derived(H - (krakenY - krakenSize / 2));
+	const krakenPeek = $derived.by(() => {
+		const line = Math.min(deckTop + DECK_RAIL * deckScale, H - wheelW / 2) - 4;
+		return line - KRAKEN_EYES * krakenSize - (krakenY - krakenSize / 2);
+	});
 
 	/** Rows opened so far. */
 	let reached = $state(0);
@@ -627,14 +642,15 @@
 		</div>
 	{/if}
 
-	<!-- The kraken, when it comes: up from behind the deck. -->
+	<!-- The kraken, when it comes: up from behind the deck, the night closing in behind it. -->
 	{#if kraken}
+		<div class="kraken-dark"></div>
 		<img
 			class="kraken"
 			src={KRAKEN}
 			alt=""
 			draggable="false"
-			style="width:{krakenSize}px; height:{krakenSize}px; left:{cx}px; top:{krakenY}px; --rise:{krakenRise.toFixed(1)}px"
+			style="width:{krakenSize}px; height:{krakenSize}px; left:{cx}px; top:{krakenY}px; --hide:{krakenHide.toFixed(1)}px; --peek:{krakenPeek.toFixed(1)}px; --kraken-ms:{KRAKEN_MS}ms"
 		/>
 	{/if}
 
@@ -668,6 +684,7 @@
 		class="helm"
 		class:hands
 		class:dragging
+		class:steered
 		bind:this={helmEl}
 		role="slider"
 		tabindex={hands ? 0 : -1}
@@ -887,10 +904,11 @@
 		z-index: 100 !important;
 	}
 	/*
-	 * The kraken, when it comes: it slides up from below the foot of the screen, behind the deck, and
-	 * rears over the rail to fill the screen — its whole height in landscape, its whole width in
-	 * portrait — over the sea and the barrels, but with the deck and the wheel still in front of it.
-	 * It is a square picture, so the size is the one number.
+	 * The kraken, when it comes: it creeps up from below the foot of the screen, behind the deck, until
+	 * its eyes are over the rail, sinks back out of sight, and then rears up all at once to fill the
+	 * screen — its whole height in landscape, its whole width in portrait — over the sea and the
+	 * barrels, but with the deck and the wheel still in front of it. It is a square picture, so the
+	 * size is the one number.
 	 */
 	.kraken {
 		position: absolute;
@@ -898,13 +916,48 @@
 		pointer-events: none;
 		transform: translate(-50%, -50%);
 		filter: drop-shadow(0 calc(var(--voyage-w) * 0.01) calc(var(--voyage-w) * 0.03) rgba(0, 0, 0, 0.6));
-		animation: kraken-rise 900ms cubic-bezier(0.2, 0.9, 0.3, 1.08) both;
+		animation: kraken-rise var(--kraken-ms) both;
 	}
-	@keyframes kraken-rise {
+	/* Up slowly behind the deck until its eyes are over the rail, a look, back down slowly out of
+	   sight, a beat — then up all at once. */
+	/* Over the sea, the sky, the cave and the barrels, under the kraken (which comes after it at the
+	   same level) and the deck. */
+	.kraken-dark {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		pointer-events: none;
+		background: radial-gradient(ellipse at 50% 60%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.8));
+		animation: kraken-dark 600ms ease-out both;
+	}
+	@keyframes kraken-dark {
 		from {
-			transform: translate(-50%, -50%) translateY(var(--rise));
+			opacity: 0;
 		}
 		to {
+			opacity: 1;
+		}
+	}
+	@keyframes kraken-rise {
+		0% {
+			transform: translate(-50%, -50%) translateY(var(--hide));
+			animation-timing-function: cubic-bezier(0.25, 0.6, 0.35, 1);
+		}
+		46% {
+			transform: translate(-50%, -50%) translateY(var(--peek));
+		}
+		56% {
+			transform: translate(-50%, -50%) translateY(var(--peek));
+			animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.6);
+		}
+		79% {
+			transform: translate(-50%, -50%) translateY(var(--hide));
+		}
+		84% {
+			transform: translate(-50%, -50%) translateY(var(--hide));
+			animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.1);
+		}
+		100% {
 			transform: translate(-50%, -50%);
 		}
 	}
@@ -1009,8 +1062,9 @@
 	.helm.dragging .wheel {
 		transition: none;
 	}
-	/* Asked to be turned: a faint swell of light round it while it waits for a hand. */
-	.helm.hands:not(.dragging) .wheel {
+	/* Asked to be turned: a faint swell of light round it while it waits for a hand — only until the
+	   player has first taken it. */
+	.helm.hands:not(.dragging):not(.steered) .wheel {
 		animation: invite 1400ms ease-in-out infinite alternate;
 	}
 	@keyframes invite {
