@@ -1,5 +1,8 @@
 <script lang="ts">
 	/**
+	 * NO LONGER MOUNTED: every Ocean Voyage now plays at the ship's wheel (RoomOceanVoyageV2), on the
+	 * same books. Kept for reference — VoyageReveal still draws its wreck the way `capsize` here does.
+	 *
 	 * Ocean Voyage room: ten stops of three buoys between the harbour at the foot of the board and
 	 * the island at its head. The ship sails up the board one stop at a time, to whichever buoy is
 	 * chosen at each; a buoy it reaches safely turns into an island with the stop's multiplier on

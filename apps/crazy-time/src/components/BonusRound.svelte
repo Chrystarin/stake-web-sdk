@@ -11,8 +11,6 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { stateGame } from '../game/stateGame.svelte';
-	import { voyageVersion } from '../game/voyageVersion.svelte';
 	import { SPOT_LABEL, SPOT_COLOUR, type RoomSpot, type Spot } from '../game/constants';
 	import type { BookEventRoom } from '../game/typesBookEvent';
 	import { playSound, setMusicScene } from '../game/sound';
@@ -23,7 +21,6 @@
 	import RoomPiratePlinko from './rooms/RoomPiratePlinko.svelte';
 	import RoomBonusWheel from './rooms/RoomBonusWheel.svelte';
 	import RoomChest from './rooms/RoomChest.svelte';
-	import RoomOceanVoyage from './rooms/RoomOceanVoyage.svelte';
 	import RoomOceanVoyageV2 from './rooms/RoomOceanVoyageV2.svelte';
 	import MultiplierBurst from './rooms/MultiplierBurst.svelte';
 
@@ -82,8 +79,9 @@
 	const context = getContext();
 
 	/**
-	 * `helm`: the Ocean Voyage played at the wheel (v2). Only a voyage the player BOUGHT with the Buy
-	 * Bonus screen's v2 button is; the wheel's own landing, and any replay, is the original.
+	 * `helm`: the Ocean Voyage, played at the ship's wheel (RoomOceanVoyageV2) — however it came up:
+	 * the wheel landing on it, a buy, or a replay (which sails itself, as a room the player was not in
+	 * does).
 	 */
 	let current = $state<{ room: BookEventRoom; covered: boolean; helm: boolean } | null>(null);
 	/**
@@ -243,12 +241,7 @@
 			onOpenChange?.(true);
 			result = null;
 			closing = false;
-			const helm =
-				event.room.type === 'oceanVoyageRoom' &&
-				voyageVersion.v2 &&
-				stateGame.buying === 'buy_ov' &&
-				!isReplay();
-			voyageVersion.v2 = false;
+			const helm = event.room.type === 'oceanVoyageRoom';
 			current = { room: event.room, covered: event.covered, helm };
 			// The table track rides out under the door and the room's own comes up behind it.
 			setMusicScene(spotFor(event.room));
@@ -335,7 +328,7 @@
 			{/if}
 		</div>
 
-		<div class="stage" class:over-plaque={current.room.type === 'oceanVoyageRoom'}>
+		<div class="stage">
 			{#if current.room.type === 'piratePlinkoRoom'}
 				<RoomPiratePlinko
 					bind:this={roomApi}
@@ -348,13 +341,11 @@
 				<RoomBonusWheel bind:this={roomApi} room={current.room} interactive={handsOn} />
 			{:else if current.room.type === 'chestRoom'}
 				<RoomChest bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
-			{:else if !current.helm}
-				<RoomOceanVoyage bind:this={roomApi} room={current.room} interactive={handsOn} {portrait} />
 			{/if}
 		</div>
 
-		<!-- Ocean Voyage v2 takes the whole screen, under the header's multiplier and above the
-		     backdrop, rather than the stage: its sea runs edge to edge. -->
+		<!-- Ocean Voyage takes the whole screen, under the header's multiplier and above the backdrop,
+		     rather than the stage: its sea runs edge to edge. -->
 		{#if current.helm && current.room.type === 'oceanVoyageRoom'}
 			<div class="helm-layer">
 				<RoomOceanVoyageV2
@@ -371,7 +362,6 @@
 		<div
 			class="footer"
 			class:folded={current.room.type === 'piratePlinkoRoom'}
-			class:over-stage={current.room.type === 'oceanVoyageRoom'}
 		></div>
 
 		{#if introShown}
@@ -478,12 +468,6 @@
 	.header {
 		z-index: 2;
 	}
-	/* The one room that stands something ON the plaque rather than behind it: Ocean Voyage hangs
-	   its caption off the bottom of the sign, over the rope. Nothing else in that room reaches the
-	   header, so the whole stage can go over it. */
-	.stage.over-plaque {
-		z-index: 3;
-	}
 	@keyframes screen-in {
 		from {
 			transform: translateY(-100%);
@@ -502,8 +486,8 @@
 			opacity: 0.6;
 		}
 	}
-	/* Ocean Voyage v2 runs edge to edge under the header, which hangs its title frame over the sky
-	   just as every other room's does. */
+	/* Ocean Voyage runs edge to edge under the header, which hangs its title frame over the sky just
+	   as every other room's does. */
 	.helm-layer {
 		position: absolute;
 		inset: 0;
@@ -686,22 +670,5 @@
 	/* Pirate Plinko folds its footer away entirely, so there is nothing to lift off the rail. */
 	:global(.game.portrait) .footer.folded {
 		margin-bottom: 0;
-	}
-	/* Ocean Voyage stretches its board down the whole stage in portrait, and a footer row under it
-	   was a band of empty water for all but the last second of the round. So the stage runs down to
-	   the rail and the win line lands over the foot of the board instead — the harbour strip, which
-	   the ship has left by the time there is a win to show. Over the stage, since the stage itself
-	   stands over the header; and never in the way of a buoy while it is invisible. */
-	:global(.game.portrait) .stage.over-plaque {
-		margin-bottom: var(--rail-h, 0px);
-	}
-	:global(.game.portrait) .footer.over-stage {
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: calc(1.4vw + var(--rail-h, 0px));
-		margin-bottom: 0;
-		z-index: 4;
-		pointer-events: none;
 	}
 </style>

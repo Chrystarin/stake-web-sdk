@@ -1,8 +1,8 @@
 <script lang="ts">
 	/**
-	 * Ocean Voyage v2: the same voyage, steered with the ship's wheel. Played only when it is bought
-	 * with the Buy Bonus screen's v2 button (see `voyageVersion`); the wheel's own landings and every
-	 * replay play the original, RoomOceanVoyage.
+	 * Ocean Voyage, steered with the ship's wheel — the room for every Ocean Voyage: the wheel landing
+	 * on it, a buy, and a replay (which sails itself). It replaced the original board voyage
+	 * (RoomOceanVoyage), and plays the same books.
 	 *
 	 * The skull cave stands in the sea at the top of the screen and grows as the voyage goes on, until
 	 * it is wider than the viewport. Ten rows of three barrels lie out on the water between it and the

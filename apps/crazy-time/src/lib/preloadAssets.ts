@@ -127,12 +127,18 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/treasure_chest/chest_close.webp',
 	'img/treasure_chest/chest_open.webp',
 
-	// ── Ocean Voyage (RoomOceanVoyage.svelte) ────────────────────────────────────────────────────
-	// (The ship is the room's wheel icon, already in the ROOM_ICON row above.)
+	// ── Ocean Voyage (RoomOceanVoyageV2.svelte) ──────────────────────────────────────────────────
+	// The clouds on the seam as the wheel's ship sails the player in (VoyageReveal.svelte).
 	'img/ocean-voyage/divider.webp',
+	'img/ocean-voyage/sky_night.webp',
+	'img/ocean-voyage/sea_night.webp',
+	'img/ocean-voyage/sea_overlay.webp',
+	'img/ocean-voyage/skull_cave_v2.webp',
+	'img/ocean-voyage/inside_cave.webp',
+	'img/ocean-voyage/barrel.webp',
+	'img/ocean-voyage/ship_deck.webp',
+	'img/ocean-voyage/wheel.webp',
 	'img/ocean-voyage/kraken.png',
-	'img/ocean-voyage/island.png',
-	'img/ocean-voyage/goal.png',
 ];
 
 /**

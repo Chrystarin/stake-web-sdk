@@ -53,8 +53,7 @@
 		 */
 		exit?: 'slide' | 'fade';
 		onClose: () => void;
-		/** `v2` is the Ocean Voyage card's small button: the same buy, played at the helm. */
-		onActivate: (mode: string, v2?: boolean) => void;
+		onActivate: (mode: string) => void;
 	};
 	const props: Props = $props();
 
@@ -238,9 +237,9 @@
 		props.onClose();
 	}
 
-	function activate(mode: string, v2 = false) {
+	function activate(mode: string) {
 		if (props.disabled || !affordable(mode)) return;
-		props.onActivate(mode, v2);
+		props.onActivate(mode);
 	}
 
 	/**
@@ -251,16 +250,16 @@
 	const ACTIVATE_TRAILING_CLICK_WINDOW_MS = 800;
 	let lastPointerActivateAt = -Infinity;
 
-	function onActivatePointerDown(event: PointerEvent, mode: string, v2 = false) {
+	function onActivatePointerDown(event: PointerEvent, mode: string) {
 		if (!event.isPrimary) return;
 		if (event.pointerType === 'mouse' && event.button !== 0) return;
 		lastPointerActivateAt = performance.now();
-		activate(mode, v2);
+		activate(mode);
 	}
 
-	function onActivateClick(mode: string, v2 = false) {
+	function onActivateClick(mode: string) {
 		if (performance.now() - lastPointerActivateAt < ACTIVATE_TRAILING_CLICK_WINDOW_MS) return;
-		activate(mode, v2);
+		activate(mode);
 	}
 </script>
 
@@ -383,19 +382,6 @@
 								<img class="bb-activate-bg bb-activate-bg--hover" src={staticUrl('img/buy-bonus/buy_bonus_button_hover.webp')} alt="" aria-hidden="true" />
 								<span class="bb-activate-text">Activate</span>
 							</button>
-							{#if mode === 'buy_ov'}
-								<!-- The same buy, played at the helm: the ship sails itself and the wheel steers it. -->
-								<button
-									type="button"
-									class="bb-v2"
-									disabled={props.disabled || !affordable(mode)}
-									aria-label="Activate Ocean Voyage v2"
-									onpointerdown={(event) => onActivatePointerDown(event, mode, true)}
-									onclick={() => onActivateClick(mode, true)}
-								>
-									v2
-								</button>
-							{/if}
 						</div>
 					</div>
 				{/each}
@@ -1625,37 +1611,5 @@
 				--ui-px: calc(var(--bb-card-w) / 320);
 			}
 		}
-	}
-
-	/* Ocean Voyage's small v2 button: tucked in the card's top corner, out of the way of the real Activate. */
-	.bb-v2 {
-		position: absolute;
-		top: 0;
-		right: 0;
-		min-width: calc(40 * var(--ui-px));
-		padding: calc(3 * var(--ui-px)) calc(10 * var(--ui-px));
-		border: calc(2 * var(--ui-px)) solid rgba(255, 230, 150, 0.85);
-		border-radius: 999px;
-		background: linear-gradient(180deg, #2f8fd1, #14507f);
-		color: #fff;
-		font-family: inherit;
-		font-size: calc(14 * var(--ui-px));
-		font-weight: 800;
-		letter-spacing: 0.04em;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-		cursor: pointer;
-		touch-action: manipulation;
-		-webkit-tap-highlight-color: transparent;
-		z-index: 2;
-	}
-	.bb-v2:hover:not(:disabled) {
-		filter: brightness(1.15);
-	}
-	.bb-v2:active:not(:disabled) {
-		transform: scale(0.94);
-	}
-	.bb-v2:disabled {
-		opacity: 0.5;
-		cursor: default;
 	}
 </style>

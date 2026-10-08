@@ -63,7 +63,6 @@
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
 	import BuyBonusModal from './BuyBonusModal.svelte';
-	import { voyageVersion } from '../game/voyageVersion.svelte';
 	import ConfirmPromptModal from './ConfirmPromptModal.svelte';
 	import HudMenuPopup from './HudMenuPopup.svelte';
 	import InfoModal from './InfoModal.svelte';
@@ -2246,18 +2245,15 @@
 	/** The Yes/No prompt before a buy is off for now: Activate starts the buy at once. */
 	const CONFIRM_BUY = false;
 
-	const handleBuyActivate = (mode: string, v2 = false) => {
+	const handleBuyActivate = (mode: string) => {
 		if (!CONFIRM_BUY) {
-			void startBuy(mode, v2);
+			void startBuy(mode);
 			return;
 		}
-		requestConfirmPrompt('buyBonus', () => startBuy(mode, v2));
+		requestConfirmPrompt('buyBonus', () => startBuy(mode));
 	};
 
-	const startBuy = async (mode: string, v2 = false) => {
-		// Ocean Voyage's v2 button asks for the helm version of this buy; every other buy, and a
-		// wheel landing, plays the original (BonusRound reads this when the room goes up).
-		voyageVersion.v2 = v2 && mode === 'buy_ov';
+	const startBuy = async (mode: string) => {
 		// A single room waits for its book on the Buy Bonus screen (`buyWaiting`); Random Bonus is
 		// played out on the table, so its screen goes now.
 		const direct = !usesBuyDisc(mode);
