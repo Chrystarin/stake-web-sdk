@@ -139,6 +139,14 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/ocean-voyage/ship_deck.webp',
 	'img/ocean-voyage/wheel.webp',
 	'img/ocean-voyage/kraken.png',
+	// The splash a barrel throws up as it is taken: plinko's FG_SPLASH baked into a frame strip.
+	'img/ocean-voyage/splash_strip.webp',
+	// The barrel of gold behind the wheel: its inside, the heap of coins, and its body in front.
+	'img/ocean-voyage/barrel_golds/barrel_back.webp',
+	'img/ocean-voyage/barrel_golds/gold_pile.webp',
+	'img/ocean-voyage/barrel_golds/barrel_front.webp',
+	// The coin of the fountain each barrel throws into it (One-Eyed Willy Plinko's win coin).
+	'img/ocean-voyage/coin.webp',
 ];
 
 /**

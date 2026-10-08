@@ -92,7 +92,17 @@
 	const handsOn = $derived(Boolean(current?.covered) && !isReplay());
 	let closing = $state(false);
 	let result = $state<number | null>(null);
-	let roomApi = $state<{ play: () => Promise<number> } | undefined>();
+	/**
+	 * A room's handle. `handTotal` is for a room that already shows its result somewhere when it
+	 * settles (Ocean Voyage, on its barrel of gold): it gives up where that number is and hides it, so
+	 * the result's burst can be taken off it (`resultFrom`) rather than appear beside it.
+	 */
+	let roomApi = $state<{ play: () => Promise<number>; handTotal?: () => DOMRect | null } | undefined>();
+	/** Where the result's burst lifts off from (`MultiplierBurst`'s `from`), and whether it is up yet —
+	    it is held unseen for the frame it takes to measure where it will rest. */
+	let resultFrom = $state<{ x: number; y: number; scale: number } | null>(null);
+	let resultShown = $state(true);
+	let resultEl = $state<HTMLElement>();
 
 	/**
 	 * A room brings its own backdrop, which then shows through whatever it plays on. Two rooms have
@@ -185,6 +195,38 @@
 	const WIN_HOLD_MS = 3000;
 
 	/**
+	 * Put the result up. Mostly it bursts out of nothing in the middle of the screen. But a room that
+	 * already shows the number (`handTotal`) has it taken off there instead: the burst is laid out
+	 * unseen, the two are measured against each other, and it lifts off the room's number — which the
+	 * room hides in the same frame — and flies in. Measured on screen and turned into the burst's own
+	 * pixels (the game's CSS zoom is the ratio between the two).
+	 */
+	const showResult = async (paid: number) => {
+		const hand = roomApi?.handTotal;
+		if (!hand) {
+			result = paid;
+			return;
+		}
+		resultShown = false;
+		result = paid;
+		await tick();
+		const burst = resultEl?.querySelector<HTMLElement>('.burst');
+		const badge = burst?.querySelector<HTMLElement>('.mult-badge');
+		const source = hand();
+		if (burst && badge && source && source.height > 0) {
+			const rest = burst.getBoundingClientRect();
+			const zoom = rest.width / (burst.offsetWidth || rest.width) || 1;
+			const size = badge.getBoundingClientRect().height || 1;
+			resultFrom = {
+				x: (source.left + source.width / 2 - (rest.left + rest.width / 2)) / zoom,
+				y: (source.top + source.height / 2 - (rest.top + rest.height / 2)) / zoom,
+				scale: source.height / size,
+			};
+		}
+		resultShown = true;
+	};
+
+	/**
 	 * A bought room's Top Slot multiplier, brought on once the screen is in: up big in the middle
 	 * of the room, left there to be read, then carried up onto the skull at the top of the title
 	 * frame (`.ts`), where it stays for the round. The `.ts` badge is laid out the whole time but
@@ -240,6 +282,8 @@
 			introShown = false;
 			onOpenChange?.(true);
 			result = null;
+			resultFrom = null;
+			resultShown = true;
 			closing = false;
 			const helm = event.room.type === 'oceanVoyageRoom';
 			current = { room: event.room, covered: event.covered, helm };
@@ -263,7 +307,7 @@
 				// then the win comes up, then it is left up long enough to actually be read.
 				const paid = (await roomApi?.play()) ?? event.room.total;
 				await waitForTimeout(SETTLE_MS);
-				result = paid;
+				await showResult(paid);
 				await waitForTimeout(WIN_HOLD_MS);
 			} finally {
 				const covered = await coverExit?.(spotFor(event.room), screenEl ?? null).catch(() => false);
@@ -374,8 +418,8 @@
 		{/if}
 
 		{#if centreSays && result !== null}
-			<div class="centre-result">
-				<MultiplierBurst value={result} rays />
+			<div class="centre-result" bind:this={resultEl}>
+				<MultiplierBurst value={result} rays shown={resultShown} from={resultFrom} />
 			</div>
 		{/if}
 	</div>

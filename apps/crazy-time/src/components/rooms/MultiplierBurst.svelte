@@ -18,11 +18,23 @@
 		 * number that is the round's payout stands apart from the decoys the chest room shows first.
 		 */
 		rays?: boolean;
+		/**
+		 * Where the number is coming FROM, when it is already on the screen somewhere — Ocean Voyage's
+		 * total on its barrel of gold: how far off it is (in this burst's own layout pixels, from where
+		 * it will rest) and its size against this one. The burst then lifts off there at that size and
+		 * flies in, growing, rather than swelling up out of nothing.
+		 */
+		from?: { x: number; y: number; scale: number } | null;
 	};
-	let { value, shown = true, rays = false }: Props = $props();
+	let { value, shown = true, rays = false, from = null }: Props = $props();
 </script>
 
-<div class="burst" class:shown>
+<div
+	class="burst"
+	class:shown
+	class:from={Boolean(from)}
+	style={from ? `--from-x:${from.x.toFixed(1)}px; --from-y:${from.y.toFixed(1)}px; --from-s:${from.scale.toFixed(3)}` : undefined}
+>
 	{#if rays}
 		<div class="rays" aria-hidden="true"></div>
 	{/if}
@@ -120,6 +132,38 @@
 		100% {
 			opacity: 1;
 			transform: translateY(0) scale(1);
+		}
+	}
+	/*
+	 * Or the number is taken off something already showing it (`from`): it starts there, at that
+	 * size and already lit, and is carried in to the middle, swelling past its size as it arrives,
+	 * then rebounds and settles as the plain burst does. No wait: what it leaves is gone the same
+	 * frame, so any pause would be a blink.
+	 */
+	.burst.shown.from {
+		animation: burst-from 1000ms both;
+	}
+	@keyframes burst-from {
+		0% {
+			opacity: 1;
+			transform: translate(var(--from-x), var(--from-y)) scale(var(--from-s));
+			animation-timing-function: cubic-bezier(0.35, 0.1, 0.25, 1);
+		}
+		58% {
+			transform: translate(0, 0) scale(1.16);
+			animation-timing-function: ease-in-out;
+		}
+		76% {
+			transform: translate(0, 0) scale(0.94);
+			animation-timing-function: ease-in-out;
+		}
+		90% {
+			transform: translate(0, 0) scale(1.03);
+			animation-timing-function: ease-in-out;
+		}
+		100% {
+			opacity: 1;
+			transform: translate(0, 0) scale(1);
 		}
 	}
 </style>

@@ -10,8 +10,16 @@
 	 * come (`rowAt`). There is no boat: the player is looking out over
 	 * the bow, and the wheel pans the whole scene — the sea, the cave and the barrels — left and right.
 	 * The barrel at the centre of the screen when a row reaches the tip of the deck is the one the
-	 * player has chosen. It is taken (it flashes and is gone) and the multiplier of that stop pops up
-	 * and floats away as if collected — or the kraken, which rises up from behind the deck.
+	 * player has chosen. It is taken (it flashes and is gone) and the total on the barrel of gold behind
+	 * the wheel goes up to that stop's multiplier, with a pop — or the kraken rises up from behind the
+	 * deck.
+	 *
+	 * Each barrel taken throws up a splash at the bow (`SPLASH`, One-Eyed Willy Plinko's waterfall
+	 * burst) and a fountain of coins (`CoinFountain`, that game's win coin shower), which scatter and
+	 * come down into the barrel of gold, raising its heap as they land. The kraken throws up a mirrored
+	 * pair of splashes as it surges up. A voyage made to the last row eases round to the middle and then
+	 * zooms into the skull cave's mouth on the treasure (`zoomIn`). The total on the barrel of gold IS
+	 * the round's result, and BonusRound takes it off the barrel to show it (`handTotal`).
 	 *
 	 * The voyage is AUTHORED, exactly as the original's is: the book says how many rows are cleared
 	 * (`dived`), and that is what pays. Every barrel in a row before that one is safe, and every barrel
@@ -35,6 +43,7 @@
 	import type { BookEventOceanVoyage } from '../../game/typesBookEvent';
 	import { fadeOutSound, playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
+	import { CoinFountain } from '../../lib/coinFountain';
 	import RoomHint from './RoomHint.svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
 
@@ -50,6 +59,89 @@
 	const SEA_FLOW = staticPath('img/ocean-voyage/sea_overlay.webp');
 	const DECK = staticPath('img/ocean-voyage/ship_deck.webp');
 	const WHEEL = staticPath('img/ocean-voyage/wheel.webp');
+	/**
+	 * The water splash thrown up as a barrel is taken: One Eyed Willy Plinko's free-game waterfall burst
+	 * (apps/plinko static/spine/FG_SPLASH), baked out of its Spine atlas into one vertical strip of
+	 * frames — the sequence's 50 drawn frames (6-55; the rest are blank), straight alpha, at 0.6 of
+	 * the authored 521×404 — so it plays as a CSS sprite here rather than standing up a Spine/WebGL
+	 * canvas of its own (`.splash`).
+	 */
+	const SPLASH = staticPath('img/ocean-voyage/splash_strip.webp');
+	const SPLASH_FRAMES = 50;
+	/** The Spine sequence's own rate (a frame every 1/30 s), so it runs as long as it does in plinko. */
+	const SPLASH_MS = (SPLASH_FRAMES * 1000) / 30;
+	/** A frame's width to its height, and where across it the burst rises from (its foot is the frame's
+	    bottom edge). */
+	const SPLASH_ASPECT = 521 / 404;
+	const SPLASH_FOOT_X = 0.52;
+	/** The burst's width against a barrel's at the bow. */
+	const SPLASH_W = 4;
+	/** How far below the taken barrel's foot the burst's own foot is set, in barrel heights at the bow:
+	    lower down behind the deck, so it bursts up from under the bow rather than off the barrel. */
+	const SPLASH_DROP = 0.8;
+
+	/**
+	 * The barrel of gold standing on the deck behind the wheel: what the voyage has won so far, piling
+	 * up. Three layers — the far rim and inside of the barrel (`back`), the heap of coins, and the
+	 * barrel's body with the near rim (`front`) — so the coins sit IN the barrel: the front hides
+	 * whatever of the heap is still below its rim, and the heap rises out of it a little with every
+	 * barrel collected (`goldTip`).
+	 *
+	 * Everything is in the front picture's own pixels (916×1070), which the barrel is drawn at
+	 * `barrelU` of. `back` is cropped to its art (`barrel_back.webp`, 764×191) and set so its rim meets
+	 * the front's at the front's top edge; the heap (`gold_pile.webp`, cropped to 1006×965) is drawn
+	 * at 0.8 of its size, centred on the mouth, `tip` being where its peak is down it.
+	 */
+	const GOLD_BACK = staticPath('img/ocean-voyage/barrel_golds/barrel_back.webp');
+	const GOLD_FRONT = staticPath('img/ocean-voyage/barrel_golds/barrel_front.webp');
+	const GOLD_PILE = staticPath('img/ocean-voyage/barrel_golds/gold_pile.webp');
+	const GOLD_PX = {
+		front: { w: 916, h: 1070 },
+		back: { x: 74, y: -107, w: 764 },
+		pile: { x: 43.4, w: 804.8, tip: 92.8 },
+	};
+	/**
+	 * Where the heap's peak is, down the front picture: under the near rim (out of sight) before
+	 * anything is collected; just showing in the mouth on the first barrel; and with the whole heap
+	 * standing up out of the barrel, its foot at the rim, on the last.
+	 */
+	const GOLD_TIP = { empty: 140, first: -40, full: -603 };
+	/** Where the total is written on the barrel: on its top hoop, down the front picture. */
+	const GOLD_LABEL_Y = 225;
+	/** The barrel's width against the wheel's, and how far up the wheel (in wheel widths from the
+	    foot of the screen) it stands — low enough that the wheel hides its foot. */
+	const GOLD_BARREL_W = 0.35;
+	const GOLD_BARREL_FOOT = 0.12;
+
+	/**
+	 * The fountain of coins a barrel throws as it is collected (`CoinFountain`, One-Eyed Willy Plinko's
+	 * win coin shower): up off the bow where the barrel was taken, scattering, then down into the
+	 * barrel of gold — and the heap there rises, and the total goes up, as they land (`banked`), not
+	 * as the barrel is taken. Plinko's own coin (`img/win_popup/coin.webp`).
+	 */
+	const COIN = staticPath('img/ocean-voyage/coin.webp');
+	/** Coins a barrel throws: a few more the further the voyage has got. */
+	const FOUNTAIN_COINS = (depth: number) => Math.min(30, 10 + depth * 2);
+	/** The throw, first coin to last; how long one hangs in the air before it turns for the barrel (give
+	    or take the stagger); and its speed and size against plinko's full-screen shower. */
+	const FOUNTAIN_THROW_MS = 350;
+	const FOUNTAIN_HANG_MS = 550;
+	const FOUNTAIN_STAGGER_MS = 300;
+	const FOUNTAIN_SPEED = 0.6;
+	const FOUNTAIN_SIZE = 0.45;
+	/** Portrait's coins against landscape's: a little bigger, on the narrow screen their size is taken
+	    from (the short side — its width there). */
+	const FOUNTAIN_SIZE_PORTRAIT = 1.2;
+	/** If no coin has landed by now (a tab given no animation frames), the gold goes in anyway. */
+	const FOUNTAIN_BACKSTOP_MS = 2200;
+	/** Where in the barrel the coins go: just inside its mouth, down the front picture. */
+	const GOLD_MOUTH_Y = -30;
+	/**
+	 * The coins' sounds are plinko's win shower's: its shuffle as they are thrown (`coinShuffle`), and a
+	 * coin flip as each lands (`coinFlip`), each at a pitch of its own and no closer together than its
+	 * 55 ms — so a stream of them reads as a cascade, not a buzz.
+	 */
+	const COIN_SOUND_GAP_MS = 55;
 
 	/** The art's own shapes. */
 	const CAVE_ASPECT = 2122 / 729;
@@ -112,12 +204,32 @@
 
 	/** Time on the water before the sea starts moving. */
 	const START_MS = 900;
-	/** How long a collected multiplier floats up before it fades. */
-	const POP_MS = 1500;
 	/** The kraken's coming (`.kraken`'s animation: a peek, a sink, a surge), and its beat before the
 	    screen moves on, which waits for all of it. */
 	const KRAKEN_MS = 2150;
 	const SINK_MS = KRAKEN_MS + 500;
+	/**
+	 * The water the kraken throws up, either side of it — the barrels' splash (`SPLASH`), the left one
+	 * as drawn and the right one mirrored, so both burst outward. One pair, as it surges up out of the
+	 * water for its full reveal (`kraken-rise`'s 84%) — not on the peek before it. `at` is a share of
+	 * KRAKEN_MS, `w` each splash's width against the kraken's size; they stand `apart` of its size
+	 * either side of the middle, sunk behind the deck's rail where they stand.
+	 */
+	const KRAKEN_SPLASHES = [{ at: 0.84, w: 0.7 }];
+	const KRAKEN_SPLASH_APART = 0.3;
+	/** How much of a kraken splash's height is sunk behind the deck: only the top of it shows over the
+	    rail. */
+	const KRAKEN_SPLASH_SUNK = 0.3;
+	/**
+	 * The top edge of the deck's rail across the deck picture, in its pixels: 33 samples, left edge to
+	 * right, measured off `ship_deck.webp`'s alpha. It falls away from the bow to the sides, so a splash
+	 * off to one side has to be set by the rail where it stands, not at the middle. The lanterns (2-3,
+	 * 29-30) and the bow's spike (16) stand up out of it and are smoothed over: the rail behind them.
+	 */
+	const DECK_EDGE_PX = [
+		523, 511, 510, 510, 509, 499, 489, 480, 470, 461, 451, 442, 431, 418, 399, 373, 365, 372, 398, 417,
+		431, 441, 451, 461, 470, 479, 489, 499, 509, 510, 510, 512, 523,
+	];
 	/** Where its eyes end, as a share of its picture's height: the peek shows it down to here. */
 	const KRAKEN_EYES = 0.44;
 	/** The top of the deck's rail at its middle, in the deck picture's pixels. */
@@ -138,8 +250,19 @@
 	const FAR_LIT = 0.15;
 	/** The first row comes out this long after the sea starts moving. */
 	const LEAD_SECONDS = 0.2;
-	/** How long the scene takes to settle to the middle once the last gate is open. */
-	const SETTLE_SECONDS = 1.8;
+	/**
+	 * Once the last gate is open the voyage is made, and comes to rest in two beats: the view (and the
+	 * wheel) eases round to the middle over SETTLE_SECONDS — gliding, not snapped there — and then the
+	 * skull cave opens up, zooming in on its mouth until the treasure inside fills the screen, over
+	 * CAVE_ZOOM_SECONDS (`zoomIn`). It zooms CAVE_ZOOM_COVER past the size that just covers the screen
+	 * with the hole, so no edge of it is left showing.
+	 */
+	const SETTLE_SECONDS = 1.2;
+	const CAVE_ZOOM_SECONDS = 1.8;
+	const CAVE_ZOOM_COVER = 1.04;
+	/** The middle of the mouth's hole, as shares of the cave: what the zoom is centred on. */
+	const HOLE_CX = 0.51;
+	const HOLE_CY = 0.665;
 	/** How quickly the scene pans to where the wheel points it. */
 	const PAN_TAU = 0.3;
 	/** How much of the pan the sea and the cave follow — the far things move less. */
@@ -239,12 +362,29 @@
 	/**
 	 * The treasure revealed: with the last gate open — the voyage's top multiplier — the inside of the
 	 * cave comes all the way out of the dark, and the skull around it is dimmed so the eye goes to
-	 * what is in its mouth (0 to 1, over the scene's settling).
+	 * what is in its mouth (0 to 1, as the cave zooms in).
 	 */
 	const reveal = $derived.by(() => {
 		if (ended === 'port') return 1;
-		if (!settling) return 0;
-		return dock * dock * (3 - 2 * dock);
+		return zoomIn * zoomIn * (3 - 2 * zoomIn);
+	});
+	/**
+	 * The cave zooming in on its mouth (`zoomIn`, eased): scaled up about the middle of the hole, which
+	 * is carried to the middle of the screen as it goes, to the size at which the hole covers the whole
+	 * screen. And the rocks' fade into the sea is firmed up as it comes, or the bottom of the treasure
+	 * would fade into the water too.
+	 */
+	const caveZoom = $derived.by(() => {
+		const e = zoomIn < 0.5 ? 4 * zoomIn ** 3 : 1 - (-2 * zoomIn + 2) ** 3 / 2;
+		const holeW = cave.w * (HOLE.right - HOLE.left);
+		const holeH = cave.h * (HOLE.bottom - HOLE.top);
+		const hx = caveLeft + cave.w * HOLE_CX;
+		const hy = cave.top + cave.h * HOLE_CY;
+		const full = CAVE_ZOOM_COVER * Math.max(W / holeW, H / holeH);
+		return {
+			transform: e > 0 ? `translate(${((cx - hx) * e).toFixed(1)}px, ${((H / 2 - hy) * e).toFixed(1)}px) scale(${(1 + (full - 1) * e).toFixed(4)})` : 'none',
+			sink: CAVE_SINK + (1 - CAVE_SINK) * e,
+		};
 	});
 	/** The veil over the inside of the cave: pitch black far off, and lifting as the cave comes near —
 	    but only so far (INSIDE_PEEK); the rest of it lifts only with the treasure revealed. */
@@ -274,6 +414,11 @@
 	const deckScale = $derived(portrait ? (wheelW * 1.25) / DECK_PX.ring : W / DECK_PX.w);
 	const deckW = $derived(DECK_PX.w * deckScale);
 	const deckTop = $derived(H - DECK_PX.ringY * deckScale + (portrait ? 0 : H * DECK_SINK));
+
+	/** The barrel of gold (`GOLD_PX`): its size in pixels per front-picture pixel, and where it stands —
+	    centred behind the wheel, its foot hidden behind it. */
+	const barrelU = $derived((wheelW * GOLD_BARREL_W) / GOLD_PX.front.w);
+	const barrelTop = $derived(H - wheelW * GOLD_BARREL_FOOT - GOLD_PX.front.h * barrelU);
 
 	/** The gates are barrels floating on the water, standing on the row's line by their foot. */
 	/** Smaller in landscape, where the horizon is low and there is only a short stretch of sea between
@@ -309,26 +454,67 @@
 	 * rail, or the wheel set into it.
 	 */
 	const krakenHide = $derived(H - (krakenY - krakenSize / 2));
-	const krakenPeek = $derived.by(() => {
-		const line = Math.min(deckTop + DECK_RAIL * deckScale, H - wheelW / 2) - 4;
-		return line - KRAKEN_EYES * krakenSize - (krakenY - krakenSize / 2);
-	});
+	/** The line the kraken peeks over: the rail, or the wheel set into it, whichever stands higher. */
+	const krakenLine = $derived(Math.min(deckTop + DECK_RAIL * deckScale, H - wheelW / 2) - 4);
+	const krakenPeek = $derived(krakenLine - KRAKEN_EYES * krakenSize - (krakenY - krakenSize / 2));
+	/** The top of the deck's rail at `x` across the screen (`DECK_EDGE_PX`), down the screen. */
+	const deckEdgeAt = (x: number) => {
+		const n = DECK_EDGE_PX.length - 1;
+		const u = clamp(((x - (cx - deckW / 2)) / deckW) * n, 0, n);
+		const i = Math.min(n - 1, Math.floor(u));
+		const px = DECK_EDGE_PX[i] + (DECK_EDGE_PX[i + 1] - DECK_EDGE_PX[i]) * (u - i);
+		return deckTop + px * deckScale;
+	};
 
 	/** Rows opened so far. */
 	let reached = $state(0);
 	let kraken = $state<{ depth: number; tile: number } | null>(null);
 	let ended = $state<'kraken' | 'port' | null>(null);
+	/** Barrels whose coins have reached the barrel of gold: it trails `reached` by a fountain's flight. */
+	let banked = $state(0);
+	/** The heap's peak in the barrel of gold (`GOLD_TIP`): out of sight, then up an even step for each
+	    barrel's coins landing in it, from the first to the last. */
+	const goldTip = $derived.by(() => {
+		if (banked < 1) return GOLD_TIP.empty;
+		const p = depths > 1 ? (banked - 1) / (depths - 1) : 1;
+		return GOLD_TIP.first + (GOLD_TIP.full - GOLD_TIP.first) * p;
+	});
+	/** The total so far: the multiplier of the last barrel collected — what the voyage pays if it ends
+	    here — written on the barrel of gold. It goes up the moment a barrel is taken (with a pop and a
+	    bounce, `.gold-total`), ahead of that barrel's coins, which only raise the heap as they land. */
+	const goldTotal = $derived(reached >= 1 ? room.depths[reached - 1] : null);
+	/** The total has been taken off the barrel to be the round's result (`handTotal`). */
+	let totalHanded = $state(false);
+	let goldTotalEl = $state<HTMLDivElement>();
+	/**
+	 * The round's result is the barrel's total — the book's `total`, the last stop's multiplier with
+	 * the Top Slot already in it — so BonusRound takes it off the barrel rather than putting up a
+	 * second one beside it: where it is on the screen, and it is gone from the hoop.
+	 */
+	export const handTotal = (): DOMRect | null => {
+		const rect = goldTotalEl?.getBoundingClientRect() ?? null;
+		totalHanded = true;
+		return rect;
+	};
 	/** The gate taken in each row opened so far (row -> lane): it flashes and is gone, and stays gone —
 	    the rest of its row sink away (`.gone`), and it must never be taken for one of them. */
 	let taken = $state<Record<number, number>>({});
-	/** Multipliers just collected, each floating up off the gate it came from. */
-	type Pop = { id: number; value: number; x: number; y: number };
-	let pops = $state<Pop[]>([]);
-	let popId = 0;
+	/** Splashes thrown up by barrels just taken, each playing out once where its barrel stood. */
+	type Splash = { id: number; x: number; y: number };
+	let splashes = $state<Splash[]>([]);
+	/** The kraken's splashes (`KRAKEN_SPLASHES`): over it rather than under, and some mirrored. */
+	type KrakenSplash = Splash & { w: number; mirror: boolean };
+	let krakenSplashes = $state<KrakenSplash[]>([]);
+	let splashId = 0;
 	/** True while the voyage is under way. */
 	let sailing = $state(false);
-	/** The scene settling to the middle after the last gate, and how far along it is (0-1). */
+	/** The scene settling after the last gate (`SETTLE_SECONDS`, then `CAVE_ZOOM_SECONDS`): how long it
+	    has been at it, where the view and the wheel were when it started, and how far the cave has
+	    zoomed in (0-1). */
 	let settling = $state(false);
+	let settleT = 0;
+	let settleFrom = { offset: 0, wheel: 0 };
+	let zoomIn = $state(0);
 
 	/** How far the player is looking to one side of the middle, in pixels: the scene pans the other way. */
 	let offset = $state(0);
@@ -405,39 +591,122 @@
 			kraken = { depth, tile };
 			stop();
 			playSound('kraken');
+			// Water thrown up either side of it as it surges up for its full reveal.
+			for (const { at, w } of KRAKEN_SPLASHES) {
+				void waitForTimeout(KRAKEN_MS * at).then(() => {
+					if (!alive) return;
+					const width = krakenSize * w;
+					const pair = [-1, 1].map((side) => {
+						const x = cx + side * krakenSize * KRAKEN_SPLASH_APART;
+						// Its foot sunk below the rail where it stands, so the deck hides the bottom of it.
+						return {
+							id: splashId++,
+							x,
+							y: deckEdgeAt(x) + (width / SPLASH_ASPECT) * KRAKEN_SPLASH_SUNK,
+							w: width,
+							mirror: side > 0,
+						};
+					});
+					krakenSplashes = [...krakenSplashes, ...pair];
+					const ids = new Set(pair.map((s) => s.id));
+					void waitForTimeout(SPLASH_MS + 100).then(() => (krakenSplashes = krakenSplashes.filter((s) => !ids.has(s.id))));
+				});
+			}
 			void waitForTimeout(SINK_MS).then(() => {
 				ended = 'kraken';
 				finish();
 			});
 			return;
 		}
-		// Each row's multiplier floats up and away — all but the last, the voyage's total, which is left
-		// to the end result (BonusRound's win line) rather than hung at the cave.
-		if (depth < depths - 1) {
-			const id = popId++;
-			pops = [...pops, { id, value: room.depths[depth], x: cx, y: hitY - gateH * 0.55 }];
-			void waitForTimeout(POP_MS + 100).then(() => (pops = pops.filter((q) => q.id !== id)));
-		}
+		// Every barrel collected — the last one too — throws up a splash at the bow, behind the deck.
+		const sid = splashId++;
+		splashes = [...splashes, { id: sid, x: cx, y: hitY + gateH * SPLASH_DROP }];
+		void waitForTimeout(SPLASH_MS + 100).then(() => (splashes = splashes.filter((s) => s.id !== sid)));
+		// The row's multiplier goes up on the barrel of gold (`goldTotal`), which pops to say so.
 		reached = depth + 1;
 		playSound('pop', 1 + depth * 0.04);
+		throwCoins(depth);
 		if (reached >= depths) {
-			// The last gate: the voyage is made, and the scene comes to rest at the middle.
+			// The last gate: the voyage is made. The view eases to the middle, then the cave zooms in.
 			settling = true;
-			dock = 0;
+			settleT = 0;
+			settleFrom = { offset, wheel: wheelDeg };
+			zoomIn = 0;
 			playSound('whoosh');
 		}
 	};
 
-	let dock = $state(0);
+	// ---- The fountain of coins -----------------------------------------------------------------
+	let coinCanvas = $state<HTMLCanvasElement>();
+	let fountain = $state.raw<CoinFountain>();
+	$effect(() => {
+		const canvas = coinCanvas;
+		if (!canvas) return;
+		const f = new CoinFountain(canvas);
+		fountain = f;
+		const coin = new Image();
+		coin.onload = () => f.setCoinImage(coin);
+		coin.src = COIN;
+		return () => {
+			f.destroy();
+			if (fountain === f) fountain = undefined;
+		};
+	});
+	// Drawn in the room's layout pixels, with the backing store at device resolution: the game's CSS
+	// zoom times the device's pixel ratio (held to 2 — a full-screen canvas at 3x is a lot of memory
+	// for some coins).
+	$effect(() => {
+		const f = fountain;
+		const canvas = coinCanvas;
+		if (!f || !canvas || !rootEl) return;
+		const zoom = rootEl.getBoundingClientRect().width / W || 1;
+		f.resize(W, H, Math.min(2, (window.devicePixelRatio || 1) * zoom));
+	});
+
+	/** Bank barrel `n`'s gold: the heap rises and the total goes up. Never back down. */
+	const bank = (n: number) => {
+		if (alive && n > banked) banked = n;
+	};
+	let coinSoundAt = -Infinity;
+	/** Barrel `depth`'s coins: thrown up off the bow where it was taken, and down into the barrel of gold. */
+	const throwCoins = (depth: number) => {
+		const n = depth + 1;
+		void waitForTimeout(FOUNTAIN_BACKSTOP_MS).then(() => bank(n));
+		if (!fountain) return bank(n);
+		playSound('coinShuffle');
+		fountain.burst({
+			from: { x: cx, y: hitY - gateH * 0.5 },
+			to: () => ({ x: cx, y: barrelTop + GOLD_MOUTH_Y * barrelU }),
+			count: FOUNTAIN_COINS(depth),
+			throwWindowMs: FOUNTAIN_THROW_MS,
+			hangMs: FOUNTAIN_HANG_MS,
+			mergeStaggerMs: FOUNTAIN_STAGGER_MS,
+			speedScale: FOUNTAIN_SPEED,
+			sizeScale: FOUNTAIN_SIZE * (portrait ? FOUNTAIN_SIZE_PORTRAIT : 1),
+			onFirstArrive: () => bank(n),
+			onArrive: () => {
+				const now = performance.now();
+				if (now - coinSoundAt < COIN_SOUND_GAP_MS) return;
+				coinSoundAt = now;
+				playSound('coinFlip', 0.94 + Math.random() * 0.12);
+			},
+		});
+	};
+
 	const step = (dt: number) => {
 		if (!sailing) return;
 		T += dt;
 
 		if (settling) {
-			dock = Math.min(1, dock + dt / SETTLE_SECONDS);
-			offset += (0 - offset) * (1 - Math.exp(-dt / 0.25));
-			wheelDeg += (0 - wheelDeg) * (1 - Math.exp(-dt / 0.2));
-			if (dock >= 1) {
+			settleT += dt;
+			// The glide to the middle: eased in and out from wherever the view and the wheel were.
+			const p = clamp(settleT / SETTLE_SECONDS, 0, 1);
+			const e = p * p * (3 - 2 * p);
+			offset = settleFrom.offset * (1 - e);
+			wheelDeg = settleFrom.wheel * (1 - e);
+			// Then the cave zooms in on its treasure.
+			zoomIn = clamp((settleT - SETTLE_SECONDS) / CAVE_ZOOM_SECONDS, 0, 1);
+			if (zoomIn >= 1) {
 				stop();
 				playSound('win');
 				ended = 'port';
@@ -584,7 +853,7 @@
 
 <svelte:window onkeydown={keyDown} />
 
-<div class="voyage" bind:this={rootEl} style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px">
+<div class="voyage" class:portrait bind:this={rootEl} style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px">
 	<!-- Everything out beyond the rail, swelling up and settling under the ship as the table's own
 	     view does (Background's `sea-swell`), while the deck and the wheel hold still in front. -->
 	<div class="view">
@@ -619,7 +888,7 @@
 		     its mouth, the treasure cave inside — black far off, and only ever partly seen on the way. -->
 		<div
 			class="cave"
-			style="left:{caveLeft}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; --sink:{CAVE_SINK * 100}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
+			style="left:{caveLeft}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; transform:{caveZoom.transform}; transform-origin:{HOLE_CX * 100}% {HOLE_CY * 100}%; --sink:{(caveZoom.sink * 100).toFixed(2)}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
 		>
 			<div class="cave-dark"></div>
 			<img
@@ -666,6 +935,15 @@
 			{/each}
 		</div>
 
+		<!-- A splash for each barrel taken, rising off the water where it stood: in front of the barrels,
+		     and — being out here on the water, under `.view` — behind the deck, which hides its foot. -->
+		{#each splashes as splash (splash.id)}
+			<div
+				class="splash"
+				style="left:{splash.x}px; top:{splash.y}px; width:{(gateW * SPLASH_W).toFixed(1)}px; aspect-ratio:{SPLASH_ASPECT}; background-image:url('{SPLASH}'); --foot-x:{SPLASH_FOOT_X * 100}%; --frames:{SPLASH_FRAMES}; --splash-ms:{SPLASH_MS.toFixed(0)}ms"
+			></div>
+		{/each}
+
 		<!-- The kraken, when it comes: up from behind the deck, the night closing in behind it. -->
 		{#if kraken}
 			<div class="kraken-dark"></div>
@@ -677,18 +955,64 @@
 				style="width:{krakenSize}px; height:{krakenSize}px; left:{cx}px; top:{krakenY}px; --hide:{krakenHide.toFixed(1)}px; --peek:{krakenPeek.toFixed(1)}px; --kraken-ms:{KRAKEN_MS}ms"
 			/>
 		{/if}
+		<!-- The water it throws up either side, over it — and, out on the water, behind the deck, which
+		     hides the bottom of each (`KRAKEN_SPLASH_SUNK`). -->
+		{#each krakenSplashes as splash (splash.id)}
+			<div
+				class="splash kraken-splash"
+				class:mirror={splash.mirror}
+				style="left:{splash.x.toFixed(1)}px; top:{splash.y.toFixed(1)}px; width:{splash.w.toFixed(1)}px; aspect-ratio:{SPLASH_ASPECT}; background-image:url('{SPLASH}'); --foot-x:{SPLASH_FOOT_X * 100}%; --frames:{SPLASH_FRAMES}; --splash-ms:{SPLASH_MS.toFixed(0)}ms"
+			></div>
+		{/each}
 
 	</div>
 
 	<!-- The ship's deck, in front of the sea, the gates and the kraken, with the wheel set into its ring. -->
 	<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px" />
 
-	{#each pops as pop (pop.id)}
-		<div class="pop mult-badge" style="left:{pop.x}px; top:{pop.y}px; --rise:{H * 0.22}px; --pop-ms:{POP_MS}ms">
-			<span class="mult-stroke" aria-hidden="true">{pop.value}x</span>
-			<span class="mult-fill">{pop.value}x</span>
-		</div>
-	{/each}
+	<!-- The barrel of gold, on the deck behind the wheel: the barrel's inside, the heap of coins rising
+	     out of it as barrels are collected, the barrel's body in front, and the total on its hoop. -->
+	<div
+		class="gold-barrel"
+		style="left:{cx - (GOLD_PX.front.w * barrelU) / 2}px; top:{barrelTop}px; width:{GOLD_PX.front.w * barrelU}px; height:{GOLD_PX.front.h * barrelU}px"
+	>
+		<img
+			class="gold-layer"
+			src={GOLD_BACK}
+			alt=""
+			draggable="false"
+			style="left:{GOLD_PX.back.x * barrelU}px; top:{GOLD_PX.back.y * barrelU}px; width:{GOLD_PX.back.w * barrelU}px"
+		/>
+		<img
+			class="gold-layer gold-pile"
+			src={GOLD_PILE}
+			alt=""
+			draggable="false"
+			style="left:{GOLD_PX.pile.x * barrelU}px; top:0; width:{GOLD_PX.pile.w * barrelU}px; transform:translateY({((goldTip - GOLD_PX.pile.tip) * barrelU).toFixed(1)}px)"
+		/>
+		<img class="gold-layer" src={GOLD_FRONT} alt="" draggable="false" style="left:0; top:0; width:100%" />
+	</div>
+	<!-- The fountains of coins, thrown up off the bow and down into the barrel of gold: over the barrel
+	     they land in, under the wheel. -->
+	<canvas class="coins" bind:this={coinCanvas} aria-hidden="true"></canvas>
+
+	<!-- Its total, across the top hoop — but outside the barrel's box, so it stands in front of the
+	     wheel: the wheel's top handle crosses the hoop, and would cut the number in two. Gone once
+	     BonusRound has taken it off to be the round's result (`handTotal`). -->
+	{#if goldTotal !== null && !totalHanded}
+		<!-- Keyed on the barrels collected, not the number, so it pops for every one — even a stop that
+		     pays what the one before it did. -->
+		{#key reached}
+			<div
+				class="gold-total mult-badge"
+				bind:this={goldTotalEl}
+				style="left:{cx}px; top:{barrelTop + GOLD_LABEL_Y * barrelU}px; font-size:{GOLD_PX.front.w * barrelU * 0.26}px"
+			>
+				<span class="mult-stroke" aria-hidden="true">{goldTotal}x</span>
+				<span class="mult-fill">{goldTotal}x</span>
+			</div>
+		{/key}
+	{/if}
 
 	<!-- What the voyage is doing, in the voice the other rooms speak in (`RoomHint`), just under the
 	     title frame. -->
@@ -800,8 +1124,9 @@
 	/* The whole cave — the front and what is seen through its mouth — fades into the sea at its foot. */
 	.cave {
 		position: absolute;
-		/* In front of the barrels (`.gates`, 2): none of them is ever laid over the cave. Under the
-		   kraken and its darkness, which come after it at this level. */
+		/* In front of the barrels (`.gates`, 2) in landscape, where none of them is ever laid over the
+		   cave — but behind them in portrait (`.portrait .gates`). Under the kraken and its darkness,
+		   which come after it at this level. */
 		z-index: 3;
 		pointer-events: none;
 		mask-image: linear-gradient(180deg, #000 var(--sink), transparent 100%);
@@ -844,13 +1169,20 @@
 	 * it comes. Its foot is the point it is placed by, and its size is written on the element each
 	 * frame as it comes out of the cave and grows. The one at the middle of the screen is the one the
 	 * next row will open, and is lit; the others sit back. Opened, the barrel flashes and is gone
-	 * (`.pop` collects its multiplier); the rest of the row sinks away.
+	 * (its multiplier goes up on the barrel of gold, `.gold-total`); the rest of the row sinks away.
 	 */
 	.gates {
 		position: absolute;
 		inset: 0;
 		z-index: 2;
 		pointer-events: none;
+	}
+	/* On a phone the cave comes right down to the bow by the last rows (it is three screens wide and
+	   the screen is short), and stood in front of the barrels it hid the last row outright. The barrels
+	   are nearer than the cave, so in portrait they stand over it: at its level, and after it. The
+	   kraken and its darkness, after both, still come over them. */
+	.voyage.portrait .gates {
+		z-index: 3;
 	}
 	.gate {
 		position: absolute;
@@ -956,6 +1288,42 @@
 		z-index: 100 !important;
 	}
 	/*
+	 * A barrel's splash: the strip of frames (`SPLASH`) stepped through once, a frame at a time, its foot
+	 * on the barrel's foot. `background-position-y` 0% shows the first frame and 100% the last, so
+	 * `steps(n, jump-none)` lands on each of the n frames in turn. Over the barrels (`.gates`, 2) — under
+	 * the cave and the kraken, which it never reaches — and behind the deck, which is above `.view`.
+	 */
+	.splash {
+		position: absolute;
+		z-index: 2;
+		pointer-events: none;
+		transform: translate(calc(-1 * var(--foot-x)), -100%);
+		background-repeat: no-repeat;
+		background-size: 100% calc(var(--frames) * 100%);
+		animation: splash-frames var(--splash-ms) steps(var(--frames), jump-none) both;
+	}
+	/* Still over the barrels where they have been raised over the cave (`.voyage.portrait .gates`). */
+	.voyage.portrait .splash {
+		z-index: 3;
+	}
+	/* The kraken's: over it and its darkness (3, after them). The mirrored one is flipped about its own
+	   foot, so it still rises from the same point. */
+	.splash.kraken-splash {
+		z-index: 3;
+	}
+	.splash.mirror {
+		transform-origin: var(--foot-x) 100%;
+		transform: translate(calc(-1 * var(--foot-x)), -100%) scaleX(-1);
+	}
+	@keyframes splash-frames {
+		from {
+			background-position: 0 0%;
+		}
+		to {
+			background-position: 0 100%;
+		}
+	}
+	/*
 	 * The kraken, when it comes: it creeps up from below the foot of the screen, behind the deck, until
 	 * its eyes are over the rail, sinks back out of sight, and then rears up all at once to fill the
 	 * screen — its whole height in landscape, its whole width in portrait — over the sea and the
@@ -1014,38 +1382,6 @@
 		}
 	}
 
-	/* A multiplier collected: it pops up glowing where the gate opened and floats up and away, as if
-	   gathered. It carries the game's own multiplier lettering (`.mult-badge`). */
-	.pop {
-		position: absolute;
-		z-index: 6;
-		font-size: calc(var(--voyage-w) * 0.1);
-		white-space: nowrap;
-		pointer-events: none;
-		transform: translate(-50%, -50%);
-		filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.016) rgba(255, 220, 90, 1))
-			drop-shadow(0 0 calc(var(--voyage-w) * 0.04) rgba(255, 180, 40, 0.85));
-		animation: collect var(--pop-ms) cubic-bezier(0.2, 0.7, 0.3, 1) both;
-	}
-	@keyframes collect {
-		0% {
-			transform: translate(-50%, -50%) scale(0.3);
-			opacity: 0;
-		}
-		14% {
-			transform: translate(-50%, -70%) scale(1.25);
-			opacity: 1;
-		}
-		30% {
-			transform: translate(-50%, calc(-50% - var(--rise) * 0.3)) scale(1);
-			opacity: 1;
-		}
-		100% {
-			transform: translate(-50%, calc(-50% - var(--rise))) scale(0.9);
-			opacity: 0;
-		}
-	}
-
 	/* Over the scene and the deck; under the win line, which BonusRound draws over the whole room. */
 	.caption {
 		position: absolute;
@@ -1065,6 +1401,81 @@
 		height: auto;
 		pointer-events: none;
 		z-index: 4;
+	}
+
+	/* The barrel of gold: in front of the deck it stands on (4, and after it), behind the wheel (5) and
+	   its own total (`.gold-total`, 6). Its layers spill out of its box — the inside above the rim, the
+	   heap above that — so nothing clips it. */
+	.gold-barrel {
+		position: absolute;
+		z-index: 4;
+		pointer-events: none;
+		filter: drop-shadow(0 calc(var(--voyage-w) * 0.008) calc(var(--voyage-w) * 0.015) rgba(0, 0, 0, 0.6));
+	}
+	.gold-layer {
+		position: absolute;
+		display: block;
+		height: auto;
+		pointer-events: none;
+	}
+	/* The coins' canvas, the whole room's size: at the barrel's level and after it, so the coins come
+	   down over it into its mouth, and under the wheel (5). */
+	.coins {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		z-index: 4;
+		pointer-events: none;
+	}
+	/* The heap rises a step at a time, easing up out of the barrel as each barrel's coins land in it. */
+	.gold-pile {
+		transition: transform 700ms cubic-bezier(0.2, 0.8, 0.3, 1);
+	}
+	/* The total, in the game's multiplier lettering (`.mult-badge`), across the barrel's top hoop, over
+	   the wheel (5). Each barrel collected it goes up and says so: it pops out big and bright, drops
+	   back past its size, and bounces to rest (`gold-total-bump`). */
+	.gold-total {
+		position: absolute;
+		z-index: 6;
+		pointer-events: none;
+		white-space: nowrap;
+		transform: translate(-50%, -50%);
+		filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.012) rgba(255, 220, 90, 0.9));
+		animation: gold-total-bump 900ms both;
+	}
+	@keyframes gold-total-bump {
+		0% {
+			transform: translate(-50%, -50%) scale(0.6);
+			filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.012) rgba(255, 220, 90, 0.9));
+			animation-timing-function: cubic-bezier(0.2, 0.8, 0.4, 1);
+		}
+		/* Up big, with a hop off the hoop. */
+		26% {
+			transform: translate(-50%, -75%) scale(2.1);
+			filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.045) rgba(255, 230, 120, 1)) brightness(1.4);
+			animation-timing-function: ease-in-out;
+		}
+		46% {
+			transform: translate(-50%, -50%) scale(0.78);
+			animation-timing-function: ease-in-out;
+		}
+		63% {
+			transform: translate(-50%, -58%) scale(1.3);
+			animation-timing-function: ease-in-out;
+		}
+		78% {
+			transform: translate(-50%, -50%) scale(0.9);
+			animation-timing-function: ease-in-out;
+		}
+		90% {
+			transform: translate(-50%, -50%) scale(1.06);
+			animation-timing-function: ease-in-out;
+		}
+		100% {
+			transform: translate(-50%, -50%) scale(1);
+			filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.012) rgba(255, 220, 90, 0.9));
+		}
 	}
 
 	/* The ship's wheel, bottom middle with its lower half off the screen: only the top of the wheel

@@ -27,7 +27,9 @@ export type SoundName =
 	| 'doorClose'
 	| 'doorOpen'
 	| 'kraken'
-	| 'shipWheel';
+	| 'shipWheel'
+	| 'coinFlip'
+	| 'coinShuffle';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
@@ -69,6 +71,12 @@ const SOURCES: Record<SoundName, string> = {
 	kraken: staticUrl('sound/kraken_sfx.mp3'),
 	// The ship's wheel creaking round under the player's hands in Ocean Voyage v2. A SPRITE window.
 	shipWheel: staticUrl('sound/ship_wheel_sfx.mp3'),
+	// A coin of Ocean Voyage's fountain landing in the barrel of gold — One-Eyed Willy's plinko's own
+	// coin, as its win coins land in the balance (apps/plinko/static/sound/coin_flip.mp3).
+	coinFlip: staticUrl('sound/coin_flip.mp3'),
+	// The coins of that fountain being thrown: the same game's win coin shower's bed, as its win coins
+	// start spawning (apps/plinko/static/sound/coin_shuffle.mp3). A SPRITE window.
+	coinShuffle: staticUrl('sound/coin_shuffle.mp3'),
 };
 
 /**
@@ -117,6 +125,12 @@ const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, f
 		 * ends while the wheel is still being turned, so it is the length of a stretch of turning.
 		 */
 		shipWheel: [180, 1700, 300],
+		/**
+		 * The recording's second shuffle, 2s to 4s — plinko's `coinShuffleMulti`, the window its win
+		 * celebration plays under a shower of coins (the first, from 0.54s, is its one-ball trickle).
+		 * Two seconds is about a fountain's flight, throw to the last coin in.
+		 */
+		coinShuffle: [2000, 2000],
 	};
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
@@ -149,6 +163,9 @@ const MIX: Record<SoundName, number> = {
 	kraken: 1,
 	// Well under everything else: it plays for as long as the wheel is being turned.
 	shipWheel: 0.3,
+	// Both at plinko's own level (its win shower plays them at full volume).
+	coinFlip: 1,
+	coinShuffle: 1,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
