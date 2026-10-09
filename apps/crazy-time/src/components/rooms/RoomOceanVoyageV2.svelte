@@ -32,8 +32,10 @@
 	 * BonusRound gives this room the whole screen rather than the stage, under its title frame. The ship's
 	 * deck stands in front of the sea with the wheel set into its ring: all of it across a landscape
 	 * screen, just its bottom middle (the rest cropped off) in portrait. There is no `.voyage .ship`
-	 * for the wheel's own ship to dock on when it sails the player in, so Game.svelte docks it at a
-	 * default spot and it fades away.
+	 * for the wheel's own ship to dock on when it sails the player in: the room comes on under the sea
+	 * that floats that ship up and away (Game.svelte's VoyageCover `flood`), and once the water has
+	 * drained off it, takes the player aboard itself — the deck rises into place out of a sea mist
+	 * (`boarded`). And it goes out the way it ended (`.port` / `.sunk`, VoyageCover again).
 	 *
 	 * The simulation is stepped from a clock as well as from animation frames: a background tab is
 	 * given no frames, and a voyage that waited on them would never finish and so never pay.
@@ -202,8 +204,18 @@
 	/** How far the sea fades in below the horizon, over the haze at the foot of the sky (layout pixels at 1024 wide). */
 	const BLEND_PX = 40;
 
+	/**
+	 * The way in, once the flood has drained off the room (Game.svelte's VoyageCover): the player steps up
+	 * to the helm — the deck, the barrel of gold and the wheel rise up from below the screen into place
+	 * over BOARD_MS (`.aboard`), as the sea mist over the water thins away over MIST_MS (`.mist`).
+	 * The sea starts moving START_MS in, with the deck settled.
+	 */
+	const BOARD_MS = 900;
+	const MIST_MS = 1600;
+	/** How far below its place the deck starts, as a share of the room's height. */
+	const BOARD_DROP = 0.65;
 	/** Time on the water before the sea starts moving. */
-	const START_MS = 900;
+	const START_MS = 1100;
 	/** The kraken's coming (`.kraken`'s animation: a peek, a sink, a surge), and its beat before the
 	    screen moves on, which waits for all of it. */
 	const KRAKEN_MS = 2150;
@@ -758,7 +770,11 @@
 		clearInterval(clock);
 	};
 
+	/** The player has stepped up to the helm (`BOARD_MS`): the deck is up and the mist is lifting. */
+	let boarded = $state(false);
+
 	export const play = async (): Promise<number> => {
+		boarded = true;
 		await waitForTimeout(START_MS);
 		if (!alive) return room.total;
 		sailing = true;
@@ -853,7 +869,16 @@
 
 <svelte:window onkeydown={keyDown} />
 
-<div class="voyage" class:portrait bind:this={rootEl} style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px">
+<!-- `port` / `sunk` say how the voyage ended, for the way out (Game.svelte's `coverRoomExit`): into
+     the treasure, or under with the kraken. -->
+<div
+	class="voyage"
+	class:portrait
+	class:port={ended === 'port'}
+	class:sunk={ended === 'kraken'}
+	bind:this={rootEl}
+	style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px; --board-ms:{BOARD_MS}ms; --board-drop:{(H * BOARD_DROP).toFixed(1)}px; --mist-ms:{MIST_MS}ms"
+>
 	<!-- Everything out beyond the rail, swelling up and settling under the ship as the table's own
 	     view does (Background's `sea-swell`), while the deck and the wheel hold still in front. -->
 	<div class="view">
@@ -965,54 +990,85 @@
 			></div>
 		{/each}
 
+		<!-- The sea mist the voyage opens in, over everything out on the water: it thins away as the
+		     player steps up to the helm (`boarded`). -->
+		<div class="mist" class:cleared={boarded}></div>
+
 	</div>
 
-	<!-- The ship's deck, in front of the sea, the gates and the kraken, with the wheel set into its ring. -->
-	<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px" />
+	<!-- Everything on board — the deck, the barrel of gold and its coins, its total, and the wheel —
+	     as one: held below the screen until the player steps up to the helm (`boarded`), then risen
+	     into place together. -->
+	<div class="aboard" class:boarded>
+		<!-- The ship's deck, in front of the sea, the gates and the kraken, with the wheel set into its ring. -->
+		<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px" />
 
-	<!-- The barrel of gold, on the deck behind the wheel: the barrel's inside, the heap of coins rising
-	     out of it as barrels are collected, the barrel's body in front, and the total on its hoop. -->
-	<div
-		class="gold-barrel"
-		style="left:{cx - (GOLD_PX.front.w * barrelU) / 2}px; top:{barrelTop}px; width:{GOLD_PX.front.w * barrelU}px; height:{GOLD_PX.front.h * barrelU}px"
-	>
-		<img
-			class="gold-layer"
-			src={GOLD_BACK}
-			alt=""
-			draggable="false"
-			style="left:{GOLD_PX.back.x * barrelU}px; top:{GOLD_PX.back.y * barrelU}px; width:{GOLD_PX.back.w * barrelU}px"
-		/>
-		<img
-			class="gold-layer gold-pile"
-			src={GOLD_PILE}
-			alt=""
-			draggable="false"
-			style="left:{GOLD_PX.pile.x * barrelU}px; top:0; width:{GOLD_PX.pile.w * barrelU}px; transform:translateY({((goldTip - GOLD_PX.pile.tip) * barrelU).toFixed(1)}px)"
-		/>
-		<img class="gold-layer" src={GOLD_FRONT} alt="" draggable="false" style="left:0; top:0; width:100%" />
+		<!-- The barrel of gold, on the deck behind the wheel: the barrel's inside, the heap of coins rising
+		     out of it as barrels are collected, the barrel's body in front, and the total on its hoop. -->
+		<div
+			class="gold-barrel"
+			style="left:{cx - (GOLD_PX.front.w * barrelU) / 2}px; top:{barrelTop}px; width:{GOLD_PX.front.w * barrelU}px; height:{GOLD_PX.front.h * barrelU}px"
+		>
+			<img
+				class="gold-layer"
+				src={GOLD_BACK}
+				alt=""
+				draggable="false"
+				style="left:{GOLD_PX.back.x * barrelU}px; top:{GOLD_PX.back.y * barrelU}px; width:{GOLD_PX.back.w * barrelU}px"
+			/>
+			<img
+				class="gold-layer gold-pile"
+				src={GOLD_PILE}
+				alt=""
+				draggable="false"
+				style="left:{GOLD_PX.pile.x * barrelU}px; top:0; width:{GOLD_PX.pile.w * barrelU}px; transform:translateY({((goldTip - GOLD_PX.pile.tip) * barrelU).toFixed(1)}px)"
+			/>
+			<img class="gold-layer" src={GOLD_FRONT} alt="" draggable="false" style="left:0; top:0; width:100%" />
+		</div>
+		<!-- The fountains of coins, thrown up off the bow and down into the barrel of gold: over the barrel
+		     they land in, under the wheel. -->
+		<canvas class="coins" bind:this={coinCanvas} aria-hidden="true"></canvas>
+
+		<!-- Its total, across the top hoop — but outside the barrel's box, so it stands in front of the
+		     wheel: the wheel's top handle crosses the hoop, and would cut the number in two. Gone once
+		     BonusRound has taken it off to be the round's result (`handTotal`). -->
+		{#if goldTotal !== null && !totalHanded}
+			<!-- Keyed on the barrels collected, not the number, so it pops for every one — even a stop that
+			     pays what the one before it did. -->
+			{#key reached}
+				<div
+					class="gold-total mult-badge"
+					bind:this={goldTotalEl}
+					style="left:{cx}px; top:{barrelTop + GOLD_LABEL_Y * barrelU}px; font-size:{GOLD_PX.front.w * barrelU * 0.26}px"
+				>
+					<span class="mult-stroke" aria-hidden="true">{goldTotal}x</span>
+					<span class="mult-fill">{goldTotal}x</span>
+				</div>
+			{/key}
+		{/if}
+
+		<!-- The helm. Dragged round by hand, or by the arrow keys; turned by itself when the voyage is
+		     being sailed for the player. -->
+		<div
+			class="helm"
+			class:hands
+			class:dragging
+			class:steered
+			bind:this={helmEl}
+			role="slider"
+			tabindex={hands ? 0 : -1}
+			aria-label="Ship's wheel"
+			aria-valuemin={-WHEEL_LOCK}
+			aria-valuemax={WHEEL_LOCK}
+			aria-valuenow={Math.round(wheelDeg)}
+			onpointerdown={grab}
+			onpointermove={turn}
+			onpointerup={release}
+			onpointercancel={release}
+		>
+			<img class="wheel" src={WHEEL} alt="" draggable="false" style="transform: rotate({wheelDeg.toFixed(1)}deg)" />
+		</div>
 	</div>
-	<!-- The fountains of coins, thrown up off the bow and down into the barrel of gold: over the barrel
-	     they land in, under the wheel. -->
-	<canvas class="coins" bind:this={coinCanvas} aria-hidden="true"></canvas>
-
-	<!-- Its total, across the top hoop — but outside the barrel's box, so it stands in front of the
-	     wheel: the wheel's top handle crosses the hoop, and would cut the number in two. Gone once
-	     BonusRound has taken it off to be the round's result (`handTotal`). -->
-	{#if goldTotal !== null && !totalHanded}
-		<!-- Keyed on the barrels collected, not the number, so it pops for every one — even a stop that
-		     pays what the one before it did. -->
-		{#key reached}
-			<div
-				class="gold-total mult-badge"
-				bind:this={goldTotalEl}
-				style="left:{cx}px; top:{barrelTop + GOLD_LABEL_Y * barrelU}px; font-size:{GOLD_PX.front.w * barrelU * 0.26}px"
-			>
-				<span class="mult-stroke" aria-hidden="true">{goldTotal}x</span>
-				<span class="mult-fill">{goldTotal}x</span>
-			</div>
-		{/key}
-	{/if}
 
 	<!-- What the voyage is doing, in the voice the other rooms speak in (`RoomHint`), just under the
 	     title frame. -->
@@ -1027,29 +1083,6 @@
 			{/if}
 		{/if}
 	</div>
-
-	<!-- The helm. Dragged round by hand, or by the arrow keys; turned by itself when the voyage is
-	     being sailed for the player. -->
-	<div
-		class="helm"
-		class:hands
-		class:dragging
-		class:steered
-		bind:this={helmEl}
-		role="slider"
-		tabindex={hands ? 0 : -1}
-		aria-label="Ship's wheel"
-		aria-valuemin={-WHEEL_LOCK}
-		aria-valuemax={WHEEL_LOCK}
-		aria-valuenow={Math.round(wheelDeg)}
-		onpointerdown={grab}
-		onpointermove={turn}
-		onpointerup={release}
-		onpointercancel={release}
-	>
-		<img class="wheel" src={WHEEL} alt="" draggable="false" style="transform: rotate({wheelDeg.toFixed(1)}deg)" />
-	</div>
-
 </div>
 
 <style>
@@ -1395,6 +1428,45 @@
 		padding-top: 1.6vw;
 	}
 
+	/*
+	 * Everything on board, as one layer over the view (3) and under the caption (7) — its own stacking
+	 * context, so the deck, the barrel, the coins, the total and the wheel keep their order inside it.
+	 * Held below the screen until the player steps up to the helm, then risen into place, easing out
+	 * with a little settle at the top, as a step up onto a rolling deck.
+	 */
+	.aboard {
+		position: absolute;
+		inset: 0;
+		z-index: 4;
+		pointer-events: none;
+		transform: translateY(var(--board-drop));
+	}
+	.aboard.boarded {
+		transform: none;
+		transition: transform var(--board-ms) cubic-bezier(0.22, 1.12, 0.36, 1);
+	}
+	/* The sea mist: a thin pale haze, thickest low on the water and over the horizon, that the sea, the
+	   cave and the barrels show through — thinning away once the player is aboard. */
+	.mist {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		pointer-events: none;
+		background:
+			radial-gradient(ellipse 140% 45% at 50% 62%, rgba(185, 208, 224, 0.55), rgba(150, 178, 198, 0.3) 55%, rgba(120, 150, 175, 0) 100%),
+			linear-gradient(180deg, rgba(90, 115, 140, 0.15) 0%, rgba(160, 188, 206, 0.35) 55%, rgba(170, 196, 212, 0.45) 100%);
+	}
+	.mist.cleared {
+		opacity: 0;
+		transition: opacity var(--mist-ms) ease-out;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.aboard.boarded,
+		.mist.cleared {
+			transition: none;
+		}
+	}
+
 	/* The deck, over the sea and the gates and under the wheel. */
 	.deck {
 		position: absolute;
@@ -1493,6 +1565,8 @@
 		-webkit-tap-highlight-color: transparent;
 		outline: none;
 		z-index: 5;
+		/* Taken back from `.aboard`, which lets every other pointer through to the room. */
+		pointer-events: auto;
 	}
 	.helm.hands {
 		cursor: grab;

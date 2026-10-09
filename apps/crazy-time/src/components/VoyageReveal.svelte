@@ -4,7 +4,9 @@
 	 *
 	 * On the table (`sailOff`): the ship, which has just ridden a swell on its wedge (the landed
 	 * badge's `rock`), lifts off the disc and comes into the middle of the screen, growing as it
-	 * comes and still riding the waves, then sails off the right-hand edge.
+	 * comes and still riding the waves, then sails off the right-hand edge — or, for the flood
+	 * (`stay`), waits there riding the waves, to be handed over (`handOver`) to the sea that rises up
+	 * the screen and carries it off (VoyageCover's `flood`), which is how the voyage comes on now.
 	 *
 	 * Into the room (`cross`): it comes back in from the right, turned about, and sails the width of
 	 * the screen to the left — and the room is drawn in behind it, the bonus screen's left edge held
@@ -111,6 +113,7 @@
 
 	let iconEl: HTMLDivElement | undefined = $state();
 	let flipEl: HTMLDivElement | undefined = $state();
+	let rideEl: HTMLDivElement | undefined = $state();
 	let wallEl: HTMLDivElement | undefined = $state();
 
 	type Pose = { dx: number; dy: number; k: number; r?: number };
@@ -127,8 +130,8 @@
 		return anim;
 	};
 
-	/** Off the table: wedge (`from`) to the middle, and away to the right. */
-	export const sailOff = async (from: Box, frame: Frame): Promise<void> => {
+	/** Off the table: wedge (`from`) to the middle, and away to the right — or left there, `stay`ing. */
+	export const sailOff = async (from: Box, frame: Frame, stay = false): Promise<void> => {
 		const size = Math.min(frame.w, frame.h) * MIDDLE_SHARE;
 		box = { x: frame.w / 2, y: frame.h / 2, size };
 		flipped = false;
@@ -155,6 +158,7 @@
 		playSound('whoosh', 0.9);
 		move(popped, middle, IN_MS, 'cubic-bezier(0.45, 0, 0.25, 1)');
 		await waitForTimeout(IN_MS + HOLD_MS);
+		if (stay) return;
 
 		// Away to the right, gathering speed, bow a touch down into the swell.
 		const gone: Pose = { dx: frame.w / 2 + size * 0.75, dy: -size * 0.04, k: 1, r: 4 };
@@ -403,6 +407,21 @@
 		await waitForTimeout(UNDOCK_MS);
 	};
 
+	/**
+	 * The ship, waiting in the middle after `sailOff(…, true)`, handed over: where it is drawn (its
+	 * middle and width, in frame pixels) and how far through a swell its riding is, so whatever draws
+	 * it next can pick the riding up there. It is gone from here in the same frame. Null if no ship is
+	 * up.
+	 */
+	export const handOver = (): { box: Box; rideMs: number } | null => {
+		if (!shown) return null;
+		const ride = rideEl?.getAnimations()[0];
+		const rideMs = typeof ride?.currentTime === 'number' ? ride.currentTime : 0;
+		const out = { box: { ...box }, rideMs };
+		hide();
+		return out;
+	};
+
 	export const hide = () => {
 		iconEl?.getAnimations().forEach((a) => a.cancel());
 		flipEl?.getAnimations().forEach((a) => a.cancel());
@@ -434,7 +453,7 @@
 			style="left:{box.x - box.size / 2}px; top:{box.y - box.size / ASPECT / 2}px; width:{box.size}px; height:{box.size / ASPECT}px"
 		>
 			<div class="flip" class:flipped class:turning bind:this={flipEl}>
-				<div class="ride" class:riding>
+				<div class="ride" class:riding bind:this={rideEl}>
 					<img src={SHIP} alt="" draggable="false" />
 				</div>
 			</div>

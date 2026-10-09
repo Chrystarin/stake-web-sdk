@@ -60,6 +60,7 @@
 	import WheelReveal from './WheelReveal.svelte';
 	import PlinkoReveal from './PlinkoReveal.svelte';
 	import VoyageReveal from './VoyageReveal.svelte';
+	import VoyageCover from './VoyageCover.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
 	import DevHarness from './DevHarness.svelte';
 	import BuyBonusModal from './BuyBonusModal.svelte';
@@ -508,11 +509,14 @@
 	// --- Pirate Plinko and Ocean Voyage: their icons carry the player out of the table -----------
 	// The cannonball bounces off the hub and falls, and the camera goes down with it: the table
 	// slides up and away and the room, which lies under it, comes up from below (PlinkoReveal); the
-	// ship sails off to the right, comes back across the screen drawing the room in behind it, and
-	// docks where the room's own ship waits (VoyageReveal). Neither covers the screen, so the rooms
-	// keep their own ways out (the slide).
+	// ship sails off its wedge into the middle of the screen (VoyageReveal) and the sea rises up over
+	// the table, floating it up on its crest and off, and drains away off the room (VoyageCover's
+	// `flood`) — where the room takes over, the player stepping up to its helm. Ocean Voyage goes out
+	// the way it ended (VoyageCover again): a bloom of gold out of the treasure, or the sea rising
+	// over the ship the kraken took.
 	let plinkoReveal: PlinkoReveal | undefined = $state();
 	let voyageReveal: VoyageReveal | undefined = $state();
+	let voyageCover: VoyageCover | undefined = $state();
 	/** How the next bonus screen comes on (BonusRound's `entrance`) when no cover has it. */
 	let roomEntrance = $state<'slide' | 'wipe' | 'descend'>('slide');
 	/** The room's own ship is held back while the one that brought the player docks onto it. */
@@ -685,7 +689,8 @@
 		restoreIconOnOpen = true;
 		voyageRoomTarget = target;
 		roomEntrance = 'wipe';
-		await voyageReveal.sailOff(from, frameSize());
+		// Into the middle, and left there for the flood to carry off (`enterRoom`).
+		await voyageReveal.sailOff(from, frameSize(), true);
 		return true;
 	};
 
@@ -717,8 +722,9 @@
 	};
 
 	/**
-	 * BonusRound's `enter`: for a wipe, the ship across the screen, then onto the room's ship; for a
-	 * descent, the camera down after the cannonball.
+	 * BonusRound's `enter`: for a wipe, Ocean Voyage's flood — the sea up over the screen, the ship
+	 * waiting in the middle floated up on it and away, the room put on under the water and the water
+	 * drained off it; for a descent, the camera down after the cannonball.
 	 */
 	const enterRoom = async (screen: HTMLElement) => {
 		if (roomEntrance === 'descend') return descend(screen);
@@ -726,13 +732,34 @@
 		shipLifted = false;
 		shipArriving = true;
 		try {
+			if (voyageCover) {
+				const ship = voyageReveal.handOver();
+				await voyageCover.flood(frameSize(), ship?.box ?? null, ship?.rideMs ?? 0);
+				// Under water: the room on (it was held clipped away, `.screen.wiping`) and the Buy Bonus
+				// screen gone, both unseen.
+				screen.animate([{ clipPath: 'inset(0)' }, { clipPath: 'inset(0)' }], {
+					duration: 1,
+					fill: 'forwards',
+				});
+				if (buyWaiting) closeBuyScreen();
+				await voyageCover.uncover();
+				return;
+			}
+			// Without the flood: the ship's crossing, its wave wiping the room on.
 			const over = buyWaiting ? buyModal?.backdrop() : null;
 			await voyageReveal.cross(screen, frameSize(), over ? { el: over, scale: fitScale } : null);
 			if (buyWaiting) closeBuyScreen();
-			await voyageReveal.dock(roomShipBox(), frameSize(), () => (shipArriving = false));
+			// A board with its own ship to steer has the crossing ship dock onto it. The helm (v2) has
+			// none — the player is on the ship — so the crossing ship is gone off the left, and the room
+			// takes the player aboard itself (the deck rising into place, RoomOceanVoyageV2's `boarded`).
+			const harbour = roomShipBox();
+			if (harbour) await voyageReveal.dock(harbour, frameSize(), () => (shipArriving = false));
+			else voyageReveal.hide();
 		} finally {
 			shipArriving = false;
 			roomEntrance = 'slide';
+			// Never left waiting in the middle of the table.
+			voyageReveal.hide();
 		}
 	};
 
@@ -856,8 +883,9 @@
 		voyageRoomTarget = target;
 		buyLifted = room;
 		roomEntrance = 'wipe';
-		// Off the right-hand edge; the wave it comes back on takes the Buy Bonus screen off (`enterRoom`).
-		await voyageReveal.sailOff(from, frame);
+		// Into the middle, and left there: the flood that carries it off takes the Buy Bonus screen
+		// under with the table (`enterRoom`).
+		await voyageReveal.sailOff(from, frame, true);
 		return true;
 	};
 
@@ -928,8 +956,10 @@
 	/**
 	 * Which reveal has the screen on the way out: the room comes down under it, unmoving. The ship
 	 * does not cover it — it has already wiped the room off — but still has its wedge to go home to.
+	 * `voyage` is Ocean Voyage's ending (VoyageCover), which does cover it, and is taken off before
+	 * the ship sails home.
 	 */
-	let exitCovered: 'chest' | 'wheel' | 'ship' | 'ball' | null = null;
+	let exitCovered: 'chest' | 'wheel' | 'ship' | 'ball' | 'voyage' | null = null;
 
 	/** The room's own chest — the last one, grown in the middle of the board — in frame pixels. */
 	const roomChestBox = () => {
@@ -987,9 +1017,11 @@
 
 	/**
 	 * Asked by the bonus screen as it is about to go: the Bonus Wheel's hub comes up over the screen,
-	 * or the Treasure Chest's chest lights it white, so the room can go unseen; Ocean Voyage's own
-	 * ship lifts off its board, sails back across and takes the room off behind it, the way it drew
-	 * it in; Pirate Plinko's
+	 * or the Treasure Chest's chest lights it white, so the room can go unseen; Ocean Voyage goes out
+	 * the way it ended — a bloom of gold out of the treasure, or the sea rising over the ship the
+	 * kraken took (VoyageCover) — or, for a voyage with no ending to show, its own ship lifts off
+	 * its board, sails back across and takes the room off behind it, the way it drew it in; Pirate
+	 * Plinko's
 	 * cannonball bounces back up to the table with the camera after it (`climbOut`). False, having
 	 * done nothing, for any other way out — a room that was not walked into through its icon keeps
 	 * the slide.
@@ -1008,6 +1040,22 @@
 			const target = voyageRoomTarget;
 			voyageRoomTarget = null;
 			if (!voyageReveal || !frame?.w || !screen) return false;
+			// The helm's voyage says how it ended (`.voyage.port` / `.voyage.sunk`), and goes out that
+			// way: under a bloom of gold out of the treasure it zoomed in on, or under the sea with the
+			// kraken. The cover comes off the table once the room has gone (`onBonusOpenChange`), and
+			// the ship sails home after it.
+			const voyage = screen.querySelector('.voyage');
+			const ending = voyage?.classList.contains('port')
+				? 'gold'
+				: voyage?.classList.contains('sunk')
+					? 'sink'
+					: null;
+			if (ending && voyageCover) {
+				if (target !== null) revealIcon = target;
+				await voyageCover.cover(ending, frame, screen);
+				exitCovered = 'voyage';
+				return true;
+			}
 			// The ship is out on the water, so its wedge is empty as the table comes back.
 			if (target !== null) revealIcon = target;
 			await undockShip();
@@ -1114,6 +1162,14 @@
 						? plinkoReveal?.home(target === null ? null : wedgeBox(target), iconHome)
 						: by === 'ship'
 						? voyageReveal?.land(target === null ? null : wedgeBox(target), frameSize(), iconHome)
+						: by === 'voyage'
+						? voyageCover
+								?.uncover()
+								.then(() =>
+									target === null
+										? undefined
+										: voyageReveal?.land(wedgeBox(target), frameSize(), iconHome),
+								)
 						: by === 'chest'
 						? roomReveal?.uncover(
 								tableChestBox(),
@@ -3334,6 +3390,7 @@
 		{/if}
 		<PlinkoReveal bind:this={plinkoReveal} />
 		<VoyageReveal bind:this={voyageReveal} />
+		<VoyageCover bind:this={voyageCover} />
 
 	</div>
 
