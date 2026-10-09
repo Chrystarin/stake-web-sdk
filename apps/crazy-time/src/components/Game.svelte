@@ -2832,7 +2832,7 @@
 	context.eventEmitter.subscribeOnMount({
 		topSlotSpin: async (event) => {
 			// A single-room buy never shows the Top Slot on the table: the multiplier it won for the
-			// room is brought on by the bonus screen itself (BonusRound's `introMultiplier`).
+			// room is brought on by the bonus screen itself (BonusRound's `bringOnMultiplier`).
 			if (wheelOff) return;
 			// Normally already on its way from the press of SPIN; a resumed round comes straight here.
 			await focusTopSlot();
@@ -3365,7 +3365,6 @@
 		<BonusRound
 			chip={stateBet.betAmount}
 			{portrait}
-			introMultiplier={wheelOff}
 			entrance={revealLit ? 'lit' : roomEntrance}
 			enter={enterRoom}
 			coverExit={coverRoomExit}

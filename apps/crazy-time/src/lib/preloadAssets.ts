@@ -101,6 +101,8 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 
 	// ── Bonus screen (BonusRound.svelte): the sign every room's name is written on ───────────────
 	'img/title_frame.png',
+	// …and the board a room's Top Slot multiplier is brought on on, under BONUS MULTIPLIER.
+	'img/small_frame.webp',
 
 	// ── Pirate Plinko (RoomPiratePlinko.svelte + plinko/PlinkoBoard.svelte) ──────────────────────
 	// BOTH board cuts: which one shows is the orientation at the time, and a phone rotated between

@@ -23,6 +23,7 @@
 	import RoomChest from './rooms/RoomChest.svelte';
 	import RoomOceanVoyageV2 from './rooms/RoomOceanVoyageV2.svelte';
 	import MultiplierBurst from './rooms/MultiplierBurst.svelte';
+	import RoomHint from './rooms/RoomHint.svelte';
 
 	type Props = {
 		/** Cash value of one chip. Nothing on this screen says money any more; kept for the caller. */
@@ -53,11 +54,6 @@
 		coverExit?: (room: RoomSpot, screen: HTMLElement | null) => Promise<boolean>;
 		/** True for the whole time the screen is up. */
 		onOpenChange?: (open: boolean) => void;
-		/**
-		 * A bought room, come straight on from the Buy Bonus screen: the table never showed its Top
-		 * Slot, so a multiplier it carries is brought on here (`bringOnMultiplier`) before it plays.
-		 */
-		introMultiplier?: boolean;
 	};
 	let {
 		portrait = false,
@@ -65,7 +61,6 @@
 		enter,
 		coverExit,
 		onOpenChange,
-		introMultiplier = false,
 	}: Props = $props();
 	/** `entrance` as it stood when this screen went up: the light lifting must not start a slide. */
 	let enteredAs = $state<'slide' | 'lit' | 'wipe' | 'descend'>('slide');
@@ -227,25 +222,41 @@
 	};
 
 	/**
-	 * A bought room's Top Slot multiplier, brought on once the screen is in: up big in the middle
-	 * of the room, left there to be read, then carried up onto the skull at the top of the title
-	 * frame (`.ts`), where it stays for the round. The `.ts` badge is laid out the whole time but
-	 * kept invisible until the carried copy lands on it, so the flight is aimed at the box it will
+	 * The room's Top Slot multiplier, brought on once the screen is in — bought or landed on the
+	 * wheel, whenever the Top Slot multiplied it. It is shown on a rope-framed board (`small_frame`),
+	 * the words BONUS MULTIPLIER over the number (`multBoard`): up big in the middle of the room with
+	 * a line under it saying what it does, left there to be read; then the line goes, and the whole
+	 * board is carried up and shrunk onto the small copy of itself over the skull at the top of the
+	 * title frame (`.ts`), which stays there for the round. The `.ts` board is laid out the whole time
+	 * but kept invisible until the carried one lands on it, so the flight is aimed at the box it will
 	 * actually occupy.
 	 */
 	let introShown = $state(false);
+	/** The line under the big board, faded out (RoomHint's `shown`) just before the board moves. */
+	let introSaid = $state(false);
 	let tsLanded = $state(true);
 	let introEl: HTMLElement | undefined = $state();
 	let tsEl: HTMLElement | undefined = $state();
-	/** The pop in and the time it is held up to be read. */
-	const INTRO_HOLD_MS = 2200;
+	/** The board the multiplier is shown on: `small_frame.png` cropped to its rope (1167×744). */
+	const BOARD_ART = staticCssUrl('img/small_frame.webp');
+	/** How long the whole board — and the line under it — is held up in the middle to be read; then
+	    the line fades before the board moves. */
+	const INTRO_HOLD_MS = 3000;
+	const INTRO_SAID_OFF_MS = 300;
 	const INTRO_FLY_MS = 750;
+	/** What the multiplier does, under the big board: the Top Slot multiplies what the room pays.
+	    Broken into two lines (RoomHint wants its lines given) so it fits a phone's width too. */
+	const introLines = (multiplier: number) => ['Rewards are multiplied', `by x${multiplier} this round!`];
 
 	const bringOnMultiplier = async () => {
 		introShown = true;
 		playSound('notify');
 		await tick();
+		introSaid = true;
 		await waitForTimeout(INTRO_HOLD_MS);
+		// The line under it goes first, so it is the board alone that moves.
+		introSaid = false;
+		await waitForTimeout(INTRO_SAID_OFF_MS);
 		const from = introEl?.getBoundingClientRect();
 		const to = tsEl?.getBoundingClientRect();
 		if (introEl && from?.width && to?.width) {
@@ -255,6 +266,7 @@
 			const dx = (to.left + to.width / 2 - (from.left + from.width / 2)) / zoom;
 			const dy = (to.top + to.height / 2 - (from.top + from.height / 2)) / zoom;
 			playSound('whoosh');
+			// The whole board — frame, words and number — carried up and shrunk onto its small copy.
 			const frames = [
 				{ translate: '0 0', scale: 1 },
 				{ translate: `${dx}px ${dy}px`, scale: to.width / from.width },
@@ -277,7 +289,9 @@
 			const handed = entrance === 'wipe' || entrance === 'descend';
 			enteredAs = handed && !enter ? 'slide' : entrance;
 			held = enteredAs === 'wipe' || enteredAs === 'descend';
-			const intro = introMultiplier && event.room.topSlotMultiplier > 1;
+			// Every room the Top Slot multiplied brings its multiplier on (`bringOnMultiplier`) before it
+			// plays — a bought room, whose Top Slot the table never showed, and a wheel landing alike.
+			const intro = event.room.topSlotMultiplier > 1;
 			tsLanded = !intro;
 			introShown = false;
 			onOpenChange?.(true);
@@ -325,6 +339,18 @@
 	});
 </script>
 
+<!-- The multiplier's board: the rope-framed timber, BONUS MULTIPLIER across it and the number under.
+     All in `em`, so whatever sets the font size sets the board's: big in the middle of the room
+     (`.intro-card`), small over the skull (`.ts`). -->
+{#snippet multBoard(multiplier: number)}
+	<div class="board-art"></div>
+	<div class="board-label">Bonus Multiplier</div>
+	<div class="mult-badge">
+		<span class="mult-stroke" aria-hidden="true">{multiplier}x</span>
+		<span class="mult-fill">{multiplier}x</span>
+	</div>
+{/snippet}
+
 {#if current}
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
@@ -354,11 +380,15 @@
 					{SPOT_LABEL[spot]}
 				</div>
 				{#if current.room.topSlotMultiplier > 1}
-					<!-- Struck over the skull at the top of the sign, written the way every other
-					     multiplier in the game is written rather than announced in a pill of its own. -->
-					<div class="ts mult-badge" class:waiting={!tsLanded} bind:this={tsEl}>
-						<span class="mult-stroke" aria-hidden="true">{current.room.topSlotMultiplier}x</span>
-						<span class="mult-fill">{current.room.topSlotMultiplier}x</span>
+					<!-- Over the skull at the top of the sign: the multiplier's board, small, where the big one
+					     brought on in the middle of the room lands and stays. -->
+					<div
+						class="ts mult-board"
+						class:waiting={!tsLanded}
+						bind:this={tsEl}
+						style="--board-art:{BOARD_ART}"
+					>
+						{@render multBoard(current.room.topSlotMultiplier)}
 					</div>
 				{/if}
 			</div>
@@ -410,9 +440,17 @@
 
 		{#if introShown}
 			<div class="intro-mult">
-				<div class="mult-badge" bind:this={introEl}>
-					<span class="mult-stroke" aria-hidden="true">{current.room.topSlotMultiplier}x</span>
-					<span class="mult-fill">{current.room.topSlotMultiplier}x</span>
+				<!-- The board, big, and under it what it does; the whole board is what flies (`introEl`). -->
+				<div class="intro-card mult-board" bind:this={introEl} style="--board-art:{BOARD_ART}">
+					{@render multBoard(current.room.topSlotMultiplier)}
+				</div>
+				<div class="intro-said">
+					<RoomHint
+						lines={introLines(current.room.topSlotMultiplier)}
+						shown={introSaid}
+						size="1.4vw"
+						portraitSize="3.8vw"
+					/>
 				</div>
 			</div>
 		{/if}
@@ -607,40 +645,92 @@
 		align-items: center;
 		gap: 0.3vw;
 	}
-	/* Laid over the skull at the top of the sign, dead centre. Only the size is set here — the badge
-	   is `em`-based, and everything else about how a multiplier looks lives in table.scss so the
-	   table and this screen cannot drift apart. */
-	.ts {
+	/* The multiplier's small board, laid over the skull at the top of the sign, dead centre. Only the
+	   size is set here — the board is `em`-based (`.mult-board`). Centred a little above the head's
+	   own middle (0.235 of the picture), and small enough that its foot stays clear of the room's
+	   name on the timber below it. */
+	/* `.mult-board` is laid out `relative` (and comes later), so this names both to stay absolute. */
+	.ts.mult-board {
 		position: absolute;
-		/* The head's own middle, read off the file: the bandana crosses it at 0.155 of the picture and
-		   the jaw ends at 0.315, so the centre is 0.235 and this rounds it. The CROSSBONES are not
-		   what to centre on — they spread wider and sit higher (knobs at 0.115), and aiming at them
-		   lands the numeral up on the cranium. Both axes are shifted by half the badge rather than by
-		   a guess, so the number stays on the skull whatever it is: `15x` and `2x` are not the same
-		   width. */
-		top: 24%;
+		top: 20%;
 		left: 50%;
 		translate: -50% -50%;
-		font-size: 2.4vw;
+		font-size: 1.7vw;
 	}
-	/* Laid out but not shown, while the bought room's multiplier is still on its way up to it. */
+	/* The words on the small board, a little larger against its number than on the big one: at this
+	   size the big board's proportion leaves them too small to read. Still inside the rope. */
+	.ts .board-label {
+		font-size: 0.33em;
+		letter-spacing: 0.02em;
+	}
+	/* Laid out but not shown, while the room's multiplier is still on its way up to it. */
 	.ts.waiting {
 		visibility: hidden;
 	}
-	/* A bought room's multiplier, up big in the middle before it is carried to `.ts`: the same size
+	/* The room's multiplier, up big in the middle before it is carried to `.ts`: the same size
 	   as the round's result (`.centre-result`), popped in past its size and settled. */
 	.intro-mult {
 		position: absolute;
 		inset: 0;
 		z-index: 6;
-		display: grid;
-		place-items: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4vw;
 		font-size: 8vw;
 		pointer-events: none;
 	}
-	.intro-mult .mult-badge {
-		white-space: nowrap;
+	/* The big board pops in past its size and settles, words, number and all. */
+	.intro-card {
 		animation: intro-mult-in 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+	}
+	/* The line under it takes its own size (RoomHint's `size`), not the board's. */
+	.intro-said {
+		font-size: 1rem;
+	}
+	/* The board, sized off the number (`em`): wide enough for the words across it and the number
+	   under them on the planks inside the rope. */
+	.mult-board {
+		position: relative;
+		width: 4em;
+		aspect-ratio: 1167 / 744;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		/* The planks run from 0.12 to 0.9 of the picture's height: the words and the number are
+		   centred on that rather than on the rope. */
+		padding-top: 0.05em;
+	}
+	.board-art {
+		position: absolute;
+		inset: 0;
+		background: var(--board-art) no-repeat center / 100% 100%;
+		filter: drop-shadow(0 0.04em 0.08em rgba(0, 0, 0, 0.6));
+	}
+	/* BONUS MULTIPLIER, in the title frame's lettering (`.title`): gold, edged in dark brown, glowing. */
+	.board-label {
+		position: relative;
+		margin-bottom: 0.08em;
+		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
+		font-size: 0.28em;
+		font-weight: 400;
+		letter-spacing: 0.04em;
+		line-height: 1;
+		text-transform: uppercase;
+		white-space: nowrap;
+		color: #f7c948;
+		paint-order: stroke;
+		-webkit-text-stroke: 0.12em #3a1c07;
+		text-shadow:
+			0 0 0.25em rgba(255, 216, 77, 0.85),
+			0 0.06em 0.1em rgba(0, 0, 0, 0.9);
+	}
+	.mult-board .mult-badge {
+		position: relative;
+		white-space: nowrap;
+		line-height: 1;
 	}
 	@keyframes intro-mult-in {
 		from {
@@ -699,7 +789,7 @@
 		font-size: 2.2vw;
 	}
 	:global(.game.portrait) .ts {
-		font-size: 6vw;
+		font-size: 4.5vw;
 	}
 	:global(.game.portrait) .footer {
 		height: 11vw;
