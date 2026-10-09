@@ -124,7 +124,7 @@
 	 * from 0.14 to 0.86 across and 0.26 to 0.70 down, read off the file; the text is laid in that
 	 * opening rather than in the middle of the picture, which the skull at the top pulls off centre.
 	 */
-	const TITLE_FRAME = staticUrl('img/title_frame.png');
+	const TITLE_FRAME = staticUrl('img/title_frame.webp');
 	/**
 	 * How big the room's name can be cut and still fit the timber.
 	 *

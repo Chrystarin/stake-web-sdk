@@ -2,6 +2,8 @@ import '@esotericsoftware/spine-pixi-v8';
 import { Physics, Spine } from '@esotericsoftware/spine-pixi-v8';
 import { Application, Assets, Ticker, UPDATE_PRIORITY } from 'pixi.js';
 
+import { pixiResolution } from '../deviceTier.svelte';
+
 /** Everything the splash needs to know about the one spine it plays. */
 export type LogoSpineAsset = {
 	id: string;
@@ -73,7 +75,8 @@ export class LogoSpineRenderer {
 			// WebGL contexts (see the Plinko's Background notes).
 			antialias: false,
 			autoDensity: true,
-			resolution: Math.min(2, window.devicePixelRatio || 1),
+			// 2x at most, 1x on the reduced budget (lib/deviceTier.svelte.ts).
+			resolution: pixiResolution(),
 			preference: 'webgl',
 		});
 		if (this.destroyed) {

@@ -46,13 +46,14 @@
 	import { fadeOutSound, playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
 	import { CoinFountain } from '../../lib/coinFountain';
+	import { isLite } from '../../lib/deviceTier.svelte';
 	import RoomHint from './RoomHint.svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	type Props = { room: BookEventOceanVoyage; interactive?: boolean; portrait?: boolean };
 	let { room, interactive = false, portrait = false }: Props = $props();
 
-	const KRAKEN = staticPath('img/ocean-voyage/kraken.png');
+	const KRAKEN = staticPath('img/ocean-voyage/kraken.webp');
 	const BARREL = staticPath('img/ocean-voyage/barrel.webp');
 	const CAVE = staticPath('img/ocean-voyage/skull_cave_v2.webp');
 	const INSIDE = staticPath('img/ocean-voyage/inside_cave.webp');
@@ -123,7 +124,9 @@
 	 */
 	const COIN = staticPath('img/ocean-voyage/coin.webp');
 	/** Coins a barrel throws: a few more the further the voyage has got. */
-	const FOUNTAIN_COINS = (depth: number) => Math.min(30, 10 + depth * 2);
+	const FOUNTAIN_COINS = (depth: number) =>
+		// Half as many on the reduced budget (lib/deviceTier.svelte.ts): every coin is a draw a frame.
+		Math.round(Math.min(30, 10 + depth * 2) * (isLite() ? 0.5 : 1));
 	/** The throw, first coin to last; how long one hangs in the air before it turns for the barrel (give
 	    or take the stagger); and its speed and size against plinko's full-screen shower. */
 	const FOUNTAIN_THROW_MS = 350;
@@ -666,13 +669,13 @@
 	});
 	// Drawn in the room's layout pixels, with the backing store at device resolution: the game's CSS
 	// zoom times the device's pixel ratio (held to 2 — a full-screen canvas at 3x is a lot of memory
-	// for some coins).
+	// for some coins — and to 1 on the reduced budget, lib/deviceTier.svelte.ts).
 	$effect(() => {
 		const f = fountain;
 		const canvas = coinCanvas;
 		if (!f || !canvas || !rootEl) return;
 		const zoom = rootEl.getBoundingClientRect().width / W || 1;
-		f.resize(W, H, Math.min(2, (window.devicePixelRatio || 1) * zoom));
+		f.resize(W, H, Math.min(isLite() ? 1 : 2, (window.devicePixelRatio || 1) * zoom));
 	});
 
 	/** Bank barrel `n`'s gold: the heap rises and the total goes up. Never back down. */
@@ -883,12 +886,17 @@
 	     view does (Background's `sea-swell`), while the deck and the wheel hold still in front. -->
 	<div class="view">
 		<!-- The sky, standing on the horizon. Farthest of all, so it pans least. -->
+		<!-- The pan is a TRANSFORM on each of these, not their `left`. The sea is three screens wide and
+		     masked, its ripples are blended over it, and the cave is masked and shadowed: moved by
+		     `left` they were laid out and repainted — mask, blend, blur and all — on every frame of the
+		     voyage, a full-screen software paint sixty times a second. Translated, each is a layer the
+		     compositor slides; nothing is repainted as the wheel turns. -->
 		<img
 			class="sky"
 			src={SKY}
 			alt=""
 			draggable="false"
-			style="left:{cx - sky.w / 2 - offset * SKY_PAN}px; top:{sky.top}px; width:{sky.w}px"
+			style="left:{cx - sky.w / 2}px; top:{sky.top}px; width:{sky.w}px; transform:translateX({(-offset * SKY_PAN).toFixed(1)}px)"
 		/>
 
 		<!-- The sea, from the horizon down, as painted: wide enough to pan as the wheel turns, fading in
@@ -898,22 +906,28 @@
 			src={SEA}
 			alt=""
 			draggable="false"
-			style="left:{cx - sea.w / 2 - offset * SEA_PAN}px; top:{seaTop}px; width:{sea.w}px; --blend:{blend}px"
+			style="left:{cx - sea.w / 2}px; top:{seaTop}px; width:{sea.w}px; --blend:{blend}px; transform:translateX({(-offset * SEA_PAN).toFixed(1)}px)"
 		/>
 		<!-- Its ripples, running down towards the player without a seam and panning with the wheel. Only
 		     their light shows: the tile's dark drops out, laid over the sea as a screen. -->
 		<div class="sea-flow" style="top:{seaTop}px; --fade:{((H - seaTop) * FLOW_FADE).toFixed(1)}px">
-			<div
-				class="sea-flow-run"
-				style="left:{(-flow.spare - offset * SEA_PAN).toFixed(1)}px; width:{(W + 2 * flow.spare).toFixed(1)}px; height:{(H - seaTop + flow.h).toFixed(1)}px; background-image:url('{SEA_FLOW}'); background-size:{flow.w.toFixed(1)}px {flow.h.toFixed(1)}px; --tile-h:{flow.h.toFixed(1)}px; animation-duration:{FLOW_SECONDS}s"
-			></div>
+			<!-- The pan on a box of its own: the run's transform is its scroll (`sea-flow`). -->
+			<div class="sea-flow-pan" style="transform:translateX({(-offset * SEA_PAN).toFixed(1)}px)">
+				<div
+					class="sea-flow-run"
+					style="left:{(-flow.spare).toFixed(1)}px; width:{(W + 2 * flow.spare).toFixed(1)}px; height:{(H - seaTop + flow.h).toFixed(1)}px; background-image:url('{SEA_FLOW}'); background-size:{flow.w.toFixed(1)}px {flow.h.toFixed(1)}px; --tile-h:{flow.h.toFixed(1)}px; animation-duration:{FLOW_SECONDS}s"
+				></div>
+			</div>
 		</div>
 
 		<!-- The cave, standing in the sea, its rocks fading into the water at the foot. Through the hole of
 		     its mouth, the treasure cave inside — black far off, and only ever partly seen on the way. -->
+		<!-- Laid out at the middle and panned by the first translate; the zoom's own translate is
+		     worked out from where the pan has put the hole (`caveZoom`), so the two compose to exactly
+		     the box `left:{caveLeft}px` used to give. -->
 		<div
 			class="cave"
-			style="left:{caveLeft}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; transform:{caveZoom.transform}; transform-origin:{HOLE_CX * 100}% {HOLE_CY * 100}%; --sink:{(caveZoom.sink * 100).toFixed(2)}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
+			style="left:{cx - cave.w / 2}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; transform:translateX({(-offset * CAVE_PAN).toFixed(1)}px) {caveZoom.transform === 'none' ? '' : caveZoom.transform}; transform-origin:{HOLE_CX * 100}% {HOLE_CY * 100}%; --sink:{(caveZoom.sink * 100).toFixed(2)}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
 		>
 			<div class="cave-dark"></div>
 			<img
@@ -1120,6 +1134,7 @@
 		position: absolute;
 		height: auto;
 		pointer-events: none;
+		will-change: transform;
 	}
 	.sea-flow {
 		position: absolute;
@@ -1131,6 +1146,11 @@
 		mix-blend-mode: screen;
 		mask-image: linear-gradient(180deg, transparent 0, #000 var(--fade));
 		-webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--fade));
+	}
+	.sea-flow-pan {
+		position: absolute;
+		inset: 0;
+		will-change: transform;
 	}
 	/* One tile taller than the water, run down by exactly one tile and round again: the same picture
 	   every lap, so the loop never shows. */
@@ -1154,6 +1174,19 @@
 			animation: none;
 		}
 	}
+	/*
+	 * The reduced budget (lib/deviceTier.svelte.ts): the water holds still — the swell under the
+	 * whole view and the ripples running down it are two full-screen composites a frame, the
+	 * ripples' blended through a mask — and the cave loses its shadow, a blur over a surface three
+	 * screens wide. The voyage itself is unchanged: the pan, the barrels, the kraken, the zoom.
+	 */
+	:global(html[data-tier='lite']) .view,
+	:global(html[data-tier='lite']) .sea-flow-run {
+		animation: none;
+	}
+	:global(html[data-tier='lite']) .cave {
+		filter: none;
+	}
 	/* The whole cave — the front and what is seen through its mouth — fades into the sea at its foot. */
 	.cave {
 		position: absolute;
@@ -1162,6 +1195,7 @@
 		   which come after it at this level. */
 		z-index: 3;
 		pointer-events: none;
+		will-change: transform;
 		mask-image: linear-gradient(180deg, #000 var(--sink), transparent 100%);
 		-webkit-mask-image: linear-gradient(180deg, #000 var(--sink), transparent 100%);
 		filter: drop-shadow(0 calc(var(--voyage-w) * 0.01) calc(var(--voyage-w) * 0.02) rgba(0, 0, 0, 0.55));
@@ -1193,6 +1227,7 @@
 		position: absolute;
 		height: auto;
 		pointer-events: none;
+		will-change: transform;
 		mask-image: linear-gradient(180deg, transparent 0, #000 var(--blend));
 		-webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--blend));
 	}
@@ -1589,6 +1624,12 @@
 	   player has first taken it. */
 	.helm.hands:not(.dragging):not(.steered) .wheel {
 		animation: invite 1400ms ease-in-out infinite alternate;
+	}
+	/* The reduced budget: the invitation held at its brightest — an animated blur over the wheel
+	   is re-run by the GPU every frame until the player takes it. */
+	:global(html[data-tier='lite']) .helm.hands:not(.dragging):not(.steered) .wheel {
+		animation: none;
+		filter: drop-shadow(0 0 calc(var(--voyage-w) * 0.03) rgba(255, 214, 90, 0.9));
 	}
 	@keyframes invite {
 		from {

@@ -276,20 +276,38 @@
 		translate: -50% -50%;
 		aspect-ratio: 1;
 		border-radius: 50%;
+	}
+	/* The pulse is the halo's OPACITY, on a pseudo-element that carries the halo at full: a
+	   `box-shadow` that changes shape every frame cannot be composited, so the old keyframes on the
+	   shadow itself had the browser repainting the hub sixty times a second for the whole room;
+	   opacity is blended on the GPU and paints nothing. Same as the table's hub (Game.svelte). */
+	.hub-glow::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		box-shadow: 0 0 1.4vw 0.35vw rgba(255, 225, 77, 0.7);
+		opacity: 0.5;
 		animation: hub-pulse 1.7s ease-in-out infinite;
 	}
 	@keyframes hub-pulse {
 		0%,
 		100% {
-			box-shadow: 0 0 0.6vw 0.1vw rgba(255, 225, 77, 0.35);
+			opacity: 0.5;
 		}
 		50% {
-			box-shadow: 0 0 1.4vw 0.35vw rgba(255, 225, 77, 0.7);
+			opacity: 1;
 		}
 	}
-	.start:hover .hub-glow {
+	.start:hover .hub-glow::before {
 		animation: none;
+		opacity: 1;
 		box-shadow: 0 0 1.6vw 0.45vw rgba(255, 225, 77, 0.75);
+	}
+	/* The reduced budget holds the halo still (lib/deviceTier.svelte.ts). */
+	:global(html[data-tier='lite']) .hub-glow::before {
+		animation: none;
+		opacity: 0.75;
 	}
 	.start:active .hub-glow {
 		scale: 0.96;

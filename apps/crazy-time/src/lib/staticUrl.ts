@@ -1,5 +1,7 @@
 import { base } from '$app/paths';
 
+import { isPhoneScreen } from './deviceTier.svelte';
+
 /**
  * Resolve a path to a file in `static/` (the build output root).
  *
@@ -13,7 +15,28 @@ import { base } from '$app/paths';
  * path is accidentally correct — which is exactly how the whole game came to be written with them.
  */
 const joinBase = (path: string): string =>
-	`${base}/${path.replace(/^\//, '')}`.replace(/\/{2,}/g, '/');
+	`${base}/${phoneCut(path).replace(/^\//, '')}`.replace(/\/{2,}/g, '/');
+
+/**
+ * Art that ships in a second, smaller cut for phones, as `<name>_phone.webp` beside the original —
+ * the pieces a phone paints at well under half their pixels (a 3x phone is 1179 px across in
+ * portrait and 2556 in landscape; these are drawn at 200-1100 of that), so the original was decoded
+ * at two to five times the size anything would ever sample it at. The cut is chosen by SCREEN
+ * (lib/deviceTier.svelte.ts `isPhoneScreen`), not by viewport or budget, so the preloader, the
+ * components and the drift alarm all name the same file for the whole session, rotation included.
+ * Desktops and iPads keep the originals. Cut with Pillow (LANCZOS, webp q90) from the PNG sources.
+ */
+const PHONE_CUTS: ReadonlySet<string> = new Set([
+	'img/bonus-wheel/frame_bare.webp',
+	'img/pirate-plinko/board_v2.webp',
+	'img/pirate-plinko/cannon.webp',
+	'img/top-slots/frame.webp',
+]);
+const phone = isPhoneScreen();
+const phoneCut = (path: string): string =>
+	phone && PHONE_CUTS.has(path.replace(/^\//, ''))
+		? path.replace(/\.webp$/, '_phone.webp')
+		: path;
 
 const inBrowser = typeof window !== 'undefined';
 

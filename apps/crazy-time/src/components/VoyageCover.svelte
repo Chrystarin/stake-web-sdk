@@ -307,6 +307,11 @@
 				calc(var(--crest) * -7) 0;
 		}
 	}
+	/* `background-position` cannot be composited — every frame of the roll is a repaint of the crest
+	   — so the reduced budget (lib/deviceTier.svelte.ts) holds the foam still while the flood rises. */
+	:global(html[data-tier='lite']) .crest {
+		animation: none;
+	}
 	.body {
 		position: absolute;
 		left: 0;

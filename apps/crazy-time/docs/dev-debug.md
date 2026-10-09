@@ -106,6 +106,20 @@ http://localhost:3021/?buy=wheel&mult=50000     # Bonus Wheel 1,000x under a 50x
 http://localhost:3021/?buy=any&mult=400         # Random Bonus, any room that pays 400x
 ```
 
+## `?tier=lite` / `?tier=full`: the drawing budget
+
+Works online too — it is for QA on a device, not an outcome. The game draws on one of two budgets
+(`src/lib/deviceTier.svelte.ts`): `full`, or `lite` for weak phones, where the table's parallax
+backdrop is a flat still, the idle sways and glow pulses hold still, the Ocean Voyage's water does
+not move, the coin fountain is lighter and the Pixi canvases draw at 1x. Phones pick `lite` from
+their own figures (4 cores or 4 GB and under) or by failing to hold ~42 fps on the idle table in the
+first seconds after the splash, and then stay `lite` for the session (sessionStorage). `?tier=lite`
+forces the reduced budget anywhere; `?tier=full` pins the full one and switches the frame watch off.
+`window.crazyTimeDeviceTier()` in the console says which budget is in force and why.
+
+Phones (touch, screen's long edge 960 CSS px or less) also get the 720p cuts of the two video
+backdrops (`static/videos/*_mobile.mp4`) on either budget.
+
 ## Where the books come from
 
 `pnpm --filter crazy-time sync-math-books` regenerates `base_books.ts` from the math publish

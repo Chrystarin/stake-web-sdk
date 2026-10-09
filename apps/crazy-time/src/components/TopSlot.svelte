@@ -28,7 +28,7 @@
 	 * are those bounds over the image box, so the reels sit exactly in the openings. The opening's
 	 * height works out at 0.2452 of the frame's WIDTH, which is where `--cell` comes from.
 	 */
-	const FRAME_ART = staticUrl('img/top-slots/frame.png');
+	const FRAME_ART = staticUrl('img/top-slots/frame.webp');
 	/**
 	 * The two ropes the cabinet hangs from, hooked onto the rope bindings drawn on its top rail
 	 * (left one centred at x 435 of 1774, the right its mirror at 1339; the rail's top edge at y 187
@@ -512,5 +512,12 @@
 		to {
 			filter: brightness(1.35);
 		}
+	}
+	/* The reduced budget (lib/deviceTier.svelte.ts): the glow, but held — animating the filter has
+	   the GPU re-running both blurs over the whole cabinet every frame for as long as the multiplier
+	   stands, and one blur is the glow; the other is the shadow the cabinet casts anyway. */
+	:global(html[data-tier='lite']) .applied .frame-art {
+		animation: none;
+		filter: drop-shadow(0 0 1vw #ffe14d);
 	}
 </style>

@@ -144,7 +144,7 @@
 	 * as a picture that fell over. Each orientation gets the art that was drawn for it.
 	 */
 	const BOARD_LANDSCAPE = {
-		src: staticPath('img/pirate-plinko/board_v2.png'),
+		src: staticPath('img/pirate-plinko/board_v2.webp'),
 		ratio: 1519 / 1036,
 		/**
 		 * Placed off a reference drawn over the art, not derived: the pegs fill the timber panel wall
@@ -182,7 +182,7 @@
 	 * flatten the angle would only waste the timber.
 	 */
 	const BOARD_PORTRAIT = {
-		src: staticPath('img/pirate-plinko/board_v2_portrait.png'),
+		src: staticPath('img/pirate-plinko/board_v2_portrait.webp'),
 		ratio: 1024 / 1536,
 		frame: {
 			// Read off the upright drawing the same way the landscape one was: the timber panel runs
@@ -299,7 +299,7 @@
 	 * open, banded mouth at the bottom, so the muzzle points at the board with no flipping at all.
 	 * It swings about the two orange trunnions on its flanks, which is where a gun is hung.
 	 */
-	const CANNON = staticPath('img/pirate-plinko/cannon.png');
+	const CANNON = staticPath('img/pirate-plinko/cannon.webp');
 	/**
 	 * How far the cannon may swing either side of straight down.
 	 *

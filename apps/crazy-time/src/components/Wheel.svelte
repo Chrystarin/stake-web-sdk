@@ -742,18 +742,23 @@
 			{#each segments as seg, i (i)}
 				<path d={wedgePath(i)} class="shade" class:on={highlight !== null && highlight !== i} />
 			{/each}
-			{#if outlined !== null}
-				<!-- One wedge outline on whichever segment is under the flapper. Its geometry is redrawn
-				     as the flapper crosses into the next wedge (wedges are not all the same width, so a
-				     rotated copy of wedge 0 would not do): one short path per tick, no filter, so nothing
-				     re-rasterises while the disc turns. -->
-				<path d={wedgePath(outlined)} class="passing-edge" />
-			{/if}
 			{#if !frame && INNER > 4}
 				<circle cx={R} cy={R} r={INNER - 4} class="hub" />
 			{/if}
 			{#if hub && !frame}
 				<text x={R} y={R} class="hub-label" text-anchor="middle" dominant-baseline="central">{hub}</text>
+			{/if}
+		</svg>
+		<!-- One wedge outline on whichever segment is under the flapper. Its geometry is redrawn as
+		     the flapper crosses into the next wedge (wedges are not all the same width, so a rotated
+		     copy of wedge 0 would not do). It is a SECOND svg, on a layer of its own (`.passing`), not
+		     a path inside the disc's: a path redrawn inside the disc's svg has the browser re-rasterise
+		     that svg's tiles — the lettering, its glow filters and all — on every tick, thirty and
+		     more times a second at the top of a spin. Out here each tick repaints one stroked path on
+		     an otherwise empty layer, and the disc underneath is never touched while it turns. -->
+		<svg viewBox="0 0 {R * 2} {R * 2}" class="passing" aria-hidden="true">
+			{#if outlined !== null}
+				<path d={wedgePath(outlined)} class="passing-edge" />
 			{/if}
 		</svg>
 	</div>
@@ -824,6 +829,13 @@
 		width: 100%;
 		height: 100%;
 		display: block;
+	}
+	/* The outline's own layer, over the disc's svg in the same box: see the markup. */
+	.passing {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		will-change: transform;
 	}
 	.rim-ring {
 		fill: #2a1a0c;
@@ -955,6 +967,14 @@
 	   a multiplier is a short run on a big wedge and reads on its stroke alone. */
 	.run.glow {
 		filter: drop-shadow(0 0 3px var(--wedge)) drop-shadow(0 0 9px var(--wedge));
+	}
+	/* The reduced budget (lib/deviceTier.svelte.ts): the lettering on its stroke alone. Every glow
+	   is two blurs over a run of glyphs, and every figure its own shadow filter, all rasterised in
+	   software whenever the disc is redrawn — the one thing a weak phone pays for most on this
+	   screen. The wedge colour the glow named still shows under the letters. */
+	:global(html[data-tier='lite']) .run.glow,
+	:global(html[data-tier='lite']) .label.upright {
+		filter: none;
 	}
 	.hub {
 		fill: #1c1410;

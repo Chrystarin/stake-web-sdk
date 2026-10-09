@@ -3,6 +3,7 @@ import { Assets } from 'pixi.js';
 import { NUMBER_PAY, NUMBER_SPOTS, ROOM_ICON, ROOM_SPOTS } from '../game/constants';
 import { musicUrls, soundEffectUrls, warmSounds } from '../game/sound';
 import { stateGame } from '../game/stateGame.svelte';
+import { isPhoneScreen } from './deviceTier.svelte';
 import { registerResidentUrl, staticNetworkUrl } from './staticUrl';
 import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvLogoAsset';
 
@@ -36,14 +37,16 @@ import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvL
  */
 const DOM_IMAGE_PATHS: readonly string[] = [
 	// ── The table's backdrop (Background.svelte): the landscape layers and the portrait still, since
-	// a phone can turn mid-session ──
+	// a phone can turn mid-session — and the flat landscape still the reduced budget paints instead
+	// of the layers (lib/deviceTier.svelte.ts), which a session can drop to after the splash ──
 	'img/background_layered_components/sea.webp',
 	'img/background_layered_components/deck.webp',
 	'img/background_layered_components/fog.webp',
 	'img/background_base_portrait.webp',
+	'img/background_base_landscape.webp',
 
 	// ── The wheel (Game.svelte + Wheel.svelte): ring art, number badges, room badges ─────────────
-	'img/wheel/frame.png',
+	'img/wheel/frame.webp',
 	...NUMBER_SPOTS.map((spot) => `img/wheel/${NUMBER_PAY[spot]}.png`),
 	// One picture per room, drawn on the wheel, on the bet tile, on the Top Slot reel and on the Buy
 	// Bonus cards — `ROOM_ICON` is the one place all four of those read it from.
@@ -52,7 +55,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/treasure_chest/wheel_icon_chest_opened.webp',
 
 	// ── Top Slot cabinet (TopSlot.svelte) ─────────────────────────────────────────────────────────
-	'img/top-slots/frame.png',
+	'img/top-slots/frame.webp',
 	'img/top-slots/rope_end.webp',
 	'img/top-slots/rope_strand.webp',
 
@@ -100,19 +103,19 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/buy-bonus/confirmation_popup/bonus_buy_no_container.webp',
 
 	// ── Bonus screen (BonusRound.svelte): the sign every room's name is written on ───────────────
-	'img/title_frame.png',
+	'img/title_frame.webp',
 	// …and the board a room's Top Slot multiplier is brought on on, under BONUS MULTIPLIER.
 	'img/small_frame.webp',
 
 	// ── Pirate Plinko (RoomPiratePlinko.svelte + plinko/PlinkoBoard.svelte) ──────────────────────
 	// BOTH board cuts: which one shows is the orientation at the time, and a phone rotated between
 	// the splash and the room would otherwise fetch its board on entry.
-	'img/pirate-plinko/board_v2.png',
-	'img/pirate-plinko/board_v2_portrait.png',
+	'img/pirate-plinko/board_v2.webp',
+	'img/pirate-plinko/board_v2_portrait.webp',
 	// Both backdrop cuts, for the same reason.
 	'img/pirate-plinko/background_landscape.webp',
 	'img/pirate-plinko/background_portrait.webp',
-	'img/pirate-plinko/cannon.png',
+	'img/pirate-plinko/cannon.webp',
 	// (The ball is the room's wheel icon, already in the ROOM_ICON row above.)
 	'img/pirate-plinko/bomb.png',
 	'img/pirate-plinko/explosion.png',
@@ -140,7 +143,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/ocean-voyage/barrel.webp',
 	'img/ocean-voyage/ship_deck.webp',
 	'img/ocean-voyage/wheel.webp',
-	'img/ocean-voyage/kraken.png',
+	'img/ocean-voyage/kraken.webp',
 	// The splash a barrel throws up as it is taken: plinko's FG_SPLASH baked into a frame strip.
 	'img/ocean-voyage/splash_strip.webp',
 	// The barrel of gold behind the wheel: its inside, the heap of coins, and its body in front.
@@ -202,10 +205,24 @@ const FONT_SPECS: readonly string[] = [
  */
 export type VideoKey = 'bonusWheel' | 'oceanVoyage';
 
-const VIDEO_PATHS: Record<VideoKey, string> = {
-	bonusWheel: 'videos/animated_background_bonus_wheel.mp4',
-	oceanVoyage: 'videos/animated_background_ocean_voyage.mp4',
-};
+/**
+ * Two cuts of each clip. The originals are the renders as delivered — 2560x1440 and 3840x2160, 60
+ * fps, 10-20 Mbps H.264 (42 and 36 MB). A phone gets a 1280x720 30 fps cut (1.9 and 6 MB): a 4K
+ * 60 fps stream is past what a mid-range Android's hardware decoder will do at all (it falls to
+ * software and takes the CPU with it), each decoded 4K frame is 12 MB against a phone's memory, and
+ * on a 6-inch screen under the room's scrim (BonusRound.svelte) 720p reads the same. Chosen by
+ * SCREEN (lib/deviceTier.svelte.ts `isPhoneScreen`), so the choice is stable through a rotation: the
+ * element the splash warms is the element the room adopts.
+ */
+const VIDEO_PATHS: Record<VideoKey, string> = isPhoneScreen()
+	? {
+			bonusWheel: 'videos/animated_background_bonus_wheel_mobile.mp4',
+			oceanVoyage: 'videos/animated_background_ocean_voyage_mobile.mp4',
+		}
+	: {
+			bonusWheel: 'videos/animated_background_bonus_wheel.mp4',
+			oceanVoyage: 'videos/animated_background_ocean_voyage.mp4',
+		};
 
 /** The order the bodies are filled in after reveal. */
 const VIDEO_FILL_ORDER: readonly VideoKey[] = [
@@ -722,13 +739,19 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 }
 
 /**
- * Fire-and-forget: the video bodies. The three video rooms ONE AT A TIME, each once the previous can play
+ * Fire-and-forget: the video bodies. The video rooms ONE AT A TIME, each once the previous can play
  * through (or has had its turn), because parallel 25–45 MB downloads would leave a clip that is
  * actually playing with a quarter of the link.
  * The music is deliberately absent: `startMusic` streams it from the game's first frame.
+ *
+ * Not at all under the browser's Data Saver (`navigator.connection.saveData`, Chrome for Android):
+ * the player has asked for less on the wire, and a clip that is not pre-filled simply streams when
+ * its room opens, the way every clip did before the preload.
  */
 export function preloadPostRevealAssets(): void {
 	if (typeof window === 'undefined') return;
+	const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+	if (connection?.saveData) return;
 	void (async () => {
 		for (const key of VIDEO_FILL_ORDER) {
 			const el = getVideo(key);

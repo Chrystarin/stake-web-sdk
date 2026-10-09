@@ -27,6 +27,7 @@
 	import { onMount } from 'svelte';
 
 	import { playSound } from '../../game/sound';
+	import { pixiResolution } from '../../lib/deviceTier.svelte';
 	import { staticUrl } from '../../lib/staticUrl';
 
 	type Props = {
@@ -233,7 +234,9 @@
 			// white box for a frame on some GPUs, and the dragon's edges are alpha anyway.
 			antialias: false,
 			autoDensity: true,
-			resolution: Math.min(2, window.devicePixelRatio || 1),
+			// 2x at most, 1x on the reduced budget (lib/deviceTier.svelte.ts): the host is most of the
+			// room, and its backing store is the biggest single allocation the room makes.
+			resolution: pixiResolution(),
 			preference: 'webgl',
 		});
 		if (destroyed) {

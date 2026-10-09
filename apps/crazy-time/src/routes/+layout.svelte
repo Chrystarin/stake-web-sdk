@@ -6,6 +6,9 @@
 
 	import Game from '../components/Game.svelte';
 	import LoaderCasinoTvLogo from '../components/LoaderCasinoTvLogo.svelte';
+	// First of all: the device's drawing budget is written onto <html> as this module loads, so
+	// every stylesheet below is already keyed to it when the splash paints its first frame.
+	import '../lib/deviceTier.svelte';
 	import { setContext } from '../game/context';
 	import { stateGame } from '../game/stateGame.svelte';
 

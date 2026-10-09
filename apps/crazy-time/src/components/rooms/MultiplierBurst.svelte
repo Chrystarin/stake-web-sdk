@@ -100,6 +100,11 @@
 			rotate: 360deg;
 		}
 	}
+	/* The reduced budget (lib/deviceTier.svelte.ts) shows the rays still: a masked conic gradient
+	   several numbers across, turning, is a big masked surface re-composited every frame. */
+	:global(html[data-tier='lite']) .rays {
+		animation: none;
+	}
 	/*
 	 * The number comes OUT of something: it starts tiny and unseen a little above where it will
 	 * rest, then swells towards the player as it fades in, overshoots, rebounds and settles. The

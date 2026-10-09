@@ -53,6 +53,7 @@
 	import Wheel, { type WheelSegment, type WheelFrame } from './Wheel.svelte';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { markGameBooted } from '../lib/preloadAssets';
+	import { watchFrameRate } from '../lib/deviceTier.svelte';
 	import TopSlot from './TopSlot.svelte';
 	import Background from './Background.svelte';
 	import BonusRound from './BonusRound.svelte';
@@ -294,7 +295,7 @@
 	// art only goes fully opaque at r ~= 796 px — so the wedges overscan to ~803 px (6%) and finish
 	// underneath the wood instead of stopping short of it in the soft band.
 	const WHEEL_FRAME: WheelFrame = {
-		src: staticUrl('img/wheel/frame.png'),
+		src: staticUrl('img/wheel/frame.webp'),
 		aspect: 1911 / 1925,
 		hole: { cx: 955.7 / 1911, cy: 972.8 / 1925, r: 758.1 / 1911 },
 		overscan: 0.06,
@@ -1937,9 +1938,13 @@
 		markGameBooted();
 		preloadSounds();
 		startMusic();
+		// A few seconds of frame timings on the standing table: a touch device that cannot hold them
+		// drops to the reduced drawing budget for the session (lib/deviceTier.svelte.ts).
+		const stopFrameWatch = watchFrameRate();
 		// Whatever loaded the round (Authenticate online, the dev harness offline) mounted first.
 		if (replayMode) loadReplay();
 		return () => {
+			stopFrameWatch();
 			for (const id of [...flightTimers.keys()]) cancelCues(id);
 			flights = [];
 			stopMusic();
@@ -4071,6 +4076,28 @@
 			opacity: 1;
 		}
 	}
+	/*
+	 * The reduced drawing budget (lib/deviceTier.svelte.ts, `html[data-tier='lite']`): the table's
+	 * standing decoration held still, and its one blend mode dropped. Each of these is composited on
+	 * the GPU every frame for the life of the table, which is exactly the budget a weak phone has
+	 * not got — the cabinet's sway is a full re-composite of the Top Slot, the hub's pool is a
+	 * `screen` blend read back against the wheel, and the gem's halo pulses for most of a session.
+	 */
+	:global(html[data-tier='lite']) .ts-sway {
+		animation: none;
+	}
+	:global(html[data-tier='lite']) .hub-glow {
+		mix-blend-mode: normal;
+		opacity: 0;
+	}
+	:global(html[data-tier='lite']) .hub-glow.on {
+		animation: none;
+		opacity: 0.7;
+	}
+	:global(html[data-tier='lite']) .hub-spin::before {
+		animation: none;
+		opacity: 0.75;
+	}
 	@media (prefers-reduced-motion: reduce) {
 		.ts-sway,
 		.hub-glow.on {
@@ -4183,20 +4210,33 @@
 		border-radius: 50%;
 		cursor: pointer;
 		pointer-events: auto;
-		animation: hub-pulse 1.7s ease-in-out infinite;
 		transition: scale 120ms ease;
+	}
+	/* The pulse is the halo's OPACITY, on a pseudo-element that carries the halo at full. A
+	   `box-shadow` whose blur and spread change every frame cannot be composited: the old keyframes on
+	   the shadow itself had the browser repainting the gem sixty times a second for as long as it could
+	   be pressed — most of a session. Opacity is blended on the GPU and paints nothing. */
+	.hub-spin::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		box-shadow: 0 0 1.4vw 0.35vw rgba(255, 225, 77, 0.7);
+		opacity: 0.5;
+		animation: hub-pulse 1.7s ease-in-out infinite;
 	}
 	@keyframes hub-pulse {
 		0%,
 		100% {
-			box-shadow: 0 0 0.6vw 0.1vw rgba(255, 225, 77, 0.35);
+			opacity: 0.5;
 		}
 		50% {
-			box-shadow: 0 0 1.4vw 0.35vw rgba(255, 225, 77, 0.7);
+			opacity: 1;
 		}
 	}
-	.hub-spin:hover {
+	.hub-spin:hover::before {
 		animation: none;
+		opacity: 1;
 		box-shadow: 0 0 1.6vw 0.45vw rgba(255, 225, 77, 0.75);
 	}
 	.hub-spin:active {
@@ -4205,8 +4245,9 @@
 	.hub-spin.disabled {
 		cursor: default;
 		pointer-events: none;
-		animation: none;
-		box-shadow: none;
+	}
+	.hub-spin.disabled::before {
+		display: none;
 	}
 	/* The prompt the play tab used to carry, centred on the gem. Click-through: the button is the gem
 	   itself, so a long word's ends do not extend the target. */

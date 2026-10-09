@@ -1266,6 +1266,13 @@
 				drop-shadow(0 0 0.45em rgba(255, 160, 50, 0.8));
 		}
 	}
+	/* The reduced budget (lib/deviceTier.svelte.ts): a lit bomb glows, but steadily — an animated
+	   blur is re-run by the GPU every frame for every bomb on the board. It still rattles, and the
+	   spark still flickers. */
+	:global(html[data-tier='lite']) .pb-bomb {
+		animation: bomb-rattle 1.3s linear infinite;
+		filter: drop-shadow(0 0.1em 0.25em rgba(0, 0, 0, 0.7)) drop-shadow(0 0 0.35em rgba(255, 150, 45, 0.6));
+	}
 	/* The spark, at the tip of the fuse — read off the file, so it moves if the art does. */
 	.pb-bomb::after {
 		content: '';

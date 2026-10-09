@@ -18,7 +18,14 @@
 	 * resident copy (lib/preloadAssets.ts) — it is in memory before this mounts, so the reveal paints
 	 * the scene rather than the flat colour. The bonus rooms bring their own backdrops over this one
 	 * (BonusRound.svelte).
+	 *
+	 * On the reduced budget (lib/deviceTier.svelte.ts, `lite`) landscape is a flat still too — the
+	 * three layers are three full-screen composited surfaces (the sea's twice the screen tall, for
+	 * its mirrored strip) blended over each other every frame, which is the single biggest standing
+	 * GPU cost on the table and the first thing a weak phone cannot afford. The still is the same
+	 * scene flattened, so nothing but the swell is lost.
 	 */
+	import { device } from '../lib/deviceTier.svelte';
 	import { staticCssUrl } from '../lib/staticUrl';
 
 	let { portrait = false }: { portrait?: boolean } = $props();
@@ -48,10 +55,12 @@
 	const LURCH_MS = 1600;
 </script>
 
-{#if portrait}
+{#if portrait || device.tier === 'lite'}
 	<div
 		class="background"
-		style="--art-backdrop:{staticCssUrl('img/background_base_portrait.webp')}"
+		style="--art-backdrop:{staticCssUrl(
+			portrait ? 'img/background_base_portrait.webp' : 'img/background_base_landscape.webp',
+		)}"
 	></div>
 {:else}
 	<div
