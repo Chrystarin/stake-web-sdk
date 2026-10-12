@@ -100,18 +100,24 @@
 	 * away and the coin is thrown clear across the field — a detour, never a different pocket, since
 	 * the board picks the throw from the ones that still reach the pocket the book settled on.
 	 *
-	 * The bomb is drawn by its BODY, which is not the middle of its file: the fuse takes the top
-	 * third, so the round part sits low — centred at 0.664 down and 0.617 wide, read off the art.
-	 * Drawn well over the coin's size — a black ball on dark timber has to be BIG to be seen at all,
-	 * and the board caps it at half a pitch, which on this squat board is where this lands. The
-	 * explosion is a plain square burst, centred on the bomb by the board.
+	 * The bomb is a bundle of dynamite, drawn by its BODY, which is not the middle of its file: the
+	 * fuse takes the top quarter, so the sticks sit low — centred at 0.618 down, read off the art.
+	 * The body is not round either, it is a bundle 1.8 times as tall as it is wide, and `d` is its
+	 * WIDTH (0.411, across the two black bands): the board's cap is on how far a bomb reaches along
+	 * its row, and a bundle that wide stands clear of the pegs above and below it as well, which
+	 * are two row gaps off. Drawn well over the coin's size, so it lands on that cap of half a
+	 * pitch. The explosion is a plain square burst, centred on the bomb by the board.
+	 *
+	 * The file is cut from the 1254px PNG master, which is not kept here (Pillow, LANCZOS, webp
+	 * q90): a 1228px square from 12,8, taken down to 384 — the board never draws it at more than
+	 * about half that.
 	 */
 	const BOMBS = {
 		count: 4,
-		src: staticPath('img/pirate-plinko/bomb.png'),
+		src: staticPath('img/pirate-plinko/dynamite.webp'),
 		cx: 0.5,
-		cy: 0.664,
-		d: 0.617,
+		cy: 0.618,
+		d: 0.411,
 		scale: 2,
 		blast: staticPath('img/pirate-plinko/explosion.png'),
 	};

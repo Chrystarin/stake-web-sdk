@@ -333,7 +333,7 @@
 							</p>
 							<div class="info-formula">{PLINKO_SLOTS.map((value) => `${value}x`).join('  ')}</div>
 							<p>
-								Some pegs are <strong>bombs</strong>. A coin that strikes one is blown across the board
+								Some pegs are <strong>dynamite</strong>. A coin that strikes one is blown across the board
 								and keeps falling from there.
 							</p>
 

@@ -1208,8 +1208,8 @@
 		background-repeat: no-repeat;
 		background-position: center;
 		background-size: contain;
-		/* A black ball over dark timber: the drop shadow sits it down, the warm glow is what finds
-		   it. The glow breathes with the fuse — the two are one thing, a bomb about to go off. */
+		/* Over dark timber: the drop shadow sits it down, the warm glow is what finds it. The glow
+		   breathes with the fuse — the two are one thing, a bomb about to go off. */
 		filter: drop-shadow(0 0.1em 0.25em rgba(0, 0, 0, 0.7))
 			drop-shadow(0 0 0.3em rgba(255, 140, 40, 0.55));
 		/* Two idles on one element: the glow breathing, and the rattle. The rattle turns about the
@@ -1277,11 +1277,11 @@
 	.pb-bomb::after {
 		content: '';
 		position: absolute;
-		left: 57%;
-		top: 4%;
-		width: 16%;
-		height: 16%;
-		margin: -8% 0 0 -8%;
+		left: 60%;
+		top: 2%;
+		width: 11%;
+		height: 11%;
+		margin: -5.5% 0 0 -5.5%;
 		border-radius: 50%;
 		background: radial-gradient(
 			circle,
