@@ -315,6 +315,36 @@
 	/** The furthest the ball can enter from centre, in pitches. Both launchers answer to it. */
 	const startLimit = $derived(props.shape.startSteps - 0.5);
 
+	/**
+	 * The sight of an aimed shot: a line from the muzzle to the peg the ball will strike first, and
+	 * a ring on that peg.
+	 *
+	 * It is the flight's own first leg, drawn before it is flown — `drop` sends a fired ball straight
+	 * from `launchPoint` to the top-row peg at `startStep` — so what it points at is what gets hit.
+	 * That peg is the nearest one to where the barrel is pointing, not the exact spot, which is why
+	 * the ring steps from peg to peg while the barrel turns smoothly: the board is saying which of
+	 * them the shot belongs to. Only while the shot is still to be taken, and only for a host that
+	 * has said where it fires from; a ball that will simply appear on the drop zone has no line.
+	 */
+	const sight = $derived.by(() => {
+		if (!aimed || phase !== 'armed' || !launchPoint) return null;
+		const x = layout.centreX + startStep * layout.pitch;
+		const y = layout.topY;
+		const ring = layout.pitch * 0.55;
+		const dx = x - launchPoint.x;
+		const dy = y - launchPoint.y;
+		return {
+			x,
+			y,
+			ring,
+			from: launchPoint,
+			// Stopped at the ring's edge rather than run through the middle of it.
+			length: Math.max(0, Math.hypot(dx, dy) - ring / 2),
+			angle: (Math.atan2(dy, dx) * 180) / Math.PI,
+			dot: Math.max(4, layout.pegRadius * 1.7),
+		};
+	});
+
 	/** Put the ball where the rail says it is. Also what keeps it there through a resize. */
 	const restBall = () => {
 		ballX = layout.centreX + railOffset * layout.pitch;
@@ -964,6 +994,22 @@
 			></i>
 		{/each}
 
+		<!-- Where an aimed shot is going (`sight`): dots from the muzzle, and a ring on the peg. On
+		     the pegs' layer, and gone the moment the shot is taken. -->
+		{#if sight}
+			<i
+				class="pb-sight"
+				style="width:{sight.length}px; --dot:{sight.dot}px; --sight:{props.accent ??
+					'#ffe14d'}; transform:translate({sight.from.x}px, {sight.from
+					.y}px) rotate({sight.angle}deg);"
+			></i>
+			<i
+				class="pb-sight-ring"
+				style="--ring:{sight.ring}px; --sight:{props.accent ??
+					'#ffe14d'}; translate:{sight.x}px {sight.y}px;"
+			></i>
+		{/if}
+
 		<!-- An aimed ball is inside whatever the host is pointing until it is fired, so the board
 		     shows nothing until then. On the rail it is on the board the whole time. -->
 		{#if phase !== 'idle' && !(aimed && phase === 'armed')}
@@ -1209,6 +1255,62 @@
 					calc(-50% + var(--dy) * var(--fling))
 				)
 				scale(0.1);
+		}
+	}
+
+	/* --- The sight ------------------------------------------------------------------------ */
+	/* The line an aimed shot will take, as a run of dots out of the muzzle. Laid along the x axis
+	   from the host's corner and carried to the muzzle and round to the peg by one transform, so a
+	   barrel being swung moves it on the compositor alone — and the short glide is the cannon's
+	   own, so the line stays on the end of a barrel that is itself eased round. The dots are a
+	   tiled gradient, three dot-widths apart, counted from the muzzle so they do not crawl as the
+	   line changes length; they fade in over the first of it, where it leaves the barrel. */
+	.pb-sight {
+		position: absolute;
+		left: 0;
+		top: 0;
+		z-index: 2;
+		height: var(--dot);
+		margin-top: calc(var(--dot) / -2);
+		transform-origin: 0 50%;
+		background: radial-gradient(circle closest-side, var(--sight) 0 70%, transparent 100%) 0 50% /
+			calc(var(--dot) * 3) var(--dot) repeat-x;
+		/* It crosses bright sky as well as dark timber on its way down. */
+		filter: drop-shadow(0 0 0.12em rgba(0, 0, 0, 0.9)) drop-shadow(0 0 0.3em rgba(0, 0, 0, 0.6));
+		-webkit-mask-image: linear-gradient(to right, transparent 0, #000 30%);
+		mask-image: linear-gradient(to right, transparent 0, #000 30%);
+		transition: transform 90ms linear;
+		pointer-events: none;
+	}
+	/* The peg it will strike. Placed by `translate` and pulsed by `scale` and opacity, so neither
+	   the step from peg to peg nor the pulse is ever a layout or a repaint. */
+	.pb-sight-ring {
+		position: absolute;
+		left: 0;
+		top: 0;
+		z-index: 2;
+		box-sizing: border-box;
+		width: var(--ring);
+		height: var(--ring);
+		margin: calc(var(--ring) / -2) 0 0 calc(var(--ring) / -2);
+		border: max(1.5px, calc(var(--ring) * 0.1)) solid var(--sight);
+		border-radius: 50%;
+		box-shadow:
+			0 0 calc(var(--ring) * 0.35) var(--sight),
+			inset 0 0 calc(var(--ring) * 0.2) var(--sight),
+			0 0 0.15em rgba(0, 0, 0, 0.9);
+		transition: translate 90ms linear;
+		animation: sight-pulse 0.7s ease-in-out infinite alternate;
+		pointer-events: none;
+	}
+	@keyframes sight-pulse {
+		from {
+			scale: 0.85;
+			opacity: 0.75;
+		}
+		to {
+			scale: 1.2;
+			opacity: 1;
 		}
 	}
 

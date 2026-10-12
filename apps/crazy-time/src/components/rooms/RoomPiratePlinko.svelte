@@ -14,7 +14,7 @@
 	 * book's own `slot` at worst: same value, shorter path. `room.dropZone` goes unused, because
 	 * choosing where to drop from is now the player's job.
 	 */
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
 	import {
 		PlinkoBoard,
@@ -415,25 +415,22 @@
 	let recoilTimer: ReturnType<typeof setTimeout> | undefined;
 
 	/**
-	 * Point the cannon at the pointer and tell the board where the shot will land.
+	 * Swing the barrel to `deg` from straight down and tell the board where the shot will land.
 	 *
-	 * The barrel tracks the pointer exactly while it is inside the cone and stops at the edge of it
-	 * — so aiming past the board's limit does not silently do nothing, it visibly runs out of
-	 * travel. The same clamped angle is what sets the entry point, at full deflection = far edge,
-	 * so the two can never disagree about where the ball is going.
+	 * The barrel stops at the edge of its cone — so aiming past the board's limit does not silently
+	 * do nothing, it visibly runs out of travel. The same clamped angle is what sets the entry
+	 * point, at full deflection = far edge, so the two can never disagree about where the ball is
+	 * going. And the board is told where the muzzle is, which is both where the ball will come out
+	 * and where it draws its sight line from.
 	 */
-	const aimAt = (clientX: number, clientY: number) => {
-		if (!armed || !interactive || !pivotEl) return;
+	const pointAt = (deg: number) => {
+		if (!armed || !interactive || !pivotEl || !boardEl) return;
 		const pivot = pivotEl.getBoundingClientRect();
 		const px = pivot.left;
 		const py = pivot.top;
-		// Only ever downward: a pointer level with or above the breech would otherwise flip the aim.
-		const down = Math.max(1, clientY - py);
-		if (!boardEl) return;
 		const host = boardEl.getBoundingClientRect();
 		const limit = aimLimitDeg(py, host);
-		const raw = (Math.atan2(clientX - px, down) * 180) / Math.PI;
-		aimDeg = Math.max(-limit, Math.min(limit, raw));
+		aimDeg = Math.max(-limit, Math.min(limit, deg));
 		board?.aim(aimDeg / limit);
 
 		// And where the ball will come out: the end of the barrel, swung to wherever it now points.
@@ -449,6 +446,24 @@
 			y: (py - host.top) / zoom + barrel * Math.cos(rad),
 		});
 	};
+
+	/** Point the cannon at the pointer: the barrel tracks it exactly while it is inside the cone. */
+	const aimAt = (clientX: number, clientY: number) => {
+		if (!pivotEl) return;
+		const pivot = pivotEl.getBoundingClientRect();
+		// Only ever downward: a pointer level with or above the breech would otherwise flip the aim.
+		const down = Math.max(1, clientY - pivot.top);
+		pointAt((Math.atan2(clientX - pivot.left, down) * 180) / Math.PI);
+	};
+
+	// A cabinet resized under a shot that is still being aimed — a phone turned over — moves the
+	// muzzle and the pegs, and the last place the board was told the muzzle was would leave its
+	// sight line hanging in the air until the pointer next moved. So the barrel is pointed again,
+	// where it already was, whenever the fit changes.
+	$effect(() => {
+		void fit;
+		if (armed && interactive) untrack(() => pointAt(aimDeg));
+	});
 
 	/**
 	 * The cannon's drawn height in real pixels. `offsetHeight` rather than a measured rect, because
@@ -643,7 +658,12 @@
 		 * behind it, where it can only ever go off later and finds the round already released.
 		 */
 		const deadline = interactive ? setTimeout(() => active.fire(), AIM_MS) : undefined;
-		const startStep = await active.arm();
+		const shot = active.arm();
+		// Offered pointing straight down, and the board told so at once rather than on the first move
+		// of the pointer: the sight line is up from the start — a finger that has not touched yet has
+		// something to steer — and a shot nobody aims still comes out of the muzzle.
+		pointAt(0);
+		const startStep = await shot;
 		clearTimeout(deadline);
 		armed = false;
 		pocket = pocketForAward(ladder, room.total, startStep);

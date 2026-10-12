@@ -488,6 +488,15 @@
 	let payingOut = $state(false);
 	/** True while the bonus screen is down over the table. */
 	let bonusUp = $state(false);
+	/**
+	 * What the player has on the room that is up, read out over the Total Bet while it is: the chip
+	 * on that room's spot. A spot takes one chip, so it is the chip itself — and it is the number the
+	 * room's multiplier is paid on, whatever the Total Bet under it came to across the other spots,
+	 * or as the price of a buy. Nothing, in a room the player did not cover; null with no room up.
+	 */
+	const bonusBet = $derived(
+		bonusUp ? (stateGame.result?.covered ? stateBet.betAmount : 0) : null,
+	);
 
 	// --- A room walked into through its own wedge's icon ----------------------------------------
 	// The Treasure Chest through its chest, opened, and its light (RoomReveal); the Bonus Wheel
@@ -2958,9 +2967,16 @@
 			</div>
 		{/if}
 
-		<!-- The wager reads off the same rail as the balance, opposite it. -->
+		<!-- The wager reads off the same rail as the balance, opposite it — and in a bonus room, what
+		     of it is on that room stands over it (`bonusBet`). -->
 		{#snippet totalBet()}
 			<div class="total-bet">
+				{#if bonusBet !== null}
+					<div class="bonus-bet">
+						<span class="total-bet-lbl">Bonus Bet</span>
+						<span class="total-bet-val">{formatMoney(bonusBet)}</span>
+					</div>
+				{/if}
 				<span class="total-bet-lbl">Total Bet</span>
 				<span class="total-bet-val">{formatMoney(total)}</span>
 			</div>
@@ -4538,6 +4554,29 @@
 		align-items: flex-end;
 		gap: 0;
 		margin: 0;
+	}
+	/* The bonus bet, stood on top of the wager and read the same way. Out of the flow: the rail's
+	   height is measured (`railH`) and the table is laid out against it, and a read-out that comes
+	   and goes with the bonus screen must not move the table under that screen. */
+	.hud .bonus-bet {
+		position: absolute;
+		right: 0;
+		bottom: 100%;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		margin-bottom: 0.35vw;
+		white-space: nowrap;
+		animation: bonus-bet-in 320ms ease-out both;
+	}
+	.game.portrait .hud .bonus-bet {
+		margin-bottom: 0.9vw;
+	}
+	@keyframes bonus-bet-in {
+		from {
+			opacity: 0;
+			translate: 0 0.6vw;
+		}
 	}
 	.balance-hud {
 		display: flex;
