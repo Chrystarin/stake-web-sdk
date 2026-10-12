@@ -16,13 +16,21 @@
 	 */
 	import { tick } from 'svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
-	import { PlinkoBoard, buildPocketLadder, pocketForAward, shapeForPockets } from '../../plinko';
+	import {
+		PlinkoBoard,
+		buildPocketLadder,
+		pocketForAward,
+		pocketHeat,
+		shapeForPockets,
+	} from '../../plinko';
 	import type { BoardFrame, PlinkoBoardApi } from '../../plinko';
 	import type { BookEventPiratePlinko } from '../../game/typesBookEvent';
 	import { ROOM_ICON } from '../../game/constants';
 	import { playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
 	import { finePointer } from '../../lib/pointer.svelte';
+	import { CoinFountain } from '../../lib/coinFountain';
+	import { isLite } from '../../lib/deviceTier.svelte';
 	import RoomHint from './RoomHint.svelte';
 
 	type Props = {
@@ -104,9 +112,11 @@
 	 * fuse takes the top quarter, so the sticks sit low — centred at 0.618 down, read off the art.
 	 * The body is not round either, it is a bundle 1.8 times as tall as it is wide, and `d` is its
 	 * WIDTH (0.411, across the two black bands): the board's cap is on how far a bomb reaches along
-	 * its row, and a bundle that wide stands clear of the pegs above and below it as well, which
-	 * are two row gaps off. Drawn well over the coin's size, so it lands on that cap of half a
-	 * pitch. The explosion is a plain square burst, centred on the bomb by the board.
+	 * its row. Drawn well over the coin's size, so it always lands on that cap — and the cap is
+	 * what sizes it: `cap` of a pitch across, on either cabinet. At the board's own half a pitch a
+	 * bundle that much taller than it is wide stood over three rows of the squat board and looked
+	 * crowded in; at 0.38 it stands, fuse and all, about as tall as the round bomb it replaced.
+	 * The explosion is a plain square burst, centred on the bomb by the board.
 	 *
 	 * The file is cut from the 1254px PNG master, which is not kept here (Pillow, LANCZOS, webp
 	 * q90): a 1228px square from 12,8, taken down to 384 — the board never draws it at more than
@@ -119,6 +129,7 @@
 		cy: 0.618,
 		d: 0.411,
 		scale: 2,
+		cap: 0.38,
 		blast: staticPath('img/pirate-plinko/explosion.png'),
 	};
 	/** How long the cabinet rattles after a blast. */
@@ -136,6 +147,38 @@
 		clearTimeout(quakeTimer);
 		quakeTimer = setTimeout(() => (quaking = false), QUAKE_MS + 40);
 	};
+
+	/**
+	 * The splash of coins a pocket throws up as the ball lands in it: the throw of Ocean Voyage's
+	 * fountain off a barrel taken (`CoinFountain`, RoomOceanVoyageV2.svelte), with its coin and its
+	 * sound — but only the throw. There is no barrel of gold here for them to be gathered into, so
+	 * they go up out of the pocket over the foot of the field, scatter, come over, and fall away off
+	 * the bottom of the screen.
+	 *
+	 * `CoinFountain` draws in whatever pixels it is told its canvas has, so the canvas here has a
+	 * space of its own, `FOUNTAIN_UNIT` to the length every size and speed is taken from, and is
+	 * laid over the board with its mouth on the ball: `FOUNTAIN_W` wide, which is the widest a coin
+	 * gets before it is under the screen (about a unit either side); `FOUNTAIN_RISE` over the mouth,
+	 * for the highest throw (0.43); and under it as far as the foot of the screen, measured as the
+	 * ball lands, and `FOUNTAIN_MARGIN` past that so a coin is out of sight before it is done with.
+	 * How big a unit is drawn is then the one number that sets how far the coins go —
+	 * `FOUNTAIN_REACH`, a unit against the cabinet's short side.
+	 */
+	const COIN = staticPath('img/ocean-voyage/coin.webp');
+	const FOUNTAIN_UNIT = 1000;
+	const FOUNTAIN_W = 2200;
+	const FOUNTAIN_RISE = 480;
+	const FOUNTAIN_MARGIN = 60;
+	const FOUNTAIN_REACH = 0.75;
+	/** Coins a pocket throws: more the dearer it is, which is the further from the middle it is. */
+	const FOUNTAIN_COINS = (heat: number) =>
+		// Half as many on the reduced budget (lib/deviceTier.svelte.ts): every coin is a draw a frame.
+		Math.round((12 + 18 * heat) * (isLite() ? 0.5 : 1));
+	/** The voyage's own throw — first coin to last, and its speed: see `FOUNTAIN_*` there. */
+	const FOUNTAIN_THROW_MS = 350;
+	const FOUNTAIN_SPEED = 0.6;
+	/** The coins' size against the fountain's own (a twentieth of a unit). */
+	const FOUNTAIN_SIZE = 1;
 
 	/**
 	 * The cabinet the board is played in: a roped timber sign, and where its picture says the pegs
@@ -528,6 +571,61 @@
 		await waitForTimeout(260);
 	};
 
+	// ---- The fountain of coins -----------------------------------------------------------------
+	let coinCanvas = $state<HTMLCanvasElement>();
+	let fountain = $state.raw<CoinFountain>();
+	$effect(() => {
+		const canvas = coinCanvas;
+		if (!canvas) return;
+		const f = new CoinFountain(canvas);
+		fountain = f;
+		const coin = new Image();
+		coin.onload = () => f.setCoinImage(coin);
+		coin.src = COIN;
+		return () => {
+			f.destroy();
+			if (fountain === f) fountain = undefined;
+		};
+	});
+	/** How many of the room's pixels one of the fountain's own is drawn at. */
+	const fountainScale = $derived((FOUNTAIN_REACH * Math.min(fit.w, fit.h)) / FOUNTAIN_UNIT);
+	/** Where the ball came to rest, as shares of the cabinet's box, so a resize carries it along. */
+	let fountainAt = $state({ x: 0.5, y: 0.8 });
+	/** The canvas's height, in the fountain's own units: `FOUNTAIN_RISE`, and down to under the screen. */
+	let fountainH = $state(FOUNTAIN_UNIT);
+	// The backing store at device resolution: the game's CSS zoom times the device's pixel ratio,
+	// held to 2 — and to 1 on the reduced budget — as the voyage's is.
+	$effect(() => {
+		const f = fountain;
+		if (!f || !boardEl || fountainScale <= 0) return;
+		const density = (window.devicePixelRatio || 1) * zoomOf(boardEl);
+		f.resize(
+			FOUNTAIN_W,
+			fountainH,
+			fountainScale * Math.min(isLite() ? 1 : 2, density),
+			FOUNTAIN_UNIT,
+		);
+	});
+	/** The pocket the ball is on its way to: how dear it is says how many coins it throws. */
+	let pocket = 0;
+	/** The ball is in its pocket, at `at` on the board: up go the coins, and away off the screen. */
+	const throwCoins = (at: { x: number; y: number }) => {
+		if (!fountain || !boardEl || !fit.w || !fit.h || fountainScale <= 0) return;
+		fountainAt = { x: at.x / fit.w, y: at.y / fit.h };
+		// From the ball down to the foot of the screen, in the room's own pixels — see `zoomOf`.
+		const toFoot =
+			(window.innerHeight - boardEl.getBoundingClientRect().top) / zoomOf(boardEl) - at.y;
+		fountainH = FOUNTAIN_RISE + Math.max(0, toFoot) / fountainScale + FOUNTAIN_MARGIN;
+		playSound('coinShuffle');
+		fountain.burst({
+			from: { x: FOUNTAIN_W / 2, y: FOUNTAIN_RISE },
+			count: FOUNTAIN_COINS(pocketHeat(ladder, pocket)),
+			throwWindowMs: FOUNTAIN_THROW_MS,
+			speedScale: FOUNTAIN_SPEED,
+			sizeScale: FOUNTAIN_SIZE,
+		});
+	};
+
 	export const play = async (): Promise<number> => {
 		const active = board;
 		if (!active) return room.total;
@@ -548,7 +646,8 @@
 		const startStep = await active.arm();
 		clearTimeout(deadline);
 		armed = false;
-		await active.drop(pocketForAward(ladder, room.total, startStep));
+		pocket = pocketForAward(ladder, room.total, startStep);
+		await active.drop(pocket);
 		return room.total;
 	};
 </script>
@@ -636,9 +735,24 @@
 						playSound('boom', 0.95 + Math.random() * 0.1);
 						quake();
 					},
-					land: () => playSound('merge'),
+					land: (at) => {
+						playSound('merge');
+						throwCoins(at);
+					},
 				}}
 			/>
+			<!-- The pocket's splash of coins, over everything the board draws: a canvas with its mouth on
+			     the ball, which overhangs the cabinet to either side and down to the foot of the screen
+			     (`FOUNTAIN_W`, `fountainH`). -->
+			<canvas
+				class="coins"
+				bind:this={coinCanvas}
+				aria-hidden="true"
+				style="left:{fountainAt.x * fit.w - (FOUNTAIN_W / 2) * fountainScale}px; top:{fountainAt.y *
+					fit.h -
+					FOUNTAIN_RISE * fountainScale}px; width:{FOUNTAIN_W * fountainScale}px; height:{fountainH *
+					fountainScale}px"
+			></canvas>
 
 			<!-- The instruction, over the middle of the board and above everything the board draws.
 			     It doubles as the shot clock — the drain across the words IS `AIM_MS` running out.
@@ -830,6 +944,12 @@
 		translate: -50% -50%;
 		pointer-events: none;
 		user-select: none;
+	}
+	/* The fountain's canvas, placed and sized inline. Over the board and the ball in its pocket. */
+	.coins {
+		position: absolute;
+		z-index: 3;
+		pointer-events: none;
 	}
 	/* On the way out the ball in the pocket is picked up by the one bouncing out of it
 	   (PlinkoReveal's `rise`), and the game marks itself `ball-lifted`: there is one of it. */

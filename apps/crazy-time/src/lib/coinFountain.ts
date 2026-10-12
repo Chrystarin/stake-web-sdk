@@ -17,6 +17,10 @@
  * coin sets off, so it follows the layout. The speeds are a parameter too (`speedScale`): plinko's are
  * for coins thrown across the whole screen, these only rise a little way over the bow.
  *
+ * A burst with no target (`to` left out) is the throw alone: Pirate Plinko's pockets throw their
+ * coins up as the ball lands (rooms/RoomPiratePlinko.svelte), and those are never gathered — they
+ * come over, fall, and are done with once they are off the canvas.
+ *
  * It is a plain 2D canvas (no WebGL), drawn in the room's own layout pixels; the caller sizes it
  * (`resize`) with the scale between those and device pixels. The loop only runs while coins are
  * alive, and idles the moment the last one has landed.
@@ -26,8 +30,11 @@ export type FountainPoint = { x: number; y: number };
 
 export type FountainBurst = {
 	from: FountainPoint;
-	/** Where the coins go. Read as each coin sets off for it. */
-	to: () => FountainPoint;
+	/**
+	 * Where the coins go. Read as each coin sets off for it. Left out, they go nowhere: thrown, and
+	 * left to fall off the canvas.
+	 */
+	to?: () => FountainPoint;
 	count: number;
 	/** How long the throw takes, first coin to last. */
 	throwWindowMs?: number;
@@ -43,7 +50,7 @@ export type FountainBurst = {
 	onArrive?: () => void;
 	/** The first coin landing — once a burst. */
 	onFirstArrive?: () => void;
-	/** The last coin landing (or the burst being cleared away). */
+	/** The last coin landing or falling off the canvas (or the burst being cleared away). */
 	onDone?: () => void;
 };
 
@@ -133,11 +140,15 @@ export class CoinFountain {
 		if (img.naturalWidth > 0) this.imgAspect = img.naturalHeight / img.naturalWidth;
 	}
 
-	/** The canvas's size in the caller's pixels, and how many backing pixels to give each of them. */
-	resize(cssW: number, cssH: number, scale: number): void {
+	/**
+	 * The canvas's size in the caller's pixels, and how many backing pixels to give each of them.
+	 * `unit` is the length every size and speed is taken from: the canvas's short side, unless the
+	 * caller's canvas is some other shape than the space its coins are thrown in.
+	 */
+	resize(cssW: number, cssH: number, scale: number, unit = Math.min(cssW, cssH)): void {
 		this.cssW = cssW;
 		this.cssH = cssH;
-		this.unit = Math.max(1, Math.min(cssW, cssH));
+		this.unit = Math.max(1, unit);
 		this.canvas.width = Math.max(1, Math.round(cssW * scale));
 		this.canvas.height = Math.max(1, Math.round(cssH * scale));
 		this.ctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -203,7 +214,7 @@ export class CoinFountain {
 			this.raf = requestAnimationFrame(this.loop);
 		} else {
 			this.running = false;
-			this.ctx.clearRect(0, 0, this.cssW, this.cssH);
+			this.wipe();
 		}
 	}
 
@@ -239,10 +250,11 @@ export class CoinFountain {
 				continue;
 			}
 
-			if (this.clock >= coin.mergeAt) {
+			const target = coin.group.burst.to;
+			if (target && this.clock >= coin.mergeAt) {
 				if (!coin.started) {
 					coin.started = true;
-					const to = coin.group.burst.to();
+					const to = target();
 					coin.tx = to.x;
 					coin.ty = to.y;
 					coin.mx0 = coin.x;
@@ -271,8 +283,10 @@ export class CoinFountain {
 			coin.vy *= dragMul;
 			coin.x += coin.vx * dt;
 			coin.y += coin.vy * dt;
-			// Every coin turns for the target in the end, so only one thrown clean off the canvas is lost.
-			if (coin.y > this.cssH + cullMargin || coin.x < -cullMargin || coin.x > this.cssW + cullMargin) {
+			// Every coin with a target turns for it in the end, so only one thrown clean off the canvas
+			// is lost. One with none is finished the moment it is out of sight, under or to a side.
+			const margin = target ? cullMargin : coin.size;
+			if (coin.y > this.cssH + margin || coin.x < -margin || coin.x > this.cssW + margin) {
 				this.retire(coin, false);
 				continue;
 			}
@@ -281,9 +295,23 @@ export class CoinFountain {
 		this.coins = survivors;
 	}
 
+	/**
+	 * Clear the whole backing store. In its own pixels rather than the caller's: the store is a
+	 * whole number of pixels and the caller's size times the scale mostly is not, so a clear of the
+	 * caller's box stops part-way into the last row and column, and a coin crossing that edge would
+	 * leave a faint line of itself there for good.
+	 */
+	private wipe(): void {
+		const ctx = this.ctx;
+		ctx.save();
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+		ctx.restore();
+	}
+
 	private draw(): void {
 		const ctx = this.ctx;
-		ctx.clearRect(0, 0, this.cssW, this.cssH);
+		this.wipe();
 		const img = this.img;
 		if (!img) return;
 
@@ -319,7 +347,7 @@ export class CoinFountain {
 		this.running = false;
 		const groups = new Set(this.coins.map((c) => c.group));
 		this.coins = [];
-		this.ctx.clearRect(0, 0, this.cssW, this.cssH);
+		this.wipe();
 		for (const group of groups) {
 			if (group.done) continue;
 			group.done = true;

@@ -70,8 +70,16 @@
 		 * only worth doing over a background worth seeing.
 		 */
 		fieldOpacity?: number;
-		/** Fired as the ball is let go, on every peg contact, as a bomb goes off, and as it lands. */
-		sounds?: { peg?: () => void; drop?: () => void; land?: () => void; blast?: () => void };
+		/**
+		 * Fired as the ball is let go, on every peg contact, as a bomb goes off, and as it lands —
+		 * `land` with where it came to rest, in the board's own pixels, for a host that marks the spot.
+		 */
+		sounds?: {
+			peg?: () => void;
+			drop?: () => void;
+			land?: (at: { x: number; y: number }) => void;
+			blast?: () => void;
+		};
 		/**
 		 * Bombs among the pegs: `count` of them, placed afresh each time the ball is armed.
 		 *
@@ -82,9 +90,10 @@
 		 *
 		 * `src` is drawn in the peg's place; `cx`, `cy` and `d` say where the round body is in it, as
 		 * fractions of its width, so the bomb stands on the peg by its body and not by its fuse. The
-		 * body is drawn `scale` times the ball's size (default 1), capped at half a pitch so bombs
-		 * never touch across a row. `blast` is the explosion, a square picture drawn centred on the
-		 * bomb and animated by the board.
+		 * body is drawn `scale` times the ball's size (default 1), capped at `cap` of a pitch — half
+		 * of one by default, so bombs never touch across a row, and less for a host that wants them
+		 * smaller than that on every board. `blast` is the explosion, a square picture drawn centred
+		 * on the bomb and animated by the board.
 		 */
 		bombs?: {
 			count: number;
@@ -93,6 +102,7 @@
 			cy: number;
 			d: number;
 			scale?: number;
+			cap?: number;
 			blast: string;
 		};
 		/** Let go for the player if they never do, so a round can never hang. 0 disables. */
@@ -247,7 +257,10 @@
 	const bombBox = $derived.by(() => {
 		const art = props.bombs;
 		if (!art || art.d <= 0) return null;
-		const body = Math.min(layout.ballRadius * 2 * (art.scale ?? 1), layout.pitch * 0.5);
+		const body = Math.min(
+			layout.ballRadius * 2 * (art.scale ?? 1),
+			layout.pitch * Math.min(0.5, art.cap ?? 0.5),
+		);
 		const size = body / art.d;
 		return { size, left: -art.cx * size, top: -art.cy * size };
 	});
@@ -767,7 +780,7 @@
 						// so the last of the turn is spent standing it back up the short way.
 						spin = Math.round(spin / 360) * 360;
 						settling = true;
-						props.sounds?.land?.();
+						props.sounds?.land?.({ x: ballX, y: ballY });
 						// Let the squash relax rather than snapping flat the instant it lands.
 						setTimeout(() => (squash = 0), CONTACT_MS * 2);
 						resolve();
