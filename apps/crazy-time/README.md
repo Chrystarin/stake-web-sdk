@@ -25,25 +25,29 @@ Offline, the dev harness fakes a session and plays books from `src/stories/data/
 Add `?force=<kind>` to the URL to pick a book of that kind (rooms, `topslot`, `number`, `win`, `loss`,
 `maxwin`, or `plinko:400` for a specific room value): see [docs/dev-debug.md](docs/dev-debug.md).
 
-## Bet modes (255): any combination of spots
+## Bet modes (15): eleven board tickets and four room buys
 
-A bet is any set of spots at one chip each. `amount` is the chip, `cost` is the number of spots
-covered, the RGS charges `cost x amount`, and payouts are in units of the chip. Every combination
-of the eight spots is its own mode, named by the covered spots' short codes in board order
-(`x1`, `pp_bw_tc_ov` for all four rooms, `x1_x2_x5_x10_pp_bw_tc_ov` for the full board): the
-board derives the name the same way the math does (`SPOT_CODE`, `modeName`).
+Stake caps a game at 20 modes (approval guidelines, 2026-10), so the 255 free spot combinations
+published before are gone. A bet is one of eleven tickets at one chip per spot — each of the
+eight spots alone, the four numbers (MULTI), the four bonus rooms (BONUS) or the whole board
+(ALL) — or one of the four room buys. `amount` is the chip, `cost` is the number of spots
+covered (or the buy's price), the RGS charges `cost x amount`, and payouts are in units of the
+chip. Modes are named by the covered spots' short codes in board order (`x1`, `x1_x2_x5_x10`,
+`pp_bw_tc_ov`, `x1_x2_x5_x10_pp_bw_tc_ov`): the board derives the name the same way the math
+does (`SPOT_CODE`, `modeName`).
 
 | Spot | x1 | x2 | x5 | x10 | Pirate Plinko | Bonus Wheel | Treasure Chest | Ocean Voyage |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | key | `x1` | `x2` | `x5` | `x10` | `piratePlinko` | `bonusWheel` | `chest` | `oceanVoyage` |
 | code | `x1` | `x2` | `x5` | `x10` | `pp` | `bw` | `tc` | `ov` |
 
-All 255 combinations are published, a single room included: every spot covers at least 3 of the
-wheel's 54 segments (rooms 4 / 3 / 3 / 3), so even a room alone pays at least once in 20 spins,
-Stake's hit-rate floor for a base mode. (With Crazy Time's own 4/2/2/1 split, used before, the
-three rarer rooms were company-only.) The Bonus Wheel keeps its 50,000x on three segments by
-making its 1,000x a quarter-width jackpot sliver in the math (see `WHEEL_WIDTHS`). ALL BONUS and
-FULL BOARD remain as one-tap shortcuts.
+The board only ever holds one ticket (`stateGame.placeSpots`): tapping a spot puts the chip there
+and moves it off any other single spot; MULTI, BONUS and ALL replace whatever is down, except
+that MULTI on top of BONUS makes ALL. Tapping a chip lifts the placement it went down in, and so
+does Undo. Every spot covers at least 3 of the wheel's 54 segments (rooms 4 / 3 / 3 / 3), so
+even a room alone pays at least once in 20 spins, Stake's hit-rate floor for a base mode. The
+Bonus Wheel keeps its 50,000x on three segments by making its 1,000x a quarter-width jackpot
+sliver in the math (see `WHEEL_WIDTHS`).
 
 #### Bonus Wheel drawn at equal widths
 
@@ -58,27 +62,23 @@ the outcome is the book's either way. Anyone certifying the game should be told 
 not drawn to its odds on that one wedge; restoring the honest disc is a one-line change in
 `RoomBonusWheel.svelte` (pass `weight: widths[i]` back to the segments).
 
-Every spot is tuned to 96.7% on its own, so every combination is 96.7% with zero spread.
+Every spot is tuned to 96.7% on its own, so every ticket is 96.7% with zero spread.
 
-### Buy Bonus (5 more modes)
+### Buy Bonus (4 more modes)
 
 The Buy Bonus badge (top-left; button and screen ported from the One-Eyed Willy Plinko) opens a
-screen with five cards: ANY BONUS and the four rooms. A buy skips the wait for the wheel and goes
-straight into a room, keeping the room's natural odds of also carrying a Top Slot multiplier.
-Prices are in chips and mirror the math (`buyPrice`): Any Bonus 17, Treasure Chest 13.5, Pirate
-Plinko 18, Ocean Voyage 18, Bonus Wheel 18 (Any Bonus is a whole number because the math picks its
-room 6 : 7 : 7 : 7 rather than by segments); the chip can be stepped on the screen itself, and
-every card re-prices live. Activate raises a Yes/No prompt; Yes commits the buy mode (`buy_any`, `buy_tc`,
-`buy_pp`, `buy_ov`, `buy_bw`) with the chip as `amount`, so the RGS charges price x chip.
+screen with a card per room. A buy skips the wait for the wheel and goes straight into the room,
+keeping the room's natural odds of also carrying a Top Slot multiplier. Prices are in chips and
+mirror the math (`buyPrice`): Treasure Chest 13.5, Pirate Plinko 18, Ocean Voyage 18, Bonus
+Wheel 18; the chip can be stepped on the screen itself, and every card re-prices live. Activate
+commits the buy mode (`buy_tc`, `buy_pp`, `buy_ov`, `buy_bw`) with the chip as `amount`, so the
+RGS charges price x chip. (A Random Bonus buy that landed on any room for 17 chips went with the
+20-mode cap.)
 
-A bought round is staged in this order: a chip for the full price goes down on every room the buy
-can open (one 90-chip on Pirate Plinko for `buy_pp` at a 5 chip; an 85-chip on each of the four
-rooms for `buy_any`), the wheel washes white and comes back as a four-segment disc showing only
-the rooms (crest and name set across each quarter in two big lines), the Top Slot reels roll, then
-the wheel spins to the room the book authored, and the room plays its interactive version. The
-white wash covers the swap back to the full wheel when the round is cleared, too. `stateGame.buying` names the mode; its rooms are the backed spots, so the
-landed room reads as covered and is collected like any winner. The quarter wedges keep the main
-wheel's lettering scale through the wheel's `sizeStep` prop.
+A bought round waits on the Buy Bonus screen for its book, with the room's yellow chip on its
+tile and the wheel off the stage, set on the room's segment unseen; then the room plays its
+interactive version. `stateGame.buying` names the mode; its room is the backed spot, so the
+landed room reads as covered and is collected like any winner.
 
 ## Round flow
 

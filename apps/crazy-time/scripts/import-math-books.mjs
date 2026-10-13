@@ -1,15 +1,15 @@
 /**
  * Copy a sample of Crazy Time math books into the app for offline dev / preview play.
  *
- * There is one book set per published mode (one per spot combination, 252 of them), so the
- * output is keyed by mode: the
- * dev harness has to play a book from the SAME mode the board committed to.
+ * There is one book set per published mode (the 11 board tickets and the 4 room buys), so the
+ * output is keyed by mode: the dev harness has to play a book from the SAME mode the board
+ * committed to.
  *
  * The published books are zstd-compressed, so we shell out to the math-sdk Python venv
  * (which has `zstandard`) to decompress + sample, then write a plain TS module.
  *
  * Usage (from apps/crazy-time):
- *   node scripts/import-math-books.mjs [--limit 14]      # per mode (252 modes x 14 = ~3.5k books)
+ *   node scripts/import-math-books.mjs [--limit 30]      # per mode (15 modes x 30 = 450 books)
  */
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,7 +23,7 @@ const repoRoot = resolve(appDir, '..', '..');
 const mathRoot = resolve(repoRoot, '..', 'stake-math-sdk');
 
 const limitArg = process.argv.indexOf('--limit');
-const limit = limitArg > -1 ? Number(process.argv[limitArg + 1]) : 14;
+const limit = limitArg > -1 ? Number(process.argv[limitArg + 1]) : 30;
 
 const publishDir = join(mathRoot, 'games', 'crazy_time', 'library', 'publish_files');
 if (!existsSync(publishDir)) {
@@ -62,12 +62,12 @@ const outFile = join(outDir, 'base_books.ts');
 // of ordinary rounds, so offline play exercises everything the client has to draw. Books are
 // enumerated (not sampled) in the math, so a plain stride would over-represent rare outcomes;
 // the spread here is drawn in proportion to the lookup-table weights instead.
-// The mode list goes through a temp file: 252 paths inline would blow Windows' 32 KB command line.
+// The mode list goes through a temp file: the paths inline could blow Windows' 32 KB command line.
 const specFile = join(tmpdir(), 'crazy-time-book-spec.json');
 writeFileSync(specFile, JSON.stringify(modeFiles.map(({ mode, file }) => [mode, file])));
 const pyScript = `
 import json, zstandard, sys, os, random, bisect
-limit = ${Number.isFinite(limit) ? limit : 14}
+limit = ${Number.isFinite(limit) ? limit : 30}
 spec = json.load(open(${JSON.stringify(specFile)}))
 d = zstandard.ZstdDecompressor()
 random.seed(7)

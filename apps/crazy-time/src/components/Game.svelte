@@ -9,7 +9,12 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { stateGame, stateGameDerived, type InfoModalTab } from '../game/stateGame.svelte';
+	import {
+	stateGame,
+	stateGameDerived,
+	type BoardChange,
+	type InfoModalTab,
+} from '../game/stateGame.svelte';
 	import { hasActiveRoundToResume, describeModeMismatch } from '../game/activeRound';
 	import { forcedBuyMode, forcedRoomKind } from '../game/devLocalBet';
 	import {
@@ -324,25 +329,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	}));
 
 	/**
-	 * The buy disc, for Random Bonus only. That buy can only end in a room, and the book says which,
-	 * so while it is in flight the wheel shows just the four rooms on quarter wedges and spins to
-	 * the one authored. A single-room buy keeps the main wheel and spins it to the bought room's own
-	 * segment, as any round does. The ink is sized as if the wedges were BUY_WHEEL_INK_STEP wide so
-	 * the crests and names keep the main wheel's scale.
-	 */
-	const buyWheelSegments = (mode: string): WheelSegment[] => {
-		const rooms = BUY_MODES[mode]?.rooms ?? ROOM_SPOTS;
-		return rooms.map((spot) => ({
-			...WHEEL_SEGMENTS[SEGMENT_LAYOUT.indexOf(spot)],
-			// Across the wedge in two big lines, not down it: a quarter wedge has the room for it.
-			kind: 'wide' as const,
-		}));
-	};
-	const BUY_WHEEL_INK_STEP = 30;
-	/** Whether a buy gets the buy disc: only one the wheel still has to decide between rooms. */
-	const usesBuyDisc = (mode: string): boolean => (BUY_MODES[mode]?.rooms.length ?? 0) > 1;
-
-	/**
 	 * The main-disc segment to stop under the flapper. The book's `segment` indexes the math's
 	 * SEGMENT_LAYOUT, which this client mirrors, so normally it is used as-is. If the two ever
 	 * disagree (books generated before a rim re-order and not re-synced or republished), the wheel
@@ -363,41 +349,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		return fallback;
 	};
 
-	/**
-	 * Which disc the wheel is showing. It does not follow `stateGame.buying` directly: the swap is
-	 * staged (chips first, then the disc, then the reels) and hidden behind a white flash.
-	 */
-	let wheelDisc = $state<'main' | 'buy'>('main');
-	/** The buy the disc was dressed for, kept past the buy itself so the flash back covers it. */
-	let wheelDiscMode = $state<string | null>(null);
-	const buyDisc = $derived(wheelDiscMode ? buyWheelSegments(wheelDiscMode) : null);
-	let wheelFlash = $state(false);
-	let discSwapping = false;
-	const FLASH_IN_MS = 180;
-	const FLASH_OUT_MS = 420;
-	/** Wash the disc white, change its segments under the white, and let it fade off them. */
-	const swapDisc = async (to: 'main' | 'buy', mode: string | null = null) => {
-		if ((wheelDisc === to && (to === 'main' || wheelDiscMode === mode)) || discSwapping) return;
-		discSwapping = true;
-		wheelFlash = true;
-		await waitForTimeout(FLASH_IN_MS + 60);
-		wheelHighlight = null;
-		wheelDisc = to;
-		if (to === 'buy') {
-			wheelDiscMode = mode;
-			// Square the buy disc up under the white: the main wheel rests at a 54th of a turn, which
-			// would leave the buy wedges askew.
-			wheel?.resetRotation();
-		}
-		await waitForTimeout(60);
-		wheelFlash = false;
-		await waitForTimeout(FLASH_OUT_MS);
-		discSwapping = false;
-	};
-	// Back to the full wheel once a buy is cleared from the board.
-	$effect(() => {
-		if (!stateGame.buying && wheelDisc === 'buy') void swapDisc('main');
-	});
 
 	/**
 	 * A bought room has nothing for the wheel to decide, so for a single-room buy the wheel is taken
@@ -1975,12 +1926,18 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		syncMusicVolume();
 	});
 
+	/** Flights for what a tap changed: the lifted chips go back first, the new ones follow them. */
+	const animateChange = (change: BoardChange | null): boolean => {
+		if (!change) return false;
+		change.lifted.forEach((spot, i) => recallChip(spot, i * BUNDLE_STEP_MS));
+		const after = change.lifted.length * BUNDLE_STEP_MS;
+		change.placed.forEach((spot, i) => flyChip(spot, 'place', after + i * BUNDLE_STEP_MS));
+		return true;
+	};
+
 	const toggleSpot = (spot: Spot) => {
 		if (!idle || settled || clearing || replayMode) return;
-		const wasBacked = stateGameDerived.isBacked(spot);
-		if (!stateGameDerived.toggleSpot(spot)) return;
-		if (wasBacked) recallChip(spot);
-		else flyChip(spot, 'place');
+		animateChange(stateGameDerived.toggleSpot(spot));
 	};
 
 	/** Gap between a bundle's chips, so a group lands as a run rather than a single thud. */
@@ -1992,23 +1949,25 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 
 	/**
 	 * One tap covers the whole group; a second tap on a group that is already fully covered lifts it
-	 * back off. Bets are added to what is on the board rather than replacing it, so MULTI then BONUS
-	 * comes out the same as ALL. Anything the balance will not stretch to is simply not placed.
+	 * back off. The board holds one ticket, so a group replaces whatever else is down — except where
+	 * the two make a ticket together: MULTI on top of BONUS comes out the same as ALL. Anything the
+	 * balance will not stretch to is simply not placed.
 	 */
 	const toggleBundle = (spots: readonly Spot[]) => {
 		if (!bettingOpen) return;
-		const lifting = bundleOn(spots);
-		const wanted = lifting ? [...spots] : spots.filter((spot) => !stateGameDerived.isBacked(spot));
-		// One tap, one undo step.
-		const placement = stateGameDerived.newPlacement();
-		let moved = 0;
-		for (const spot of wanted) {
-			if (!stateGameDerived.toggleSpot(spot, placement)) continue;
-			if (lifting) recallChip(spot, moved * BUNDLE_STEP_MS);
-			else flyChip(spot, 'place', moved * BUNDLE_STEP_MS);
-			moved++;
+		let change: BoardChange | null;
+		if (bundleOn(spots)) {
+			// Every placement the group's spots went down in comes off.
+			const lifted: Spot[] = [];
+			for (const spot of spots) {
+				if (stateGameDerived.isBacked(spot)) lifted.push(...stateGameDerived.liftSpot(spot));
+			}
+			change = lifted.length ? { lifted, placed: [] } : null;
+		} else {
+			// One tap, one undo step.
+			change = stateGameDerived.placeSpots(spots);
 		}
-		if (moved) playSound('click');
+		if (animateChange(change)) playSound('click');
 	};
 
 	/**
@@ -2097,7 +2056,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		multHidden = false;
 		panelDimmed = false;
 		// A bought single room was played with the wheel off the stage (see `wheelOff`).
-		if (isBuyMode(round.mode) && !usesBuyDisc(round.mode)) {
+		if (isBuyMode(round.mode)) {
 			wheelOff = true;
 			await waitForTimeout(WHEEL_LEAVE_MS);
 		}
@@ -2115,8 +2074,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		replayStarting = true;
 		const wasBuy = stateGame.buying !== null;
 		await finishRound();
-		// The board's sweep, and for a buy the white wash back to the full wheel.
-		await waitForTimeout(RESULT_CLOSE_MS + (wasBuy ? FLASH_IN_MS + FLASH_OUT_MS + 200 : 60));
+		// The board's sweep, and for a buy the wheel's return to the stage.
+		await waitForTimeout(RESULT_CLOSE_MS + (wasBuy ? WHEEL_RISE_MS + 200 : 60));
 		replayStarting = false;
 		await startReplay();
 	};
@@ -2335,10 +2294,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	};
 
 	const startBuy = async (mode: string) => {
-		// A single room waits for its book on the Buy Bonus screen (`buyWaiting`); Random Bonus is
-		// played out on the table, so its screen goes now.
-		const direct = !usesBuyDisc(mode);
-		if (!direct) buyBonusOpen = false;
+		// The room waits for its book on the Buy Bonus screen (`buyWaiting`).
 		// Re-checked here: the prompt was open for a while and the round may have moved on.
 		if (buyDisabled) {
 			buyBonusOpen = false;
@@ -2363,24 +2319,12 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			return;
 		}
 		sweepChips(placed, face);
-		if (direct) {
-			// Behind the Buy Bonus screen: the room's yellow chip is simply on its tile, and the wheel
-			// is off the stage (see `wheelOff`), set on the room unseen when the book comes back. On
-			// the screen itself the chip flies off the rail onto the bought card first.
-			buyWaiting = true;
-			wheelOff = true;
-			buyChipLanding = buyModal?.placeChip(BUY_MODES[mode].rooms[0] as RoomSpot) ?? null;
-		} else {
-			// A yellow chip for the full price goes down on every room the buy can open — whichever
-			// opens, the whole price bought it — flown from the Buy Bonus button that bought it, one
-			// after another. Then the wheel flashes white and comes back as the four-wedge disc.
-			const rooms = BUY_MODES[mode].rooms;
-			rooms.forEach((room, i) =>
-				flyChip(room, 'place', i * 90, buyChipFace(), 1, { from: buyBonusEl }),
-			);
-			await waitForTimeout(FLIGHT_MS + (rooms.length - 1) * 90 + 150);
-			await swapDisc('buy', mode);
-		}
+		// Behind the Buy Bonus screen: the room's yellow chip is simply on its tile, and the wheel is
+		// off the stage (see `wheelOff`), set on the room unseen when the book comes back. On the
+		// screen itself the chip flies off the rail onto the bought card first.
+		buyWaiting = true;
+		wheelOff = true;
+		buyChipLanding = buyModal?.placeChip(BUY_MODES[mode].rooms[0] as RoomSpot) ?? null;
 		const mismatch = online ? describeModeMismatch(stateBet.activeBetModeKey) : null;
 		if (mismatch) {
 			console.error(`[crazy-time] ${mismatch}`);
@@ -2882,15 +2826,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			await releaseTopSlot();
 			// A round that skipped the Top Slot (a buy it had nothing for) dims the board here instead.
 			if (!wheelOff) panelDimmed = true;
-			// A Random Bonus round spins the buy disc, so the book's 54-segment index maps to the
-			// room; every other round spins the main wheel to the segment. A single-room buy has the
-			// wheel off the stage: it is set on the room's segment unseen, ready for its return.
-			const buying = stateGame.buying;
-			if (buying && usesBuyDisc(buying)) await swapDisc('buy', buying);
-			const target =
-				wheelDisc === 'buy'
-					? ROOM_SPOTS.indexOf(event.spot as RoomSpot)
-					: mainSegmentFor(event.segment, event.spot);
+			// The wheel spins to the book's segment. A bought room has the wheel off the stage: it is
+			// set on the room's segment unseen, ready for its return.
+			const target = mainSegmentFor(event.segment, event.spot);
 			if (wheelOff) {
 				// Unseen, so there is nothing to wait for: the board shows the result at once.
 				wheel?.jumpTo(target);
@@ -3127,9 +3065,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			>
 				<Wheel
 					bind:this={wheel}
-					segments={wheelDisc === 'buy' && buyDisc ? buyDisc : WHEEL_SEGMENTS}
-					sizeStep={wheelDisc === 'buy' ? BUY_WHEEL_INK_STEP : undefined}
-					flash={wheelFlash}
+					segments={WHEEL_SEGMENTS}
 					frame={WHEEL_FRAME}
 					innerRadius={0}
 					highlight={wheelHighlight}

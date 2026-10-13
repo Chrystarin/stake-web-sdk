@@ -4,6 +4,7 @@
 		BUY_MODES,
 		BUY_MODE_NAMES,
 		CHEST_VALUES,
+		MODE_NAMES,
 		NUMBER_PAY,
 		NUMBER_SPOTS,
 		NUM_CHESTS,
@@ -132,10 +133,7 @@
 
 	const buyRows = BUY_MODE_NAMES.map((mode) => ({
 		mode,
-		name:
-			BUY_MODES[mode].rooms.length > 1
-				? 'Random Bonus'
-				: spotName(BUY_MODES[mode].rooms[0]),
+		name: spotName(BUY_MODES[mode].rooms[0]),
 		cost: buyPrice(mode),
 		maxWin: maxWinForMode(mode),
 	}));
@@ -217,11 +215,17 @@
 									bonus rooms {roomNames}. Tap a spot to put one chip on it, and tap it again to take
 									the chip back. Every chip on the board has the same value.
 								</li>
+								<li>
+									<strong>Bets.</strong> A round is one of {MODE_NAMES.length} bets: a single spot, the
+									four numbers (MULTI), the four bonus rooms (BONUS), or the whole board (ALL). Tapping
+									another spot moves your chip there; a group replaces what was on the board, except
+									that MULTI on top of BONUS makes ALL.
+								</li>
 								<li><strong>Total Bet</strong> is worked out for you.</li>
 							</ul>
 							<div class="info-formula">
 								Total Bet = Chip × Spots covered<br />
-								{formatMoney(1)} × 3 spots = {formatMoney(3)}
+								{formatMoney(1)} × 4 spots (MULTI) = {formatMoney(4)}
 							</div>
 							<p>
 								Press <strong>SPIN</strong> on the gem at the center of the wheel. The Top Slot spins
@@ -426,15 +430,14 @@
 							</table>
 							<p>
 								The price is your <strong>Chip × the cost</strong>, and the room pays its result × your
-								Chip. <strong>Random Bonus</strong> opens one of the four rooms. You can change the Chip
-								on the Buy Bonus screen, and every buy asks you to confirm before anything is spent.
+								Chip. You can change the Chip on the Buy Bonus screen, and every buy asks you to confirm
+								before anything is spent.
 							</p>
 
 							<h3 class="info-section-title">Game Information</h3>
 							<ul>
 								<li>
-									<strong>RTP.</strong> Approximately {rtpPercent} on every spot, every combination of
-									spots and every Buy Bonus.
+									<strong>RTP.</strong> Approximately {rtpPercent} on every bet and every Buy Bonus.
 								</li>
 								<li>
 									<strong>Max win.</strong>
@@ -461,10 +464,14 @@
 									<strong>Chip tray.</strong> Picks the Chip. Changing it puts the same spots back down
 									at the new value if your balance covers them.
 								</li>
-								<li><strong>Spots.</strong> Tap to place a chip, tap again to take it back.</li>
+								<li>
+									<strong>Spots.</strong> Tap to put your chip on a spot, tap another spot to move it,
+									tap it again to take it back.
+								</li>
 								<li>
 									<strong>MULTI / ALL / BONUS.</strong> Cover the four numbers, every spot, or the four
-									bonus rooms in one tap. Tap again to lift them.
+									bonus rooms in one tap, in place of whatever else is on the board. Tap again to lift
+									them.
 								</li>
 								<li><strong>Undo.</strong> Takes back your last placement.</li>
 								<li><strong>Clear.</strong> Takes every chip off the board.</li>
@@ -508,7 +515,8 @@
 							<li>
 								<strong>Cover your spots.</strong> Tap any of the {SPOTS.length} spots to put a chip on
 								it: {numberNames}, or a bonus room. MULTI, ALL and BONUS cover a whole group in one tap.
-								Your <strong>Total Bet</strong> is worked out for you.
+								A bet is one spot or one group; a new choice replaces the last. Your
+								<strong>Total Bet</strong> is worked out for you.
 							</li>
 							<li>
 								<strong>Press SPIN</strong> on the gem at the center of the wheel. The Top Slot spins,

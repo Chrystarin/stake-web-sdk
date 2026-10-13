@@ -94,8 +94,6 @@ export const forcedRoomKind = (): string | null => {
 
 /** `?buy=` shorthand -> the buy mode. The mode keys themselves (`buy_pp`, …) work too. */
 const BUY_WORD: Record<string, string> = {
-	any: 'buy_any',
-	bonus: 'buy_any',
 	plinko: 'buy_pp',
 	wheel: 'buy_bw',
 	chest: 'buy_tc',
@@ -231,8 +229,7 @@ const nearestSplit = (type: string, win: number): Split => {
 
 /**
  * The books worth rewriting for `?mult=`: ones with a room, and of those the ones whose room can
- * pay the figure exactly (so Random Bonus lands in a room that can). The number-only books are
- * dropped because there is no bonus to steer.
+ * pay the figure exactly. The number-only books are dropped because there is no bonus to steer.
  */
 const booksForMult = (modeBooks: RawBook[], mult: number): RawBook[] => {
 	const withRoom = modeBooks.filter((book) => roomOf(book));

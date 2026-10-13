@@ -1,6 +1,6 @@
 import { stateBet, stateConfig } from 'state-shared';
 
-import { BUY_MODES, MODE_COVERAGE, SPOTS, buyPrice, modeCost, modeForSpots, type Spot } from './constants';
+import { BUY_MODES, SPOTS, buyPrice, modeCost, modeForSpots, type Spot } from './constants';
 import { rememberCommittedSpots } from './activeRound';
 import type { GameType } from './types';
 import type { RoundResult } from './typesEmitterEvent';
@@ -222,53 +222,105 @@ const selectStake = (value: number): Spot[] | null => {
 	return spots;
 };
 
-/** True when another spot can be backed: one is left, and the balance covers it. */
+/** True when `spots` is a board the game can bet: nothing yet, or one of the published tickets. */
+const isTicket = (spots: readonly Spot[]): boolean =>
+	spots.length === 0 || modeForSpots(spots) !== null;
+
+/** True when a chip can go down at all: the round is open and the balance covers one chip. */
 const canBackAnother = (): boolean =>
-	!stateGame.rolling &&
-	backedCount() < SPOTS.length &&
-	(backedCount() + 1) * stateGame.stake <= stateBet.balanceAmount;
+	!stateGame.rolling && stateGame.stake <= stateBet.balanceAmount;
 
 const isBacked = (spot: Spot): boolean => stateGame.backed[spot];
 
-/**
- * Back or un-back a spot. Returns false if it could not be backed.
- *
- * `placement` groups spots backed by one tap (see `newPlacement`) so undo lifts them together;
- * without it the spot is its own step.
- */
-const toggleSpot = (spot: Spot, placement: number = newPlacement()): boolean => {
-	if (stateGame.rolling) return false;
-	// A fresh selection after a resolved round starts a new bet.
-	if (stateGame.resultReady) resetBoard();
+/** What a tap changed, for the chip flights: what came off (most recent first) and what went down. */
+export type BoardChange = { lifted: Spot[]; placed: Spot[] };
 
-	if (stateGame.backed[spot]) {
-		stateGame.backed[spot] = false;
-		stateGame.selectionOrder = stateGame.selectionOrder.filter((s) => s !== spot);
-		delete stateGame.placement[spot];
-		return true;
+/**
+ * A placement comes off as one piece (a tap on one chip of a MULTI lifts the MULTI; so does
+ * Undo). Once a placement has joined the board, any older group whose lifting would leave a
+ * board that is not a ticket is folded into it — x1, then MULTI: lifting x1 alone would leave
+ * three numbers — so every group on the board can always be lifted on its own.
+ */
+const foldGroups = (into: number) => {
+	const board = backedSpots();
+	for (const group of new Set(board.map((spot) => stateGame.placement[spot]))) {
+		if (group === into) continue;
+		const rest = board.filter((spot) => stateGame.placement[spot] !== group);
+		if (!rest.length || isTicket(rest)) continue;
+		for (const spot of board) {
+			if (stateGame.placement[spot] === group) stateGame.placement[spot] = into;
+		}
 	}
-	if (!canBackAnother()) return false;
-	stateGame.backed[spot] = true;
-	stateGame.selectionOrder = [...stateGame.selectionOrder, spot];
-	stateGame.placement[spot] = placement;
-	return true;
 };
 
 /**
- * Put a whole ticket down: the spots it covers, replacing whatever was on the board.
- * Returns the spots now backed (for the chip flights), or [] if it could not be placed.
+ * Put `spots` down as one placement. The board only ever holds one ticket — a single spot, the
+ * four numbers, the four rooms or the whole board — so the new chips join what is there when the
+ * two make a ticket together (x1 then MULTI, MULTI then BONUS) and replace it otherwise (x2 on
+ * top of x1 moves the chip). Returns what changed, or null when nothing could: the round is in
+ * flight, nothing new was asked for, or the balance does not cover the ticket.
  */
-const selectTicket = (mode: string): Spot[] => {
-	if (stateGame.rolling) return [];
-	const coverage = MODE_COVERAGE[mode];
-	if (!coverage) return [];
-	if (coverage.length * stateGame.stake > stateBet.balanceAmount) return [];
+const placeSpots = (
+	spots: readonly Spot[],
+	placement: number = newPlacement(),
+): BoardChange | null => {
+	if (stateGame.rolling) return null;
+	// A fresh selection after a resolved round starts a new bet.
 	if (stateGame.resultReady) resetBoard();
-	stateGame.backed = noneBacked();
-	for (const spot of coverage) stateGame.backed[spot] = true;
-	stateGame.selectionOrder = [...coverage];
-	stateGame.placement = {};
-	return [...coverage];
+	const wanted = spots.filter((spot) => !stateGame.backed[spot]);
+	if (!wanted.length) return null;
+	const current = backedSpots();
+	const joins = isTicket([...current, ...wanted]);
+	const kept = joins ? current : current.filter((spot) => spots.includes(spot));
+	const lifted = joins ? [] : current.filter((spot) => !spots.includes(spot)).reverse();
+	if (!isTicket([...kept, ...wanted])) return null;
+	if ((kept.length + wanted.length) * stateGame.stake > stateBet.balanceAmount) return null;
+	for (const spot of lifted) {
+		stateGame.backed[spot] = false;
+		delete stateGame.placement[spot];
+	}
+	for (const spot of wanted) {
+		stateGame.backed[spot] = true;
+		stateGame.placement[spot] = placement;
+	}
+	stateGame.selectionOrder = [
+		...stateGame.selectionOrder.filter((spot) => kept.includes(spot)),
+		...wanted,
+	];
+	foldGroups(placement);
+	return { lifted, placed: wanted };
+};
+
+/**
+ * Lift the placement `spot` went down in: the spot alone, or the whole group it was tapped on
+ * with (MULTI / ALL / BONUS). Returns what came off, most recent first.
+ */
+const liftSpot = (spot: Spot): Spot[] => {
+	if (stateGame.rolling || !stateGame.backed[spot]) return [];
+	const group = stateGame.placement[spot];
+	const lifted = stateGame.selectionOrder
+		.filter((s) => s === spot || (group !== undefined && stateGame.placement[s] === group))
+		.reverse();
+	// A board that would not be a ticket without them (chips that went down with no group) all
+	// comes off: there is nothing to bet in what is left.
+	const rest = stateGame.selectionOrder.filter((s) => !lifted.includes(s));
+	if (!isTicket(rest)) lifted.push(...[...rest].reverse());
+	for (const s of lifted) {
+		stateGame.backed[s] = false;
+		delete stateGame.placement[s];
+	}
+	stateGame.selectionOrder = stateGame.selectionOrder.filter((s) => !lifted.includes(s));
+	return lifted;
+};
+
+/** Back a spot, or lift the placement it is part of. Returns what changed, or null for nothing. */
+const toggleSpot = (spot: Spot): BoardChange | null => {
+	if (stateGame.rolling) return null;
+	if (stateGame.backed[spot] && !stateGame.resultReady) {
+		const lifted = liftSpot(spot);
+		return lifted.length ? { lifted, placed: [] } : null;
+	}
+	return placeSpots([spot]);
 };
 
 /**
@@ -279,16 +331,7 @@ const undoBet = (): Spot[] => {
 	if (stateGame.rolling) return [];
 	const last = stateGame.selectionOrder.at(-1);
 	if (!last) return [];
-	const placement = stateGame.placement[last];
-	const lifted = stateGame.selectionOrder
-		.filter((spot) => spot === last || (placement !== undefined && stateGame.placement[spot] === placement))
-		.reverse();
-	for (const spot of lifted) {
-		stateGame.backed[spot] = false;
-		delete stateGame.placement[spot];
-	}
-	stateGame.selectionOrder = stateGame.selectionOrder.filter((spot) => !lifted.includes(spot));
-	return lifted;
+	return liftSpot(last);
 };
 
 const clearBets = () => {
@@ -302,7 +345,12 @@ const repeatBets = () => {
 	if (previous.spots.length * previous.stake > stateBet.balanceAmount) return;
 	resetBoard();
 	stateGame.stake = previous.stake;
-	for (const spot of previous.spots) stateGame.backed[spot] = true;
+	// One placement: the repeated ticket comes off as one piece, whatever it is.
+	const placement = newPlacement();
+	for (const spot of previous.spots) {
+		stateGame.backed[spot] = true;
+		stateGame.placement[spot] = placement;
+	}
 	stateGame.selectionOrder = [...previous.spots];
 };
 
@@ -364,8 +412,10 @@ export const stateGameDerived = {
 	largestAffordableStake,
 	selectStake,
 	toggleSpot,
+	placeSpots,
+	liftSpot,
+	isTicket,
 	newPlacement,
-	selectTicket,
 	undoBet,
 	clearBets,
 	repeatBets,

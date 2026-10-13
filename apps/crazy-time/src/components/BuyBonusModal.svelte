@@ -63,19 +63,14 @@
 
 	/** A line under each title, in the rooms' own voice. */
 	const TAGLINE: Record<string, string> = {
-		buy_any: 'THE WHEEL PICKS ONE\nOF THE FOUR BONUSES',
 		buy_tc: 'TREASURE CHESTS AWAIT,\nONE IS DESTINED FOR YOU',
 		buy_pp: 'SHOOT THE CANNONBALL\nDOWN THE PEG BOARD',
 		buy_ov: 'SAIL THE SEAS,\nEARN RICHES',
 		buy_bw: 'SPIN THE WHEEL\nOF MULTIPLIERS',
 	};
 
-	/** The four room buys get cards; the buy that can land on any room gets the bar under the chip. */
-	const CARD_MODES = BUY_MODE_NAMES.filter((mode) => BUY_MODES[mode].rooms.length === 1);
-	const ANY_MODE = BUY_MODE_NAMES.find((mode) => BUY_MODES[mode].rooms.length > 1);
-	/** The Random Bonus bar is hidden for now; the buy itself stays in the math and the game. */
-	const SHOW_ANY_BONUS = false;
-	const anyShown = Boolean(ANY_MODE) && SHOW_ANY_BONUS;
+	/** One card per room buy. (The Random Bonus bar that sat under the chips went with its mode.) */
+	const CARD_MODES = [...BUY_MODE_NAMES];
 
 	const roomOf = (mode: string) => BUY_MODES[mode].rooms[0] as RoomSpot;
 	const art = (mode: string) => staticUrl(ROOM_ICON[roomOf(mode)].src);
@@ -277,7 +272,7 @@
 		<!-- Landscape only: the captain, standing on the right of her cabin, with the column to her left. -->
 		<img class="bb-character" src={staticUrl('img/buy-bonus/character.webp')} alt="" aria-hidden="true" />
 
-		<div class="bb-modal" class:no-any={!anyShown} role="dialog" aria-label="Buy Bonus" onclick={(event) => event.stopPropagation()}>
+		<div class="bb-modal" role="dialog" aria-label="Buy Bonus" onclick={(event) => event.stopPropagation()}>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
 				<img src={staticUrl('img/buy-bonus/close_btn.webp')} alt="" aria-hidden="true" />
 			</button>
@@ -286,7 +281,7 @@
 			<h2 class="bb-title"><span class="bb-title-shadow" aria-hidden="true">Buy Bonus</span>Buy Bonus</h2>
 
 			<!-- The bet, chosen off the table's own chips. Every price below is cost x chip, so picking
-			     another chip re-prices all five cards. A chip the balance does not cover is greyed out. -->
+			     another chip re-prices all four cards. A chip the balance does not cover is greyed out. -->
 			<div class="bb-bet-row">
 				<div class="bb-chips" class:locked={props.disabled} role="group" aria-label="Chip value">
 					<div class="bb-chips-viewport" style="--slots:{rail.windowSize}">
@@ -307,28 +302,6 @@
 					</div>
 				</div>
 			</div>
-
-			<!-- Random Bonus: the cards' own panel turned on its side, holding only the name, the price
-			     and Activate, stacked. The frame is a pre-rotated copy of the art, not a CSS rotate. -->
-			{#if ANY_MODE && anyShown}
-				<div class="bb-any">
-					<img class="bb-any-frame" src={staticUrl('img/buy-bonus/buy_bonus_panel_landscape.webp')} alt="" aria-hidden="true" />
-					<h3 class="bb-any-title">{BUY_MODES[ANY_MODE].label}</h3>
-					<p class="bb-card-desc bb-any-desc">{TAGLINE[ANY_MODE]}</p>
-					<div class="bb-any-price">{formatMoney(price(ANY_MODE))}</div>
-					<button
-						type="button"
-						class="bb-activate"
-						disabled={props.disabled || !affordable(ANY_MODE)}
-						onpointerdown={(event) => onActivatePointerDown(event, ANY_MODE)}
-						onclick={() => onActivateClick(ANY_MODE)}
-					>
-						<img class="bb-activate-bg" src={staticUrl('img/buy-bonus/buy_bonus_button.webp')} alt="" aria-hidden="true" />
-						<img class="bb-activate-bg bb-activate-bg--hover" src={staticUrl('img/buy-bonus/buy_bonus_button_hover.webp')} alt="" aria-hidden="true" />
-						<span class="bb-activate-text">Activate</span>
-					</button>
-				</div>
-			{/if}
 
 			<div class="bb-cards">
 				{#each CARD_MODES as mode (mode)}
@@ -504,9 +477,9 @@
 	   no longer fit the frame. */
 	.bb-modal {
 		position: relative;
-		/* The height the Random Bonus bar spends in the column, in --ui-px (133 tall, 16 below), for the
-		   two FIT budgets to charge; 0 while the bar is hidden (`SHOW_ANY_BONUS`). */
-		--bb-any-space: 149;
+		/* The height the Random Bonus bar used to spend in the column, in --ui-px, charged to the two
+		   FIT budgets below. The bar went with its mode; 0 keeps the budgets' arithmetic intact. */
+		--bb-any-space: 0;
 		/* Held as a variable because the portrait card budget has to divide it between the columns, and a
 		   literal `100%` cannot be used there — that value is divided down into a font scale on `.bb-card`,
 		   where a percentage would resolve against the font size instead of the grid. */
@@ -1354,77 +1327,8 @@
 		visibility: hidden;
 	}
 
-	/* ── ANY BONUS BAR ────────────────────────────────────────────────────────────────────────────
-	   Under the chip: the cards' panel turned landscape, with the name, price and Activate stacked
-	   down its middle. 180 x 133 is the card's 0.74 turned on its side, so the stretched frame's rails
-	   come out as thick as they are on the cards. The art is a pre-rotated copy
-	   (buy_bonus_panel_landscape.webp) rather than a CSS rotate, which keeps the frame out of the iOS
-	   transformed-art first-paint clip this game has already hit in the Stake Engine iframe.
-	   Sized in --any-px, which is --ui-px until the modal is narrower than the panel, and then the
-	   whole panel scales down with it. Counted in both FIT budgets above at its full 133 + 16ui-px. */
-	.bb-modal.no-any {
-		--bb-any-space: 0;
-	}
-	.bb-any {
-		--any-px: min(var(--ui-px), calc(var(--bb-modal-width) / 180));
-		position: relative;
-		box-sizing: border-box;
-		width: calc(180 * var(--any-px));
-		height: calc(133 * var(--any-px));
-		margin: 0 auto calc(16 * var(--any-px));
-		padding: calc(12 * var(--any-px)) calc(14 * var(--any-px));
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: calc(7 * var(--any-px));
-	}
-	.bb-any-frame {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		object-fit: fill;
-		pointer-events: none;
-		user-select: none;
-	}
-	.bb-any-title {
-		position: relative;
-		margin: 0;
-		font-family: 'PiecesOfEight', serif;
-		font-weight: 400;
-		font-size: calc(18 * var(--any-px));
-		line-height: 1;
-		color: #ffffff;
-		text-shadow: 0 calc(3 * var(--any-px)) calc(3 * var(--any-px)) rgba(0, 0, 0, 0.8);
-		white-space: nowrap;
-	}
-	/* The cards' tagline face, sized off the panel rather than a card. */
-	.bb-any-desc {
-		position: relative;
-		font-size: calc(8.5 * var(--any-px));
-		line-height: 1.25;
-		text-align: center;
-	}
-	.bb-any-price {
-		position: relative;
-		font-family: 'Noto Sans', sans-serif;
-		font-weight: 700;
-		font-synthesis: none;
-		font-size: calc(18 * var(--any-px));
-		line-height: 1;
-		color: #ffffff;
-		text-shadow: 0 calc(3 * var(--any-px)) calc(4.5 * var(--any-px)) rgba(0, 0, 0, 0.79);
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-	}
-	.bb-any .bb-activate {
-		flex: none;
-		width: calc(116 * var(--any-px));
-	}
-	.bb-any .bb-activate-text {
-		font-size: calc(14 * var(--any-px));
-	}
+	/* The Random Bonus bar that sat under the chips went with its mode (Stake's 20-mode cap);
+	   `--bb-any-space` stays at 0 so the FIT budgets below still add up. */
 
 	/* ── CAPTAIN'S CABIN (landscape) ───────────────────────────────────────────────────────────────
 	   Two landscape layouts, split at a 7:5 screen:

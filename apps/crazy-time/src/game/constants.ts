@@ -171,9 +171,15 @@ export const TILES_PER_DEPTH = 3;
 export const PICK_SECONDS = 15;
 
 // ---------------------------------------------------------------------------
-// Modes: one per combination of spots
+// Modes: the published tickets
 // ---------------------------------------------------------------------------
 export const RTP = 0.967;
+
+/**
+ * Stake caps a game at this many modes (approval guidelines, read 2026-10-14; the publish fails
+ * above it). The game publishes 15: the eleven board tickets below and a buy per room.
+ */
+export const MAX_MODES = 20;
 
 /**
  * Short code per spot. A mode name is the covered spots' codes joined in SPOTS order, e.g. `x1`
@@ -204,48 +210,47 @@ const clearsHitRate = (spots: readonly Spot[]): boolean =>
 	spots.reduce((sum, spot) => sum + SEGMENT_COUNT[spot], 0) * MIN_HIT_RATE >= NUM_SEGMENTS;
 
 /**
- * Every published mode: each non-empty combination of the eight spots that clears the hit-rate
- * floor, at ONE chip per spot. `cost` is the number of spots and the RGS charges cost x amount.
+ * The published board tickets, at ONE chip per spot: each of the eight spots alone, the four
+ * numbers (MULTI), the four rooms (BONUS) and the whole board (ALL). `cost` is the number of spots
+ * and the RGS charges cost x amount. The board can hold nothing else (stateGame `placeSpots`).
  *
- * All 255 combinations: every spot covers at least 3 of the 54 segments (see SEGMENT_LAYOUT), so
- * even a room alone pays often enough. The filter stays as the guard that says so — a rim that
- * gave a room fewer segments would silently make its solo bet unpublishable again.
+ * Every one of the 255 spot combinations was a mode before Stake's 20-mode cap (2026-09 to
+ * 2026-10). Every spot still clears the hit-rate floor alone — it covers at least 3 of the 54
+ * segments (see SEGMENT_LAYOUT) — and the check stays as the guard that says so: a rim that gave
+ * a room fewer segments would silently make its solo ticket unpublishable again.
  */
-export const MODE_COVERAGE: Record<string, readonly Spot[]> = (() => {
-	const modes: Record<string, readonly Spot[]> = {};
-	const n = SPOTS.length;
-	for (let mask = 1; mask < 1 << n; mask++) {
-		const spots = SPOTS.filter((_, i) => mask & (1 << i));
-		if (clearsHitRate(spots)) modes[modeName(spots)] = spots;
-	}
-	return modes;
-})();
+const TICKETS: readonly (readonly Spot[])[] = [
+	...SPOTS.map((spot): readonly Spot[] => [spot]),
+	NUMBER_SPOTS,
+	ROOM_SPOTS,
+	SPOTS,
+];
+
+export const MODE_COVERAGE: Record<string, readonly Spot[]> = Object.fromEntries(
+	TICKETS.map((spots) => {
+		if (!clearsHitRate(spots)) throw new Error(`ticket too rare to publish: ${spots.join(', ')}`);
+		return [modeName(spots), spots];
+	}),
+);
 
 export const MODE_NAMES: readonly string[] = Object.keys(MODE_COVERAGE);
-
-/** Combinations offered as one-tap buttons on the board. */
-export const BUNDLE_MODES: readonly { mode: string; label: string }[] = [
-	{ mode: modeName([...ROOM_SPOTS]), label: 'ALL BONUS' },
-	{ mode: modeName([...SPOTS]), label: 'FULL BOARD' },
-];
 
 // ---------------------------------------------------------------------------
 // Buy-bonus modes
 // ---------------------------------------------------------------------------
 /**
  * A buy skips the wheel and opens a room straight away, at the room's natural odds of also
- * carrying a Top Slot multiplier. Four per-room buys and one "any bonus" buy that lands on a room
- * the way the wheel would (weighted by segments).
+ * carrying a Top Slot multiplier. One buy per room. (A "Random Bonus" buy that landed on any room
+ * for a whole 17 chips went with the 20-mode cap; `rooms` stays a list so the resumed-board and
+ * history code reads the same either way.)
  *
  * Price, in chips, mirrors the math (`crazy_time_data.buy_price`). A room costs 54 / its
  * segments: every spot returns the target RTP on one chip, so a room's mean return per hit is
  * RTP x 54 / segments, and charging that many chips returns the same RTP — Pirate Plinko, Bonus
- * Wheel and Ocean Voyage 18 each, Treasure Chest 13.5. Any Bonus is a whole 17 (`BUY_ANY_PRICE`):
- * the math picks its room 6 : 7 : 7 : 7 (chest first) rather than by segments, which prices out
- * at exactly 17 at the same RTP. The book authors the room, so the client only needs the price.
+ * Wheel and Ocean Voyage 18 each, Treasure Chest 13.5. The book authors the room, so the client
+ * only needs the price.
  */
 export const BUY_MODES: Record<string, { rooms: readonly RoomSpot[]; label: string }> = {
-	buy_any: { rooms: ROOM_SPOTS, label: 'RANDOM BONUS' },
 	buy_tc: { rooms: ['chest'], label: SPOT_LABEL.chest },
 	buy_pp: { rooms: ['piratePlinko'], label: SPOT_LABEL.piratePlinko },
 	buy_ov: { rooms: ['oceanVoyage'], label: SPOT_LABEL.oceanVoyage },
@@ -256,26 +261,26 @@ export const BUY_MODE_NAMES: readonly string[] = Object.keys(BUY_MODES);
 
 export const isBuyMode = (mode: string): boolean => mode in BUY_MODES;
 
-export const BUY_ANY_PRICE = 17;
-
-/** Chips charged for one buy of `mode`. */
+/** Chips charged for one buy of `mode`: 54 / the room's segments. */
 export const buyPrice = (mode: string): number => {
-	if (mode === 'buy_any') return BUY_ANY_PRICE;
 	const [room] = BUY_MODES[mode].rooms;
 	return NUM_SEGMENTS / SEGMENT_COUNT[room];
 };
 
-/** The spots a mode pays on: the combination's spots, or the rooms a buy can open. */
+/** The spots a mode pays on: the ticket's spots, or the room a buy opens. */
 export const coverageOf = (mode: string): readonly Spot[] =>
 	MODE_COVERAGE[mode] ?? BUY_MODES[mode]?.rooms ?? [];
 
 export const ALL_MODE_NAMES: readonly string[] = [...MODE_NAMES, ...BUY_MODE_NAMES];
+if (ALL_MODE_NAMES.length > MAX_MODES) {
+	throw new Error(`${ALL_MODE_NAMES.length} modes; Stake allows ${MAX_MODES}`);
+}
 
 const PUBLISHED_MODES = new Set(ALL_MODE_NAMES);
 
 export const isPublishedMode = (mode: string): boolean => PUBLISHED_MODES.has(mode);
 
-/** Chips charged per `amount`: spots covered for a combination, the price for a buy. */
+/** Chips charged per `amount`: spots covered for a ticket, the price for a buy. */
 export const modeCost = (mode: string): number =>
 	isBuyMode(mode) ? buyPrice(mode) : (MODE_COVERAGE[mode]?.length ?? 0);
 

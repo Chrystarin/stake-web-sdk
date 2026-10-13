@@ -21,7 +21,7 @@ found then.
 
 | Rule | Then | Now | This game |
 | --- | --- | --- | --- |
-| Modes per game | not stated on the pages read | **At most 20 modes.** "Exceptions are made for fantastic games: contact Support if yours needs more." The math page adds: "Files/modes exceeding this size will fail on publish." | **260 modes** (255 spot combinations + 5 buys). Needs a written exception from Support before the next publish, or a redesign to 20 modes. |
+| Modes per game | not stated on the pages read | **At most 20 modes.** "Exceptions are made for fantastic games: contact Support if yours needs more." The math page adds: "Files/modes exceeding this size will fail on publish." | **15 modes since 2026-10-14** (each spot alone, the four numbers, the four rooms, the whole board, and a buy per room; was 260). The free spot combinations and the Random Bonus buy are gone. |
 | RTP band (critical) | 90.0% to 96.7% | **96.0% to 96.7%** | 96.694% to 96.697%: passes |
 | Max win (critical) | 500,000x | 1,000,000x | 50,000x: passes |
 | Max cost (critical) | 2,000x | 50,000x | 18x: passes |
@@ -43,7 +43,7 @@ The public part of that page is now readable and is summarised above.
 | Area | Result |
 | --- | --- |
 | Math, critical tests | All pass (re-measured from the published lookup tables today) |
-| Math, mode count | **Blocked by the 20-mode rule unless Support grants an exception** |
+| Math, mode count | 15 of 20: passes (cut on 2026-10-14; regenerate and republish) |
 | Front end, RGS and UI rules | 2 blockers fixed today (error display, double-tap zoom); identity still open |
 | Assets, IP | PingFang removed today; commercial font licences still unverified |
 | Submission material | Tile not built, blurb not written, replay event IDs not collected |
@@ -61,10 +61,9 @@ The public part of that page is now readable and is summarised above.
 
 ### Still open: decisions, not code
 
-1. **Mode count (new, publish-blocking).** 260 modes against a stated cap of 20. Ask Support for
-   the exception in writing before anything else; if refused, the bet shape has to change (for
-   example number spots only as single-spot modes plus a few bundles), which is a math redesign and
-   a republish.
+1. **Mode count: resolved 2026-10-14.** The math is cut to 15 modes (each spot alone, the four
+   numbers, the four rooms, the whole board, and a buy per room; Random Bonus dropped), the board
+   only accepts those tickets, and the library was regenerated. Republish before review.
 2. **Identity.** `gameName` / `gameID` are still "Crazy Time" / `crazy_time` (package, math
    folder, How to Play pill); "Top Slot" is in the rules, the quick guide and the bet history. The
    format itself is reviewer discretion. The rename touches the math publish, so decide it with
@@ -109,10 +108,11 @@ The public part of that page is now readable and is summarised above.
 - The app's `lint` script does not run: ESLint 9 finds no `eslint.config.js` in the app. Not a
   Stake item, but it means nothing lints this code.
 
-### Math, re-measured today from `library/publish_files` (260 modes)
+### Math, re-measured from `library/publish_files` after the cut to 15 modes
 
 | Test | Result |
 | --- | --- |
+| Modes | 15 of 20 (eight single spots, `x1_x2_x5_x10`, `pp_bw_tc_ov`, the full board, four room buys); every spot is unchanged, so every figure below is the same as before the cut |
 | Cheapest mode is 1.0x | Pass: eight 1.0x modes (`x1` ... `ov`), none cheaper |
 | RTP 96.0% to 96.7% | Pass: 96.694% to 96.697% |
 | Max win | 50,000x (critical limit 1,000,000x; 2-Star 50,000x exactly) |

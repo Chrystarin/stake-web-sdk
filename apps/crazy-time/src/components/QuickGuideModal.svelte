@@ -40,7 +40,7 @@
 		{
 			title: 'BET & SPIN',
 			content: [
-				'Pick your chip. Tap the spots you want to cover. Hit SPIN!',
+				'Pick your chip. Tap a spot, or MULTI, BONUS or ALL for a group. Hit SPIN!',
 				'If the wheel stops on a spot you covered, that chip wins.',
 			],
 			note: 'Total Bet = your chip × the spots you cover',
@@ -65,7 +65,7 @@
 			title: 'BUY BONUS',
 			content: [
 				'Tap Buy Bonus to skip the wheel and open a bonus room straight away.',
-				'Choose your room, or let Random Bonus pick one for you!',
+				'Choose your room: its price is on the card.',
 			],
 		},
 	];

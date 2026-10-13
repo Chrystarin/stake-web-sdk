@@ -20,7 +20,7 @@ decides every outcome.
 | `topslot` | the Top Slot multiplier applied to the spot the wheel landed on   |
 | `win`     | the bet paid (any amount)                                         |
 | `loss`    | the bet paid nothing                                              |
-| `maxwin`  | the biggest payout in the sampled set for the current combination |
+| `maxwin`  | the biggest payout in the sampled set for the current bet         |
 
 `?bonus=<room>` is an alias for `?force=<room>`. The room words are dev shorthands (the value is
 lowercased before it is matched), not the spots' own keys — those are `piratePlinko`,
@@ -61,20 +61,20 @@ not in this bonus" preview, bet a number and force a room.
 http://localhost:3021/?force=plinko          # Pirate Plinko room, whatever it pays
 http://localhost:3021/?force=chest:250       # Treasure Chest paying its top value
 http://localhost:3021/?force=topslot         # a Top Slot hit on the landed spot
-http://localhost:3021/?force=maxwin          # the biggest sampled book for the combination
+http://localhost:3021/?force=maxwin          # the biggest sampled book for the bet
 ```
 
 ## Buy Bonus offline
 
 The Buy Bonus screen works offline like any other bet: the harness plays a sampled book from the
-buy mode (`buy_any`, `buy_tc`, `buy_pp`, `buy_ov`, `buy_bw`) and debits price x chip. `?force=`
+buy mode (`buy_tc`, `buy_pp`, `buy_ov`, `buy_bw`) and debits price x chip. `?force=`
 narrows the pick within that mode the same way (`?force=wheel:1000` with a Bonus Wheel buy, or
 `?force=maxwin`). The room forcing auto-start still bets the full board, not a buy.
 
 ### `?buy=<bonus>`: straight into a bought bonus
 
-Buys that bonus on load at the current chip, with no Yes/No prompt: the yellow chips fly, the wheel
-leaves (or turns into the four-wedge disc) and the room plays. Once per load, after the splash,
+Buys that bonus on load at the current chip, with no Yes/No prompt: the yellow chip flies, the wheel
+leaves and the room plays. Once per load, after the splash,
 like the room auto-start; it wins over `?force=<room>` if both are given.
 
 | Value    | Buys           |
@@ -83,7 +83,6 @@ like the room auto-start; it wins over `?force=<room>` if both are given.
 | `wheel`  | `buy_bw`       |
 | `chest`  | `buy_tc`       |
 | `voyage` | `buy_ov`       |
-| `any`    | `buy_any`      |
 
 The mode keys themselves (`?buy=buy_tc`) work too. If the balance cannot cover the price it waits;
 add `?balance=` for the dearer buys at a big chip.
@@ -96,14 +95,12 @@ dives. A figure the room has on its paytable plays with no Top Slot; one it does
 as room value x Top Slot on the room (`?buy=plinko&mult=1600` is 400 x a 4x Top Slot). Anything
 the room cannot reach either way plays the nearest figure it can, with a console warning.
 
-With `?buy=any` the wheel picks a room that can pay the figure exactly. `?mult=` works on any
-offline round with a bonus in it (bought, `?force=<room>`, or bet by hand), and in an offline replay.
+`?mult=` works on any offline round with a bonus in it (bought, `?force=<room>`, or bet by hand), and in an offline replay.
 
 ```
 http://localhost:3021/?buy=chest&mult=50        # Treasure Chest, the 50x chest
 http://localhost:3021/?buy=voyage&mult=80       # Ocean Voyage down to the 80x depth
 http://localhost:3021/?buy=wheel&mult=50000     # Bonus Wheel 1,000x under a 50x Top Slot
-http://localhost:3021/?buy=any&mult=400         # Random Bonus, any room that pays 400x
 ```
 
 ## `?tier=lite` / `?tier=full`: the drawing budget
@@ -126,7 +123,7 @@ backdrops (`static/videos/*_mobile.mp4`) on either budget.
 (`stake-math-sdk/games/crazy_time/library/publish_files`). The sampler keeps at least one book
 per room, one Top Slot hit and the max-win book per mode, then a weighted spread of ordinary
 rounds, so every `force` value has something to play. If a forced kind is missing for the current
-combination, raise `--limit` and re-run the sync (default 14 books per mode, 252 modes).
+bet, raise `--limit` and re-run the sync (default 30 books per mode, 15 modes).
 
 ## Balance
 
