@@ -67,6 +67,35 @@ export const snapStartOffset = (shape: BoardShape, offset: number): number => {
 	return Math.max(-limit, Math.min(limit, Math.round(offset - 0.5) + 0.5));
 };
 
+/**
+ * The peg an AIMED shot strikes first, given where along the top row it is pointed.
+ *
+ * A shot fired at the board rather than dropped onto it has two rows to hit. Pointed at a top-row
+ * peg, it strikes that peg. Pointed at the gap between two of them, it goes through — a ball is a
+ * good deal narrower than a pitch — and strikes the peg standing in that gap one row down. The two
+ * rows are half a pitch out of step, so between them there is a peg every half-pitch across, and
+ * each owns the quarter-pitch either side of it: half-offsets are the top row's, whole ones the
+ * second row's.
+ *
+ * The second row is the narrow one, and a walk begun there is one row shorter and starts on a
+ * whole offset — which is still the parity the pockets want, an even number of half-pitch steps
+ * from a whole offset — and still within reach of every pocket, since its outermost peg is a full
+ * pitch nearer the middle than `startSteps` budgets for.
+ */
+export const snapAimedStart = (
+	shape: BoardShape,
+	offset: number,
+): { row: number; offset: number } => {
+	const limit = shape.startSteps - 0.5;
+	const snapped = Math.max(-limit, Math.min(limit, Math.round(offset * 2) / 2));
+	const onTopRow = Math.abs(snapped - Math.round(snapped)) > 0.25;
+	// `+ 0` so the middle peg is never the offset -0.
+	return {
+		row: onTopRow || shape.rows < 2 ? 0 : 1,
+		offset: (onTopRow ? snapped : Math.round(snapped)) + 0,
+	};
+};
+
 /** Centre → outermost peg of a row, in pitches. Also the parity the ball must arrive on. */
 export const rowHalfSpan = (shape: BoardShape, row: number): number =>
 	(pegsInRow(shape, row) - 1) / 2;
@@ -538,7 +567,8 @@ const shuffled = <T>(items: readonly T[], random: () => number): T[] => {
  */
 export const planDropWithBombs = (
 	shape: BoardShape,
-	startOffset: number,
+	/** The first peg struck: an offset along the top row, or a peg of any row (`snapAimedStart`). */
+	start: number | { row: number; offset: number },
 	targetOffset: number,
 	bombs: readonly BombSite[],
 	random: () => number = Math.random,
@@ -553,14 +583,15 @@ export const planDropWithBombs = (
 	) => boolean,
 	pull: number = BOMB_PULL,
 ): Contact[] => {
-	const contacts: Contact[] = [{ row: 0, offset: startOffset }];
+	const first = typeof start === 'number' ? { row: 0, offset: start } : start;
+	const contacts: Contact[] = [{ row: first.row, offset: first.offset }];
 	const live = new Map(bombs.map((bomb) => [pegKey(bomb.row, bomb.offset), bomb]));
 	const exploded: BombSite[] = [];
 	const gone = (row: number, offset: number) => exploded.some((bomb) => inBlast(bomb, row, offset));
 	const stepsLeftFrom = (row: number) => shape.rows - row;
 
-	let row = 0;
-	let current = startOffset;
+	let row = first.row;
+	let current = first.offset;
 	while (row < shape.rows) {
 		const bomb = live.get(pegKey(row, current));
 		if (bomb) {

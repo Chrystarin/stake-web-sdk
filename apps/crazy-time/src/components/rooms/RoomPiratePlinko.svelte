@@ -350,20 +350,6 @@
 	 */
 	const CANNON = staticPath('img/pirate-plinko/cannon.webp');
 	/**
-	 * How far the cannon may swing either side of straight down.
-	 *
-	 * Worked out from the geometry rather than picked: it is the angle from the breech to the far
-	 * edge of the drop zone, so the barrel points at exactly the place the ball will enter and runs
-	 * out of travel at exactly the moment the shot runs out of board. A fixed figure cannot do that
-	 * once the cabinet can be wide OR tall — the same 38 degrees that undershot a landscape board
-	 * would overshoot a portrait one.
-	 */
-	const aimLimitDeg = (pivotY: number, host: DOMRect): number => {
-		const halfSpan = ((FRAME.field.right - FRAME.field.left) / 2) * host.width;
-		const entryY = host.top + FRAME.field.top * host.height;
-		return (Math.atan2(halfSpan, Math.max(1, entryY - pivotY)) * 180) / Math.PI;
-	};
-	/**
 	 * How far the muzzle sits from the trunnions, as a share of the cannon's height: the mouth is at
 	 * the very bottom of the drawing (0.97), the wheels it hangs between centred at 0.4. It is what
 	 * puts the ball at the end of the barrel rather than at the middle of the picture. Both are read
@@ -396,9 +382,24 @@
 	 * mid-fall would leave that plan describing a board that no longer exists.
 	 */
 	const EXTRA_PEG_ROWS = 2;
+	/**
+	 * Start positions past the ones `shapeForPockets` gives, each side: ONE, which is the top row's
+	 * outermost peg. The module stops the drop zone a peg short of each wall; a cannon can be swung
+	 * at the corner pegs as easily as at any other, so here they can be hit.
+	 *
+	 * It costs rows, and the pair above is what pays: the longest trip is now from a corner peg to
+	 * the far pocket, 12.5 pitches on the thirteen-pocket board, which is 25 of the walk's half-pitch
+	 * steps — and the board has 27, so even that fall still has its one bounce back the other way.
+	 * Raise this and the rows have to go up by two for every one.
+	 */
+	const EDGE_STARTS = 1;
 	const shape = $derived.by(() => {
 		const base = shapeForPockets(ladder.count);
-		return { ...base, rows: base.rows + EXTRA_PEG_ROWS };
+		return {
+			...base,
+			rows: base.rows + EXTRA_PEG_ROWS,
+			startSteps: base.startSteps + EDGE_STARTS,
+		};
 	});
 
 	let board = $state<PlinkoBoardApi>();
@@ -415,36 +416,39 @@
 	let recoilTimer: ReturnType<typeof setTimeout> | undefined;
 
 	/**
-	 * Swing the barrel to `deg` from straight down and tell the board where the shot will land.
+	 * Swing the barrel to `deg` from straight down and hand the board the line it is now on.
 	 *
-	 * The barrel stops at the edge of its cone — so aiming past the board's limit does not silently
-	 * do nothing, it visibly runs out of travel. The same clamped angle is what sets the entry
-	 * point, at full deflection = far edge, so the two can never disagree about where the ball is
-	 * going. And the board is told where the muzzle is, which is both where the ball will come out
-	 * and where it draws its sight line from.
+	 * The board works out which peg that line is pointed at — the one of the top row it crosses, or,
+	 * crossing between two of them, the one of the second row behind the gap — so the peg struck is
+	 * the peg the barrel is facing, and its sight line runs out of the muzzle to it.
+	 *
+	 * How far the barrel may swing is worked out from the geometry rather than picked: to the top
+	 * row's outermost peg and no further, so it runs out of travel at exactly the moment the shot
+	 * runs out of pegs to be aimed at — and aiming past that does not silently do nothing, it visibly
+	 * stops. A fixed figure cannot do that once the cabinet can be wide OR tall: the same 38 degrees
+	 * that undershot a landscape board would overshoot a portrait one.
 	 */
 	const pointAt = (deg: number) => {
-		if (!armed || !interactive || !pivotEl || !boardEl) return;
+		if (!armed || !interactive || !pivotEl || !boardEl || !board) return;
 		const pivot = pivotEl.getBoundingClientRect();
-		const px = pivot.left;
-		const py = pivot.top;
 		const host = boardEl.getBoundingClientRect();
-		const limit = aimLimitDeg(py, host);
+		// Everything in the board's own pixels: the pivot is measured in the page's and brought into
+		// them, since the barrel it is then added to is an element's height — see `zoomOf`. Above
+		// the board, so its y is negative.
+		const zoom = zoomOf(boardEl);
+		const px = (pivot.left - host.left) / zoom;
+		const py = (pivot.top - host.top) / zoom;
+		const row = board.aimRow();
+		const limit = (Math.atan2(row.half, Math.max(1, row.y - py)) * 180) / Math.PI;
 		aimDeg = Math.max(-limit, Math.min(limit, deg));
-		board?.aim(aimDeg / limit);
 
-		// And where the ball will come out: the end of the barrel, swung to wherever it now points.
-		// Handed over in the board's own pixels, which above the board means a negative y — the
-		// board has no row up here to name the height by.
+		// The end of the barrel, swung to wherever it now points: where the ball will come out.
 		const barrel = MUZZLE_FROM_PIVOT * cannonHeight();
 		const rad = (aimDeg * Math.PI) / 180;
-		// The pivot's offset from the board's corner is measured in page pixels and the barrel in the
-		// room's, so the first is converted before the second is added to it — see `zoomOf`.
-		const zoom = zoomOf(boardEl);
-		board?.launchFrom({
-			x: (px - host.left) / zoom + barrel * Math.sin(rad),
-			y: (py - host.top) / zoom + barrel * Math.cos(rad),
-		});
+		board.aimAlong(
+			{ x: px + barrel * Math.sin(rad), y: py + barrel * Math.cos(rad) },
+			Math.tan(rad),
+		);
 	};
 
 	/** Point the cannon at the pointer: the barrel tracks it exactly while it is inside the cone. */

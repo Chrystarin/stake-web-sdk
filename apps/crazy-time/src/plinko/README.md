@@ -77,6 +77,16 @@ trip (corner to opposite corner) with a spare pair on top. Because the top row i
 pegs — and so the start positions — sit on half-pitches, which is also the parity an odd number of
 half-pitch steps needs to land on a whole-offset pocket centre.
 
+An **aimed** shot (`launcher="aimed"`) has a second row to hit as well. The host hands the board the
+line its barrel is on (`aimAlong(muzzle, lean)`, with `aimRow()` to say how far the barrel may
+swing), and `snapAimedStart` reads off the peg that line is pointed at: a top-row peg, or, pointed
+at the gap between two of them, the second-row peg standing behind that gap. That walk is a row
+shorter and starts on a whole offset, which is the same parity and well inside the same reach. The
+board draws the shot's first leg before it is flown, as a dotted sight line with a ring on that peg.
+`shapeForPockets` stops the start positions a peg short of each wall; a host that wants the corner
+pegs hittable raises `startSteps` by one, and needs two more rows to pay for it (Pirate Plinko does
+both).
+
 `layoutBoard` then fills its container in both directions — pitch from the width, row gap from the
 height — clamped only by the band that keeps the fall looking like a fall. The row-gap-to-pitch
 ratio _is_ the angle the ball falls at: half a pitch sideways per row, so 0.5 is a 45° zig-zag.

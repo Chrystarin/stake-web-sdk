@@ -13,6 +13,7 @@ export type { PocketLadder } from './pockets';
 
 export {
 	shapeForPockets,
+	snapAimedStart,
 	layoutBoard,
 	pegsFor,
 	pegsInRow,

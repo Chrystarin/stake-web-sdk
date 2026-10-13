@@ -26,6 +26,7 @@
 		pegsInRow,
 		placeBombs,
 		planDropWithBombs,
+		snapAimedStart,
 		snapStartOffset,
 		startOffsets,
 		type BoardFrame,
@@ -224,6 +225,17 @@
 	 * a ball dropped between two pegs does anyway.
 	 */
 	const startStep = $derived(snapStartOffset(props.shape, railOffset));
+	/**
+	 * The same, as a peg: its row as well as its offset. Off the rail that is always the top row.
+	 * An aimed shot has the second row to hit as well, through the gaps in the first — see
+	 * `snapAimedStart` — and this is what the sight points at, what the round is told it started
+	 * from, and what the fall is planned from.
+	 */
+	const start = $derived(
+		props.launcher === 'aimed'
+			? snapAimedStart(props.shape, railOffset)
+			: { row: 0, offset: startStep },
+	);
 	let phase = $state<'idle' | 'armed' | 'released' | 'dropping' | 'landed'>('idle');
 	let dragging = $state(false);
 	/** Ball centre in host pixels. Follows the drag while armed, the plan once dropped. */
@@ -320,16 +332,18 @@
 	 * a ring on that peg.
 	 *
 	 * It is the flight's own first leg, drawn before it is flown — `drop` sends a fired ball straight
-	 * from `launchPoint` to the top-row peg at `startStep` — so what it points at is what gets hit.
-	 * That peg is the nearest one to where the barrel is pointing, not the exact spot, which is why
-	 * the ring steps from peg to peg while the barrel turns smoothly: the board is saying which of
-	 * them the shot belongs to. Only while the shot is still to be taken, and only for a host that
-	 * has said where it fires from; a ball that will simply appear on the drop zone has no line.
+	 * from `launchPoint` to the peg at `start` — so what it points at is what gets hit. That peg is
+	 * the nearest one to where the barrel is pointing, not the exact spot, which is why the ring
+	 * steps from peg to peg while the barrel turns smoothly: the board is saying which of them the
+	 * shot belongs to. It steps DOWN a row as well as across: pointed between two pegs of the top
+	 * row, the shot belongs to the peg of the second row behind the gap. Only while the shot is
+	 * still to be taken, and only for a host that has said where it fires from; a ball that will
+	 * simply appear on the drop zone has no line.
 	 */
 	const sight = $derived.by(() => {
 		if (!aimed || phase !== 'armed' || !launchPoint) return null;
-		const x = layout.centreX + startStep * layout.pitch;
-		const y = layout.topY;
+		const x = layout.centreX + start.offset * layout.pitch;
+		const y = layout.topY + start.row * layout.rowGap;
 		const ring = layout.pitch * 0.55;
 		const dx = x - launchPoint.x;
 		const dy = y - launchPoint.y;
@@ -450,7 +464,7 @@
 		props.sounds?.drop?.();
 		const resolve = releaseRound;
 		releaseRound = null;
-		resolve?.(startStep);
+		resolve?.(start.offset);
 	};
 
 	/**
@@ -494,6 +508,26 @@
 		if (phase !== 'armed') return;
 		const clamped = Math.max(-1, Math.min(1, Number.isFinite(fraction) ? fraction : 0));
 		railOffset = clamped * startLimit;
+		restBall();
+		armAutoDrop();
+	};
+
+	/** The row an aimed shot is pointed along: the top row of pegs, for a host swinging a barrel. */
+	export const aimRow = () => ({ x: layout.centreX, y: layout.topY, half: startLimit * layout.pitch });
+
+	/**
+	 * Point the shot along a line, for a host with a barrel: out of `from`, the muzzle, and `lean`
+	 * pixels across for every pixel down. Where that line crosses the top row is where the shot is
+	 * pointed, exactly — not a share of the drop zone the host has had to estimate — so a barrel
+	 * facing a peg strikes that peg and one facing a gap goes through it (`start`). Clamped to the
+	 * row's outermost pegs, like `aim`.
+	 */
+	export const aimAlong = (from: { x: number; y: number }, lean: number) => {
+		if (phase !== 'armed') return;
+		launchPoint = from;
+		const slope = Number.isFinite(lean) ? lean : 0;
+		const across = layout.pitch > 0 ? (from.x + (layout.topY - from.y) * slope - layout.centreX) / layout.pitch : 0;
+		railOffset = Math.max(-startLimit, Math.min(startLimit, across));
 		restBall();
 		armAutoDrop();
 	};
@@ -607,7 +641,7 @@
 		// same test is most of what decides which throws are on offer.
 		const contacts = planDropWithBombs(
 			props.shape,
-			startStep,
+			start,
 			targetOffset,
 			bombs,
 			Math.random,
