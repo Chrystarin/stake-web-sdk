@@ -2,11 +2,34 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- The icon is INLINED as a data URI, as the Plinko's is: Stake Engine serves the published
+		     bundle through its own file API, which answers 403 for `.../front/favicon.svg`, so a
+		     `<link href="favicon.svg">` logged a failed request on every load, and reviewers check the
+		     network tab for exactly that. Regenerate with `base64 -w0 static/favicon.svg`. -->
+		<link
+			rel="icon"
+			href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+DQogIDxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSIyNiIgaGVpZ2h0PSIyNiIgcng9IjYiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iIzE2MTYxNiIgc3Ryb2tlLXdpZHRoPSIyIi8+DQogIDxjaXJjbGUgY3g9IjE2IiBjeT0iMTYiIHI9IjciIGZpbGw9IiNlNTM5MzUiIHN0cm9rZT0iIzAwMDAwMCIgc3Ryb2tlLW9wYWNpdHk9IjAuMjUiIHN0cm9rZS13aWR0aD0iMS41Ii8+DQo8L3N2Zz4NCg=="
+		/>
+		<!-- Stake requires double-tap-to-zoom off on mobile. `maximum-scale` / `user-scalable` stop
+		     pinch and double-tap zoom on Android; iOS Safari has ignored both since iOS 10, so the
+		     actual fix there is `touch-action` on <body> below. -->
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+		/>
 		%sveltekit.head%
 	</head>
-	<body style="margin: 0; padding: 0; overflow: hidden; background-color: black">
+	<!-- `touch-action: manipulation` kills the double-tap-to-zoom gesture (and its 300 ms click
+	     delay) while leaving pan and pinch intact. -->
+	<body
+		style="
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+			touch-action: manipulation;
+			background-color: black;
+		"
+	>
 		<div>%sveltekit.body%</div>
 	</body>
 </html>

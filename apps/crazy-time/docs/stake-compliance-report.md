@@ -1,6 +1,6 @@
 # Stake Engine compliance report: Crazy Time (working title)
 
-Audit date: 2026-09-19. Branch `crazy-time`. Front end `apps/crazy-time`, math
+Audit date: 2026-09-19, re-audited 2026-10-14 (read the update section first). Branch `crazy-time`. Front end `apps/crazy-time`, math
 `stake-math-sdk/games/crazy_time` (published files dated 2026-09-16).
 
 Source: every page under https://stake-engine.com/docs/approval-guidelines (general requirements,
@@ -9,6 +9,118 @@ disclaimer, jurisdiction) plus the RGS and wallet API pages, read on the audit d
 
 **Not covered:** the detailed "Submission Checklist" is behind the Stake Engine login, so I could
 not read it. Open it while logged in and compare it against this report before submitting.
+
+## Update 2026-10-14: re-audit against the current rules
+
+Stake's approval pages were re-read in the Browser pane on 2026-10-14 and the game re-checked
+against them (code, the published math, and the running game). Everything below supersedes the
+2026-09-19 text where the two differ; that text is kept underneath as the record of what was
+found then.
+
+### What changed in Stake's rules since 2026-09-19
+
+| Rule | Then | Now | This game |
+| --- | --- | --- | --- |
+| Modes per game | not stated on the pages read | **At most 20 modes.** "Exceptions are made for fantastic games: contact Support if yours needs more." The math page adds: "Files/modes exceeding this size will fail on publish." | **260 modes** (255 spot combinations + 5 buys). Needs a written exception from Support before the next publish, or a redesign to 20 modes. |
+| RTP band (critical) | 90.0% to 96.7% | **96.0% to 96.7%** | 96.694% to 96.697%: passes |
+| Max win (critical) | 500,000x | 1,000,000x | 50,000x: passes |
+| Max cost (critical) | 2,000x | 50,000x | 18x: passes |
+| Cross-mode RTP spread | 0.5% (critical) | no longer listed | 0.003% |
+| Non-zero hit rate 1 in 50 | critical | "other considerations" | worst 1 in 18: passes |
+| New critical test | | At least one bet-level template must fit the 3-Star limits | passes (all 2-Star limits met on 2026-09-19, files unchanged since 2026-09-15) |
+| Game tile | files to send in (`GameTitle-BG`, `-FG`, logo) | **Built in Studio's tile editor**: a 3:4 tile set as the cover and a 16:9 cover art, from a background image plus a transparent foreground PNG; no wording, prices or multipliers in the art. The submission form blocks without both. | Nothing prepared. `design-export/` holds only the wheel discs. |
+| Submission form gates | | Published front + math version, every critical test passing, one open review at a time until the first game is live; you confirm the disclaimer is in the rules and social mode has no restricted phrases. | |
+| Bet Replay checklist | | Added: show the bet cost **including the mode's cost multiplier and the real cost**; a loading state; must work in Popout S; no restricted phrases in social mode; no way into normal play; currency/lang/amount tolerated when missing or invalid. | Popout S verified today (400x225, a bought room). The replay rail now reads the Chip and the Total Bet (the real cost: `$13.50` for a 13.5x buy on a $1 chip; the Chip line was added today); the multiplier itself is in the rules. |
+| Jurisdiction (stake.us) | wording only | **Mode names** must not contain "buy", "bet" or "pay", and must match across the game, the replay window and the math files. | Buy modes are `buy_any`, `buy_tc`, `buy_pp`, `buy_ov`, `buy_bw`. Only matters for stake.us, but mode names are frozen at publish. |
+| Front end | | "Any bet mode costing more than 2x the base bet must ask the player to confirm before it is activated." "Double tap to zoom must be disabled on mobile." Reviewers launch with an invalid `rgs_url` and expect an error. | See below. |
+| Quality bar | | Three reviewers, 0 to 3 stars each; at least 6 of 9 points to publish; "over-reliance on generic AI-generated assets" is a listed cause of low ratings. | |
+
+The detailed "Approval Requirements" list on the Submission checklist page is still login-gated.
+The public part of that page is now readable and is summarised above.
+
+### Verdict today
+
+| Area | Result |
+| --- | --- |
+| Math, critical tests | All pass (re-measured from the published lookup tables today) |
+| Math, mode count | **Blocked by the 20-mode rule unless Support grants an exception** |
+| Front end, RGS and UI rules | 2 blockers fixed today (error display, double-tap zoom); identity still open |
+| Assets, IP | PingFang removed today; commercial font licences still unverified |
+| Submission material | Tile not built, blurb not written, replay event IDs not collected |
+
+### Fixed today (front end only, no math touched)
+
+| Change | Where | Verified |
+| --- | --- | --- |
+| RGS errors reach the player. A new dialog reads the shared `stateModal`: a failed authenticate or replay load, a refused play, insufficient balance, a gambling limit, a 429, bets paused (423), and the generic case. Fatal ones (no session, dead session, unreachable host) offer only RELOAD; the rest can be closed. Betting, SPIN, Buy Bonus and the spacebar wait behind it, and the quick guide does not open over it. | `src/components/RgsErrorModal.svelte`, `Game.svelte`, `QuickGuideModal.svelte` | Loaded with an invalid `rgs_url`: "Connection problem ... Failed to fetch" with RELOAD, chips hidden, no guide. Also at 400x225. |
+| Double-tap zoom off on mobile: viewport `maximum-scale=1, user-scalable=no, viewport-fit=cover` plus `touch-action: manipulation` on `<body>` (Android honours the meta, iOS the touch-action), the same pair the Plinko ships. | `src/app.html` | Computed `touch-action: manipulation` on body. |
+| Favicon inlined as a data URI. Stake's file API answers 403 for `favicon.svg`, so the old `<link>` logged a failed request on every load, and reviewers read the network tab. | `src/app.html` | |
+| PingFang (Apple's, not redistributable) removed: the `@font-face`, the preload entry and the file. Nothing visible used it: every text element sets its own family, and a DOM scan found one script element resolving to it. The body default is Noto Sans now. | `src/styles/global.scss`, `src/lib/preloadAssets.ts`, `static/fonts/Pingfang/` | No PingFang in `document.fonts`; table renders as before. |
+| The replay rail shows the Chip above the Total Bet, so a replay states the bet amount and the real cost without a chip tray (Bet Replay checklist: "display bet cost, cost multiplier, payout, and win amount"). | `Game.svelte`, `totalBet` snippet | Offline replay of a 13.5x buy: Chip `$1.00`, Total Bet `$13.50`. |
+| Game information no longer logged in production: the book-segment mismatch, the covered-spot mismatch, the open-round closer, the three preload reports, and the replay response dump in the shared `Authenticate` are dev-build only (`import.meta.env.DEV`). Genuine failures still reach the player through the dialog. | `Game.svelte`, `bookEventHandlerMap.ts`, `activeRound.ts`, `preloadAssets.ts`, `packages/components-shared/.../Authenticate.svelte` | |
+
+### Still open: decisions, not code
+
+1. **Mode count (new, publish-blocking).** 260 modes against a stated cap of 20. Ask Support for
+   the exception in writing before anything else; if refused, the bet shape has to change (for
+   example number spots only as single-spot modes plus a few bundles), which is a math redesign and
+   a republish.
+2. **Identity.** `gameName` / `gameID` are still "Crazy Time" / `crazy_time` (package, math
+   folder, How to Play pill); "Top Slot" is in the rules, the quick guide and the bet history. The
+   format itself is reviewer discretion. The rename touches the math publish, so decide it with
+   item 1.
+3. **Font licences.** D-DIN-PRO, Merge Pro and Merge Pro Bold, AustereBlackCapsSSK, PotatoSans and
+   Pieces of Eight need a web/app licence on file or a replacement. Noto Sans, Poppins, Inter and
+   Alexandria are OFL.
+4. **Social mode (stake.us only).** Mode names with "buy" in them, and nearly every string on
+   screen, break the restricted list; no `social=true` handling exists. If stake.us is wanted, the
+   buy modes need new names before the math is frozen (names cannot change after approval).
+5. **Multi-spot bets and the 2x confirmation rule.** A board with three or more spots costs more
+   than 2x the chip and is placed without a confirmation step. The Total Bet is on screen and the
+   player builds it chip by chip, which is how every table game works, but the rule as written does
+   not carve that out. Option: a one-time confirm when Total Bet exceeds 2x the chip, or raise it
+   with Support alongside item 1.
+6. **Two discs not drawn to their odds** (Bonus Wheel 1,000x sliver at full width; Random Bonus
+   buy disc in equal quarters at 22/26/26/26%). Unchanged; the rules mention the first, not the
+   second.
+7. **Tile and blurb** in Studio; **replay event IDs** per scenario (normal win, big win, max win,
+   loss, each room, each buy) once the math is published under its final name.
+
+### Risks, re-checked
+
+- **Bundle: 235 MB of static files** (was 198 MB). 110 MB is video. About 38 MB is unreferenced
+  from any source file and can go: `videos/animated_background_pirate_plinko.mp4` (25.4 MB),
+  `sound/background_music_placeholder.mp3` (3.0 MB, and the only track without a source on
+  record), the Ocean Voyage v1 leftovers `sea_texture_night.png`, `kraken_head.png`,
+  `kraken_tentacles.png`, `barrel2.png`, `barrel3.png` (7.7 MB), the autobet / high-bet
+  confirmation art under `img/buy-bonus/confirmation_popup/` (0.5 MB) and the old wheel icons
+  `img/wheel/ocean-voyage.png`, `bonus-wheel.png`, `pirate-plinko.png`, `pirate-ship.png`,
+  `img/pirate-plinko/coin_v2.png`. The `*_phone.webp` cuts are referenced through `staticUrl` and
+  are in use. Not deleted today: say the word and they go.
+- **Staging URLs in the build.** `packages/state-shared/src/constants.ts` still carries the
+  `test-fart-cdn-bucket` S3 host; it lands in `build/index.html`. Nothing requests it.
+- **Max-win frequency.** Unchanged: 64 modes have their top win rarer than Stake's "typically
+  more frequent than 1 in 10,000,000" (Ocean Voyage 1 in 14.2M, Pirate Plinko 1 in 10.7M), none
+  rarer than 1 in 20M.
+- **Single-spot modes above 90% non-paying.** x10 and Treasure Chest 92.6%, Pirate Plinko,
+  Bonus Wheel and Ocean Voyage 94.4%. Stake's wording is "may be grounds for rejection".
+- **`library/stats_summary.json` is still the 2026-09-12 file** (257 modes); the publish files are
+  2026-09-15. Regenerate before anyone reads it.
+- The app's `lint` script does not run: ESLint 9 finds no `eslint.config.js` in the app. Not a
+  Stake item, but it means nothing lints this code.
+
+### Math, re-measured today from `library/publish_files` (260 modes)
+
+| Test | Result |
+| --- | --- |
+| Cheapest mode is 1.0x | Pass: eight 1.0x modes (`x1` ... `ov`), none cheaper |
+| RTP 96.0% to 96.7% | Pass: 96.694% to 96.697% |
+| Max win | 50,000x (critical limit 1,000,000x; 2-Star 50,000x exactly) |
+| Max cost | 18x |
+| Events per mode | 14,175 |
+| Non-zero hit rate | worst 1 in 18 (`pp`, `bw`, `ov`) |
+| Max win rarer than 1 in 20M | none |
+
 
 ## Verdict
 

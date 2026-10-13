@@ -44,7 +44,9 @@ export const closeActiveRgsRound = async (): Promise<{ ok: boolean; error?: stri
 			typeof error === 'object' && error && 'error' in error
 				? String((error as { error: unknown }).error)
 				: String(error);
-		console.error('[crazy-time] could not close the open RGS round', error);
+		if (import.meta.env.DEV) {
+			console.error('[crazy-time] could not close the open RGS round', error);
+		}
 		return { ok: false, error: detail };
 	}
 };

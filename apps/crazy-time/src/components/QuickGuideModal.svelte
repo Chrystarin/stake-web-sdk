@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { stateUrlDerived } from 'state-shared';
+	import { stateModal, stateUrlDerived } from 'state-shared';
 
 	import { TOP_SLOT_MULTS, WHEEL_LAYOUT } from '../game/constants';
 	import { playSound } from '../game/sound';
@@ -104,6 +104,8 @@
 	let autoOpened = false;
 	$effect(() => {
 		if (!stateGame.introLoaderComplete || autoOpened || isReplay || isHarness) return;
+		// Not over an RGS notice (RgsErrorModal): a dead session has nothing to walk through.
+		if (stateModal.modal !== null) return;
 		autoOpened = true;
 		const timer = setTimeout(() => {
 			stateGame.quickGuideOpen = true;

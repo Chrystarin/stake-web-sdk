@@ -156,17 +156,19 @@
 				event: stateUrlDerived.event(),
 			});
 
-			console.info('[replay] /bet/replay response', {
-				game: stateUrlDerived.game(),
-				version: stateUrlDerived.version(),
-				mode: stateUrlDerived.mode(),
-				event: stateUrlDerived.event(),
-				keys: data ? Object.keys(data as object) : null,
-				stateLength: Array.isArray((data as { state?: unknown[] })?.state)
-					? (data as { state?: unknown[] }).state?.length
-					: undefined,
-				error: (data as { error?: unknown })?.error,
-			});
+			if (import.meta.env.DEV) {
+				console.info('[replay] /bet/replay response', {
+					game: stateUrlDerived.game(),
+					version: stateUrlDerived.version(),
+					mode: stateUrlDerived.mode(),
+					event: stateUrlDerived.event(),
+					keys: data ? Object.keys(data as object) : null,
+					stateLength: Array.isArray((data as { state?: unknown[] })?.state)
+						? (data as { state?: unknown[] }).state?.length
+						: undefined,
+					error: (data as { error?: unknown })?.error,
+				});
+			}
 
 			// A replay payload carries the recorded round under `state`; without it there is nothing to
 			// play back (bad params / RGS error), so surface it instead of silently showing a dead board.

@@ -81,10 +81,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// book for a different ticket than the one sent to /wallet/play.
 		const boardCovered = stateGame.backedOrder.includes(bookEvent.spot);
 		if (boardCovered !== bookEvent.covered) {
-			console.error(
-				`[crazy-time] book says ${bookEvent.spot} covered=${bookEvent.covered} but the board ` +
-					`committed [${stateGame.backedOrder.join(', ')}]: check the bet mode sent to /wallet/play`,
-			);
+			if (import.meta.env.DEV) {
+				console.error(
+					`[crazy-time] book says ${bookEvent.spot} covered=${bookEvent.covered} but the board ` +
+						`committed [${stateGame.backedOrder.join(', ')}]: check the bet mode sent to /wallet/play`,
+				);
+			}
 		}
 		await eventEmitter.broadcastAsync({
 			type: 'wheelSpin',

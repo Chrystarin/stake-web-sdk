@@ -12,12 +12,6 @@
 }
 
 @font-face {
-  font-family: 'PingFang';
-  font-style: normal;
-  font-weight: 400;
-  src: url('fonts/Pingfang/pingfang-sc-regular.woff2'); 
-}
-@font-face {
   font-family: 'DDIN';
   font-style: normal;
   font-weight: 400;
@@ -98,7 +92,7 @@ body{
   background-size: cover;
   background-position: 0 -40px;
   background-blend-mode:lighten;
-  font-family: 'PingFang';
+  font-family: 'Noto Sans', system-ui, sans-serif;
   user-select: none;
 }
 .container-mobile{

@@ -4,7 +4,7 @@
 
 	import { onMount, tick, untrack } from 'svelte';
 
-	import { stateBet, stateConfig } from 'state-shared';
+	import { stateBet, stateConfig, stateModal } from 'state-shared';
 	import { stateUrlDerived } from 'state-shared';
 	import { waitForTimeout } from 'utils-shared/wait';
 
@@ -68,6 +68,7 @@
 	import ConfirmPromptModal from './ConfirmPromptModal.svelte';
 	import HudMenuPopup from './HudMenuPopup.svelte';
 	import InfoModal from './InfoModal.svelte';
+import RgsErrorModal from './RgsErrorModal.svelte';
 	import QuickGuideModal from './QuickGuideModal.svelte';
 	import { isConfirmPromptOpen, requestConfirmPrompt } from '../game/confirmPrompt.svelte';
 
@@ -352,11 +353,13 @@
 		if (SEGMENT_LAYOUT[segment] === spot) return segment;
 		const candidates = SEGMENT_LAYOUT.map((s, i) => (s === spot ? i : -1)).filter((i) => i >= 0);
 		const fallback = candidates[Math.floor(Math.random() * candidates.length)] ?? 0;
-		console.error(
-			`[crazy-time] book segment ${segment} is "${SEGMENT_LAYOUT[segment]}" on this wheel but the ` +
-				`book pays "${spot}": the books predate the current SEGMENT_LAYOUT (re-run the math and ` +
-				`sync-math-books / republish). Stopping on segment ${fallback} instead.`,
-		);
+		if (import.meta.env.DEV) {
+			console.error(
+				`[crazy-time] book segment ${segment} is "${SEGMENT_LAYOUT[segment]}" on this wheel but the ` +
+					`book pays "${spot}": the books predate the current SEGMENT_LAYOUT (re-run the math and ` +
+					`sync-math-books / republish). Stopping on segment ${fallback} instead.`,
+			);
+		}
 		return fallback;
 	};
 
@@ -1201,9 +1204,16 @@
 		multHidden = false;
 	};
 
+	/**
+	 * A notice from the RGS is up (RgsErrorModal): a failed authenticate, a refused play, a replay
+	 * that could not load. Betting waits behind it: on a dead session, for the reload it asks for.
+	 */
+	const rgsErrorUp = $derived(stateModal.modal !== null);
 	// A replay is watched, never bet on: betting stays shut for the life of the page, which takes
 	// the tray, the group buttons, SPIN and Buy Bonus with it.
-	const bettingOpen = $derived(idle && !settled && !clearing && !bonusUp && !replayMode);
+	const bettingOpen = $derived(
+		idle && !settled && !clearing && !bonusUp && !replayMode && !rgsErrorUp,
+	);
 	// A buy has no chips to choose: the tray and the group buttons go the moment it starts.
 	const controlsHidden = $derived(!bettingOpen || stateGame.buying !== null);
 	const canSpin = $derived(bettingOpen && currentBet !== null && !stateGame.openRoundError);
@@ -1900,6 +1910,7 @@
 		const target = event.target as HTMLElement | null;
 		if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
 		if (
+			rgsErrorUp ||
 			buyBonusOpen ||
 			bonusUp ||
 			stateGame.menuOpen ||
@@ -2971,6 +2982,14 @@
 		     of it is on that room stands over it (`bonusBet`). -->
 		{#snippet totalBet()}
 			<div class="total-bet">
+				{#if replayMode}
+					<!-- Stake's replay rules want the bet amount beside the real cost, and a replay has no
+					     tray to read the chip off. -->
+					<div class="bonus-bet">
+						<span class="total-bet-lbl">Chip</span>
+						<span class="total-bet-val">{formatMoney(stateBet.betAmount)}</span>
+					</div>
+				{/if}
 				{#if bonusBet !== null}
 					<div class="bonus-bet">
 						<span class="total-bet-lbl">Bonus Bet</span>
@@ -3433,6 +3452,7 @@
 
 <!-- 4-page walkthrough. Opens itself once the intro splash clears, and again from Menu → How to Play?. -->
 <QuickGuideModal />
+<RgsErrorModal />
 
 <style>
 	/* ---- Chips (same skin as colour-dice: chip_base.svg tinted by --chip-hue) ---- */

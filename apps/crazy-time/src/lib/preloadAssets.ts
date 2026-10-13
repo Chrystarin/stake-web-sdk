@@ -165,7 +165,6 @@ const FONT_SPECS: readonly string[] = [
 	"400 1rem 'Noto Sans'",
 	"900 1rem 'Noto Sans'",
 	"500 1rem 'Poppins'",
-	"400 1rem 'PingFang'",
 	"400 1rem 'DDIN'",
 	"600 1rem 'DDIN'",
 	"700 1rem 'DDIN'",
@@ -711,9 +710,11 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 	const timeout = new Promise<void>((resolve) => {
 		timeoutId = window.setTimeout(() => {
 			report.cappedOut = true;
-			console.warn(
-				`[crazy-time] asset preload hit its ${timeoutMs} ms cap at ${loaded}/${total - 1}; revealing anyway`,
-			);
+			if (import.meta.env.DEV) {
+				console.warn(
+					`[crazy-time] asset preload hit its ${timeoutMs} ms cap at ${loaded}/${total - 1}; revealing anyway`,
+				);
+			}
 			resolve();
 		}, timeoutMs);
 	});
@@ -834,10 +835,12 @@ export function watchForUnpreloadedAssets(): void {
 	window.setTimeout(() => {
 		const strip = (url: string) => url.replace(/^https?:\/\/[^/]+\//, '');
 		if (report.failed.length > 0) {
-			console.warn(
-				`[crazy-time] ${report.failed.length} manifest asset(s) never arrived during the preload:\n` +
-					report.failed.map((f) => `  ${f.reason.padEnd(12)} ${strip(f.url)}`).join('\n'),
-			);
+			if (import.meta.env.DEV) {
+				console.warn(
+					`[crazy-time] ${report.failed.length} manifest asset(s) never arrived during the preload:\n` +
+						report.failed.map((f) => `  ${f.reason.padEnd(12)} ${strip(f.url)}`).join('\n'),
+				);
+			}
 		}
 		const paid = report.lateAssets.filter((a) => a.transferSize > 0 && !a.expected);
 		if (!report.cappedOut && paid.length === 0) return;
@@ -849,14 +852,16 @@ export function watchForUnpreloadedAssets(): void {
 					`  ${a.inManifest ? 'IN-MANIFEST    ' : 'NOT-IN-MANIFEST'} ${kb(a.transferSize).padStart(9)}  ` +
 					`${a.durationMs} ms  ${strip(a.url)}`,
 			);
-		console.warn(
-			`[crazy-time] preload did not cover the session: settled ${report.settled}/${report.total} in ` +
-				`${report.elapsedMs} ms${report.cappedOut ? ' (HIT THE CAP — game revealed part-loaded)' : ''}; ` +
-				`${paid.length} asset(s) fetched from the network after reveal ` +
-				`(${kb(paid.reduce((sum, a) => sum + a.transferSize, 0))}):\n` +
-				lines.join('\n') +
-				`\n  NOT-IN-MANIFEST = never preloaded, add it to lib/preloadAssets.ts.` +
-				`\n  IN-MANIFEST = preloaded under this exact URL and re-fetched anyway.`,
-		);
+		if (import.meta.env.DEV) {
+			console.warn(
+				`[crazy-time] preload did not cover the session: settled ${report.settled}/${report.total} in ` +
+					`${report.elapsedMs} ms${report.cappedOut ? ' (HIT THE CAP — game revealed part-loaded)' : ''}; ` +
+					`${paid.length} asset(s) fetched from the network after reveal ` +
+					`(${kb(paid.reduce((sum, a) => sum + a.transferSize, 0))}):\n` +
+					lines.join('\n') +
+					`\n  NOT-IN-MANIFEST = never preloaded, add it to lib/preloadAssets.ts.` +
+					`\n  IN-MANIFEST = preloaded under this exact URL and re-fetched anyway.`,
+			);
+		}
 	}, 8_000);
 }
