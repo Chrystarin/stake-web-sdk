@@ -3199,6 +3199,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 										class:dimmed={shadowed(spot)}
 										class:room={isRoomSpot(spot)}
 										class:locked={bettingOpen && !backed && !stateGameDerived.canBackAnother()}
+										class:aside={betting && backedCount > 0 && !backed}
 										class:backed
 										class:chip-down={chipDown(spot)}
 										style="--tile:{colour.base}; --tile-deep:{colour.deep}; --tile-text:{colour.text}"
@@ -5144,8 +5145,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		outline: 0.2vw solid rgba(255, 255, 255, 0.7);
 		outline-offset: calc(-0.2vw - var(--frame-inner));
 	}
-	/* Two states cover a tile rather than fade it, so its own colour stays underneath instead of the
-	   backdrop showing through: `locked` while another spot holds the bet, and `dimmed` once the wheel
+	/* Three states cover a tile rather than fade it, so its own colour stays underneath instead of the
+	   backdrop showing through: `aside` (below), `locked` while another spot holds the bet, and `dimmed` once the wheel
 	   has stopped on someone else. The result cover is the heavier of the two — the winner should be
 	   the only tile still reading at full strength. */
 	.tile.locked,
@@ -5158,14 +5159,32 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	.tile.locked {
 		pointer-events: none;
 	}
+	/* `aside`: a chip is down on another tile. The lightest cover — the tile still takes a tap (the
+	   chip moves over to it), and lifts its cover under the mouse to say so. */
+	.tile.aside:not(.locked) {
+		--cover: rgba(0, 0, 0, 0.45);
+	}
 	.tile.locked::after,
-	.tile.dimmed::after {
+	.tile.dimmed::after,
+	.tile.aside::after {
 		content: '';
 		position: absolute;
 		inset: 0;
 		z-index: 20;
 		border-radius: inherit;
 		background: var(--cover);
+	}
+	.tile.aside::after {
+		transition: opacity 160ms ease-out;
+		animation: cover-in 200ms ease-out;
+	}
+	.bottom-panel.lit .tile.aside:hover::after {
+		opacity: 0.35;
+	}
+	@keyframes cover-in {
+		from {
+			opacity: 0;
+		}
 	}
 	/* The Top Slot's multiplier, in the same hand the reel sets it in: a golden-brown stroke layer
 	   under a near-white fill. Worn by the copy in flight and by the one parked on the tile. */
