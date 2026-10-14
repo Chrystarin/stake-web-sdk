@@ -1260,6 +1260,11 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		delay: number;
 		spin: number;
 		turned: boolean;
+		/** Took off from somewhere other than the tray (another tile, or mid-air): played backwards
+		 *  it would not end at the tray, so it is sent home by `redirectChip` instead. */
+		offTray?: boolean;
+		/** Picked up mid-air by `redirectChip`: no take-off, it glides on from where it was. */
+		airborne?: boolean;
 		/** A place/return flight's duration, when it is not the standard FLIGHT_MS; a collect's. */
 		ms?: number;
 		/** A collect copy's own path, played by `playKeyframes`: no two copies fly alike. */
@@ -1393,7 +1398,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	};
 
 	/**
-	 * Fly a chip between the tray and `spot`'s tile. A buy's chip comes from elsewhere: `from` and
+	 * Fly a chip between the tray and `spot`'s tile. A buy's chip, and one moved off another tile
+	 * (`animateChange`), comes from elsewhere: `from` and
 	 * `to` stand in for the tray and the tile, and `onLand` fires as the chip is dropped, for
 	 * whatever takes its place.
 	 */
@@ -1425,6 +1431,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 				delay,
 				spin: 0,
 				turned: false,
+				offTray: opts.from !== undefined,
 				ms,
 			},
 		];
@@ -1470,10 +1477,57 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		schedule(flight.id, () => dropFlight(flight.id), elapsed);
 	};
 
+	/**
+	 * Send a chip that is still in the air on somewhere new — `spot`'s tile (another tile tapped
+	 * before it landed), or home to the tray — from wherever it has got to, rather than dealing a
+	 * second chip. It keeps its lift and its face, and skips the take-off.
+	 */
+	const redirectChip = (flight: ChipFlight, spot: Spot | 'tray') => {
+		const node = flightEls[flight.id];
+		const box = spot === 'tray' ? chipEls[stateGame.stake] : tileEls[spot];
+		const host = gameEl?.getBoundingClientRect();
+		const from = host && node ? centreIn(host, node.getBoundingClientRect()) : null;
+		dropFlight(flight.id);
+		if (!host || !from || !box) {
+			if (spot !== 'tray') flyChip(spot, 'place');
+			return;
+		}
+		const id = ++flightId;
+		const ms = FLIGHT_MS - GROW_MS;
+		flights = [
+			...flights,
+			{
+				id,
+				// Home is a `return`, so the tile it left is not waiting on it.
+				kind: spot === 'tray' ? 'return' : 'place',
+				spot: spot === 'tray' ? flight.spot : spot,
+				label: flight.label,
+				hue: flight.hue,
+				text: flight.text,
+				from,
+				to: centreIn(host, box.getBoundingClientRect()),
+				delay: 0,
+				spin: 0,
+				turned: false,
+				offTray: true,
+				airborne: true,
+				ms,
+			},
+		];
+		playSound('whoosh');
+		schedule(id, () => playSound('pop'), TRAVEL_MS);
+		schedule(id, () => dropFlight(id), ms);
+	};
+
+	/** The flight still bringing a chip down onto `spot`, if there is one. */
+	const arrivingFlight = (spot: Spot) =>
+		flights.find((f) => f.kind === 'place' && !f.turned && f.spot === spot);
+
 	const recallChip = (spot: Spot, delay = 0) => {
-		const arriving = flights.find((f) => f.kind === 'place' && !f.turned && f.spot === spot);
-		if (arriving) turnBack(arriving);
-		else flyChip(spot, 'return', delay);
+		const arriving = arrivingFlight(spot);
+		if (!arriving) flyChip(spot, 'return', delay);
+		else if (arriving.offTray) redirectChip(arriving, 'tray');
+		else turnBack(arriving);
 	};
 
 	const shuffled = (spots: Spot[]): Spot[] => {
@@ -1926,12 +1980,28 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		syncMusicVolume();
 	});
 
-	/** Flights for what a tap changed: the lifted chips go back first, the new ones follow them. */
+	/**
+	 * Flights for what a tap changed. A chip the tap replaced does not go home to be dealt out
+	 * again: it moves straight from its old tile to the new one. Whatever is left over goes back to
+	 * the tray first (more came off than went down), and the tray deals out the rest (the other
+	 * way round). A chip still on its way in is turned in mid-air for the new tile.
+	 */
 	const animateChange = (change: BoardChange | null): boolean => {
 		if (!change) return false;
-		change.lifted.forEach((spot, i) => recallChip(spot, i * BUNDLE_STEP_MS));
-		const after = change.lifted.length * BUNDLE_STEP_MS;
-		change.placed.forEach((spot, i) => flyChip(spot, 'place', after + i * BUNDLE_STEP_MS));
+		const moves = Math.min(change.lifted.length, change.placed.length);
+		const moved = change.lifted.slice(0, moves);
+		moved.forEach((from, i) => {
+			const to = change.placed[i];
+			const arriving = arrivingFlight(from);
+			if (arriving) redirectChip(arriving, to);
+			else flyChip(to, 'place', i * BUNDLE_STEP_MS, undefined, 1, { from: tileEls[from] });
+		});
+		const recalled = change.lifted.filter((spot) => !moved.includes(spot));
+		recalled.forEach((spot, i) => recallChip(spot, i * BUNDLE_STEP_MS));
+		const after = Math.max(moves, recalled.length) * BUNDLE_STEP_MS;
+		change.placed
+			.slice(moves)
+			.forEach((spot, i) => flyChip(spot, 'place', after + i * BUNDLE_STEP_MS));
 		return true;
 	};
 
@@ -3330,6 +3400,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			<div
 				bind:this={flightEls[flight.id]}
 				class="chip flying-chip {flight.kind}"
+				class:airborne={flight.airborne}
 				style={flightStyle(flight)}
 				use:playKeyframes={flight}
 				aria-hidden="true"
@@ -3477,6 +3548,10 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	.flying-chip.return {
 		animation: chip-flight var(--flight-ms) var(--place-delay, 0ms) reverse both;
 	}
+	/* Sent somewhere new while still in the air (`redirectChip`): played forwards, home or not. */
+	.flying-chip.airborne {
+		animation: chip-glide var(--flight-ms) var(--place-delay, 0ms) both;
+	}
 	.flying-chip.sweep {
 		animation: chip-sweep var(--sweep-ms) var(--sweep-delay) ease-in both;
 	}
@@ -3503,6 +3578,28 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			animation-timing-function: ease-out;
 		}
 		80% {
+			translate: var(--to-x) var(--to-y);
+			scale: 1.35;
+			animation-timing-function: ease-out;
+		}
+		100% {
+			translate: var(--to-x) var(--to-y);
+			scale: 1;
+		}
+	}
+	/* `chip-flight` without the take-off: already lifted, it travels on the same arc and settles. */
+	@keyframes chip-glide {
+		0% {
+			translate: var(--from-x) var(--from-y);
+			scale: 1.35;
+			animation-timing-function: ease-in;
+		}
+		37.5% {
+			translate: calc((var(--from-x) + var(--to-x)) / 2)
+				calc((var(--from-y) + var(--to-y)) / 2 - 1.6vw);
+			animation-timing-function: ease-out;
+		}
+		75% {
 			translate: var(--to-x) var(--to-y);
 			scale: 1.35;
 			animation-timing-function: ease-out;
