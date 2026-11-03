@@ -136,13 +136,19 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// The clouds on the seam as the wheel's ship sails the player in (VoyageReveal.svelte).
 	'img/ocean-voyage/divider.webp',
 	'img/ocean-voyage/sky_night.webp',
+	'img/ocean-voyage/v2/mountain_horizon.webp',
 	'img/ocean-voyage/sea_night.webp',
+	// The water's light (the Figma guide's dim and bright caustic layers).
+	'img/ocean-voyage/v2/ocean_dim_overlay.webp',
+	'img/ocean-voyage/v2/ocean_bright_overlay.webp',
 	'img/ocean-voyage/sea_overlay.webp',
-	'img/ocean-voyage/skull_cave_v2.webp',
+	// The cave, lit and dim, and the treasure cave inside it (the original, larger painting).
+	'img/ocean-voyage/v2/skull_cave.webp',
+	'img/ocean-voyage/v2/skull_cave_dim.webp',
 	'img/ocean-voyage/inside_cave.webp',
-	'img/ocean-voyage/barrel.webp',
-	'img/ocean-voyage/ship_deck.webp',
-	'img/ocean-voyage/wheel.webp',
+	'img/ocean-voyage/v2/floating_barrel.webp',
+	'img/ocean-voyage/v2/ship.webp',
+	'img/ocean-voyage/v2/wheel.webp',
 	'img/ocean-voyage/kraken.webp',
 	// The splash a barrel throws up as it is taken: plinko's FG_SPLASH baked into a frame strip.
 	'img/ocean-voyage/splash_strip.webp',

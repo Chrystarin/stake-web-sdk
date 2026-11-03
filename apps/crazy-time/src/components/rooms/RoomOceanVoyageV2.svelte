@@ -54,14 +54,23 @@
 	let { room, interactive = false, portrait = false }: Props = $props();
 
 	const KRAKEN = staticPath('img/ocean-voyage/kraken.webp');
-	const BARREL = staticPath('img/ocean-voyage/barrel.webp');
-	const CAVE = staticPath('img/ocean-voyage/skull_cave_v2.webp');
+	const BARREL = staticPath('img/ocean-voyage/v2/floating_barrel.webp');
+	/** The cave comes in two: lit, and dim — how it looks far off in the dark. The lit one is faded in
+	    over the dim one as it comes near. */
+	const CAVE = staticPath('img/ocean-voyage/v2/skull_cave.webp');
+	const CAVE_DIM = staticPath('img/ocean-voyage/v2/skull_cave_dim.webp');
+	/** The treasure cave inside: the original painting (1671×941) rather than v2's 699×393 one, since
+	    the voyage ends with it filling the screen. Darkened by a black veil, not a dim cut. */
 	const INSIDE = staticPath('img/ocean-voyage/inside_cave.webp');
 	const SEA = staticPath('img/ocean-voyage/sea_night.webp');
+	/** The water's light, from the Figma guide: see `SEA_LIGHT`. */
+	const SEA_DIM = staticPath('img/ocean-voyage/v2/ocean_dim_overlay.webp');
+	const SEA_BRIGHT = staticPath('img/ocean-voyage/v2/ocean_bright_overlay.webp');
 	const SKY = staticPath('img/ocean-voyage/sky_night.webp');
+	const MOUNTAINS = staticPath('img/ocean-voyage/v2/mountain_horizon.webp');
 	const SEA_FLOW = staticPath('img/ocean-voyage/sea_overlay.webp');
-	const DECK = staticPath('img/ocean-voyage/ship_deck.webp');
-	const WHEEL = staticPath('img/ocean-voyage/wheel.webp');
+	const DECK = staticPath('img/ocean-voyage/v2/ship.webp');
+	const WHEEL = staticPath('img/ocean-voyage/v2/wheel.webp');
 	/**
 	 * The water splash thrown up as a barrel is taken: One Eyed Willy Plinko's free-game waterfall burst
 	 * (apps/plinko static/spine/FG_SPLASH), baked out of its Spine atlas into one vertical strip of
@@ -149,24 +158,23 @@
 	const COIN_SOUND_GAP_MS = 55;
 
 	/** The art's own shapes. */
-	const CAVE_ASPECT = 2122 / 729;
-	/** The foot of the cave's mouth, as a share of its height: the waterline. The art has no water of
-	    its own, so from CAVE_SINK down the rocks fade into the sea. */
-	const CAVE_MOUTH = 0.97;
-	const CAVE_SINK = 0.92;
+	const CAVE_ASPECT = 1646 / 771;
+	/** The rocks taper off at the foot of the picture, so from CAVE_SINK down they fade into the sea. */
+	const CAVE_SINK = 0.95;
 	/**
 	 * The cave's mouth is a hole in the picture, and the treasure cave inside (`inside_cave`) shows
-	 * through it: this much of the cave's width, centred this far across it, standing on its foot.
-	 * Behind it, and over it as a veil, is black in the box the hole takes up (shares of the cave) —
-	 * the veil pitch black far off, and lifting as the cave comes near, so the treasure is revealed.
+	 * through it: this much of the cave's width, centred this far across it, standing on the foot of
+	 * the hole. Behind it, and over it as a veil, is black in the box the hole takes up (shares of the
+	 * cave, measured off the picture's alpha) — the veil pitch black far off, and lifting as the cave
+	 * comes near, so the treasure is revealed.
 	 */
 	/** How far the skull around the mouth is dimmed when the treasure is revealed. */
 	const SKULL_DIM = 0.45;
 	/** How much of the inside the lifting veil shows on the way to the cave. */
 	const INSIDE_PEEK = 0.3;
-	const INSIDE_W = 0.49;
-	const INSIDE_CX = 0.509;
-	const HOLE = { left: 0.378, right: 0.642, top: 0.36, bottom: CAVE_MOUTH };
+	const INSIDE_W = 0.315;
+	const INSIDE_CX = 0.507;
+	const HOLE = { left: 0.37, right: 0.63, top: 0.62, bottom: 0.985 };
 	/**
 	 * The scene's layout, as shares of the screen, from the reference pictures: where the horizon is
 	 * (down the screen), and the cave as it first comes into view and on the last row — its width (of
@@ -175,13 +183,41 @@
 	 * than its picture's, since the game's own title frame is taller there and would hide the cave.
 	 */
 	const LAYOUT = {
-		landscape: { horizon: 0.49, startW: 0.33, startFoot: 0.015, endW: 1.02, endFoot: 0.66 },
-		portrait: { horizon: 0.24, startW: 0.63, startFoot: 0.047, endW: 3.05, endFoot: 0.68 },
+		landscape: { horizon: 0.49, startW: 0.33, startFoot: 0.015, endW: 0.9, endFoot: 0.66 },
+		portrait: { horizon: 0.24, startW: 0.63, startFoot: 0.047, endW: 2.7, endFoot: 0.68 },
 	};
 	/** The barrel's picture, height over width. */
-	const BARREL_ASPECT = 352 / 512;
+	const BARREL_ASPECT = 209 / 308;
 	/** The sea picture (its own perspective painted in: its top edge is the far horizon), height over width. */
 	const SEA_ASPECT = 2074 / 1526;
+	/** How much of the sea picture's top is cut off above the water in landscape, as the Figma guide
+	    lays it out — the water starts on its bigger swell, not its far edge. Portrait shows it all:
+	    the water there is taller than the picture is wide. */
+	const SEA_CROP = 0.15;
+	/**
+	 * The water's light, as the Figma guide lays it over the sea: two caustic layers, each LIGHTENING
+	 * what is under it — a faint one over the far water (`SEA_DIM`, fading out down the water) and a
+	 * strong one coming in towards the player (`SEA_BRIGHT`, fading in down it). Their opacities (10%
+	 * and 41%) are baked into the pictures' alpha. Each starts this far down the water (as a share of
+	 * it, from the guide's 1920×1080 frame) and runs to the foot of the screen; in portrait, where the
+	 * water is far taller than the pictures, each covers its box from the top instead of stretching.
+	 */
+	const SEA_LIGHT = [
+		{ src: SEA_DIM, top: 6 / 630 },
+		{ src: SEA_BRIGHT, top: 54 / 630 },
+	];
+	/**
+	 * The mountains along the horizon (`mountain_horizon`): a mirrored panorama — a cliff, low hills, a
+	 * tall peak at the mirror seam, and back — so it tiles round without a seam. Laid out as the guide
+	 * has it against the cave as it first comes into view: one strip is MOUNTAIN_PER_CAVE times the
+	 * cave's width, its foot MOUNTAIN_LIFT of that width above the cave's foot, and strip pixel
+	 * `mid` at the middle of the screen — so the cave stands in the low hills between a cliff and the
+	 * peak. Far off, so it pans little.
+	 */
+	const MOUNTAIN_PX = { w: 3782, h: 349, mid: 1008 };
+	const MOUNTAIN_PER_CAVE = 3782 / 639;
+	const MOUNTAIN_LIFT = 20 / 639;
+	const MOUNTAIN_PAN = 0.25;
 	/**
 	 * The water's ripples, laid over the sea picture and running down towards the player: a seamless
 	 * tile (made from sea_texture.png), height over width, its width as a share of the screen's longer
@@ -198,12 +234,23 @@
 	/** The sky picture, height over width. Its foot stands on the sea's horizon. */
 	const SKY_ASPECT = 597 / 1526;
 	const SKY_PAN = 0.15;
-	/** The deck's picture, and where the ring its wheel sits in is centred in it. `pick` is the row a
-	    barrel's foot comes down to as it is taken: below the tip of the bow's spike (250) and above
-	    the rail (419), so the spike stands over the barrel as it is picked. */
-	const DECK_PX = { w: 1928, ring: 710, ringY: 690, tip: 250, pick: 330 };
+	/** The deck's picture (the rigging rising off it to the top), and where the ring its wheel sits in
+	    is centred in it. `pick` is the row a barrel's foot comes down to as it is taken: below the tip
+	    of the bow's spike (785) and above the rail (913), so the spike stands over the barrel as it is
+	    picked. */
+	const DECK_PX = { w: 1918, ring: 707, ringY: 1293, tip: 785, pick: 845 };
 	/** How far a landscape deck is let down below the foot of the screen, as a share of the height. */
 	const DECK_SINK = 0.1;
+	/**
+	 * The wheel's picture. It is drawn a little from above — its rim an ellipse WHEEL_TILT as tall as
+	 * it is wide, and its hub above the middle — so it is turned as a tilted wheel: stretched round,
+	 * rotated about the hub, and squashed back (`.wheel`), rather than spun flat, which would stand
+	 * the ellipse on end at full lock. WHEEL_ART is its width against `wheelW`: the old wheel's art
+	 * filled 0.95 of its square.
+	 */
+	const WHEEL_PX = { w: 794, h: 739, hubY: 357 };
+	const WHEEL_TILT = 0.94;
+	const WHEEL_ART = 0.95;
 	/** How far the sea fades in below the horizon, over the haze at the foot of the sky (layout pixels at 1024 wide). */
 	const BLEND_PX = 40;
 
@@ -237,18 +284,19 @@
 	const KRAKEN_SPLASH_SUNK = 0.3;
 	/**
 	 * The top edge of the deck's rail across the deck picture, in its pixels: 33 samples, left edge to
-	 * right, measured off `ship_deck.webp`'s alpha. It falls away from the bow to the sides, so a splash
-	 * off to one side has to be set by the rail where it stands, not at the middle. The lanterns (2-3,
-	 * 29-30) and the bow's spike (16) stand up out of it and are smoothed over: the rail behind them.
+	 * right, measured off `v2/ship.webp`'s alpha. It falls away from the bow to the sides, so a splash
+	 * off to one side has to be set by the rail where it stands, not at the middle. The bow's spike
+	 * (16) stands up out of it, and the rigging, lanterns and posts cross it out to the sides (0-6,
+	 * 26-32): those are smoothed over — the rail behind them.
 	 */
 	const DECK_EDGE_PX = [
-		523, 511, 510, 510, 509, 499, 489, 480, 470, 461, 451, 442, 431, 418, 399, 373, 365, 372, 398, 417,
-		431, 441, 451, 461, 470, 479, 489, 499, 509, 510, 510, 512, 523,
+		1060, 1055, 1050, 1045, 1040, 1036, 1032, 1029, 1021, 1009, 997, 983, 967, 949, 926, 905, 898, 905, 927, 950,
+		968, 984, 998, 1010, 1021, 1029, 1032, 1036, 1040, 1045, 1050, 1055, 1060,
 	];
 	/** Where its eyes end, as a share of its picture's height: the peek shows it down to here. */
 	const KRAKEN_EYES = 0.44;
 	/** The top of the deck's rail at its middle, in the deck picture's pixels. */
-	const DECK_RAIL = 419;
+	const DECK_RAIL = 913;
 	const END_HOLD_MS = 900;
 
 	/** Seconds between one row reaching the bow and the next, and before the first one does (after LEAD_SECONDS). */
@@ -276,8 +324,12 @@
 	const CAVE_ZOOM_SECONDS = 1.8;
 	const CAVE_ZOOM_COVER = 1.04;
 	/** The middle of the mouth's hole, as shares of the cave: what the zoom is centred on. */
-	const HOLE_CX = 0.51;
-	const HOLE_CY = 0.665;
+	const HOLE_CX = 0.507;
+	const HOLE_CY = 0.807;
+	/** The clear part of the hole the zoom fills the screen with, as shares of the cave: narrower than
+	    the hole's box, which has the fangs in its top corners, so landscape (which fills by width)
+	    ends on the treasure and not on rock; as tall as the box, for portrait (which fills by height). */
+	const ZOOM_HOLE = { w: 0.15, h: 0.36 };
 	/** How quickly the scene pans to where the wheel points it. */
 	const PAN_TAU = 0.3;
 	/** How much of the pan the sea and the cave follow — the far things move less. */
@@ -391,8 +443,8 @@
 	 */
 	const caveZoom = $derived.by(() => {
 		const e = zoomIn < 0.5 ? 4 * zoomIn ** 3 : 1 - (-2 * zoomIn + 2) ** 3 / 2;
-		const holeW = cave.w * (HOLE.right - HOLE.left);
-		const holeH = cave.h * (HOLE.bottom - HOLE.top);
+		const holeW = cave.w * ZOOM_HOLE.w;
+		const holeH = cave.h * ZOOM_HOLE.h;
 		const hx = caveLeft + cave.w * HOLE_CX;
 		const hy = cave.top + cave.h * HOLE_CY;
 		const full = CAVE_ZOOM_COVER * Math.max(W / holeW, H / holeH);
@@ -401,12 +453,15 @@
 			sink: CAVE_SINK + (1 - CAVE_SINK) * e,
 		};
 	});
+	const smooth = (t: number) => t * t * (3 - 2 * t);
 	/** The veil over the inside of the cave: pitch black far off, and lifting as the cave comes near —
 	    but only so far (INSIDE_PEEK); the rest of it lifts only with the treasure revealed. */
-	const veil = $derived.by(() => {
-		const t = clamp((grow - 0.15) / 0.8, 0, 1);
-		return (1 - INSIDE_PEEK * t * t * (3 - 2 * t)) * (1 - reveal);
-	});
+	const veil = $derived((1 - INSIDE_PEEK * smooth(clamp((grow - 0.15) / 0.8, 0, 1))) * (1 - reveal));
+	/** The lit cave over the dim one: it comes into its colours as it comes near (the square root brings
+	    them up early — the cave grows most at the very end), and the skull is dimmed back down around
+	    the treasure once it is revealed. */
+	const caveLit = $derived(Math.sqrt(clamp(grow, 0, 1)));
+	const skullFilter = $derived(reveal > 0 ? `brightness(${(1 - SKULL_DIM * reveal).toFixed(3)})` : 'none');
 	/** The horizon, down the screen: the sky stands on it, the sea runs from it, the cave starts on it. */
 	const horizonY = $derived(H * layout.horizon);
 	/** How far the sea takes to fade in at its top edge, over the haze at the foot of the sky. */
@@ -426,7 +481,13 @@
 	 */
 	/** The wheel's width: larger in portrait, where the screen is narrow and it is the thing to reach for. */
 	const wheelW = $derived(PW * (portrait ? 0.95 : 0.6));
-	const deckScale = $derived(portrait ? (wheelW * 1.25) / DECK_PX.ring : W / DECK_PX.w);
+	/** The wheel's picture's width (`WHEEL_ART`); its hub sits on the foot of the screen. */
+	const helmW = $derived(wheelW * WHEEL_ART);
+	// Landscape: the screen's width — or, on a screen squarer than the deck allows (an iPad), as wide
+	// as it takes for the rigging to reach past the top of the screen rather than end in mid-air.
+	const deckScale = $derived(
+		portrait ? (wheelW * 1.25) / DECK_PX.ring : Math.max(W / DECK_PX.w, (H * (1 + DECK_SINK)) / DECK_PX.ringY),
+	);
 	const deckW = $derived(DECK_PX.w * deckScale);
 	const deckTop = $derived(H - DECK_PX.ringY * deckScale + (portrait ? 0 : H * DECK_SINK));
 
@@ -451,8 +512,32 @@
 		const w = Math.max(W + 2 * pitch * SKY_PAN + 8, foot / SKY_ASPECT + 8);
 		return { w, top: foot - w * SKY_ASPECT };
 	});
-	/** The sea, from its top to the foot of the screen, wide enough to pan with the wheel. */
-	const sea = $derived({ w: Math.max(W + 2 * pitch * SEA_PAN + 8, (H * (1 + VIEW_SWELL) - seaTop) / SEA_ASPECT + 8) });
+	/** The sea, from its top to the foot of the screen, wide enough to pan with the wheel — and, in
+	    landscape, with its top SEA_CROP cut off above the water (`cut`, in pixels). */
+	const sea = $derived.by(() => {
+		const crop = portrait ? 0 : SEA_CROP;
+		const w = Math.max(W + 2 * pitch * SEA_PAN + 8, (H * (1 + VIEW_SWELL) - seaTop) / (SEA_ASPECT * (1 - crop)) + 8);
+		return { w, cut: w * SEA_ASPECT * crop };
+	});
+	/** The water's light (`SEA_LIGHT`): as wide as the sea pans, each from its own way down the water to
+	    below the foot of the screen. */
+	const seaLight = $derived.by(() => {
+		const spare = pitch * SEA_PAN + 8;
+		const water = H - seaTop;
+		return SEA_LIGHT.map(({ src, top }) => {
+			const y = seaTop + water * top;
+			return { src, top: y, h: H * (1 + VIEW_SWELL) - y, w: W + 2 * spare, left: -spare };
+		});
+	});
+	/** The mountains (`MOUNTAIN_PX`), tiled along the horizon and reaching past the screen each side to pan. */
+	const mountains = $derived.by(() => {
+		const start = caveAt(0);
+		const w = start.w * MOUNTAIN_PER_CAVE;
+		const s = w / MOUNTAIN_PX.w;
+		const h = MOUNTAIN_PX.h * s;
+		const spare = pitch * MOUNTAIN_PAN + 8;
+		return { w, h, spare, top: start.bottom - start.w * MOUNTAIN_LIFT - h, x: cx + spare - MOUNTAIN_PX.mid * s };
+	});
 	/** The ripples over it: one tile's size, and how much they reach past the screen each side to pan. */
 	const flow = $derived.by(() => {
 		const w = FLOW_TILE * Math.max(W, H);
@@ -470,7 +555,7 @@
 	 */
 	const krakenHide = $derived(H - (krakenY - krakenSize / 2));
 	/** The line the kraken peeks over: the rail, or the wheel set into it, whichever stands higher. */
-	const krakenLine = $derived(Math.min(deckTop + DECK_RAIL * deckScale, H - wheelW / 2) - 4);
+	const krakenLine = $derived(Math.min(deckTop + DECK_RAIL * deckScale, H - helmW * (WHEEL_PX.hubY / WHEEL_PX.w)) - 4);
 	const krakenPeek = $derived(krakenLine - KRAKEN_EYES * krakenSize - (krakenY - krakenSize / 2));
 	/** The top of the deck's rail at `x` across the screen (`DECK_EDGE_PX`), down the screen. */
 	const deckEdgeAt = (x: number) => {
@@ -795,8 +880,10 @@
 	let dragging = $state(false);
 	let lastAngle = 0;
 	const angleOf = (event: PointerEvent) => {
+		// About the hub, which is above the middle of the picture.
 		const r = helmEl!.getBoundingClientRect();
-		return (Math.atan2(event.clientY - (r.top + r.height / 2), event.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
+		const hubY = r.top + r.height * (WHEEL_PX.hubY / WHEEL_PX.h);
+		return (Math.atan2(event.clientY - hubY, event.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
 	};
 	const hands = $derived(interactive && ended === null && !kraken && reached < depths);
 	/** Set the first time the player takes the wheel: the instruction has done its job and goes. */
@@ -880,7 +967,7 @@
 	class:port={ended === 'port'}
 	class:sunk={ended === 'kraken'}
 	bind:this={rootEl}
-	style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px; --board-ms:{BOARD_MS}ms; --board-drop:{(H * BOARD_DROP).toFixed(1)}px; --mist-ms:{MIST_MS}ms"
+	style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px; --helm-w:{helmW}px; --helm-aspect:{WHEEL_PX.w / WHEEL_PX.h}; --helm-sunk:{((WHEEL_PX.h - WHEEL_PX.hubY) / WHEEL_PX.w).toFixed(4)}; --board-ms:{BOARD_MS}ms; --board-drop:{(H * BOARD_DROP).toFixed(1)}px; --mist-ms:{MIST_MS}ms"
 >
 	<!-- Everything out beyond the rail, swelling up and settling under the ship as the table's own
 	     view does (Background's `sea-swell`), while the deck and the wheel hold still in front. -->
@@ -906,8 +993,19 @@
 			src={SEA}
 			alt=""
 			draggable="false"
-			style="left:{cx - sea.w / 2}px; top:{seaTop}px; width:{sea.w}px; --blend:{blend}px; transform:translateX({(-offset * SEA_PAN).toFixed(1)}px)"
+			style="left:{cx - sea.w / 2}px; top:{(seaTop - sea.cut).toFixed(1)}px; width:{sea.w}px; --cut:{sea.cut.toFixed(1)}px; --blend:{blend}px; transform:translateX({(-offset * SEA_PAN).toFixed(1)}px)"
 		/>
+		<!-- Its light, as the Figma guide lays it on: a faint caustic over the far water and a strong one
+		     coming in towards the player, each lightening the sea under it (`SEA_LIGHT`). -->
+		{#each seaLight as light (light.src)}
+			<img
+				class="sea-light"
+				src={light.src}
+				alt=""
+				draggable="false"
+				style="left:{light.left.toFixed(1)}px; top:{light.top.toFixed(1)}px; width:{light.w.toFixed(1)}px; height:{light.h.toFixed(1)}px; transform:translateX({(-offset * SEA_PAN).toFixed(1)}px)"
+			/>
+		{/each}
 		<!-- Its ripples, running down towards the player without a seam and panning with the wheel. Only
 		     their light shows: the tile's dark drops out, laid over the sea as a screen. -->
 		<div class="sea-flow" style="top:{seaTop}px; --fade:{((H - seaTop) * FLOW_FADE).toFixed(1)}px">
@@ -919,6 +1017,12 @@
 				></div>
 			</div>
 		</div>
+
+		<!-- The mountains along the horizon, their feet in the water: behind the cave and the barrels. -->
+		<div
+			class="mountains"
+			style="left:{(-mountains.spare).toFixed(1)}px; width:{(W + 2 * mountains.spare).toFixed(1)}px; top:{mountains.top.toFixed(1)}px; height:{mountains.h.toFixed(1)}px; background-image:url('{MOUNTAINS}'); background-size:{mountains.w.toFixed(1)}px {mountains.h.toFixed(1)}px; background-position-x:{mountains.x.toFixed(1)}px; transform:translateX({(-offset * MOUNTAIN_PAN).toFixed(1)}px)"
+		></div>
 
 		<!-- The cave, standing in the sea, its rocks fading into the water at the foot. Through the hole of
 		     its mouth, the treasure cave inside — black far off, and only ever partly seen on the way. -->
@@ -938,13 +1042,8 @@
 				style="width:{INSIDE_W * 100}%; left:{(INSIDE_CX - INSIDE_W / 2) * 100}%"
 			/>
 			<div class="cave-dark" style="opacity:{veil.toFixed(3)}"></div>
-			<img
-				class="cave-front"
-				src={CAVE}
-				alt=""
-				draggable="false"
-				style="filter:brightness({(litAt(grow) * (1 - SKULL_DIM * reveal)).toFixed(3)})"
-			/>
+			<img class="cave-front" src={CAVE_DIM} alt="" draggable="false" style="filter:{skullFilter}" />
+			<img class="cave-front" src={CAVE} alt="" draggable="false" style="opacity:{caveLit.toFixed(3)}; filter:{skullFilter}" />
 		</div>
 
 		<!-- The gates, on a layer of their own: a row that came out of the cave earlier is nearer, so it
@@ -1080,7 +1179,13 @@
 			onpointerup={release}
 			onpointercancel={release}
 		>
-			<img class="wheel" src={WHEEL} alt="" draggable="false" style="transform: rotate({wheelDeg.toFixed(1)}deg)" />
+			<img
+				class="wheel"
+				src={WHEEL}
+				alt=""
+				draggable="false"
+				style="transform-origin:50% {((WHEEL_PX.hubY / WHEEL_PX.h) * 100).toFixed(2)}%; transform:scaleY({WHEEL_TILT}) rotate({wheelDeg.toFixed(1)}deg) scaleY({(1 / WHEEL_TILT).toFixed(4)})"
+			/>
 		</div>
 	</div>
 
@@ -1209,8 +1314,9 @@
 		width: 100%;
 		height: 100%;
 	}
+	/* Standing on the foot of the hole, not under the rocks below it. */
 	.cave-inside {
-		bottom: 0;
+		bottom: calc(100% - var(--hole-t) - var(--hole-h));
 		height: auto;
 	}
 	/* The box the mouth's hole takes up: black behind the inside (its own see-through corners show
@@ -1228,8 +1334,30 @@
 		height: auto;
 		pointer-events: none;
 		will-change: transform;
-		mask-image: linear-gradient(180deg, transparent 0, #000 var(--blend));
-		-webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--blend));
+		/* Cut off above the water (`--cut`, landscape) and fading in below it. */
+		mask-image: linear-gradient(180deg, transparent var(--cut, 0px), #000 calc(var(--cut, 0px) + var(--blend)));
+		-webkit-mask-image: linear-gradient(180deg, transparent var(--cut, 0px), #000 calc(var(--cut, 0px) + var(--blend)));
+	}
+	/* The water's light (`SEA_LIGHT`): lightening the sea, as the guide blends it. Stretched to its box in
+	   landscape, as the guide lays it; in portrait, far taller than the picture, covering it from the top. */
+	.sea-light {
+		position: absolute;
+		display: block;
+		pointer-events: none;
+		will-change: transform;
+		mix-blend-mode: lighten;
+		object-fit: fill;
+	}
+	.voyage.portrait .sea-light {
+		object-fit: cover;
+		object-position: 50% 0;
+	}
+	.mountains {
+		position: absolute;
+		pointer-events: none;
+		will-change: transform;
+		background-repeat: repeat-x;
+		background-position-y: 0;
 	}
 
 	/*
@@ -1585,15 +1713,16 @@
 		}
 	}
 
-	/* The ship's wheel, bottom middle with its lower half off the screen: only the top of the wheel
-	   shows. It is the control, so it is the one thing here that takes pointer events. */
+	/* The ship's wheel, bottom middle with its hub on the foot of the screen (`--helm-sunk` of its width
+	   below it): only the top of the wheel shows. It is the control, so it is the one thing here that
+	   takes pointer events. */
 	.helm {
 		position: absolute;
 		left: 50%;
 		translate: -50% 0;
-		bottom: calc(var(--wheel-w) * -0.5);
-		width: var(--wheel-w);
-		aspect-ratio: 1;
+		bottom: calc(var(--helm-w) * -1 * var(--helm-sunk));
+		width: var(--helm-w);
+		aspect-ratio: var(--helm-aspect);
 		touch-action: none;
 		user-select: none;
 		-webkit-user-select: none;
