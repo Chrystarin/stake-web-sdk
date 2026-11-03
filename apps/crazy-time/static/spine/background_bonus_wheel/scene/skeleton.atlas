@@ -1,0 +1,143 @@
+skeleton.webp
+size:2043,2033
+filter:Linear,Linear
+pma:true
+scale:0.6
+bgLightning
+bounds:1773,1616,220,72
+clod2
+bounds:2,14,498,386
+rotate:90
+clod3
+bounds:1065,1173,614,359
+clothWave
+bounds:1773,1690,227,194
+cloud1
+bounds:1773,1886,257,145
+cloud2
+bounds:2,1434,1061,386
+electric/0
+bounds:1773,1227,210,387
+electric/1
+bounds:1773,1227,210,387
+electric/12
+bounds:1773,1227,210,387
+electric/10
+bounds:2,1045,210,387
+electric/11
+bounds:2,1045,210,387
+electric/2
+bounds:214,1045,210,387
+electric/3
+bounds:426,1045,210,387
+electric/4
+bounds:638,1222,210,387
+rotate:90
+electric/5
+bounds:638,1010,210,387
+rotate:90
+electric/6
+bounds:638,1010,210,387
+rotate:90
+electric/7
+bounds:390,125,210,387
+electric/8
+bounds:455,621,210,387
+electric/9
+bounds:602,232,210,387
+flag
+bounds:1995,1630,58,46
+rotate:90
+lightningGlow
+bounds:2,514,524,451
+rotate:90
+mountain
+bounds:2,1822,1151,209
+ocean rain/0
+bounds:1681,1040,330,185
+ocean rain/1
+bounds:667,678,330,185
+rotate:90
+ocean rain/10
+bounds:602,45,330,185
+ocean rain/11
+bounds:814,346,330,185
+rotate:90
+ocean rain/12
+bounds:854,678,330,185
+rotate:90
+ocean rain/13
+bounds:934,14,330,185
+rotate:90
+ocean rain/14
+bounds:1001,346,330,185
+rotate:90
+ocean rain/15
+bounds:1121,14,330,185
+rotate:90
+ocean rain/16
+bounds:1041,708,330,185
+rotate:90
+ocean rain/17
+bounds:1188,376,330,185
+rotate:90
+ocean rain/18
+bounds:1228,708,330,185
+rotate:90
+ocean rain/19
+bounds:1308,44,330,185
+rotate:90
+ocean rain/2
+bounds:1375,376,330,185
+rotate:90
+ocean rain/20
+bounds:1415,708,330,185
+rotate:90
+ocean rain/21
+bounds:1495,44,330,185
+rotate:90
+ocean rain/22
+bounds:1562,376,330,185
+rotate:90
+ocean rain/23
+bounds:1602,708,330,185
+rotate:90
+ocean rain/24
+bounds:1682,189,330,185
+ocean rain/25
+bounds:1749,376,330,185
+rotate:90
+ocean rain/26
+bounds:1789,708,330,185
+rotate:90
+ocean rain/27
+bounds:1682,2,330,185
+ship B
+bounds:1155,1534,616,497
+
+skeleton_2.webp
+size:1311,334
+filter:Linear,Linear
+pma:true
+scale:0.6
+ocean rain/3
+bounds:2,2,330,185
+rotate:90
+ocean rain/4
+bounds:189,2,330,185
+rotate:90
+ocean rain/5
+bounds:376,2,330,185
+rotate:90
+ocean rain/6
+bounds:563,2,330,185
+rotate:90
+ocean rain/7
+bounds:750,2,330,185
+rotate:90
+ocean rain/8
+bounds:937,2,330,185
+rotate:90
+ocean rain/9
+bounds:1124,2,330,185
+rotate:90

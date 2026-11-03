@@ -2968,7 +2968,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	class="viewport-fit"
 	style="--fit:{fitScale}; --art-chip-base:{staticCssUrl('img/chip_base.svg')}; --art-chip-yellow:{staticCssUrl('img/chip_yellow.svg')}; --art-tile-frame:{staticCssUrl('img/bet_tile_frame_rectangle.webp')}; --art-bundle-frame:{staticCssUrl('img/bet_tile_frame_circle.webp')}; --art-tile-texture:{staticCssUrl('img/bet_tile_texture.webp')}"
 >
-	<Background {portrait} bind:this={background} />
+	<Background {portrait} paused={bonusUp} bind:this={background} />
 	<div
 		class="game"
 		class:portrait

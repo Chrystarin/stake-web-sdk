@@ -23,6 +23,7 @@
 	import RoomChest from './rooms/RoomChest.svelte';
 	import RoomOceanVoyageV2 from './rooms/RoomOceanVoyageV2.svelte';
 	import MultiplierBurst from './rooms/MultiplierBurst.svelte';
+	import SpineBackdrop from './SpineBackdrop.svelte';
 	import RoomHint from './rooms/RoomHint.svelte';
 
 	type Props = {
@@ -100,8 +101,9 @@
 	let resultEl = $state<HTMLElement>();
 
 	/**
-	 * A room brings its own backdrop, which then shows through whatever it plays on. Two rooms have
-	 * a moving one (a video, see `roomVideo`); the Treasure Chest and Pirate Plinko have a still —
+	 * A room brings its own backdrop, which then shows through whatever it plays on. Ocean Voyage has
+	 * a video (see `roomVideo`); the Bonus Wheel has the artist's Spine scene of the deck in a storm
+	 * (SpineBackdrop.svelte, `bonusLandscape` / `bonusPortrait`); the Treasure Chest and Pirate Plinko have a still —
 	 * the dragon's lair, and the beach at sunset — painted from the preload's resident copy the same
 	 * way the table's backdrop is, in a cut for each orientation. A room with neither keeps the flat
 	 * room-tinted gradient.
@@ -118,7 +120,7 @@
 			portrait: 'img/pirate-plinko/background_portrait.webp',
 		},
 	};
-	const isVideoRoom = (spot: Spot): spot is VideoKey => spot === 'bonusWheel' || spot === 'oceanVoyage';
+	const isVideoRoom = (spot: Spot): spot is VideoKey => spot === 'oceanVoyage';
 	/**
 	 * The board every room's name is written on. Its plaque — the timber inside the rope — runs
 	 * from 0.14 to 0.86 across and 0.26 to 0.70 down, read off the file; the text is laid in that
@@ -369,7 +371,9 @@
 		bind:this={screenEl}
 		style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
-		{#if still}
+		{#if spot === 'bonusWheel'}
+			<SpineBackdrop scene={portrait ? 'bonusPortrait' : 'bonusLandscape'} />
+		{:else if still}
 			<div class="room-still" style="--room-still:{staticCssUrl(still)}"></div>
 		{/if}
 		<div class="room-scrim"></div>

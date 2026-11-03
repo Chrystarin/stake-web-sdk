@@ -3,9 +3,11 @@ import { Assets } from 'pixi.js';
 import { NUMBER_PAY, NUMBER_SPOTS, ROOM_ICON, ROOM_SPOTS } from '../game/constants';
 import { musicUrls, soundEffectUrls, warmSounds } from '../game/sound';
 import { stateGame } from '../game/stateGame.svelte';
-import { isPhoneScreen } from './deviceTier.svelte';
+import { isLite, isPhoneScreen } from './deviceTier.svelte';
 import { registerResidentUrl, staticNetworkUrl } from './staticUrl';
 import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvLogoAsset';
+import { SCENE_STILLS, type SceneKey, sceneAssets } from './spine/backdropScenes';
+import { loadBackdropAssets } from './spine/SceneSpineRenderer';
 
 /**
  * ══ THE GAME'S ASSET MANIFEST ══════════════════════════════════════════════════════════════════
@@ -24,6 +26,7 @@ import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvL
  *     very element the game later adopts, buffer and decoded frame intact.
  *   • Sound effects are warmed as the `Audio` elements `playSound` clones.
  *   • The dragon's spine stays in Pixi's cache under the aliases ChestDragon.svelte mounts it by.
+ *   • So do the two Spine backdrops (the table's, the Bonus Wheel room's) and the art in their slots.
  *   • Fonts are forced in through `document.fonts.load`.
  *
  * ⚠️ Adding art/audio/video to a component? Add it here too. In DEV, anything the game fetches after
@@ -36,14 +39,11 @@ import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvL
  * one referenced through `staticUrl` / `staticPath`, which is what lets the resident copy take over.
  */
 const DOM_IMAGE_PATHS: readonly string[] = [
-	// ── The table's backdrop (Background.svelte): the landscape layers and the portrait still, since
-	// a phone can turn mid-session — and the flat landscape still the reduced budget paints instead
-	// of the layers (lib/deviceTier.svelte.ts), which a session can drop to after the splash ──
-	'img/background_layered_components/sea.webp',
-	'img/background_layered_components/deck.webp',
-	'img/background_layered_components/fog.webp',
-	'img/background_base_portrait.webp',
-	'img/background_base_landscape.webp',
+	// ── The stills under the two Spine backdrops (SpineBackdrop.svelte): the table's and the Bonus
+	// Wheel room's, both cuts, since a phone can turn mid-session. They are what the reduced budget
+	// paints instead of the scene (lib/deviceTier.svelte.ts), and the paint under the canvas while it
+	// comes up. The scenes themselves are Pixi's (BACKDROP_SCENES below). ──
+	...Object.values(SCENE_STILLS),
 
 	// ── The wheel (Game.svelte + Wheel.svelte): ring art, number badges, room badges ─────────────
 	'img/wheel/frame.webp',
@@ -202,17 +202,18 @@ const FONT_SPECS: readonly string[] = [
  * element that plays in the game ({@link adoptVideo}). Nothing for CSP to refuse, nothing for the CDN
  * to answer twice.
  *
- * The splash blocks on a FIRST FRAME per clip, not on the bodies: both together are ~82 MB, and
- * a splash that waited on that would sit for minutes on an ordinary connection. What the splash is
- * buying is a decode — the reveal must not paint black — and the files are faststart, so two first
- * frames is well under a megabyte. The bodies are pulled after reveal, the
+ * The splash blocks on a FIRST FRAME per clip, not on the body: the Ocean Voyage clip is ~38 MB,
+ * and a splash that waited on that would sit for minutes on an ordinary connection. What the splash
+ * is buying is a decode — the reveal must not paint black — and the file is faststart, so its first
+ * frame is well under a megabyte. (The Bonus Wheel's clip gave way to a Spine scene, see
+ * `backdropScenesToWarm`; its files are no longer referenced.) The bodies are pulled after reveal, the
  * rooms one at a time ({@link preloadPostRevealAssets}), so whatever is on screen keeps the link.
  */
-export type VideoKey = 'bonusWheel' | 'oceanVoyage';
+export type VideoKey = 'oceanVoyage';
 
 /**
- * Two cuts of each clip. The originals are the renders as delivered — 2560x1440 and 3840x2160, 60
- * fps, 10-20 Mbps H.264 (42 and 36 MB). A phone gets a 1280x720 30 fps cut (1.9 and 6 MB): a 4K
+ * Two cuts of the clip. The original is the render as delivered — 3840x2160, 60 fps H.264 (36 MB).
+ * A phone gets a 1280x720 30 fps cut (6 MB): a 4K
  * 60 fps stream is past what a mid-range Android's hardware decoder will do at all (it falls to
  * software and takes the CPU with it), each decoded 4K frame is 12 MB against a phone's memory, and
  * on a 6-inch screen under the room's scrim (BonusRound.svelte) 720p reads the same. Chosen by
@@ -221,19 +222,14 @@ export type VideoKey = 'bonusWheel' | 'oceanVoyage';
  */
 const VIDEO_PATHS: Record<VideoKey, string> = isPhoneScreen()
 	? {
-			bonusWheel: 'videos/animated_background_bonus_wheel_mobile.mp4',
 			oceanVoyage: 'videos/animated_background_ocean_voyage_mobile.mp4',
 		}
 	: {
-			bonusWheel: 'videos/animated_background_bonus_wheel.mp4',
 			oceanVoyage: 'videos/animated_background_ocean_voyage.mp4',
 		};
 
 /** The order the bodies are filled in after reveal. */
-const VIDEO_FILL_ORDER: readonly VideoKey[] = [
-	'bonusWheel',
-	'oceanVoyage',
-];
+const VIDEO_FILL_ORDER: readonly VideoKey[] = ['oceanVoyage'];
 
 /**
  * The Treasure Chest's dragon, under the SAME aliases ChestDragon.svelte registers and mounts it by,
@@ -247,6 +243,28 @@ const DRAGON_SPINE = {
 	atlas: { alias: 'chestDragon-atlas', path: 'spine/dragon_fire/smallDragon.atlas' },
 	pages: ['spine/dragon_fire/smallDragon.png', 'spine/dragon_fire/smallDragon_2.png'],
 } as const;
+
+/**
+ * The two Spine backdrops (lib/spine/backdropScenes.ts), loaded into Pixi's cache under the aliases
+ * SceneSpineRenderer mounts them by: the table's scene, which is up the moment the splash lifts, and
+ * the Bonus Wheel room's, so the room opens on its moving scene rather than on the still.
+ *
+ * In the orientation the session starts in only. The two cuts share their atlases; what differs is
+ * a skeleton file and the still art in the slots, and a phone that turns loads the other cut then,
+ * over its still. Not at all on the reduced budget, which paints the stills and never makes a canvas.
+ * Decoded, the two scenes are ~90 MB of bitmap (the two ocean sequences are 19 MB each) — the
+ * dragon's precedent, kept for the session so a room visit never re-decodes it.
+ */
+const backdropScenesToWarm = (): SceneKey[] => {
+	if (isLite()) return [];
+	const portrait = window.innerHeight > window.innerWidth;
+	return portrait ? ['mainPortrait', 'bonusPortrait'] : ['mainLandscape', 'bonusLandscape'];
+};
+/** Every file any backdrop cut can load — for the drift alarm, which must not report the other cut. */
+const ALL_BACKDROP_FILES = (() => {
+	const { bundles, images } = sceneAssets(['mainLandscape', 'mainPortrait', 'bonusLandscape', 'bonusPortrait']);
+	return [...images, ...bundles.flatMap((bundle) => [bundle.skeleton, bundle.atlas, ...bundle.pages])];
+})();
 
 /* ── DOM image residency ─────────────────────────────────────────────────────────────────────── */
 
@@ -550,6 +568,17 @@ async function preloadDragonSpine(): Promise<void> {
 	}
 }
 
+/** The Spine backdrops this session will draw first (see `backdropScenesToWarm`). Never throws. */
+async function preloadBackdropScenes(): Promise<void> {
+	const scenes = backdropScenesToWarm();
+	if (!scenes.length) return;
+	try {
+		await loadBackdropAssets(scenes);
+	} catch (error) {
+		recordFailure(`backdrop scenes: ${scenes.join(', ')}`, String((error as Error)?.message ?? error));
+	}
+}
+
 /* ── Game boot ───────────────────────────────────────────────────────────────────────────────── */
 
 /**
@@ -679,6 +708,7 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 	const tasks: (() => Promise<unknown>)[] = [
 		...DOM_IMAGE_PATHS.map((path) => () => preloadImage(staticNetworkUrl(path))),
 		() => preloadDragonSpine(),
+		() => preloadBackdropScenes(),
 		() => preloadFonts(),
 		// Every effect as its own task — `warmSounds` warms the very `Audio` elements `playSound` clones.
 		...warmSounds().map((promise) => () => promise),
@@ -780,6 +810,7 @@ function coveredUrls(): Set<string> {
 		...[DRAGON_SPINE.skeleton.path, DRAGON_SPINE.atlas.path, ...DRAGON_SPINE.pages].map(
 			staticNetworkUrl,
 		),
+		...ALL_BACKDROP_FILES.map(staticNetworkUrl),
 		...soundEffectUrls(),
 		...musicUrls(),
 		logo.skeleton,
