@@ -1,0 +1,16 @@
+skeleton.png
+size:1033,710
+filter:Linear,Linear
+pma:true
+scale:0.6
+headKraken
+bounds:443,373,335,488
+rotate:90
+tentaclesFront
+bounds:2,2,706,439
+rotate:90
+tentaclesLeft
+bounds:741,36,335,290
+rotate:90
+tentaclesRight
+bounds:443,33,296,338

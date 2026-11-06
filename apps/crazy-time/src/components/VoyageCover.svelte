@@ -15,10 +15,9 @@
 	 *   carries on into a bloom of gold light, opening out from the treasure until it fills the
 	 *   screen. Taken off, it fades away to the table, swelling a little as it goes.
 	 *
-	 * - `sink` — the kraken took the ship: the room lists over (`screen`, tilted about its foot) as
-	 *   the sea rises up the screen from the bottom, a crest of water on its top edge and bubbles
-	 *   going up through it, until the screen is under. Taken off, the water drains away down the
-	 *   screen to the table.
+	 * - `sink` — the kraken took the ship: the sea rises up the screen from the bottom over the room,
+	 *   which holds still under it, a crest of water on its top edge and bubbles going up through it,
+	 *   until the screen is under. Taken off, the water drains away down the screen to the table.
 	 *
 	 * Either way the room goes unseen under it, and the wedge's ship then sails home onto the table
 	 * (VoyageReveal's `land`), as it does after every voyage. Every beat waits on the clock, not on
@@ -59,8 +58,6 @@
 	/** The sea rising over the screen, and draining off the table. */
 	const RISE_MS = 1100;
 	const DRAIN_MS = 950;
-	/** The room listing over as it goes under. */
-	const LIST_DEG = -4;
 	/** The crest on the water's top edge, against the frame's shorter side. */
 	const CREST_SHARE = 0.09;
 	/** The ripples laid over the water: the room's own (`sea_overlay`). */
@@ -91,12 +88,8 @@
 
 	const crest = $derived(Math.min(frame.w, frame.h) * CREST_SHARE);
 
-	/** Put the cover up over the room (`screen`, the bonus screen, which the sinking tilts). */
-	export const cover = async (
-		by: EndingKind,
-		size: Frame,
-		screen: HTMLElement | null,
-	): Promise<void> => {
+	/** Put the cover up over the room. */
+	export const cover = async (by: EndingKind, size: Frame): Promise<void> => {
 		frame = size;
 		kind = by;
 		await tick();
@@ -113,13 +106,6 @@
 			return;
 		}
 		playSound('whoosh', 0.6);
-		screen?.animate(
-			[
-				{ transform: 'none', transformOrigin: '50% 100%' },
-				{ transform: `rotate(${LIST_DEG}deg) translateY(3%) scale(1.04)`, transformOrigin: '50% 100%' },
-			],
-			{ duration: RISE_MS, easing: 'ease-in', fill: 'forwards' },
-		);
 		waterEl?.animate(
 			[{ transform: `translateY(${size.h + crest}px)` }, { transform: 'translateY(0)' }],
 			{ duration: RISE_MS, easing: 'cubic-bezier(0.45, 0, 0.7, 0.6)', fill: 'forwards' },

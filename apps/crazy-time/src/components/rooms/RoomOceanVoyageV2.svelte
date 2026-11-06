@@ -34,18 +34,19 @@
 	 * screen, just its bottom middle (the rest cropped off) in portrait. There is no `.voyage .ship`
 	 * for the wheel's own ship to dock on when it sails the player in: the room comes on under the sea
 	 * that floats that ship up and away (Game.svelte's VoyageCover `flood`), and once the water has
-	 * drained off it, takes the player aboard itself — the deck rises into place out of a sea mist
-	 * (`boarded`). And it goes out the way it ended (`.port` / `.sunk`, VoyageCover again).
+	 * drained off it, the player is already at the helm — the deck in place, a sea mist lifting off the
+	 * water (`boarded`). And it goes out the way it ended (`.port` / `.sunk`, VoyageCover again).
 	 *
 	 * The simulation is stepped from a clock as well as from animation frames: a background tab is
 	 * given no frames, and a voyage that waited on them would never finish and so never pay.
 	 */
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { TILES_PER_DEPTH } from '../../game/constants';
 	import type { BookEventOceanVoyage } from '../../game/typesBookEvent';
 	import { fadeOutSound, playSound } from '../../game/sound';
 	import { staticPath } from '../../lib/staticUrl';
 	import { CoinFountain } from '../../lib/coinFountain';
+	import { KRAKEN_RISE_MS, KRAKEN_SPAN, KrakenScene, TENTACLES_UP_MS } from '../../lib/spine/krakenScene';
 	import { isLite } from '../../lib/deviceTier.svelte';
 	import RoomHint from './RoomHint.svelte';
 	import { waitForTimeout } from 'utils-shared/wait';
@@ -239,6 +240,8 @@
 	    of the bow's spike (785) and above the rail (913), so the spike stands over the barrel as it is
 	    picked. */
 	const DECK_PX = { w: 1918, ring: 707, ringY: 1293, tip: 785, pick: 845 };
+	/** The top of the deck's rail at its middle, in the deck picture's pixels. */
+	const DECK_RAIL_Y = 913;
 	/** How far a landscape deck is let down below the foot of the screen, as a share of the height. */
 	const DECK_SINK = 0.1;
 	/**
@@ -255,29 +258,36 @@
 	const BLEND_PX = 40;
 
 	/**
-	 * The way in, once the flood has drained off the room (Game.svelte's VoyageCover): the player steps up
-	 * to the helm — the deck, the barrel of gold and the wheel rise up from below the screen into place
-	 * over BOARD_MS (`.aboard`), as the sea mist over the water thins away over MIST_MS (`.mist`).
-	 * The sea starts moving START_MS in, with the deck settled.
+	 * The way in, once the flood has drained off the room (Game.svelte's VoyageCover): the deck, the
+	 * barrel of gold and the wheel are already in place from the first frame (`.aboard`), and the sea
+	 * mist over the water thins away over MIST_MS (`.mist`). The sea starts moving START_MS in.
 	 */
-	const BOARD_MS = 900;
 	const MIST_MS = 1600;
-	/** How far below its place the deck starts, as a share of the room's height. */
-	const BOARD_DROP = 0.65;
 	/** Time on the water before the sea starts moving. */
 	const START_MS = 1100;
-	/** The kraken's coming (`.kraken`'s animation: a peek, a sink, a surge), and its beat before the
-	    screen moves on, which waits for all of it. */
-	const KRAKEN_MS = 2150;
+	/**
+	 * The kraken's coming (`KrakenScene`, the artist's Spine kraken and tentacles). First its four
+	 * tentacles shoot up from behind the rail one after another (from TENTACLE_LEAD_MS, as the night
+	 * closes in) — and a beat after the last is up, the kraken's own animation rises up out of the
+	 * water in front of them (KRAKEN_RISE_MS from KRAKEN_RISE_AT_MS). KRAKEN_MS is all of it; the
+	 * beat before the screen moves on waits for it.
+	 */
+	const TENTACLE_LEAD_MS = 150;
+	const KRAKEN_RISE_AT_MS = TENTACLE_LEAD_MS + TENTACLES_UP_MS + 80;
+	const KRAKEN_MS = KRAKEN_RISE_AT_MS + KRAKEN_RISE_MS;
+	/** When it breaks the water (its head shoots up over its first 0.57 s), as a share of KRAKEN_MS:
+	    its splashes go up. */
+	const KRAKEN_SURGE = (KRAKEN_RISE_AT_MS + 300) / KRAKEN_MS;
+	/** The still kraken's jump, if the Spine one cannot be put up (`krakenStill`). */
+	const KRAKEN_JUMP_MS = 420;
 	const SINK_MS = KRAKEN_MS + 500;
 	/**
 	 * The water the kraken throws up, either side of it — the barrels' splash (`SPLASH`), the left one
-	 * as drawn and the right one mirrored, so both burst outward. One pair, as it surges up out of the
-	 * water for its full reveal (`kraken-rise`'s 84%) — not on the peek before it. `at` is a share of
-	 * KRAKEN_MS, `w` each splash's width against the kraken's size; they stand `apart` of its size
-	 * either side of the middle, sunk behind the deck's rail where they stand.
+	 * as drawn and the right one mirrored, so both burst outward. One pair, as it jumps up out of the
+	 * water. `at` is a share of KRAKEN_MS, `w` each splash's width against the kraken's size; they
+	 * stand `apart` of its size either side of the middle, sunk behind the deck's rail where they stand.
 	 */
-	const KRAKEN_SPLASHES = [{ at: 0.84, w: 0.7 }];
+	const KRAKEN_SPLASHES = [{ at: KRAKEN_SURGE, w: 0.7 }];
 	const KRAKEN_SPLASH_APART = 0.3;
 	/** How much of a kraken splash's height is sunk behind the deck: only the top of it shows over the
 	    rail. */
@@ -293,10 +303,6 @@
 		1060, 1055, 1050, 1045, 1040, 1036, 1032, 1029, 1021, 1009, 997, 983, 967, 949, 926, 905, 898, 905, 927, 950,
 		968, 984, 998, 1010, 1021, 1029, 1032, 1036, 1040, 1045, 1050, 1055, 1060,
 	];
-	/** Where its eyes end, as a share of its picture's height: the peek shows it down to here. */
-	const KRAKEN_EYES = 0.44;
-	/** The top of the deck's rail at its middle, in the deck picture's pixels. */
-	const DECK_RAIL = 913;
 	const END_HOLD_MS = 900;
 
 	/** Seconds between one row reaching the bow and the next, and before the first one does (after LEAD_SECONDS). */
@@ -548,15 +554,8 @@
 	    enough that the title frame does not cover its head. */
 	const krakenSize = $derived(portrait ? W : H);
 	const krakenY = $derived(portrait ? H * 0.52 : H * 0.6);
-	/**
-	 * How far below where it stands it starts (wholly under the foot of the screen), and how far
-	 * below it it peeks from: just its eyes showing over whatever stands highest in front of it — the
-	 * rail, or the wheel set into it.
-	 */
+	/** How far below where it stands it starts: wholly under the foot of the screen. */
 	const krakenHide = $derived(H - (krakenY - krakenSize / 2));
-	/** The line the kraken peeks over: the rail, or the wheel set into it, whichever stands higher. */
-	const krakenLine = $derived(Math.min(deckTop + DECK_RAIL * deckScale, H - helmW * (WHEEL_PX.hubY / WHEEL_PX.w)) - 4);
-	const krakenPeek = $derived(krakenLine - KRAKEN_EYES * krakenSize - (krakenY - krakenSize / 2));
 	/** The top of the deck's rail at `x` across the screen (`DECK_EDGE_PX`), down the screen. */
 	const deckEdgeAt = (x: number) => {
 		const n = DECK_EDGE_PX.length - 1;
@@ -736,6 +735,42 @@
 		}
 	};
 
+	// ---- The kraken ------------------------------------------------------------------------------
+	// Made when the kraken comes (its stage mounts with it), timed from then, and torn down with the
+	// room. Laid on the deck picture's own place and scale (the artist's kraken is drawn in its frame),
+	// the tentacles in a square the size of the screen's short side standing on the kraken. If it
+	// cannot be put up, the still kraken jumps up instead (`krakenStill`).
+	let krakenHost = $state<HTMLDivElement>();
+	let krakenScene = $state.raw<KrakenScene>();
+	let krakenStill = $state(false);
+	$effect(() => {
+		const host = krakenHost;
+		if (!host) return;
+		const scene = new KrakenScene(host, {
+			tentaclesAtMs: TENTACLE_LEAD_MS,
+			krakenAtMs: KRAKEN_RISE_AT_MS,
+			portrait: untrack(() => portrait),
+		});
+		krakenScene = scene;
+		void scene.init().then((ok) => {
+			if (!ok && alive) krakenStill = true;
+		});
+		return () => {
+			scene.destroy();
+			if (krakenScene === scene) krakenScene = undefined;
+		};
+	});
+	/** On a phone the kraken is shrunk until its front tentacles span this much of the screen's width. */
+	const KRAKEN_PORTRAIT_SPAN = 1.1;
+	$effect(() => {
+		krakenScene?.setLayout({
+			square: { cx, foot: krakenY + krakenSize / 2, side: krakenSize },
+			deck: { cx, top: deckTop, scale: deckScale },
+			krakenFit: portrait ? Math.min(1, (KRAKEN_PORTRAIT_SPAN * W) / (KRAKEN_SPAN * deckScale)) : 1,
+			pivotY: deckTop + DECK_RAIL_Y * deckScale,
+		});
+	});
+
 	// ---- The fountain of coins -----------------------------------------------------------------
 	let coinCanvas = $state<HTMLCanvasElement>();
 	let fountain = $state.raw<CoinFountain>();
@@ -858,7 +893,7 @@
 		clearInterval(clock);
 	};
 
-	/** The player has stepped up to the helm (`BOARD_MS`): the deck is up and the mist is lifting. */
+	/** The voyage has begun: the sea mist is lifting (`MIST_MS`). */
 	let boarded = $state(false);
 
 	export const play = async (): Promise<number> => {
@@ -967,7 +1002,7 @@
 	class:port={ended === 'port'}
 	class:sunk={ended === 'kraken'}
 	bind:this={rootEl}
-	style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px; --helm-w:{helmW}px; --helm-aspect:{WHEEL_PX.w / WHEEL_PX.h}; --helm-sunk:{((WHEEL_PX.h - WHEEL_PX.hubY) / WHEEL_PX.w).toFixed(4)}; --board-ms:{BOARD_MS}ms; --board-drop:{(H * BOARD_DROP).toFixed(1)}px; --mist-ms:{MIST_MS}ms"
+	style="--view-swell:{VIEW_SWELL}; --voyage-w:{PW}px; --gw:{gateW}px; --gh:{gateH}px; --wheel-w:{wheelW}px; --helm-w:{helmW}px; --helm-aspect:{WHEEL_PX.w / WHEEL_PX.h}; --helm-sunk:{((WHEEL_PX.h - WHEEL_PX.hubY) / WHEEL_PX.w).toFixed(4)}; --mist-ms:{MIST_MS}ms"
 >
 	<!-- Everything out beyond the rail, swelling up and settling under the ship as the table's own
 	     view does (Background's `sea-swell`), while the deck and the wheel hold still in front. -->
@@ -1082,16 +1117,21 @@
 			></div>
 		{/each}
 
-		<!-- The kraken, when it comes: up from behind the deck, the night closing in behind it. -->
+		<!-- The kraken, when it comes, the night closing in behind it: first its tentacles shoot up from
+		     behind the rail one by one, then the kraken rises up out of the water in front of them — the
+		     artist's Spine scene (`KrakenScene`) on a canvas over the whole room, behind the deck. -->
 		{#if kraken}
 			<div class="kraken-dark"></div>
-			<img
-				class="kraken"
-				src={KRAKEN}
-				alt=""
-				draggable="false"
-				style="width:{krakenSize}px; height:{krakenSize}px; left:{cx}px; top:{krakenY}px; --hide:{krakenHide.toFixed(1)}px; --peek:{krakenPeek.toFixed(1)}px; --kraken-ms:{KRAKEN_MS}ms"
-			/>
+			<div class="kraken-stage" bind:this={krakenHost}></div>
+			{#if krakenStill}
+				<img
+					class="kraken"
+					src={KRAKEN}
+					alt=""
+					draggable="false"
+					style="width:{krakenSize}px; height:{krakenSize}px; left:{cx}px; top:{krakenY}px; --hide:{krakenHide.toFixed(1)}px; --jump-at:{KRAKEN_RISE_AT_MS}ms; --jump-ms:{KRAKEN_JUMP_MS}ms"
+				/>
+			{/if}
 		{/if}
 		<!-- The water it throws up either side, over it — and, out on the water, behind the deck, which
 		     hides the bottom of each (`KRAKEN_SPLASH_SUNK`). -->
@@ -1110,9 +1150,8 @@
 	</div>
 
 	<!-- Everything on board — the deck, the barrel of gold and its coins, its total, and the wheel —
-	     as one: held below the screen until the player steps up to the helm (`boarded`), then risen
-	     into place together. -->
-	<div class="aboard" class:boarded>
+	     as one layer, in place from the first frame. -->
+	<div class="aboard">
 		<!-- The ship's deck, in front of the sea, the gates and the kraken, with the wheel set into its ring. -->
 		<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px" />
 
@@ -1519,12 +1558,19 @@
 			background-position: 0 100%;
 		}
 	}
+	/* The kraken's canvas (lib/spine/krakenScene.ts): the whole room, over the darkness and under the
+	   deck, which is in front of it as the artist's scene has it. */
+	.kraken-stage {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		pointer-events: none;
+	}
 	/*
-	 * The kraken, when it comes: it creeps up from below the foot of the screen, behind the deck, until
-	 * its eyes are over the rail, sinks back out of sight, and then rears up all at once to fill the
-	 * screen — its whole height in landscape, its whole width in portrait — over the sea and the
-	 * barrels, but with the deck and the wheel still in front of it. It is a square picture, so the
-	 * size is the one number.
+	 * The still kraken, only if the Spine one cannot be put up: held under the foot of the screen,
+	 * behind the deck, then jumping up all at once to fill the screen — its whole height in landscape,
+	 * its whole width in portrait — with the deck and the wheel still in front of it. It is a square
+	 * picture, so the size is the one number.
 	 */
 	.kraken {
 		position: absolute;
@@ -1532,10 +1578,16 @@
 		pointer-events: none;
 		transform: translate(-50%, -50%);
 		filter: drop-shadow(0 calc(var(--voyage-w) * 0.01) calc(var(--voyage-w) * 0.03) rgba(0, 0, 0, 0.6));
-		animation: kraken-rise var(--kraken-ms) both;
+		animation: kraken-jump var(--jump-ms) cubic-bezier(0.2, 0.9, 0.3, 1.1) var(--jump-at) both;
 	}
-	/* Up slowly behind the deck until its eyes are over the rail, a look, back down slowly out of
-	   sight, a beat — then up all at once. */
+	@keyframes kraken-jump {
+		from {
+			transform: translate(-50%, -50%) translateY(var(--hide));
+		}
+		to {
+			transform: translate(-50%, -50%);
+		}
+	}
 	/* Over the sea, the sky, the cave and the barrels, under the kraken (which comes after it at the
 	   same level) and the deck. */
 	.kraken-dark {
@@ -1552,29 +1604,6 @@
 		}
 		to {
 			opacity: 1;
-		}
-	}
-	@keyframes kraken-rise {
-		0% {
-			transform: translate(-50%, -50%) translateY(var(--hide));
-			animation-timing-function: cubic-bezier(0.25, 0.6, 0.35, 1);
-		}
-		46% {
-			transform: translate(-50%, -50%) translateY(var(--peek));
-		}
-		56% {
-			transform: translate(-50%, -50%) translateY(var(--peek));
-			animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.6);
-		}
-		79% {
-			transform: translate(-50%, -50%) translateY(var(--hide));
-		}
-		84% {
-			transform: translate(-50%, -50%) translateY(var(--hide));
-			animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.1);
-		}
-		100% {
-			transform: translate(-50%, -50%);
 		}
 	}
 
@@ -1594,19 +1623,12 @@
 	/*
 	 * Everything on board, as one layer over the view (3) and under the caption (7) — its own stacking
 	 * context, so the deck, the barrel, the coins, the total and the wheel keep their order inside it.
-	 * Held below the screen until the player steps up to the helm, then risen into place, easing out
-	 * with a little settle at the top, as a step up onto a rolling deck.
 	 */
 	.aboard {
 		position: absolute;
 		inset: 0;
 		z-index: 4;
 		pointer-events: none;
-		transform: translateY(var(--board-drop));
-	}
-	.aboard.boarded {
-		transform: none;
-		transition: transform var(--board-ms) cubic-bezier(0.22, 1.12, 0.36, 1);
 	}
 	/* The sea mist: a thin pale haze, thickest low on the water and over the horizon, that the sea, the
 	   cave and the barrels show through — thinning away once the player is aboard. */
@@ -1624,7 +1646,6 @@
 		transition: opacity var(--mist-ms) ease-out;
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.aboard.boarded,
 		.mist.cleared {
 			transition: none;
 		}

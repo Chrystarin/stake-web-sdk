@@ -715,7 +715,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			if (buyWaiting) closeBuyScreen();
 			// A board with its own ship to steer has the crossing ship dock onto it. The helm (v2) has
 			// none — the player is on the ship — so the crossing ship is gone off the left, and the room
-			// takes the player aboard itself (the deck rising into place, RoomOceanVoyageV2's `boarded`).
+			// opens with the player already at the helm (RoomOceanVoyageV2's deck is in place from the start).
 			const harbour = roomShipBox();
 			if (harbour) await voyageReveal.dock(harbour, frameSize(), () => (shipArriving = false));
 			else voyageReveal.hide();
@@ -1016,7 +1016,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					: null;
 			if (ending && voyageCover) {
 				if (target !== null) revealIcon = target;
-				await voyageCover.cover(ending, frame, screen);
+				await voyageCover.cover(ending, frame);
 				exitCovered = 'voyage';
 				return true;
 			}

@@ -8,6 +8,7 @@ import { registerResidentUrl, staticNetworkUrl } from './staticUrl';
 import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvLogoAsset';
 import { SCENE_STILLS, type SceneKey, sceneAssets } from './spine/backdropScenes';
 import { loadBackdropAssets } from './spine/SceneSpineRenderer';
+import { KRAKEN_FILES, loadKrakenSpines } from './spine/krakenScene';
 
 /**
  * ══ THE GAME'S ASSET MANIFEST ══════════════════════════════════════════════════════════════════
@@ -568,6 +569,15 @@ async function preloadDragonSpine(): Promise<void> {
 	}
 }
 
+/** The kraken and its tentacles (Ocean Voyage), into Pixi's cache under the aliases they mount by. */
+async function preloadKrakenSpines(): Promise<void> {
+	try {
+		await loadKrakenSpines();
+	} catch (error) {
+		recordFailure('kraken spines', String((error as Error)?.message ?? error));
+	}
+}
+
 /** The Spine backdrops this session will draw first (see `backdropScenesToWarm`). Never throws. */
 async function preloadBackdropScenes(): Promise<void> {
 	const scenes = backdropScenesToWarm();
@@ -709,6 +719,7 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		...DOM_IMAGE_PATHS.map((path) => () => preloadImage(staticNetworkUrl(path))),
 		() => preloadDragonSpine(),
 		() => preloadBackdropScenes(),
+		() => preloadKrakenSpines(),
 		() => preloadFonts(),
 		// Every effect as its own task — `warmSounds` warms the very `Audio` elements `playSound` clones.
 		...warmSounds().map((promise) => () => promise),
@@ -811,6 +822,7 @@ function coveredUrls(): Set<string> {
 			staticNetworkUrl,
 		),
 		...ALL_BACKDROP_FILES.map(staticNetworkUrl),
+		...KRAKEN_FILES.map(staticNetworkUrl),
 		...soundEffectUrls(),
 		...musicUrls(),
 		logo.skeleton,
