@@ -3,6 +3,7 @@ import { Spine } from '@esotericsoftware/spine-pixi-v8';
 import { Application, Assets, Container, Sprite, type Texture, type Ticker } from 'pixi.js';
 
 import { isLite } from '../deviceTier.svelte';
+import { ParticleEmitter } from './sandEmitter';
 import { staticNetworkUrl } from '../staticUrl';
 import {
 	type BackdropScene,
@@ -76,6 +77,7 @@ export class SceneSpineRenderer {
 	private root?: Spine;
 	private scene?: BackdropScene;
 	private readonly spines: Spine[] = [];
+	private readonly emitters: ParticleEmitter[] = [];
 	/** Slots of a skeleton kept empty because another skeleton draws what they hold. */
 	private readonly hidden: { spine: Spine; slots: string[] }[] = [];
 	/** Inner containers of the deck mounts, moved against the lurch so the deck stays put. */
@@ -138,7 +140,9 @@ export class SceneSpineRenderer {
 				const child =
 					layer.kind === 'image'
 						? this.makeImage(layer.path)
-						: this.makeSpine(layer.bundle, layer.hideSlots, layer.loopSeconds);
+						: layer.kind === 'particles'
+							? this.makeEmitter(layer.config)
+							: this.makeSpine(layer.bundle, layer.hideSlots, layer.loopSeconds);
 				child.position.set(layer.x ?? 0, -(layer.y ?? 0));
 				child.scale.set(layer.scale ?? 1);
 				inner.addChild(child);
@@ -195,6 +199,7 @@ export class SceneSpineRenderer {
 		this.root?.destroy({ children: true });
 		this.root = undefined;
 		this.spines.length = 0;
+		this.emitters.length = 0;
 		this.onDeck.length = 0;
 		// `texture: false`: the art stays in Pixi's cache, warmed by the preload, for the next mount.
 		app?.destroy(true, { children: true, texture: false });
@@ -223,6 +228,12 @@ export class SceneSpineRenderer {
 		return spine;
 	}
 
+	private makeEmitter(config: ConstructorParameters<typeof ParticleEmitter>[0]): ParticleEmitter {
+		const emitter = new ParticleEmitter(config);
+		this.emitters.push(emitter);
+		return emitter;
+	}
+
 	private readonly tick = (ticker: Ticker): void => {
 		this.step(Math.min(ticker.deltaMS / 1000, MAX_STEP_SECONDS));
 		if (this.lurchStart >= 0) this.applyLurch();
@@ -235,6 +246,7 @@ export class SceneSpineRenderer {
 			for (const name of slots) spine.skeleton.findSlot(name)?.pose.setAttachment(null);
 		}
 		for (const spine of this.spines) spine.update(seconds);
+		for (const emitter of this.emitters) emitter.update(seconds);
 	}
 
 	private applyLurch(): void {

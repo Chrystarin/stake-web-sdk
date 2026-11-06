@@ -6,7 +6,7 @@ import { stateGame } from '../game/stateGame.svelte';
 import { isLite, isPhoneScreen } from './deviceTier.svelte';
 import { registerResidentUrl, staticNetworkUrl } from './staticUrl';
 import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvLogoAsset';
-import { SCENE_STILLS, type SceneKey, sceneAssets } from './spine/backdropScenes';
+import { SCENES, SCENE_STILLS, type SceneKey, sceneAssets } from './spine/backdropScenes';
 import { loadBackdropAssets } from './spine/SceneSpineRenderer';
 import { KRAKEN_FILES, loadKrakenSpines } from './spine/krakenScene';
 
@@ -27,7 +27,8 @@ import { KRAKEN_FILES, loadKrakenSpines } from './spine/krakenScene';
  *     very element the game later adopts, buffer and decoded frame intact.
  *   • Sound effects are warmed as the `Audio` elements `playSound` clones.
  *   • The dragon's spine stays in Pixi's cache under the aliases ChestDragon.svelte mounts it by.
- *   • So do the two Spine backdrops (the table's, the Bonus Wheel room's) and the art in their slots.
+ *   • So do the Spine backdrops (the table's, the Bonus Wheel's, Pirate Plinko's, the Treasure
+ *     Chest's) and their slot art.
  *   • Fonts are forced in through `document.fonts.load`.
  *
  * ⚠️ Adding art/audio/video to a component? Add it here too. In DEV, anything the game fetches after
@@ -40,8 +41,8 @@ import { KRAKEN_FILES, loadKrakenSpines } from './spine/krakenScene';
  * one referenced through `staticUrl` / `staticPath`, which is what lets the resident copy take over.
  */
 const DOM_IMAGE_PATHS: readonly string[] = [
-	// ── The stills under the two Spine backdrops (SpineBackdrop.svelte): the table's and the Bonus
-	// Wheel room's, both cuts, since a phone can turn mid-session. They are what the reduced budget
+	// ── The stills under the Spine backdrops (SpineBackdrop.svelte): the table's, the Bonus Wheel
+	// room's, Pirate Plinko's and the Treasure Chest's, both cuts, since a phone can turn mid-session. They are what the reduced budget
 	// paints instead of the scene (lib/deviceTier.svelte.ts), and the paint under the canvas while it
 	// comes up. The scenes themselves are Pixi's (BACKDROP_SCENES below). ──
 	...Object.values(SCENE_STILLS),
@@ -113,9 +114,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// the splash and the room would otherwise fetch its board on entry.
 	'img/pirate-plinko/board_v2.webp',
 	'img/pirate-plinko/board_v2_portrait.webp',
-	// Both backdrop cuts, for the same reason.
-	'img/pirate-plinko/background_landscape.webp',
-	'img/pirate-plinko/background_portrait.webp',
+	// (The beach behind the board is a Spine backdrop — its stills are in SCENE_STILLS above.)
 	'img/pirate-plinko/cannon.webp',
 	// (The ball is the room's wheel icon, already in the ROOM_ICON row above.)
 	'img/pirate-plinko/dynamite.webp',
@@ -127,9 +126,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/bonus-wheel/frame_bare.webp',
 
 	// ── Treasure Chest (RoomChest.svelte) ────────────────────────────────────────────────────────
-	// Both backdrop cuts, for the same reason as the plinko boards above.
-	'img/treasure_chest/background_landscape.webp',
-	'img/treasure_chest/background_portrait.webp',
+	// (The dragon's lair behind the chests is a Spine backdrop — its stills are in SCENE_STILLS above.)
 	'img/treasure_chest/chest_close.webp',
 	'img/treasure_chest/chest_open.webp',
 
@@ -246,24 +243,30 @@ const DRAGON_SPINE = {
 } as const;
 
 /**
- * The two Spine backdrops (lib/spine/backdropScenes.ts), loaded into Pixi's cache under the aliases
+ * The Spine backdrops (lib/spine/backdropScenes.ts), loaded into Pixi's cache under the aliases
  * SceneSpineRenderer mounts them by: the table's scene, which is up the moment the splash lifts, and
- * the Bonus Wheel room's, so the room opens on its moving scene rather than on the still.
+ * the Bonus Wheel's, Pirate Plinko's and the Treasure Chest's, so those rooms open on their moving
+ * scene, not the still.
  *
- * In the orientation the session starts in only. The two cuts share their atlases; what differs is
- * a skeleton file and the still art in the slots, and a phone that turns loads the other cut then,
- * over its still. Not at all on the reduced budget, which paints the stills and never makes a canvas.
- * Decoded, the two scenes are ~90 MB of bitmap (the two ocean sequences are 19 MB each) — the
- * dragon's precedent, kept for the session so a room visit never re-decodes it.
+ * In the orientation the session starts in only. The table's, the Bonus Wheel's and the Treasure
+ * Chest's cuts share their atlases (Pirate Plinko's each have their own, but share the sea); a phone
+ * that turns loads the other cut then, over its still. Not at all on the reduced budget, which paints
+ * the stills and never makes a canvas. Decoded, the table's and the Bonus Wheel's are ~90 MB of bitmap
+ * (their ocean sequences are 19 MB each), Pirate Plinko's ~30 MB (its sea 12.6 MB, the two stills
+ * 14 MB) and the Treasure Chest's ~21 MB (the two stills 16.6 MB landscape / 13 MB portrait, the
+ * fires' atlas 4.6 MB) — the dragon's precedent, kept for the session so a room visit never
+ * re-decodes it.
  */
 const backdropScenesToWarm = (): SceneKey[] => {
 	if (isLite()) return [];
 	const portrait = window.innerHeight > window.innerWidth;
-	return portrait ? ['mainPortrait', 'bonusPortrait'] : ['mainLandscape', 'bonusLandscape'];
+	return portrait
+		? ['mainPortrait', 'bonusPortrait', 'plinkoPortrait', 'chestPortrait']
+		: ['mainLandscape', 'bonusLandscape', 'plinkoLandscape', 'chestLandscape'];
 };
 /** Every file any backdrop cut can load — for the drift alarm, which must not report the other cut. */
 const ALL_BACKDROP_FILES = (() => {
-	const { bundles, images } = sceneAssets(['mainLandscape', 'mainPortrait', 'bonusLandscape', 'bonusPortrait']);
+	const { bundles, images } = sceneAssets(Object.keys(SCENES) as SceneKey[]);
 	return [...images, ...bundles.flatMap((bundle) => [bundle.skeleton, bundle.atlas, ...bundle.pages])];
 })();
 

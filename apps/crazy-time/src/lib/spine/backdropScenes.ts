@@ -1,6 +1,7 @@
 /**
- * The two animated backdrops — the table's (main game) and the Bonus Wheel room's — as the artist
- * built them in Spine 4.3: each is a "scene" skeleton plus the pieces it was assembled from.
+ * The animated backdrops — the table's (main game), the Bonus Wheel's, Pirate Plinko's and the
+ * Treasure Chest's rooms — as
+ * the artist built them in Spine 4.3: each is a "scene" skeleton plus the pieces it was assembled from.
  *
  * The exports are split. The scene skeleton carries everything that MOVES over the picture (clouds,
  * mountains, the far ship, fog banks, rain, lightning), and keeps an EMPTY slot at every point in its
@@ -19,6 +20,8 @@
  * its foot 603 / 590 units up the main / bonus frame).
  */
 
+import { type EmitterConfig, SAND } from './sandEmitter';
+
 export type SpineBundle = {
 	/** Paths under `static/`; Pixi's cache keys them as {@link spineAlias}. */
 	skeleton: string;
@@ -30,6 +33,8 @@ export type SpineBundle = {
 /** Something put into a scene slot. `x`/`y` are skeleton units (y-up) from the slot bone's origin. */
 export type SceneLayer =
 	| { kind: 'image'; path: string; x?: number; y?: number; scale?: number }
+	/** A particle emitter (lib/spine/sandEmitter.ts) — drawn in code, so no files to load. */
+	| { kind: 'particles'; config: EmitterConfig; x?: number; y?: number; scale?: number }
 	| {
 			kind: 'spine';
 			bundle: SpineBundle;
@@ -73,6 +78,8 @@ const bundle = (dir: string, skeleton: string, pages: readonly string[]): SpineB
 
 const MAIN = 'spine/background_main';
 const BONUS = 'spine/background_bonus_wheel';
+const PLINKO = 'spine/pirate_plinko';
+const CHEST = 'spine/treasure_chest';
 
 const MAIN_LANDSCAPE = bundle(`${MAIN}/scene`, 'landscape.json', ['skeleton.webp']);
 const MAIN_PORTRAIT = bundle(`${MAIN}/scene`, 'portrait.json', ['skeleton.webp']);
@@ -82,6 +89,14 @@ const SHIP_LAMP = bundle(`${MAIN}/ship_lamp`, 'skeleton.json', ['skeleton.webp']
 const BONUS_LANDSCAPE = bundle(`${BONUS}/scene`, 'landscape.json', ['skeleton.webp', 'skeleton_2.webp']);
 const BONUS_PORTRAIT = bundle(`${BONUS}/scene`, 'portrait.json', ['skeleton.webp', 'skeleton_2.webp']);
 const BONUS_OCEAN = bundle(`${BONUS}/ocean`, 'skeleton.json', ['skeleton.webp', 'skeleton_2.webp']);
+// The plinko cuts were packed apart (the landscape one carries the wreck and a second palm), so
+// unlike the other scenes each has its own atlas.
+const PLINKO_LANDSCAPE = bundle(`${PLINKO}/landscape`, 'skeleton.json', ['skeleton.webp']);
+const PLINKO_PORTRAIT = bundle(`${PLINKO}/portrait`, 'skeleton.json', ['skeleton.webp']);
+const PLINKO_OCEAN = bundle(`${PLINKO}/ocean`, 'skeleton.json', ['skeleton.webp']);
+// The Treasure Chest's two cuts were packed together, like the table's: one atlas, two skeletons.
+const CHEST_LANDSCAPE = bundle(`${CHEST}/scene`, 'landscape.json', ['skeleton.webp']);
+const CHEST_PORTRAIT = bundle(`${CHEST}/scene`, 'portrait.json', ['skeleton.webp']);
 
 const IMG = {
 	skyLandscape: 'img/background_main/sky_landscape.webp',
@@ -91,6 +106,14 @@ const IMG = {
 	shipPortrait: 'img/background_main/ship_portrait.webp',
 	bonusLandscape: 'img/bonus-wheel/backdrop_landscape.webp',
 	bonusPortrait: 'img/bonus-wheel/backdrop_portrait.webp',
+	plinkoBackdropLandscape: 'img/pirate-plinko/backdrop_landscape.webp',
+	plinkoForegroundLandscape: 'img/pirate-plinko/foreground_landscape.webp',
+	plinkoBackdropPortrait: 'img/pirate-plinko/backdrop_portrait.webp',
+	plinkoForegroundPortrait: 'img/pirate-plinko/foreground_portrait.webp',
+	chestBackdropLandscape: 'img/treasure_chest/backdrop_landscape.webp',
+	chestForegroundLandscape: 'img/treasure_chest/foreground_landscape.webp',
+	chestBackdropPortrait: 'img/treasure_chest/backdrop_portrait.webp',
+	chestForegroundPortrait: 'img/treasure_chest/foreground_portrait.webp',
 } as const;
 
 /**
@@ -109,6 +132,15 @@ const LANTERNS: SceneLayer = { kind: 'spine', bundle: SHIP_LAMP };
  * 4.63 s long (a stray draw-order key), and looping on that would jump from frame 49 back to 0.
  */
 const BONUS_OCEAN_LOOP = 90 / 30;
+/** Pirate Plinko's sea: 90 frames at 1/30 s too, its last key at 2.967 s — so loop on the full 3 s. */
+const PLINKO_OCEAN_LOOP = 90 / 30;
+/**
+ * The artist's `Sand.json`, blowing left to right along the beach. The export carries no position,
+ * so the emitter stands on the root (the frame's bottom centre): its spawn circle, 320 units left of
+ * that, is half under the frame's foot, and the grains fan out up to 47° either side of the wind.
+ * Over the sand and the treasure, under the wreck, the palms and the near leaves.
+ */
+const BLOWING_SAND: SceneLayer = { kind: 'particles', config: SAND };
 
 export const SCENES = {
 	mainLandscape: {
@@ -182,6 +214,72 @@ export const SCENES = {
 			{ slot: 'shipPortrait', onDeck: true, layers: [{ kind: 'image', path: IMG.shipPortrait }] },
 		],
 	},
+	/*
+	 * Pirate Plinko's beach at sunset (BonusRound.svelte, under the board). The scene skeleton is the
+	 * palm, flag, lantern, wreck, smoke and the leaves in the foreground; the beach is two stills, the
+	 * sky-and-sea behind (`backdrop` / `boneGuide`) and the sand and treasure in front (`FG` /
+	 * `foregroundPortrait`), with the rolling waves drawn between them. The artist's "with BG" exports
+	 * place the stills: centred on the root, the landscape sand's foot 1.4 units under it and the
+	 * portrait sand's 0.2 over. (The portrait sky's export drops it 1.7, which bares the top of the
+	 * frame, so it sits on the root.) The waves sit at the root unscaled in both cuts — in portrait the strip runs out past
+	 * the narrow frame on both sides, as in the editor recording.
+	 */
+	plinkoLandscape: {
+		id: 'plinko-landscape',
+		frame: { width: 1920, height: 1080 },
+		bundle: PLINKO_LANDSCAPE,
+		mounts: [
+			{ slot: 'backdrop', layers: [{ kind: 'image', path: IMG.plinkoBackdropLandscape }] },
+			{ slot: 'ocean', layers: [{ kind: 'spine', bundle: PLINKO_OCEAN, loopSeconds: PLINKO_OCEAN_LOOP }] },
+			{
+				slot: 'FG',
+				layers: [{ kind: 'image', path: IMG.plinkoForegroundLandscape, y: -1.4 }, BLOWING_SAND],
+			},
+		],
+	},
+	plinkoPortrait: {
+		id: 'plinko-portrait',
+		frame: { width: 922, height: 1761 },
+		bundle: PLINKO_PORTRAIT,
+		mounts: [
+			{ slot: 'boneGuide', layers: [{ kind: 'image', path: IMG.plinkoBackdropPortrait }] },
+			{ slot: 'ocean', layers: [{ kind: 'spine', bundle: PLINKO_OCEAN, loopSeconds: PLINKO_OCEAN_LOOP }] },
+			{
+				slot: 'foregroundPortrait',
+				layers: [{ kind: 'image', path: IMG.plinkoForegroundPortrait, y: 0.2 }, BLOWING_SAND],
+			},
+		],
+	},
+	/*
+	 * The Treasure Chest's dragon lair (BonusRound.svelte, under the chests): the old flat still
+	 * brought to life. The scene skeleton is the brazier fires and their embers (19- and 20-frame
+	 * sequences at 30 fps; landscape has all four braziers, portrait only the inner two), the
+	 * dragon's ghost face pulsing in the sky, and the smoke banks drifting across, all on one 30 s
+	 * loop that starts and ends with most of the smoke faded out. The lair is two stills: the sky,
+	 * peaks and lava behind (`background` / `portraitDragonLore`), and the cave mouth, chains,
+	 * statues and floor in front (`foreground_DragonLore` / `foregroundPortrait`). The far cloud draws
+	 * between them; the face, the fires and the near smoke over the front. The "with BG" exports
+	 * centre both stills on the root, 1.36 (landscape) and 0.46 (portrait) units up, which would
+	 * bare that strip at the frame's foot, so they stand on the root.
+	 */
+	chestLandscape: {
+		id: 'chest-landscape',
+		frame: { width: 1920, height: 1080 },
+		bundle: CHEST_LANDSCAPE,
+		mounts: [
+			{ slot: 'background', layers: [{ kind: 'image', path: IMG.chestBackdropLandscape }] },
+			{ slot: 'foreground_DragonLore', layers: [{ kind: 'image', path: IMG.chestForegroundLandscape }] },
+		],
+	},
+	chestPortrait: {
+		id: 'chest-portrait',
+		frame: { width: 922, height: 1761 },
+		bundle: CHEST_PORTRAIT,
+		mounts: [
+			{ slot: 'portraitDragonLore', layers: [{ kind: 'image', path: IMG.chestBackdropPortrait }] },
+			{ slot: 'foregroundPortrait', layers: [{ kind: 'image', path: IMG.chestForegroundPortrait }] },
+		],
+	},
 } as const satisfies Record<string, BackdropScene>;
 
 export type SceneKey = keyof typeof SCENES;
@@ -196,6 +294,12 @@ export const SCENE_STILLS: Record<SceneKey, string> = {
 	mainPortrait: 'img/background_main/still_portrait.webp',
 	bonusLandscape: 'img/bonus-wheel/still_landscape.webp',
 	bonusPortrait: 'img/bonus-wheel/still_portrait.webp',
+	// No guide composite came with these, so they are the scenes' own first frame, rendered.
+	plinkoLandscape: 'img/pirate-plinko/still_landscape.webp',
+	plinkoPortrait: 'img/pirate-plinko/still_portrait.webp',
+	// The landscape guide composite has no fires lit, so these are rendered first frames too.
+	chestLandscape: 'img/treasure_chest/still_landscape.webp',
+	chestPortrait: 'img/treasure_chest/still_portrait.webp',
 };
 
 /** Every skeleton bundle and image a scene uses, deduplicated. */
@@ -208,7 +312,7 @@ export const sceneAssets = (keys: readonly SceneKey[]) => {
 		for (const mount of scene.mounts) {
 			for (const layer of mount.layers) {
 				if (layer.kind === 'image') images.add(layer.path);
-				else bundles.set(layer.bundle.skeleton, layer.bundle);
+				else if (layer.kind === 'spine') bundles.set(layer.bundle.skeleton, layer.bundle);
 			}
 		}
 	}

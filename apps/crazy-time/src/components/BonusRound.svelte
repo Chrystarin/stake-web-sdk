@@ -17,6 +17,7 @@
 	import { isReplay } from '../game/replay';
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 	import { adoptVideo, releaseVideo, type VideoKey } from '../lib/preloadAssets';
+	import type { SceneKey } from '../lib/spine/backdropScenes';
 
 	import RoomPiratePlinko from './rooms/RoomPiratePlinko.svelte';
 	import RoomBonusWheel from './rooms/RoomBonusWheel.svelte';
@@ -102,23 +103,17 @@
 
 	/**
 	 * A room brings its own backdrop, which then shows through whatever it plays on. Ocean Voyage has
-	 * a video (see `roomVideo`); the Bonus Wheel has the artist's Spine scene of the deck in a storm
-	 * (SpineBackdrop.svelte, `bonusLandscape` / `bonusPortrait`); the Treasure Chest and Pirate Plinko have a still —
-	 * the dragon's lair, and the beach at sunset — painted from the preload's resident copy the same
-	 * way the table's backdrop is, in a cut for each orientation. A room with neither keeps the flat
-	 * room-tinted gradient.
+	 * a video (see `roomVideo`); the Bonus Wheel, Pirate Plinko and the Treasure Chest have the
+	 * artist's Spine scenes — the deck in a storm, the beach at sunset, the dragon's lair
+	 * (SpineBackdrop.svelte, `ROOM_SCENE`), in a cut for each orientation. A room with none keeps the
+	 * flat room-tinted gradient.
 	 *
 	 * Nothing depends on video playback: a browser that refuses leaves the gradient underneath showing.
 	 */
-	const ROOM_STILL: Partial<Record<Spot, { landscape: string; portrait: string }>> = {
-		chest: {
-			landscape: 'img/treasure_chest/background_landscape.webp',
-			portrait: 'img/treasure_chest/background_portrait.webp',
-		},
-		piratePlinko: {
-			landscape: 'img/pirate-plinko/background_landscape.webp',
-			portrait: 'img/pirate-plinko/background_portrait.webp',
-		},
+	const ROOM_SCENE: Partial<Record<Spot, { landscape: SceneKey; portrait: SceneKey }>> = {
+		bonusWheel: { landscape: 'bonusLandscape', portrait: 'bonusPortrait' },
+		piratePlinko: { landscape: 'plinkoLandscape', portrait: 'plinkoPortrait' },
+		chest: { landscape: 'chestLandscape', portrait: 'chestPortrait' },
 	};
 	const isVideoRoom = (spot: Spot): spot is VideoKey => spot === 'oceanVoyage';
 	/**
@@ -356,7 +351,7 @@
 {#if current}
 	{@const spot = spotFor(current.room)}
 	{@const colour = SPOT_COLOUR[spot]}
-	{@const still = ROOM_STILL[spot]?.[portrait ? 'portrait' : 'landscape']}
+	{@const scene = ROOM_SCENE[spot]?.[portrait ? 'portrait' : 'landscape']}
 	<!-- What the room paid, as a multiplier over the middle of the screen, in the Treasure Chest's
 	     own burst (`MultiplierBurst`). The chest writes it on its last chest instead, so it is left
 	     out here. No cash: the win is the balance's to report, not this screen's. -->
@@ -371,10 +366,8 @@
 		bind:this={screenEl}
 		style="--room-base:{colour.base}; --room-deep:{colour.deep}">
 		<div class="room-video-host" use:roomVideo={spot}></div>
-		{#if spot === 'bonusWheel'}
-			<SpineBackdrop scene={portrait ? 'bonusPortrait' : 'bonusLandscape'} />
-		{:else if still}
-			<div class="room-still" style="--room-still:{staticCssUrl(still)}"></div>
+		{#if scene}
+			<SpineBackdrop {scene} />
 		{/if}
 		<div class="room-scrim"></div>
 
@@ -517,12 +510,6 @@
 		height: 100%;
 		object-fit: cover;
 		object-position: center;
-	}
-	.room-still {
-		position: absolute;
-		inset: 0;
-		pointer-events: none;
-		background: var(--room-still) no-repeat center / cover;
 	}
 	.room-scrim {
 		position: absolute;
