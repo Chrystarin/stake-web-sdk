@@ -33,6 +33,8 @@
 	import Chip from './Chip.svelte';
 	import { formatBalance, formatMoney } from '../game/currency';
 	import { CHIP_FLIGHT_MS, CHIP_GROW_MS, CHIP_TRAVEL_MS } from '../game/chips';
+	import { device } from '../lib/deviceTier.svelte';
+	import { CaptainScene } from '../lib/spine/captainScene';
 
 	type Props = {
 		open: boolean;
@@ -256,6 +258,49 @@
 		if (performance.now() - lastPointerActivateAt < ACTIVATE_TRAILING_CLICK_WINDOW_MS) return;
 		activate(mode);
 	}
+
+	// ---- The captain ---------------------------------------------------------------------------
+	// She stands only on a WIDE landscape screen (the same query as the CSS below). There, on the
+	// full budget, the artist's Spine captain (`CaptainScene`) is put up over her still while the
+	// screen is open, and the still is hidden once the canvas has drawn her first frame. On the
+	// reduced budget she stays the still: she is decoration on a menu, and a phone on that budget is
+	// the one that cannot spare another WebGL context and its texture. If the canvas cannot be put
+	// up, or its context is taken back, the still is simply left showing.
+	const WIDE_QUERY = '(min-aspect-ratio: 7001/5000)';
+	let wide = $state(typeof window !== 'undefined' && window.matchMedia(WIDE_QUERY).matches);
+	$effect(() => {
+		const query = window.matchMedia(WIDE_QUERY);
+		const update = () => (wide = query.matches);
+		update();
+		query.addEventListener('change', update);
+		return () => query.removeEventListener('change', update);
+	});
+	let captainHost: HTMLDivElement | undefined = $state();
+	/** Her canvas has drawn: the still under it is hidden. */
+	let captainLive = $state(false);
+	/** Her canvas lost its context this time the screen is open: the still stays until it reopens. */
+	let captainFailed = $state(false);
+	$effect(() => {
+		if (!props.open) captainFailed = false;
+	});
+	$effect(() => {
+		const host = captainHost;
+		if (!host || !wide || device.tier === 'lite' || captainFailed) return;
+		let gone = false;
+		const scene = new CaptainScene(host, () => {
+			if (gone) return;
+			captainLive = false;
+			captainFailed = true;
+		});
+		void scene.init().then((ok) => {
+			if (ok && !gone) captainLive = true;
+		});
+		return () => {
+			gone = true;
+			captainLive = false;
+			scene.destroy();
+		};
+	});
 </script>
 
 {#if props.open}
@@ -270,7 +315,15 @@
 		style:--bb-bg-portrait={`url("${staticUrl('img/buy-bonus/background_portrait.webp')}")`}
 	>
 		<!-- Landscape only: the captain, standing on the right of her cabin, with the column to her left. -->
-		<img class="bb-character" src={staticUrl('img/buy-bonus/character.webp')} alt="" aria-hidden="true" />
+		<img
+			class="bb-character"
+			class:covered={captainLive}
+			src={staticUrl('img/buy-bonus/character.webp')}
+			alt=""
+			aria-hidden="true"
+		/>
+		<!-- Her Spine self over the still (`CaptainScene`), on the full budget. -->
+		<div class="bb-captain" bind:this={captainHost} aria-hidden="true"></div>
 
 		<div class="bb-modal" role="dialog" aria-label="Buy Bonus" onclick={(event) => event.stopPropagation()}>
 			<button type="button" class="bb-close" aria-label="Close" onclick={close}>
@@ -1359,7 +1412,8 @@
 	   and can never run into either. All three are placed against the backdrop, which is why the
 	   modal drops its `position` here; the captain goes to z -1 so the column, now out of a
 	   positioned box, still paints over her. */
-	.bb-character {
+	.bb-character,
+	.bb-captain {
 		display: none;
 	}
 	@media (min-aspect-ratio: 1/1) {
@@ -1442,6 +1496,26 @@
 			height: auto;
 			pointer-events: none;
 			user-select: none;
+		}
+		/* Hidden, not removed: it is the fallback the moment her canvas goes. */
+		.bb-character.covered {
+			visibility: hidden;
+		}
+		/* Her Spine canvas: the still's box let out at the left and the top (shares of the still's
+		   width and height — captainScene.ts PAD_LEFT and PAD_TOP, keep them in step), so her hat
+		   and hair can sway past the still's edges. Painted over the still, still behind the column. */
+		.bb-captain {
+			--pad-left: 0.04;
+			--pad-top: 0.06;
+			display: block;
+			position: absolute;
+			right: 0;
+			bottom: 0;
+			z-index: -1;
+			width: calc(var(--bb-char-w) * (1 + var(--pad-left)));
+			height: calc(var(--bb-char-w) * 1070 / 932 * (1 + var(--pad-top)));
+			pointer-events: none;
+			overflow: hidden;
 		}
 
 		/* The wide card, in the frame turned on its side (the <picture> swaps it in), 2x2 beside

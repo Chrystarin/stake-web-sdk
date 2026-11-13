@@ -9,6 +9,7 @@ import { CASINO_TV_LOGO_BACKDROP, getCasinoTvLogoAsset } from './spine/casinoTvL
 import { SCENES, SCENE_STILLS, type SceneKey, sceneAssets } from './spine/backdropScenes';
 import { loadBackdropAssets } from './spine/SceneSpineRenderer';
 import { KRAKEN_FILES, loadKrakenSpines } from './spine/krakenScene';
+import { CAPTAIN_FILES, loadCaptainSpine } from './spine/captainScene';
 
 /**
  * ══ THE GAME'S ASSET MANIFEST ══════════════════════════════════════════════════════════════════
@@ -581,6 +582,19 @@ async function preloadKrakenSpines(): Promise<void> {
 	}
 }
 
+/**
+ * The Buy Bonus screen's captain, into Pixi's cache under the aliases she mounts by. Not on the
+ * reduced budget: there she is only ever the still (img/buy-bonus/character.webp, a DOM image).
+ */
+async function preloadCaptainSpine(): Promise<void> {
+	if (isLite()) return;
+	try {
+		await loadCaptainSpine();
+	} catch (error) {
+		recordFailure('buy bonus captain spine', String((error as Error)?.message ?? error));
+	}
+}
+
 /** The Spine backdrops this session will draw first (see `backdropScenesToWarm`). Never throws. */
 async function preloadBackdropScenes(): Promise<void> {
 	const scenes = backdropScenesToWarm();
@@ -723,6 +737,7 @@ export function preloadAllGameAssets(options: PreloadOptions = {}): Promise<void
 		() => preloadDragonSpine(),
 		() => preloadBackdropScenes(),
 		() => preloadKrakenSpines(),
+		() => preloadCaptainSpine(),
 		() => preloadFonts(),
 		// Every effect as its own task — `warmSounds` warms the very `Audio` elements `playSound` clones.
 		...warmSounds().map((promise) => () => promise),
@@ -826,6 +841,7 @@ function coveredUrls(): Set<string> {
 		),
 		...ALL_BACKDROP_FILES.map(staticNetworkUrl),
 		...KRAKEN_FILES.map(staticNetworkUrl),
+		...CAPTAIN_FILES.map(staticNetworkUrl),
 		...soundEffectUrls(),
 		...musicUrls(),
 		logo.skeleton,
