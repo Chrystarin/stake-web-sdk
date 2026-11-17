@@ -120,7 +120,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/pirate-plinko/cannon_v3.webp',
 	// (The ball is the room's wheel icon, already in the ROOM_ICON row above.)
 	'img/pirate-plinko/dynamite.webp',
-	'img/pirate-plinko/explosion.png',
+	'img/pirate-plinko/smoke.webp',
 	// The clouds on the seam as the camera goes down from the table into the room (Game.svelte).
 	'img/pirate-plinko/divider.webp',
 

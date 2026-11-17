@@ -93,8 +93,8 @@
 		 * fractions of its width, so the bomb stands on the peg by its body and not by its fuse. The
 		 * body is drawn `scale` times the ball's size (default 1), capped at `cap` of a pitch — half
 		 * of one by default, so bombs never touch across a row, and less for a host that wants them
-		 * smaller than that on every board. `blast` is the explosion, a square picture drawn centred
-		 * on the bomb and animated by the board.
+		 * smaller than that on every board. `blast` is the smoke puff the explosion is made of (the
+		 * particle editor's cartoonSmoke, see smokeBlast()), drawn by the board.
 		 */
 		bombs?: {
 			count: number;
@@ -163,6 +163,10 @@
 	const BLAST_HOLD_MS = 90;
 	/** How long the explosion is on screen, and how long a blown peg takes to fly off. */
 	const BLAST_MS = 720;
+	/** How long a smoke blast's canvas stays up: its emitter runs 0.15 s and a puff lives up to 0.7 s. */
+	const SMOKE_MS = 900;
+	/** A smoke canvas is this many blast sizes across: room for the puffs to fly out and grow. */
+	const SMOKE_SPAN = 1.8;
 	const PEG_GONE_MS = 480;
 	/**
 	 * How high the ball comes off a peg, in row gaps. Most strikes are glancing; roughly one in five
@@ -285,6 +289,135 @@
 	const blastSize = $derived(2 * Math.max(layout.pitch * 1.15, layout.rowGap * 2.4));
 
 	/**
+	 * The explosion: the particle editor's `cartoonSmoke`, values unchanged. A point emitter that
+	 * runs for 0.2 s with a puff every millisecond up to its cap of 100, so about a hundred puffs
+	 * leave the bomb together in every direction (heading 0-360 deg) at 700 easing to 50 units a
+	 * second, living 0.4-0.7 s. Each grows from 0.1 to 1.2 times the 100 px texture, turns up to 200
+	 * deg a second, fades from 0.74 to nothing, and goes from orange (eb8b58) to grey (575757). One
+	 * small 2D canvas per blast, centred on the bomb; its own frame loop stops when the last puff is
+	 * gone. `unit` scales the config's pixel values to the board (blastSize / 400).
+	 */
+	const SMOKE = {
+		emitterSeconds: 0.2,
+		every: 0.001,
+		max: 100,
+		life: [0.4, 0.7],
+		speed: [700, 50],
+		scale: [0.1, 1.2],
+		alpha: [0.74, 0],
+		spin: [0, 200],
+		from: [0xeb, 0x8b, 0x58],
+		to: [0x57, 0x57, 0x57],
+		texture: 100,
+	} as const;
+	/** The puff texture and a tinted copy of it for each step of the orange-to-grey fade. */
+	const TINTS = 10;
+	const smokeSprites = new Map<string, HTMLCanvasElement[]>();
+	const smokeSet = (src: string): HTMLCanvasElement[] => {
+		let set = smokeSprites.get(src);
+		if (set) return set;
+		set = [];
+		smokeSprites.set(src, set);
+		const img = new Image();
+		img.onload = () => {
+			for (let i = 0; i < TINTS; i++) {
+				const t = i / (TINTS - 1);
+				const c = document.createElement('canvas');
+				c.width = img.naturalWidth;
+				c.height = img.naturalHeight;
+				const g = c.getContext('2d');
+				if (!g) continue;
+				g.drawImage(img, 0, 0);
+				// Multiply by the colour, as Pixi's tint does, and keep the puff's own shape.
+				g.globalCompositeOperation = 'multiply';
+				const ch = SMOKE.from.map((f, n) => Math.round(f + (SMOKE.to[n] - f) * t));
+				g.fillStyle = `rgb(${ch[0]},${ch[1]},${ch[2]})`;
+				g.fillRect(0, 0, c.width, c.height);
+				g.globalCompositeOperation = 'destination-in';
+				g.drawImage(img, 0, 0);
+				set![i] = c;
+			}
+		};
+		img.src = src;
+		return set;
+	};
+	const smokeBlast = (node: HTMLCanvasElement, opts: { src: string; unit: number }) => {
+		const ctx = node.getContext('2d');
+		const sprites = smokeSet(opts.src);
+		const between = (a: number, b: number) => a + Math.random() * (b - a);
+		const RAD = Math.PI / 180;
+		const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+		type Puff = { age: number; life: number; dx: number; dy: number; rot: number; spin: number };
+		const puffs: Puff[] = [];
+		let raf = 0;
+		let last = 0;
+		let emitted = 0; // seconds of emitting so far
+		let made = 0;
+		let owed = 0;
+		let k = 1; // layout px -> backing px
+		const fit = () => {
+			const cw = node.clientWidth;
+			if (!cw) return;
+			const zoom = node.getBoundingClientRect().width / cw || 1;
+			const dpr = Math.min(window.devicePixelRatio || 1, 2);
+			node.width = node.height = Math.max(1, Math.round(cw * zoom * dpr));
+			k = node.width / cw;
+		};
+		fit();
+		const emitting = () => emitted < SMOKE.emitterSeconds && made < SMOKE.max;
+		const step = (now: number) => {
+			raf = 0;
+			if (!ctx) return;
+			const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016);
+			last = now;
+			if (emitting()) {
+				emitted += dt;
+				owed += dt;
+				while (owed >= SMOKE.every && made < SMOKE.max) {
+					owed -= SMOKE.every;
+					made++;
+					const heading = Math.random() * Math.PI * 2;
+					puffs.push({
+						age: 0,
+						life: between(SMOKE.life[0], SMOKE.life[1]),
+						dx: Math.cos(heading),
+						dy: Math.sin(heading),
+						rot: Math.random() * Math.PI * 2,
+						spin: between(SMOKE.spin[0], SMOKE.spin[1]) * RAD,
+					});
+				}
+			}
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, node.width, node.height);
+			const mid = node.width / 2;
+			for (let i = puffs.length - 1; i >= 0; i--) {
+				const p = puffs[i];
+				p.age += dt;
+				const t = p.age / p.life;
+				if (t >= 1) {
+					puffs.splice(i, 1);
+					continue;
+				}
+				const sprite = sprites[Math.round(t * (TINTS - 1))];
+				if (!sprite) continue;
+				// Position is the integral of a speed eased from start to end.
+				const travelled = p.age * lerp(SMOKE.speed[0], SMOKE.speed[1], t / 2) * opts.unit * k;
+				p.rot += p.spin * dt;
+				const size = SMOKE.texture * lerp(SMOKE.scale[0], SMOKE.scale[1], t) * opts.unit * k;
+				ctx.globalAlpha = lerp(SMOKE.alpha[0], SMOKE.alpha[1], t);
+				const c = Math.cos(p.rot);
+				const sn = Math.sin(p.rot);
+				ctx.setTransform(c, sn, -sn, c, mid + p.dx * travelled, mid + p.dy * travelled);
+				ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+			}
+			ctx.globalAlpha = 1;
+			if (puffs.length || emitting()) raf = requestAnimationFrame(step);
+		};
+		raf = requestAnimationFrame(step);
+		return { destroy: () => cancelAnimationFrame(raf) };
+	};
+
+	/**
 	 * Set a bomb off: it and the pegs around it are marked gone, each with the direction away from
 	 * the bomb so it can fly off that way, and the explosion is put on screen over the top.
 	 */
@@ -306,7 +439,7 @@
 		const timer = setTimeout(() => {
 			blasts = blasts.filter((blast) => blast.id !== id);
 			pegTimers.delete(timer);
-		}, BLAST_MS);
+		}, SMOKE_MS);
 		pegTimers.add(timer);
 		props.sounds?.blast?.();
 	};
@@ -373,6 +506,8 @@
 	});
 
 	onMount(() => {
+		// Have the smoke's tinted sprites ready before the first bomb goes off.
+		if (props.bombs?.blast) smokeSet(props.bombs.blast);
 		const el = hostEl;
 		if (!el) return;
 		const measure = () => (box = { width: el.clientWidth, height: el.clientHeight });
@@ -1019,13 +1154,13 @@
 		     the moment it is held there and then flies out of it — which is only a flight anyone
 		     sees if the burst is behind it rather than over it. -->
 		{#each blasts as blast (blast.id)}
-			<i
+			<canvas
 				class="pb-blast"
+				use:smokeBlast={{ src: props.bombs?.blast ?? '', unit: blastSize / 400 }}
 				style="left:{layout.centreX + blast.offset * layout.pitch}px; top:{layout.topY +
-					blast.row *
-						layout.rowGap}px; width:{blastSize}px; height:{blastSize}px; background-image:url('{props
-					.bombs?.blast}'); --blast-ms:{BLAST_MS}ms;"
-			></i>
+					blast.row * layout.rowGap}px; width:{blastSize * SMOKE_SPAN}px; height:{blastSize *
+					SMOKE_SPAN}px;"
+			></canvas>
 		{/each}
 
 		<!-- Where an aimed shot is going (`sight`): dots from the muzzle, and a ring on the peg. On
@@ -1462,53 +1597,8 @@
 	.pb-blast {
 		position: absolute;
 		z-index: 2;
-		background-repeat: no-repeat;
-		background-position: center;
-		background-size: contain;
+		translate: -50% -50%;
 		pointer-events: none;
-		filter: drop-shadow(0 0 0.4em rgba(255, 150, 40, 0.85));
-		animation: blast-burst var(--blast-ms) cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
-	}
-	.pb-blast::before {
-		content: '';
-		position: absolute;
-		inset: -20%;
-		border-radius: 50%;
-		background: radial-gradient(
-			circle,
-			rgba(255, 245, 200, 0.95) 0%,
-			rgba(255, 160, 40, 0.6) 38%,
-			rgba(255, 90, 0, 0) 68%
-		);
-		animation: blast-flash calc(var(--blast-ms) * 0.4) ease-out forwards;
-	}
-	@keyframes blast-burst {
-		0% {
-			opacity: 0.9;
-			transform: translate(-50%, -50%) scale(0.2) rotate(-25deg);
-		}
-		16% {
-			opacity: 1;
-			transform: translate(-50%, -50%) scale(1) rotate(0deg);
-		}
-		40% {
-			opacity: 0.95;
-			transform: translate(-50%, -50%) scale(1.08) rotate(8deg);
-		}
-		100% {
-			opacity: 0;
-			transform: translate(-50%, -50%) scale(1.3) rotate(20deg);
-		}
-	}
-	@keyframes blast-flash {
-		0% {
-			opacity: 1;
-			transform: scale(0.5);
-		}
-		100% {
-			opacity: 0;
-			transform: scale(1.5);
-		}
 	}
 
 	/* --- Pockets --------------------------------------------------------------------------- */

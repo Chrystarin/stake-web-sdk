@@ -116,7 +116,7 @@
 	 * what sizes it: `cap` of a pitch across, on either cabinet. At the board's own half a pitch a
 	 * bundle that much taller than it is wide stood over three rows of the squat board and looked
 	 * crowded in; at 0.38 it stands, fuse and all, about as tall as the round bomb it replaced.
-	 * The explosion is a plain square burst, centred on the bomb by the board.
+	 * The explosion is the editor's cartoon smoke, drawn on the bomb by the board.
 	 *
 	 * The file is cut from the 1254px PNG master, which is not kept here (Pillow, LANCZOS, webp
 	 * q90): a 1228px square from 12,8, taken down to 384 — the board never draws it at more than
@@ -130,7 +130,7 @@
 		d: 0.411,
 		scale: 2,
 		cap: 0.38,
-		blast: staticPath('img/pirate-plinko/explosion.png'),
+		blast: staticPath('img/pirate-plinko/smoke.webp'),
 	};
 	/** How long the cabinet rattles after a blast. */
 	const QUAKE_MS = 380;
