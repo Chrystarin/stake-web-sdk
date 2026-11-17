@@ -28,8 +28,7 @@ const joinBase = (path: string): string =>
  */
 const PHONE_CUTS: ReadonlySet<string> = new Set([
 	'img/bonus-wheel/frame_bare.webp',
-	'img/pirate-plinko/board_v2.webp',
-	'img/pirate-plinko/cannon.webp',
+	'img/pirate-plinko/board_v3.webp',
 	'img/top-slots/frame.webp',
 ]);
 const phone = isPhoneScreen();

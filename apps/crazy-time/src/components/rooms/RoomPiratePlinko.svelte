@@ -193,61 +193,41 @@
 	 * as a picture that fell over. Each orientation gets the art that was drawn for it.
 	 */
 	const BOARD_LANDSCAPE = {
-		src: staticPath('img/pirate-plinko/board_v2.webp'),
-		ratio: 1519 / 1036,
+		src: staticPath('img/pirate-plinko/board_v3.webp'),
+		ratio: 2000 / 1008,
 		/**
-		 * Placed off a reference drawn over the art, not derived: the pegs fill the timber panel wall
-		 * to wall, starting a plank below its top edge and running a row past the bottom of the
-		 * marked box, and the ladder sits under them as a deep row that reaches down over the top of
-		 * the ornamented rail and out across the treasure heaped into both bottom corners.
+		 * Read off the art (the third cabinet): the timber panel runs from 0.153 to 0.875 across and
+		 * from 0.06 to 0.86 down, with the hanging skulls outside it to either side and a thin rail
+		 * under it carrying the gem crest. There are no treasure heaps in the corners any more, so the
+		 * pegs stand in the panel with a plank of wood to spare at each side and the ladder sits on the
+		 * panel's lowest planks, reaching a little way over the rail.
 		 *
 		 * `field` is NOT the peg extent: the layout keeps a spare half-pitch of wall at each side, so
-		 * the box is a pitch wider than the outermost pegs. These numbers are what puts those pegs on
-		 * the marked edges — read the peg span, not this box, when matching the art.
-		 *
-		 * Pulled in from the marked edges, and started a little higher, to steepen the fall. The two
-		 * are the same knob: the pitch comes off the width and the row gap off the height, so a
-		 * narrower, deeper box raises the ratio between them — which IS the angle the ball falls at.
-		 * At the reference's full width that ratio was 0.24, flat enough to read as a skitter; these
-		 * numbers put it at 0.27, most of the way to the old cabinet's 0.31, and hand the coin back
-		 * the best part of the four tenths of a pitch it is drawn to fill. Widen the sides to flatten
-		 * it again; raising `top` buys back some of the angle that costs.
+		 * the box is a pitch wider than the outermost pegs (0.66 of the art's width, centred on the
+		 * panel). Narrower than the panel on purpose, as before: the pitch comes off the width and the
+		 * row gap off the height, so a narrower box steepens the fall (0.26 here against 0.24 at the
+		 * panel's full width). `top` puts the first row of pegs a plank under the panel's top edge.
 		 */
 		frame: {
-			field: { left: 0.105, right: 0.895, top: 0.145, bottom: 0.748 },
-			// Drawn taller than the card art's own proportion, which is what the reference asks for:
-			// a deep ladder standing on the rail rather than a strip of labels resting above it. The
-			// bottom stays pinned over the rail's top edge; the top has since come down to hand the
-			// two extra peg rows their space, which lands the card near the proportion it was drawn
-			// at rather than the taller one it was marked at.
-			pockets: { top: 0.762, bottom: 0.822 },
+			field: { left: 0.1585, right: 0.8695, top: 0.074, bottom: 0.775 },
+			pockets: { top: 0.792, bottom: 0.868 },
 		} satisfies BoardFrame,
 	};
 	/**
-	 * The same sign stood upright, which is a drawing of its own rather than this one turned.
+	 * The same cabinet stood upright, which is a drawing of its own rather than this one turned: the
+	 * grain, the crest and the skulls are not symmetric under a quarter turn.
 	 *
-	 * The panel is far taller than it is wide here, so the field takes the timber wall to wall and
-	 * the fall still comes out steep — a tall board is a tall fall, and pinching it narrower to
-	 * flatten the angle would only waste the timber.
+	 * The panel runs from 0.177 to 0.855 across and from 0.06 to 0.905 down. The field is 0.64 of the
+	 * art wide, centred on it, and the fall comes out steep (a tall board is a tall fall); the ladder
+	 * is deep here, as it always was, because thirteen cards across a narrow opening are the tightest
+	 * the row ever gets.
 	 */
 	const BOARD_PORTRAIT = {
-		src: staticPath('img/pirate-plinko/board_v2_portrait.webp'),
-		ratio: 1024 / 1536,
+		src: staticPath('img/pirate-plinko/board_v3_portrait.webp'),
+		ratio: 1645 / 2000,
 		frame: {
-			// Read off the upright drawing the same way the landscape one was: the timber panel runs
-			// from 0.14 to 0.855 across and from 0.076 to 0.845 down, and the box is set to its two
-			// side walls exactly, so the half-pitch of spare the layout keeps is the only margin
-			// between the outermost pegs and the rope. Down the panel the field is inset — a row's
-			// worth of plank above the first row of pegs, and a shade under the last — so the pegs
-			// read as standing IN the panel rather than pressed against its edges, and the last row
-			// hands straight over to the cards instead of leaving a strip of bare wood between them.
-			field: { left: 0.14, right: 0.855, top: 0.108, bottom: 0.802 },
-			// Standing on the panel's bottom edge and reaching over the top of the ornamented rail,
-			// which is what makes a card deep enough to read at this width — thirteen of them across
-			// a narrow opening is the tightest the ladder ever gets. The outermost pair does clip
-			// the treasure heaped into the two bottom corners; that is the price of a legible card,
-			// and going shallower to avoid it is what left the row unreadable before.
-			pockets: { top: 0.812, bottom: 0.868 },
+			field: { left: 0.1715, right: 0.8605, top: 0.071, bottom: 0.8 },
+			pockets: { top: 0.83, bottom: 0.9 },
 		} satisfies BoardFrame,
 	};
 	const BOARD = $derived(portrait ? BOARD_PORTRAIT : BOARD_LANDSCAPE);
@@ -348,14 +328,14 @@
 	 * open, banded mouth at the bottom, so the muzzle points at the board with no flipping at all.
 	 * It swings about the two orange trunnions on its flanks, which is where a gun is hung.
 	 */
-	const CANNON = staticPath('img/pirate-plinko/cannon.webp');
+	const CANNON = staticPath('img/pirate-plinko/cannon_v3.webp');
 	/**
 	 * How far the muzzle sits from the trunnions, as a share of the cannon's height: the mouth is at
-	 * the very bottom of the drawing (0.97), the wheels it hangs between centred at 0.4. It is what
+	 * the very bottom of the drawing (0.96), the wheels it hangs between centred at 0.4. It is what
 	 * puts the ball at the end of the barrel rather than at the middle of the picture. Both are read
 	 * off the file, so they have to be read again whenever the art is replaced.
 	 */
-	const MUZZLE_FROM_PIVOT = 0.97 - 0.4;
+	const MUZZLE_FROM_PIVOT = 0.96 - 0.4;
 	/** How far the gun jumps back up its own barrel when it fires, as a share of its height. */
 	const RECOIL = 0.13;
 	/** Long enough to see the kick and the return; the ball is clear of the muzzle well before. */
@@ -803,8 +783,10 @@
 		align-items: center;
 		/* Room for the screen's title above the cannon, and for the cannon above the board. The
 		   cabinet takes whatever is left after those and keeps its own ratio, so the whole room
-		   grows and shrinks with the viewport rather than being pinned to one size. */
-		width: 56vw;
+		   grows and shrinks with the viewport rather than being pinned to one size. Wider than it
+		   was: the third cabinet is a flatter picture (2:1 against 1.47:1), so at the old 56vw it
+		   left a band of empty screen between the gun and the pegs. */
+		width: 66vw;
 		height: 100%;
 		/* Stretched, not merely tall: the room has to START at the plaque, or the cannon hung off
 		   its top edge has nothing to be hidden behind. */
@@ -905,7 +887,7 @@
 	.cannon {
 		height: var(--cannon-h);
 		width: auto;
-		aspect-ratio: 320 / 448;
+		aspect-ratio: 412 / 580;
 		transform-origin: 50% calc(var(--cannon-pivot) * 100%);
 		rotate: calc(-1 * var(--aim));
 		transition: rotate 90ms linear;

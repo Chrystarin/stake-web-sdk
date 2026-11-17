@@ -114,10 +114,10 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// ── Pirate Plinko (RoomPiratePlinko.svelte + plinko/PlinkoBoard.svelte) ──────────────────────
 	// BOTH board cuts: which one shows is the orientation at the time, and a phone rotated between
 	// the splash and the room would otherwise fetch its board on entry.
-	'img/pirate-plinko/board_v2.webp',
-	'img/pirate-plinko/board_v2_portrait.webp',
+	'img/pirate-plinko/board_v3.webp',
+	'img/pirate-plinko/board_v3_portrait.webp',
 	// (The beach behind the board is a Spine backdrop — its stills are in SCENE_STILLS above.)
-	'img/pirate-plinko/cannon.webp',
+	'img/pirate-plinko/cannon_v3.webp',
 	// (The ball is the room's wheel icon, already in the ROOM_ICON row above.)
 	'img/pirate-plinko/dynamite.webp',
 	'img/pirate-plinko/explosion.png',
