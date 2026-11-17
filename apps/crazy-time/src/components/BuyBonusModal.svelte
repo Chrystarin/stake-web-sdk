@@ -276,6 +276,9 @@
 		return () => query.removeEventListener('change', update);
 	});
 	let captainHost: HTMLDivElement | undefined = $state();
+	/** What she watches the pointer over: the chips and the mode cards (and the gap between). */
+	let betRowEl: HTMLDivElement | undefined = $state();
+	let cardsEl: HTMLDivElement | undefined = $state();
 	/** Her canvas has drawn: the still under it is hidden. */
 	let captainLive = $state(false);
 	/** Her canvas lost its context this time the screen is open: the still stays until it reopens. */
@@ -287,11 +290,15 @@
 		const host = captainHost;
 		if (!host || !wide || device.tier === 'lite' || captainFailed) return;
 		let gone = false;
-		const scene = new CaptainScene(host, () => {
-			if (gone) return;
-			captainLive = false;
-			captainFailed = true;
-		});
+		const scene = new CaptainScene(
+			host,
+			() => {
+				if (gone) return;
+				captainLive = false;
+				captainFailed = true;
+			},
+			() => [betRowEl, cardsEl],
+		);
 		void scene.init().then((ok) => {
 			if (ok && !gone) captainLive = true;
 		});
@@ -335,7 +342,7 @@
 
 			<!-- The bet, chosen off the table's own chips. Every price below is cost x chip, so picking
 			     another chip re-prices all four cards. A chip the balance does not cover is greyed out. -->
-			<div class="bb-bet-row">
+			<div class="bb-bet-row" bind:this={betRowEl}>
 				<div class="bb-chips" class:locked={props.disabled} role="group" aria-label="Chip value">
 					<div class="bb-chips-viewport" style="--slots:{rail.windowSize}">
 						<div class="bb-chips-rail" style="--offset:{rail.start}">
@@ -356,7 +363,7 @@
 				</div>
 			</div>
 
-			<div class="bb-cards">
+			<div class="bb-cards" bind:this={cardsEl}>
 				{#each CARD_MODES as mode (mode)}
 					<div class="bb-card" bind:this={cardEls[roomOf(mode)]}>
 						<!-- A wide landscape screen's cards are wide, so they take the frame turned on its
