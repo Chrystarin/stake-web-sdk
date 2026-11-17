@@ -100,27 +100,29 @@
 	 * whatever of the heap is still below its rim, and the heap rises out of it a little with every
 	 * barrel collected (`goldTip`).
 	 *
-	 * Everything is in the front picture's own pixels (916×1070), which the barrel is drawn at
-	 * `barrelU` of. `back` is cropped to its art (`barrel_back.webp`, 764×191) and set so its rim meets
-	 * the front's at the front's top edge; the heap (`gold_pile.webp`, cropped to 1006×965) is drawn
-	 * at 0.8 of its size, centred on the mouth, `tip` being where its peak is down it.
+	 * The art is the designer's (Figma "coin barrel": barrelBack, coinBarrel, BarrelFront), each layer
+	 * cropped to its art at one scale. Everything is in the front picture's own pixels (937×1091), which
+	 * the barrel is drawn at `barrelU` of, placed as the Figma frame has them: `back` (758×264) sits
+	 * above the front's top edge so its rim meets the front's, and the heap (`gold_pile.webp`, 812×524)
+	 * stands in the mouth with its peak 197 px above the front's top edge, `tip` being where its peak
+	 * is down the picture (its top edge).
 	 */
 	const GOLD_BACK = staticPath('img/ocean-voyage/barrel_golds/barrel_back.webp');
 	const GOLD_FRONT = staticPath('img/ocean-voyage/barrel_golds/barrel_front.webp');
 	const GOLD_PILE = staticPath('img/ocean-voyage/barrel_golds/gold_pile.webp');
 	const GOLD_PX = {
-		front: { w: 916, h: 1070 },
-		back: { x: 74, y: -107, w: 764 },
-		pile: { x: 43.4, w: 804.8, tip: 92.8 },
+		front: { w: 937, h: 1091 },
+		back: { x: 83.8, y: -86.9, w: 758 },
+		pile: { x: 22.2, w: 812, tip: 0 },
 	};
 	/**
-	 * Where the heap's peak is, down the front picture: under the near rim (out of sight) before
-	 * anything is collected; just showing in the mouth on the first barrel; and with the whole heap
-	 * standing up out of the barrel, its foot at the rim, on the last.
+	 * Where the heap's peak is, down the front picture: under the near rim (out of sight; the rim is
+	 * 123 px down at its middle) before anything is collected; just showing in the mouth on the first
+	 * barrel; and the whole heap standing up out of the barrel, as the designer drew it, on the last.
 	 */
-	const GOLD_TIP = { empty: 140, first: -40, full: -603 };
+	const GOLD_TIP = { empty: 150, first: 40, full: -197.5 };
 	/** Where the total is written on the barrel: on its top hoop, down the front picture. */
-	const GOLD_LABEL_Y = 225;
+	const GOLD_LABEL_Y = 300;
 	/** The barrel's width against the wheel's, and how far up the wheel (in wheel widths from the
 	    foot of the screen) it stands — low enough that the wheel hides its foot. */
 	const GOLD_BARREL_W = 0.35;
@@ -150,7 +152,7 @@
 	/** If no coin has landed by now (a tab given no animation frames), the gold goes in anyway. */
 	const FOUNTAIN_BACKSTOP_MS = 2200;
 	/** Where in the barrel the coins go: just inside its mouth, down the front picture. */
-	const GOLD_MOUTH_Y = -30;
+	const GOLD_MOUTH_Y = 0;
 	/**
 	 * The coins' sounds are plinko's win shower's: its shuffle as they are thrown (`coinShuffle`), and a
 	 * coin flip as each lands (`coinFlip`), each at a pitch of its own and no closer together than its
