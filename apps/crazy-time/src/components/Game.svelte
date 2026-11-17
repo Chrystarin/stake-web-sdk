@@ -3170,6 +3170,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					segments={WHEEL_SEGMENTS}
 					frame={WHEEL_FRAME}
 					innerRadius={0}
+					sparks
 					highlight={wheelHighlight}
 					liftedIcon={revealIcon}
 					onTick={() => playSound('peg', 1.4, 0.5)}

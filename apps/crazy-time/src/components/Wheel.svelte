@@ -7,6 +7,7 @@
 	 * only way it moves, and the index comes from the book.
 	 */
 	import { onDestroy } from 'svelte';
+	import WheelSparks from './WheelSparks.svelte';
 
 	export type WheelSegment = {
 		label: string;
@@ -95,6 +96,8 @@
 		hubRadius?: number;
 		/** A segment whose badge art is hidden: lifted off the disc by something drawn over it. */
 		liftedIcon?: number | null;
+		/** Throw gold sparks off the rim while the disc turns (needs a `frame`). */
+		sparks?: boolean;
 	};
 
 	let {
@@ -109,7 +112,14 @@
 		sizeStep,
 		flash = false,
 		liftedIcon = null,
+		sparks = false,
 	}: Props = $props();
+
+	let sparkLayer: WheelSparks | undefined = $state();
+	/** Sparks start on the frame's outer ring: its art runs about 1.23x the hole's radius. */
+	const SPARK_RIM = 1.2;
+	let lastDeg = 0;
+	let lastAt = 0;
 
 	const R = 200; // viewBox radius
 	const OUTER = 190;
@@ -215,7 +225,19 @@
 	const outlined = $derived(passing ?? highlight);
 
 	const track = () => {
-		const idx = indexAt(liveRotation());
+		const deg = liveRotation();
+		if (sparkLayer) {
+			const now = performance.now();
+			if (lastAt) {
+				// The disc turns clockwise only, so a drop in the angle is the wrap past 360.
+				const d = (deg - lastDeg + 360) % 360;
+				const dt = (now - lastAt) / 1000;
+				if (dt > 0) sparkLayer.setSpeed(d / dt);
+			}
+			lastDeg = deg;
+			lastAt = now;
+		}
+		const idx = indexAt(deg);
 		passing = idx;
 		if (idx !== lastTick) {
 			lastTick = idx;
@@ -370,6 +392,11 @@
 		spinning = false;
 		passing = null;
 		cancelAnimationFrame(raf);
+		if (sparkLayer) {
+			sparkLayer.setSpeed(0);
+			sparkLayer.burst();
+			lastAt = 0;
+		}
 		onLand?.(index);
 		resolveSpin?.();
 		resolveSpin = null;
@@ -781,6 +808,14 @@
 				alt=""
 				draggable="false"
 				style="left:{frame.hole.cx * 100}%; top:{frame.hole.cy * 100}%; width:{(frame.centerWidth ?? 0.29) * 100}%"
+			/>
+		{/if}
+		{#if sparks}
+			<WheelSparks
+				bind:this={sparkLayer}
+				cx={frame.hole.cx}
+				cy={frame.hole.cy}
+				rim={frame.hole.r * SPARK_RIM}
 			/>
 		{/if}
 	{/if}
