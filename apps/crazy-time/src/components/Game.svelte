@@ -73,6 +73,8 @@
 	import ConfirmPromptModal from './ConfirmPromptModal.svelte';
 	import HudMenuPopup from './HudMenuPopup.svelte';
 	import InfoModal from './InfoModal.svelte';
+	import WinPopup from './WinPopup.svelte';
+	import { WIN_POPUP_MIN_MULT, WIN_POPUP_TOTAL_MS } from '../lib/winPopup';
 import RgsErrorModal from './RgsErrorModal.svelte';
 	import QuickGuideModal from './QuickGuideModal.svelte';
 	import { isConfirmPromptOpen, requestConfirmPrompt } from '../game/confirmPrompt.svelte';
@@ -388,15 +390,30 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 
 	// --- Chip carousel (the whole tray is visible; it still windows if more levels arrive) -------
 	const VISIBLE_CHIPS = 7;
+	/** How many chips an arrow press moves the window by. */
+	const TRAY_STEP = 3;
+	/**
+	 * Where the player has scrolled the window with the arrows, or null while it follows the selected
+	 * chip. Picking a chip (tray or popup) hands the window back to the selection.
+	 */
+	let trayStart = $state<number | null>(null);
+	$effect(() => {
+		void stateGame.stake;
+		trayStart = null;
+	});
 	const carousel = $derived.by(() => {
 		const total = stakes.length;
 		const windowSize = Math.min(VISIBLE_CHIPS, total);
 		const middle = Math.floor(windowSize / 2);
 		const selected = Math.max(0, stakes.indexOf(stateGame.stake));
-		const start = Math.min(Math.max(selected - middle, 0), total - windowSize);
+		const last = total - windowSize;
+		const wanted = trayStart ?? selected - middle;
+		const start = Math.max(Math.min(Math.max(wanted, 0), last), 0);
 		return {
 			windowSize,
-			start: Math.max(start, 0),
+			start,
+			canPrev: start > 0,
+			canNext: start < last,
 			chips: stakes.map((value, index) => ({
 				value,
 				index,
@@ -408,6 +425,12 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	});
 
 	let stakePanelOpen = $state(false);
+
+	/** Slide the tray's window along the chips without changing the selection. */
+	const nudgeTray = (direction: -1 | 1) => {
+		if (settled || clearing) return;
+		trayStart = carousel.start + direction * TRAY_STEP;
+	};
 
 	/** A chip worth more than the balance is greyed out and cannot be picked until the balance covers it. */
 	const chipDisabled = (value: number) => !stateGameDerived.canAffordStake(value);
@@ -2440,6 +2463,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		stateGame.buying ? buyChipFace() : currentChipFace();
 
 	let winCash = $state(0);
+	let winPopup = $state<{ id: number; amount: number; multiplier: number } | null>(null);
+	let winPopupId = 0;
 	$effect(() => {
 		if (!stateGame.resultReady) winCash = 0;
 	});
@@ -2947,6 +2972,13 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			winCash = (emitterEvent.amount / 100) * stateBet.betAmount;
 			playSound('win');
 			const multiplier = committedStake > 0 ? winCash / committedStake : 0;
+			// A big win gets Willy's full-screen popup; the tile's readout plays under it either way.
+			if (multiplier >= WIN_POPUP_MIN_MULT) {
+				winPopup = { id: ++winPopupId, amount: winCash, multiplier };
+				await waitForTimeout(WIN_POPUP_TOTAL_MS);
+				winPopup = null;
+				return;
+			}
 			await waitForTimeout(multiplier >= 20 ? 2600 : 1600);
 		},
 	});
@@ -3176,7 +3208,13 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			</div>
 		</div>
 
-		<div class="bottom-panel" class:dimmed={panelDimmed} class:lit={betting} bind:this={panelEl}>
+		<div
+			class="bottom-panel"
+			class:dimmed={panelDimmed}
+			class:lit={betting}
+			class:stake-open={stakePanelOpen}
+			bind:this={panelEl}
+		>
 			<div class="betting-panel-wrap">
 				<div class="betting-panel">
 					<div class="inner-panel">
@@ -3332,6 +3370,15 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 								{/if}
 
 								<div class="chips-wrap">
+									{#if carousel.canPrev || carousel.canNext}
+										<div
+											class="tray-arrow prev"
+											class:off={!carousel.canPrev}
+											onclick={() => nudgeTray(-1)}
+											title="Previous chips"
+											aria-hidden="true"
+										></div>
+									{/if}
 									<div class="chips-viewport" style="--slots:{carousel.windowSize}">
 										<div class="chips-rail" style="--offset:{carousel.start}">
 											{#each carousel.chips as chip (chip.value)}
@@ -3358,6 +3405,15 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 											{/each}
 										</div>
 									</div>
+									{#if carousel.canPrev || carousel.canNext}
+										<div
+											class="tray-arrow next"
+											class:off={!carousel.canNext}
+											onclick={() => nudgeTray(1)}
+											title="More chips"
+											aria-hidden="true"
+										></div>
+									{/if}
 								</div>
 							</div>
 							<div
@@ -3454,6 +3510,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		onActivate={handleBuyActivate}
 	/>
 </div>
+<WinPopup show={winPopup} {portrait} />
 <ConfirmPromptModal />
 
 <InfoModal />
@@ -3752,6 +3809,56 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		position: fixed;
 		inset: 0;
 		z-index: 35;
+	}
+	/* The popup lives inside .bottom-panel, whose z-index makes it one stacking context, so the
+	   popup's own z-index 40 only counts in there and the backdrop (35) sat on top of the whole
+	   panel: a click on a popup chip hit the backdrop, closed the popup and picked nothing. While
+	   the popup is open the panel itself goes above the backdrop. The board stays under the dim's
+	   reach, so it is shut to taps for the moment; a tap on the backdrop still closes the popup. */
+	.bottom-panel.stake-open {
+		z-index: 36;
+	}
+	.bottom-panel.stake-open .board {
+		pointer-events: none;
+	}
+	/* Chevrons at either end of the chip tray, shown when the tray has more chips than it windows. */
+	.tray-arrow {
+		flex: none;
+		align-self: center;
+		width: 1.8vw;
+		height: 1.8vw;
+		margin: 0 0.1vw 0.4vw;
+		border-radius: 50%;
+		background: rgba(88, 88, 88, 0.7);
+		border: 0.05vw solid #828a97;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+	}
+	.tray-arrow::before {
+		content: '‹';
+		color: #fff;
+		font-size: 1.5vw;
+		line-height: 1;
+		margin-top: -0.15vw;
+	}
+	.tray-arrow.next::before {
+		content: '›';
+	}
+	.tray-arrow.off {
+		opacity: 0.3;
+		cursor: default;
+		pointer-events: none;
+	}
+	.game.portrait .tray-arrow {
+		width: 5vw;
+		height: 5vw;
+		margin: 0 0.3vw 1vw;
+	}
+	.game.portrait .tray-arrow::before {
+		font-size: 4.2vw;
+		margin-top: -0.4vw;
 	}
 	/* Buy Bonus badge (art from the Plinko), top-left of the table. */
 	.buy-bonus-trigger {

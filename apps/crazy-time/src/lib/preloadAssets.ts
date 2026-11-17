@@ -1,5 +1,6 @@
 import { Assets } from 'pixi.js';
 
+import { WIN_POPUP_ART } from './winPopup';
 import { NUMBER_PAY, NUMBER_SPOTS, ROOM_ICON, ROOM_SPOTS } from '../game/constants';
 import { musicUrls, soundEffectUrls, warmSounds } from '../game/sound';
 import { stateGame } from '../game/stateGame.svelte';
@@ -157,6 +158,9 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/ocean-voyage/barrel_golds/barrel_front.webp',
 	// The coin of the fountain each barrel throws into it (One-Eyed Willy Plinko's win coin).
 	'img/ocean-voyage/coin.webp',
+
+	// ── Win popup (WinPopup.svelte): One-Eyed Willy's banners, rays, shade and silver numerals ─────
+	...WIN_POPUP_ART,
 ];
 
 /**

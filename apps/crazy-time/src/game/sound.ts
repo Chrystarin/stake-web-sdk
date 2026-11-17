@@ -29,7 +29,8 @@ export type SoundName =
 	| 'kraken'
 	| 'shipWheel'
 	| 'coinFlip'
-	| 'coinShuffle';
+	| 'coinShuffle'
+	| 'openPopup';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
@@ -77,6 +78,8 @@ const SOURCES: Record<SoundName, string> = {
 	// The coins of that fountain being thrown: the same game's win coin shower's bed, as its win coins
 	// start spawning (apps/plinko/static/sound/coin_shuffle.mp3). A SPRITE window.
 	coinShuffle: staticUrl('sound/coin_shuffle.mp3'),
+	// The win popup arriving: Willy's own (apps/plinko/static/sound/openPopup.mp3).
+	openPopup: staticUrl('sound/openPopup.mp3'),
 };
 
 /**
@@ -166,6 +169,7 @@ const MIX: Record<SoundName, number> = {
 	// Both at plinko's own level (its win shower plays them at full volume).
 	coinFlip: 1,
 	coinShuffle: 1,
+	openPopup: 1,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
