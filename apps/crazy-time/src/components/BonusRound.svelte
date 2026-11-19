@@ -15,7 +15,7 @@
 	import type { BookEventRoom } from '../game/typesBookEvent';
 	import { playSound, setMusicScene } from '../game/sound';
 	import { isReplay } from '../game/replay';
-	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
+	import { staticUrl } from '../lib/staticUrl';
 	import { adoptVideo, releaseVideo, type VideoKey } from '../lib/preloadAssets';
 	import type { SceneKey } from '../lib/spine/backdropScenes';
 
@@ -25,7 +25,6 @@
 	import RoomOceanVoyageV2 from './rooms/RoomOceanVoyageV2.svelte';
 	import MultiplierBurst from './rooms/MultiplierBurst.svelte';
 	import SpineBackdrop from './SpineBackdrop.svelte';
-	import RoomHint from './rooms/RoomHint.svelte';
 
 	type Props = {
 		/** Cash value of one chip. Nothing on this screen says money any more; kept for the caller. */
@@ -54,8 +53,11 @@
 		 * Voyage's ship, wiping it away with VoyageReveal's `leave`). False keeps the slide.
 		 */
 		coverExit?: (room: RoomSpot, screen: HTMLElement | null) => Promise<boolean>;
-		/** True for the whole time the screen is up. */
-		onOpenChange?: (open: boolean) => void;
+		/**
+		 * True for the whole time the screen is up. Opening, it may hand back the cover still coming
+		 * off a `lit` screen: the room's title waits for it, so nothing starts under the cover.
+		 */
+		onOpenChange?: (open: boolean) => Promise<void> | void;
 	};
 	let {
 		portrait = false,
@@ -219,65 +221,234 @@
 	};
 
 	/**
-	 * The room's Top Slot multiplier, brought on once the screen is in — bought or landed on the
-	 * wheel, whenever the Top Slot multiplied it. It is shown on a rope-framed board (`small_frame`),
-	 * the words BONUS MULTIPLIER over the number (`multBoard`): up big in the middle of the room with
-	 * a line under it saying what it does, left there to be read; then the line goes, and the whole
-	 * board is carried up and shrunk onto the small copy of itself over the skull at the top of the
-	 * title frame (`.ts`), which stays there for the round. The `.ts` board is laid out the whole time
-	 * but kept invisible until the carried one lands on it, so the flight is aimed at the box it will
-	 * actually occupy.
+	 * The room's Top Slot multiplier — bought or landed on the wheel, whenever the Top Slot multiplied
+	 * it: REWARD / MULTIPLIER over the number, all in the multiplier's own hand (`.mult-badge`), with
+	 * no board behind them (`multTag`), each line the same width (`sameWidth`). It comes on over the room's name while the name is still big in
+	 * the middle, and is slammed onto the middle of the sign's bottom rope (`copyTsEl`, the copy's
+	 * `.ts`); from there it rides up into the header with the name, and the header's own `.ts` is
+	 * shown when the two land.
 	 */
-	let introShown = $state(false);
-	/** The line under the big board, faded out (RoomHint's `shown`) just before the board moves. */
-	let introSaid = $state(false);
+	/**
+	 * REWARD / MULTIPLIER / the number, each line cut to exactly the same width of LETTERING
+	 * (`TAG_WIDTH_EM` of the tag's own font size), centred on the same line, so the three stack as one
+	 * block. A line's box is no good for this: it carries air at both ends (`.mult-badge`'s padding
+	 * and letter-spacing) and every glyph its own side bearings, which grow with the size — the big
+	 * number came out visibly narrower and off to one side. So the ink is measured instead
+	 * (`measureText`'s bounding box, at 100px in the line's own font), each line is sized to bring
+	 * its ink to the width, and nudged sideways by however far its ink sits off its box's middle.
+	 * All of it in em, so it holds at any size the tag is drawn at and only has to be worked out
+	 * once the font has loaded.
+	 */
+	const TAG_WIDTH_EM = 3.4;
+	/** `.mult-badge` (table.scss): padding before the first letter, and letter-spacing, in em. */
+	const BADGE_PAD_EM = 0.06;
+	const BADGE_SPACING_EM = 0.06;
+	let inkCtx: CanvasRenderingContext2D | null | undefined;
+	/** A line's lettering in em of its own size: how wide, and how far its middle sits off the box's. */
+	const inkOf = (line: HTMLElement): { width: number; offset: number } | null => {
+		const fill = line.querySelector<HTMLElement>('.mult-fill');
+		if (!fill) return null;
+		inkCtx ??= document.createElement('canvas').getContext('2d');
+		if (!inkCtx) return null;
+		const style = getComputedStyle(fill);
+		inkCtx.font = `${style.fontWeight} 100px ${style.fontFamily}`;
+		const raw = fill.textContent ?? '';
+		const text = style.textTransform === 'uppercase' ? raw.toUpperCase() : raw;
+		const m = inkCtx.measureText(text);
+		const gaps = BADGE_SPACING_EM * (text.length - 1);
+		const left = -m.actualBoundingBoxLeft / 100 + BADGE_PAD_EM;
+		const right = m.actualBoundingBoxRight / 100 + gaps + BADGE_PAD_EM;
+		const box = BADGE_PAD_EM + m.width / 100 + BADGE_SPACING_EM * text.length;
+		return { width: right - left, offset: box / 2 - (left + right) / 2 };
+	};
+	const sameWidth = (node: HTMLElement) => {
+		const fit = () => {
+			for (const line of node.querySelectorAll<HTMLElement>('.tag-line')) {
+				const ink = inkOf(line);
+				if (!ink || ink.width <= 0) continue;
+				const size = TAG_WIDTH_EM / ink.width;
+				line.style.fontSize = `${size.toFixed(4)}em`;
+				line.style.translate = `${ink.offset.toFixed(4)}em 0`;
+			}
+		};
+		fit();
+		void document.fonts?.ready.then(fit);
+	};
 	let tsLanded = $state(true);
-	let introEl: HTMLElement | undefined = $state();
-	let tsEl: HTMLElement | undefined = $state();
-	/** The board the multiplier is shown on: `small_frame.png` cropped to its rope (1167×744). */
-	const BOARD_ART = staticCssUrl('img/small_frame.webp');
-	/** How long the whole board — and the line under it — is held up in the middle to be read; then
-	    the line fades before the board moves. */
-	const INTRO_HOLD_MS = 3000;
-	const INTRO_SAID_OFF_MS = 300;
-	const INTRO_FLY_MS = 750;
-	/** What the multiplier does, under the big board: the Top Slot multiplies what the room pays.
-	    Broken into two lines (RoomHint wants its lines given) so it fits a phone's width too. */
-	const introLines = (multiplier: number) => ['Rewards are multiplied', `by x${multiplier} this round!`];
+	let slamShown = $state(false);
+	let slamEl: HTMLElement | undefined = $state();
+	let copyTsEl: HTMLElement | undefined = $state();
+	/** How long the name is up on its own before the multiplier comes on over it. */
+	const MULT_AFTER_TITLE_MS = 2000;
+	const SLAM_POP_MS = 320;
+	const SLAM_HOLD_MS = 600;
+	const SLAM_MS = 340;
+	/** After the hit, before the name (multiplier and all) goes up to the header. */
+	const SLAM_SETTLE_MS = 700;
 
-	const bringOnMultiplier = async () => {
-		introShown = true;
-		playSound('notify');
+	const slamMultiplier = async () => {
+		slamShown = true;
 		await tick();
-		introSaid = true;
-		await waitForTimeout(INTRO_HOLD_MS);
-		// The line under it goes first, so it is the board alone that moves.
-		introSaid = false;
-		await waitForTimeout(INTRO_SAID_OFF_MS);
-		const from = introEl?.getBoundingClientRect();
-		const to = tsEl?.getBoundingClientRect();
-		if (introEl && from?.width && to?.width) {
-			// Rects are on the screen, and the frame is zoomed to fit it: a translate is in the frame's
-			// own pixels, so the distance is taken back out of the zoom (layout width vs drawn width).
-			const zoom = introEl.offsetWidth ? from.width / introEl.offsetWidth : 1;
-			const dx = (to.left + to.width / 2 - (from.left + from.width / 2)) / zoom;
-			const dy = (to.top + to.height / 2 - (from.top + from.height / 2)) / zoom;
-			playSound('whoosh');
-			// The whole board — frame, words and number — carried up and shrunk onto its small copy.
-			const frames = [
-				{ translate: '0 0', scale: 1 },
-				{ translate: `${dx}px ${dy}px`, scale: to.width / from.width },
-			];
-			await introEl
-				.animate(frames, {
-					duration: INTRO_FLY_MS,
-					easing: 'cubic-bezier(0.32, 0.72, 0.24, 1)',
-					fill: 'forwards',
-				})
+		const el = slamEl;
+		const target = copyTsEl;
+		if (el && target) {
+			playSound('notify');
+			await el
+				.animate(
+					[
+						{ scale: 0.3, opacity: 0 },
+						{ scale: 1.12, opacity: 1, offset: 0.65 },
+						{ scale: 1, opacity: 1 },
+					],
+					{ duration: SLAM_POP_MS, easing: 'ease-out', fill: 'forwards' },
+				)
 				.finished.catch(() => undefined);
+			await waitForTimeout(SLAM_HOLD_MS);
+			const from = el.getBoundingClientRect();
+			const to = target.getBoundingClientRect();
+			if (from.width && to.width) {
+				// On the screen, through the frame's zoom: the translate is in the frame's own pixels.
+				const zoom = el.offsetWidth ? from.width / el.offsetWidth : 1;
+				const dx = (to.left + to.width / 2 - (from.left + from.width / 2)) / zoom;
+				const dy = (to.top + to.height / 2 - (from.top + from.height / 2)) / zoom;
+				playSound('whoosh', 1.2, 0.7);
+				// Gathering speed all the way in: a slam, not a glide.
+				await el
+					.animate(
+						[
+							{ translate: '0 0', scale: 1, opacity: 1 },
+							{ translate: `${dx}px ${dy}px`, scale: to.width / from.width, opacity: 1 },
+						],
+						{ duration: SLAM_MS, easing: 'cubic-bezier(0.6, 0, 0.9, 0.5)', fill: 'forwards' },
+					)
+					.finished.catch(() => undefined);
+			}
 		}
 		tsLanded = true;
-		introShown = false;
+		slamShown = false;
+		playSound('boom', 1.1, 0.8);
+		// The sign takes the hit, and the multiplier flashes as it sticks.
+		titleEl?.animate(
+			[
+				{ translate: '0 0' },
+				{ translate: '0 2.5%' },
+				{ translate: '0 -1.2%' },
+				{ translate: '0 0.5%' },
+				{ translate: '0 0' },
+			],
+			{ duration: 380, easing: 'ease-out' },
+		);
+		copyTsEl?.animate(
+			[
+				{ scale: 1.3, filter: 'brightness(2.2)' },
+				{ scale: 1, filter: 'brightness(1)' },
+			],
+			{ duration: 420, easing: 'ease-out' },
+		);
+		await waitForTimeout(SLAM_SETTLE_MS);
+	};
+
+	/**
+	 * The room's name, before anything else in it moves: a copy of the title frame stands big in the
+	 * middle of the room over a dimmed backdrop from the screen's first frame, so it comes on WITH the
+	 * entrance (slid, wiped or dropped in with the screen, or uncovered under the cover). Once the
+	 * entrance is over it glows for a beat, then is carried up and shrunk onto the real frame in the
+	 * header (`plateEl`),
+	 * which is laid out the whole time but kept invisible until the copy lands on it. The real one
+	 * never moves, so everything the rooms measure against it (Pirate Plinko's cannon tuck, the
+	 * voyage's caption) is where it will be from the first frame.
+	 */
+	let titleShown = $state(false);
+	let titleLanded = $state(true);
+	let titleEl: HTMLElement | undefined = $state();
+	let titleDimEl: HTMLElement | undefined = $state();
+	let plateEl: HTMLElement | undefined = $state();
+	/** The beat the name is held in the middle once the entrance is over, before it moves. */
+	const TITLE_HOLD_MS = 600;
+	/**
+	 * How much bigger the name stands in the middle than in the header: 1.75 in landscape, 1.08 in
+	 * portrait (where the plate is already most of the screen across) — unless the screen is too short
+	 * to fit the name AND the multiplier held under it (`.mult-slam`), when both come down together.
+	 *
+	 * Everything here is in vw, against the screen's height in vw (`screenRatio` x 100). From the middle
+	 * down: half the sign (its height is its width over 2.373), a gap (`SLAM_GAP_VW`), and the held
+	 * multiplier, about 4.3em tall at `SLAM_OVER` times the size it lands at (`.ts`: 1.7vw, 6.6vw in
+	 * portrait, x the same `titleBig`) — all of which scale with `titleBig`, so it is solved for.
+	 */
+	const SLAM_GAP_VW = 2;
+	const SLAM_OVER = 1.15;
+	let screenRatio = $state(0.5625);
+	const titleBig = $derived.by(() => {
+		const [plate, ts, cap] = portrait ? [80.6, 6.6, 1.08] : [28.6, 1.7, 1.75];
+		const perBig = plate / 2.373 / 2 + 4.3 * ts * SLAM_OVER;
+		const room = 50 * screenRatio - SLAM_GAP_VW - 1.5;
+		return Math.max(0.6, Math.min(cap, room / perBig));
+	});
+	$effect(() => {
+		const el = screenEl;
+		if (!el) return;
+		const measure = () => {
+			if (el.offsetWidth) screenRatio = el.offsetHeight / el.offsetWidth;
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		return () => observer.disconnect();
+	});
+	const TITLE_FLY_MS = 720;
+
+	const bringOnTitle = async (multiplied: boolean, upAt: number) => {
+		// Already up, in the middle, since the screen was (see the `bonusRound` handler).
+		titleLanded = false;
+		titleShown = true;
+		await tick();
+		const el = titleEl;
+		const plate = plateEl;
+		if (el && plate) {
+			const big = titleBig;
+			if (multiplied) {
+				// The name has been up since the screen's first frame; the multiplier comes on two
+				// seconds after that, and never before the entrance is over.
+				await waitForTimeout(Math.max(0, MULT_AFTER_TITLE_MS - (performance.now() - upAt)));
+				await slamMultiplier();
+			} else {
+				el.classList.add('emph');
+				await waitForTimeout(TITLE_HOLD_MS);
+				el.classList.remove('emph');
+			}
+			const from = el.getBoundingClientRect();
+			const to = plate.getBoundingClientRect();
+			if (from.width && to.width) {
+				// Rects are on the screen, and the frame is zoomed to fit it: the translate is in the
+				// frame's own pixels, so the distance is taken back out of the zoom. The plate is
+				// unscaled, so its drawn width over its layout width IS the zoom.
+				const zoom = plate.offsetWidth ? to.width / plate.offsetWidth : 1;
+				const dx = (to.left + to.width / 2 - (from.left + from.width / 2)) / zoom;
+				const dy = (to.top + to.height / 2 - (from.top + from.height / 2)) / zoom;
+				playSound('whoosh');
+				titleDimEl?.animate([{ opacity: 1 }, { opacity: 0 }], {
+					duration: TITLE_FLY_MS,
+					fill: 'forwards',
+				});
+				await el
+					.animate(
+						[
+							{ translate: '0 0', scale: big },
+							{ translate: `${dx}px ${dy}px`, scale: 1 },
+						],
+						{
+							duration: TITLE_FLY_MS,
+							easing: 'cubic-bezier(0.32, 0.72, 0.24, 1)',
+							fill: 'forwards',
+						},
+					)
+					.finished.catch(() => undefined);
+			}
+		}
+		titleLanded = true;
+		tsLanded = true;
+		titleShown = false;
+		slamShown = false;
 		playSound('pop');
 	};
 
@@ -286,12 +457,17 @@
 			const handed = entrance === 'wipe' || entrance === 'descend';
 			enteredAs = handed && !enter ? 'slide' : entrance;
 			held = enteredAs === 'wipe' || enteredAs === 'descend';
-			// Every room the Top Slot multiplied brings its multiplier on (`bringOnMultiplier`) before it
+			// Every room the Top Slot multiplied brings its multiplier on (`slamMultiplier`) before it
 			// plays — a bought room, whose Top Slot the table never showed, and a wheel landing alike.
 			const intro = event.room.topSlotMultiplier > 1;
 			tsLanded = !intro;
-			introShown = false;
-			onOpenChange?.(true);
+			slamShown = false;
+			// Hidden from the first frame: the name is brought on once the screen is in.
+			// The name is up in the middle from the first frame: it comes on with the screen.
+			titleLanded = false;
+			titleShown = true;
+			const titleUpAt = performance.now();
+			const opening = onOpenChange?.(true);
 			result = null;
 			resultFrom = null;
 			resultShown = true;
@@ -308,10 +484,13 @@
 				held = false;
 			} else {
 				held = false;
-				await waitForTimeout(700); // screen slide-in
+				// The screen sliding in — or, under a cover, the cover coming all the way off it.
+				await Promise.all([waitForTimeout(700), Promise.resolve(opening).catch(() => undefined)]);
 			}
 			try {
-				if (intro) await bringOnMultiplier();
+				// Nothing in the room starts — no clock, no pick — until the name and the multiplier are
+				// both up where they stay: the room's `play` is what starts its clock.
+				await bringOnTitle(intro, titleUpAt);
 				// A room resolves the moment it settles — for Pirate Plinko that is the frame the ball drops
 				// into the pocket, with the card lit and the land sound going. The number is held back
 				// from that frame rather than printed over it: the landing gets a beat of its own,
@@ -330,22 +509,26 @@
 				}
 				current = null;
 				closing = false;
-				onOpenChange?.(false);
+				titleShown = false;
+				titleLanded = true;
+				// The round (and its win) waits for the way out to finish: an icon flown home onto the
+				// table's wheel, say.
+				await Promise.resolve(onOpenChange?.(false)).catch(() => undefined);
 			}
 		},
 	});
 </script>
 
-<!-- The multiplier's board: the rope-framed timber, BONUS MULTIPLIER across it and the number under.
-     All in `em`, so whatever sets the font size sets the board's: big in the middle of the room
-     (`.intro-card`), small over the skull (`.ts`). -->
-{#snippet multBoard(multiplier: number)}
-	<div class="board-art"></div>
-	<div class="board-label">Bonus Multiplier</div>
-	<div class="mult-badge">
-		<span class="mult-stroke" aria-hidden="true">{multiplier}x</span>
-		<span class="mult-fill">{multiplier}x</span>
-	</div>
+<!-- The multiplier: BONUS MULTIPLIER over the number, in the multiplier's own hand and no board.
+     All in `em`, so whatever sets the font size sets its size: big in the middle (`.mult-slam`),
+     small over the skull (`.ts`). -->
+{#snippet multTag(multiplier: number)}
+	{#each ['Reward', 'Multiplier', `${multiplier}x`] as line, index (index)}
+		<div class="mult-badge tag-line" class:tag-value={index === 2}>
+			<span class="mult-stroke" aria-hidden="true">{line}</span>
+			<span class="mult-fill">{line}</span>
+		</div>
+	{/each}
 {/snippet}
 
 {#if current}
@@ -371,21 +554,21 @@
 		{/if}
 		<div class="room-scrim"></div>
 
-		<div class="header">
-			<div class="plate" style="--title-frame:url('{TITLE_FRAME}')">
+		<div class="header" class:multiplied={current.room.topSlotMultiplier > 1}>
+			<div
+				class="plate"
+				class:waiting={!titleLanded}
+				bind:this={plateEl}
+				style="--title-frame:url('{TITLE_FRAME}')"
+			>
 				<div class="title" style="font-size:{titleSizeVw(SPOT_LABEL[spot])}vw">
 					{SPOT_LABEL[spot]}
 				</div>
 				{#if current.room.topSlotMultiplier > 1}
-					<!-- Over the skull at the top of the sign: the multiplier's board, small, where the big one
-					     brought on in the middle of the room lands and stays. -->
-					<div
-						class="ts mult-board"
-						class:waiting={!tsLanded}
-						bind:this={tsEl}
-						style="--board-art:{BOARD_ART}"
-					>
-						{@render multBoard(current.room.topSlotMultiplier)}
+					<!-- Under the middle of the sign's bottom rope, where the multiplier was slammed onto the name
+					     in the middle of the room, and rode up with it. -->
+					<div class="ts mult-tag" class:waiting={!tsLanded} use:sameWidth>
+						{@render multTag(current.room.topSlotMultiplier)}
 					</div>
 				{/if}
 			</div>
@@ -435,19 +618,35 @@
 			class:folded={current.room.type === 'piratePlinkoRoom'}
 		></div>
 
-		{#if introShown}
-			<div class="intro-mult">
-				<!-- The board, big, and under it what it does; the whole board is what flies (`introEl`). -->
-				<div class="intro-card mult-board" bind:this={introEl} style="--board-art:{BOARD_ART}">
-					{@render multBoard(current.room.topSlotMultiplier)}
+		{#if titleShown}
+			<!-- The room's name, big in the middle first (`bringOnTitle`); the copy is what flies. -->
+			<div class="title-intro">
+				<div class="title-dim" bind:this={titleDimEl}></div>
+				<div
+					class="plate title-copy"
+					bind:this={titleEl}
+					style="--title-frame:url('{TITLE_FRAME}'); scale:{titleBig}"
+				>
+					<div class="title" style="font-size:{titleSizeVw(SPOT_LABEL[spot])}vw">
+						{SPOT_LABEL[spot]}
+					</div>
+					{#if current.room.topSlotMultiplier > 1}
+						<div class="ts mult-tag" class:waiting={!tsLanded} bind:this={copyTsEl} use:sameWidth>
+							{@render multTag(current.room.topSlotMultiplier)}
+						</div>
+					{/if}
 				</div>
-				<div class="intro-said">
-					<RoomHint
-						lines={introLines(current.room.topSlotMultiplier)}
-						shown={introSaid}
-						size="1.4vw"
-						portraitSize="3.8vw"
-					/>
+			</div>
+		{/if}
+
+		{#if slamShown}
+			<!-- The multiplier, up big over the name before it is slammed onto it (`slamMultiplier`). -->
+			<div
+				class="mult-slam"
+				style="--big:{titleBig}; --slam-over:{SLAM_OVER}; --slam-gap:{SLAM_GAP_VW}vw"
+			>
+				<div class="mult-tag" bind:this={slamEl} use:sameWidth>
+					{@render multTag(current.room.topSlotMultiplier)}
 				</div>
 			</div>
 		{/if}
@@ -636,105 +835,103 @@
 		align-items: center;
 		gap: 0.3vw;
 	}
-	/* The multiplier's small board, laid over the skull at the top of the sign, dead centre. Only the
-	   size is set here — the board is `em`-based (`.mult-board`). Centred a little above the head's
-	   own middle (0.235 of the picture), and small enough that its foot stays clear of the room's
-	   name on the timber below it. */
-	/* `.mult-board` is laid out `relative` (and comes later), so this names both to stay absolute. */
-	.ts.mult-board {
+	/* The multiplier over the skull at the top of the sign, dead centre. Only the size is set here —
+	   the tag is `em`-based (`.mult-tag`). */
+	/* Over the middle of the sign's bottom edge: the words start on the bottom planks and lie across
+	   the rope (0.62-0.82 of the picture), and the number hangs under it. */
+	.ts.mult-tag {
 		position: absolute;
-		top: 20%;
+		top: 62%;
 		left: 50%;
-		translate: -50% -50%;
+		translate: -50% 0;
 		font-size: 1.7vw;
 	}
-	/* The words on the small board, a little larger against its number than on the big one: at this
-	   size the big board's proportion leaves them too small to read. Still inside the rope. */
-	.ts .board-label {
-		font-size: 0.33em;
-		letter-spacing: 0.02em;
+	/* Hung under the sign's bottom rope, so the not-in line goes under it rather than over it. */
+	.header.multiplied .badges {
+		top: 116%;
 	}
 	/* Laid out but not shown, while the room's multiplier is still on its way up to it. */
+	/* Laid out but not shown, while the room's name is still on its way up to it. */
+	.plate.waiting {
+		visibility: hidden;
+	}
+	/* The name, up big in the middle of the room before it is carried to the header. */
+	.title-intro {
+		position: absolute;
+		inset: 0;
+		z-index: 7;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+	.title-dim {
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(
+			ellipse at 50% 50%,
+			rgba(0, 0, 0, 0.35) 0%,
+			rgba(0, 0, 0, 0.7) 75%
+		);
+	}
+	/* With no margin: centred on its own box, which is the box the real plate's rect is. */
+	.title-copy {
+		margin: 0;
+	}
+	/* Held up in the middle: a warm glow breathing round the sign. */
+	.title-copy:global(.emph) {
+		animation: title-glow 600ms ease-in-out both;
+	}
+	@keyframes title-glow {
+		0%,
+		100% {
+			filter: drop-shadow(0 0 0 rgba(255, 210, 90, 0));
+		}
+		45% {
+			filter: drop-shadow(0 0 1.6vw rgba(255, 210, 90, 0.85));
+		}
+	}
+	:global(html[data-tier='lite']) .title-copy:global(.emph) {
+		animation: none;
+	}
 	.ts.waiting {
 		visibility: hidden;
 	}
-	/* The room's multiplier, up big in the middle before it is carried to `.ts`: the same size
-	   as the round's result (`.centre-result`), popped in past its size and settled. */
-	.intro-mult {
+	/* The multiplier, held under the sign before it is slammed up onto it: hung a gap below the name's
+	   foot (the name stands in the middle at `titleBig`, `--big`; half of it is 28.6vw / 2.373 / 2 =
+	   6.03vw of it), a little bigger than the size it lands at on the sign (`.ts`, at the same
+	   `--big`), so the slam is a stamp rather than a grow. `titleBig` is worked out so this fits on
+	   the screen. Placed with the layer, not a translate, because the slam animates the tag's own
+	   `translate`. */
+	.mult-slam {
 		position: absolute;
-		inset: 0;
-		z-index: 6;
+		left: 0;
+		right: 0;
+		top: calc(50% + 6.03vw * var(--big) + var(--slam-gap));
+		z-index: 8;
 		display: flex;
-		flex-direction: column;
-		align-items: center;
 		justify-content: center;
-		gap: 0.4vw;
-		font-size: 8vw;
 		pointer-events: none;
 	}
-	/* The big board pops in past its size and settles, words, number and all. */
-	.intro-card {
-		animation: intro-mult-in 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+	.mult-slam .mult-tag {
+		font-size: calc(1.7vw * var(--big) * var(--slam-over));
 	}
-	/* The line under it takes its own size (RoomHint's `size`), not the board's. */
-	.intro-said {
-		font-size: 1rem;
+	.mult-slam .mult-tag {
+		opacity: 0;
 	}
-	/* The board, sized off the number (`em`): wide enough for the words across it and the number
-	   under them on the planks inside the rope. */
-	.mult-board {
-		position: relative;
-		width: 4em;
-		aspect-ratio: 1167 / 744;
+	/* BONUS MULTIPLIER over the number, both in the multiplier's own hand: the words are the same
+	   letters, smaller. */
+	.mult-tag {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
-		/* The planks run from 0.12 to 0.9 of the picture's height: the words and the number are
-		   centred on that rather than on the rope. */
-		padding-top: 0.05em;
-	}
-	.board-art {
-		position: absolute;
-		inset: 0;
-		background: var(--board-art) no-repeat center / 100% 100%;
-		filter: drop-shadow(0 0.04em 0.08em rgba(0, 0, 0, 0.6));
-	}
-	/* BONUS MULTIPLIER, in the title frame's lettering (`.title`): gold, edged in dark brown, glowing. */
-	.board-label {
-		position: relative;
-		margin-bottom: 0.08em;
-		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
-		font-size: 0.28em;
-		font-weight: 400;
-		letter-spacing: 0.04em;
 		line-height: 1;
-		text-transform: uppercase;
 		white-space: nowrap;
-		color: #f7c948;
-		paint-order: stroke;
-		-webkit-text-stroke: 0.12em #3a1c07;
-		text-shadow:
-			0 0 0.25em rgba(255, 216, 77, 0.85),
-			0 0.06em 0.1em rgba(0, 0, 0, 0.9);
 	}
-	.mult-board .mult-badge {
-		position: relative;
-		white-space: nowrap;
+	/* Each line's size is set by `sameWidth`; these only close up the stack. */
+	.mult-tag .tag-line {
 		line-height: 1;
-	}
-	@keyframes intro-mult-in {
-		from {
-			scale: 0.2;
-			opacity: 0;
-		}
-		40% {
-			opacity: 1;
-		}
-		to {
-			scale: 1;
-			opacity: 1;
-		}
+		margin-bottom: 0.04em;
 	}
 	.not-in {
 		font-size: 0.9vw;
@@ -780,7 +977,9 @@
 		font-size: 2.2vw;
 	}
 	:global(.game.portrait) .ts {
-		font-size: 4.5vw;
+		/* Bigger here, so started a little lower to keep the words off the room's name. */
+		top: 67%;
+		font-size: 6.6vw;
 	}
 	:global(.game.portrait) .footer {
 		height: 11vw;
@@ -788,9 +987,15 @@
 		   the rail rather than on it, and the rooms were laid out against that. */
 		margin-bottom: var(--rail-h, 0px);
 	}
-	:global(.game.portrait) .centre-result,
-	:global(.game.portrait) .intro-mult {
+	:global(.game.portrait) .centre-result {
 		font-size: 19vw;
+	}
+	/* The sign is 80.6vw across in portrait: 16.98vw from its middle to its foot at 1x. */
+	:global(.game.portrait) .mult-slam {
+		top: calc(50% + 16.98vw * var(--big) + var(--slam-gap));
+	}
+	:global(.game.portrait) .mult-slam .mult-tag {
+		font-size: calc(6.6vw * var(--big) * var(--slam-over));
 	}
 	/* Pirate Plinko folds its footer away entirely, so there is nothing to lift off the rail. */
 	:global(.game.portrait) .footer.folded {

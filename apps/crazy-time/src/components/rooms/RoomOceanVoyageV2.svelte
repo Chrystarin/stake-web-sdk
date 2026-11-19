@@ -379,17 +379,24 @@
 			H = el.clientHeight || H;
 			// The caption hangs just under BonusRound's title frame, wherever that falls on this screen.
 			// Both move with the screen as it slides in, so the gap between them is what is kept.
-			const plate = el.closest('.screen')?.querySelector('.plate');
+			const plate = el.closest('.screen')?.querySelector('.header .plate');
 			if (plate) {
 				const box = el.getBoundingClientRect();
 				const sign = plate.getBoundingClientRect();
+				// The Top Slot's multiplier hangs under the sign's bottom rope (BonusRound's `.ts`): the
+				// caption goes under that instead. Laid out from the first frame, hidden or not.
+				const tag = plate.querySelector('.ts')?.getBoundingClientRect();
+				const foot = Math.max(sign.top + sign.height * PLATE_FOOT, tag ? tag.bottom : 0);
 				const zoom = box.width / W || 1;
-				plateFoot = (sign.top + sign.height * PLATE_FOOT - box.top) / zoom;
+				plateFoot = (foot - box.top) / zoom;
 			}
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(el);
+		// The multiplier under the sign settles its size once its font is in (BonusRound's `sameWidth`).
+		const tag = el.closest('.screen')?.querySelector<HTMLElement>('.header .ts');
+		if (tag) observer.observe(tag);
 		return () => observer.disconnect();
 	});
 
@@ -977,7 +984,7 @@
 		const hubY = r.top + r.height * (WHEEL_PX.hubY / WHEEL_PX.h);
 		return (Math.atan2(event.clientY - hubY, event.clientX - (r.left + r.width / 2)) * 180) / Math.PI;
 	};
-	const hands = $derived(interactive && ended === null && !kraken && reached < depths);
+	const hands = $derived(boarded && interactive && ended === null && !kraken && reached < depths);
 	/** Set the first time the player takes the wheel: the instruction has done its job and goes. */
 	let steered = $state(false);
 	const grab = (event: PointerEvent) => {
@@ -1292,9 +1299,9 @@
 			<RoomHint size={HINT_SIZE} portraitSize="7.4vw">Kraken encountered!</RoomHint>
 		{:else if !kraken && reached < depths}
 			{#if interactive}
-				<RoomHint lines={HINT} shown={!steered} size={HINT_SIZE} portraitSize="7.4vw" />
+				<RoomHint lines={HINT} shown={boarded && !steered} size={HINT_SIZE} portraitSize="7.4vw" />
 			{:else}
-				<RoomHint lines={['Sailing on']} size={HINT_SIZE} portraitSize="7.4vw" />
+				<RoomHint lines={['Sailing on']} shown={boarded} size={HINT_SIZE} portraitSize="7.4vw" />
 			{/if}
 		{/if}
 	</div>

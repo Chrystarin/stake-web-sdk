@@ -461,6 +461,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	const currentBet = $derived(stateGameDerived.currentBet());
 	const idle = $derived(context.stateXstateDerived.isIdle() && !stateGame.rolling);
 	const settled = $derived(stateGame.resultReady);
+	/** The win is being shown (`winShow`, popup and all): PLAY AGAIN waits until it is done. */
+	let winShowing = $state(false);
 	let clearing = $state(false);
 	let payingOut = $state(false);
 	/** True while the bonus screen is down over the table. */
@@ -1107,7 +1109,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		};
 	};
 
-	const onBonusOpenChange = (open: boolean) => {
+	const onBonusOpenChange = (open: boolean): Promise<void> | void => {
 		bonusUp = open;
 		if (open && restoreIconOnOpen) {
 			// The table is out of sight once the screen is over it: the badge can go back unseen.
@@ -1122,8 +1124,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		}
 		if (open) {
 			// Give the room its first paint under the cover before the cover lifts off it.
+			// Handed back to the screen, whose title (and so the room's clock) waits for it.
 			if (revealLit)
-				void tick()
+				return tick()
 					.then(() => waitForTimeout(150))
 					.then(endReveal);
 			return;
@@ -1142,7 +1145,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 				shakeWheel();
 				background?.lurch();
 			};
-			void tick()
+			// Handed back to the screen, which holds the round (and so the win popup) until the icon is
+			// home on its wedge.
+			return tick()
 				.then(() => waitForTimeout(150))
 				.then(() =>
 					by === 'ball'
@@ -1192,8 +1197,17 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	const controlsHidden = $derived(!bettingOpen || stateGame.buying !== null);
 	const canSpin = $derived(bettingOpen && currentBet !== null && !stateGame.openRoundError);
 	const canReplay = $derived(replayRound !== null && idle && !replayStarting);
+	/**
+	 * The round has its result but is still being played out — the win popup, or the gap between the
+	 * result arriving and the popup coming up. PLAY AGAIN is held back until it is over.
+	 */
+	const wrappingUp = $derived(settled && (winShowing || !idle));
 	const confirmDisabled = $derived(
-		settled ? clearing || payingOut || replayStarting : replayMode ? !canReplay : !canSpin,
+		settled
+			? wrappingUp || clearing || payingOut || replayStarting
+			: replayMode
+				? !canReplay
+				: !canSpin,
 	);
 	const clearDisabled = $derived(
 		clearing || payingOut || (!settled && (!idle || backedCount === 0)),
@@ -2467,15 +2481,14 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	let winCash = $state(0);
 	/**
 	 * The round's settlement, kept on the rail over the Total Bet from the moment the win is shown
-	 * until the next round is staked (`clearLastWin`): what the round returned and what that is as
-	 * a multiple of the Total Bet. Straight off the book's amount (`winShow`), never worked out on
+	 * until the next round is staked (`clearLastWin`): what the round returned. Straight off the book's amount (`winShow`), never worked out on
 	 * the client, so it is the figure the RGS settled. `shown` counts up to `amount` once.
 	 */
-	let lastWin = $state<{ id: number; amount: number; mult: number; shown: number } | null>(null);
+	let lastWin = $state<{ id: number; amount: number; shown: number } | null>(null);
 	const LAST_WIN_COUNT_MS = 700;
-	const showLastWin = (amount: number, mult: number) => {
+	const showLastWin = (amount: number) => {
 		const id = (lastWin?.id ?? 0) + 1;
-		lastWin = { id, amount, mult, shown: 0 };
+		lastWin = { id, amount, shown: 0 };
 		const start = performance.now();
 		const step = () => {
 			if (lastWin?.id !== id) return;
@@ -2996,21 +3009,30 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			await waitForTimeout(isRoomSpot(event.spot) ? 900 : 700);
 		},
 		winShow: async (emitterEvent) => {
-			// Book amounts are x100 in units of the chip, so cash scales by betAmount.
-			winCash = (emitterEvent.amount / 100) * stateBet.betAmount;
-			playSound('win');
-			const multiplier = committedStake > 0 ? winCash / committedStake : 0;
-			if (winCash > 0 && !replayMode) showLastWin(winCash, multiplier);
-			// A big win gets Willy's full-screen popup; the tile's readout plays under it either way.
-			if (multiplier >= WIN_POPUP_MIN_MULT) {
-				winPopup = { id: ++winPopupId, amount: winCash, multiplier };
-				await waitForTimeout(WIN_POPUP_TOTAL_MS);
-				winPopup = null;
-				return;
+			winShowing = true;
+			try {
+				await showWin(emitterEvent.amount);
+			} finally {
+				winShowing = false;
 			}
-			await waitForTimeout(multiplier >= 20 ? 2600 : 1600);
 		},
 	});
+
+	const showWin = async (amount: number) => {
+		// Book amounts are x100 in units of the chip, so cash scales by betAmount.
+		winCash = (amount / 100) * stateBet.betAmount;
+		playSound('win');
+		const multiplier = committedStake > 0 ? winCash / committedStake : 0;
+		if (winCash > 0 && !replayMode) showLastWin(winCash);
+		// A big win gets Willy's full-screen popup; the tile's readout plays under it either way.
+		if (multiplier >= WIN_POPUP_MIN_MULT) {
+			winPopup = { id: ++winPopupId, amount: winCash, multiplier };
+			await waitForTimeout(WIN_POPUP_TOTAL_MS);
+			winPopup = null;
+			return;
+		}
+		await waitForTimeout(multiplier >= 20 ? 2600 : 1600);
+	};
 </script>
 
 <svelte:window onkeydown={onSpaceKey} />
@@ -3059,9 +3081,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 							<div class="bonus-bet last-win">
 								<span class="total-bet-lbl">Total Win</span>
 								<span class="total-bet-val last-win-val">{formatMoney(lastWin.shown)}</span>
-								{#if lastWin.mult > 0}
-									<span class="last-win-mult">{fmtMult(lastWin.mult)} Total Bet</span>
-								{/if}
 							</div>
 						{/key}
 					{/if}
@@ -3242,7 +3261,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					aria-hidden="true"
 				>
 					<span class="hub-cta"
-						>{stateGame.rolling || replayStarting
+						>{stateGame.rolling || replayStarting || wrappingUp
 							? '…'
 							: settled
 								? 'PLAY\nAGAIN'
@@ -4803,18 +4822,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			0 0.1vw 0.3vw rgba(0, 0, 0, 0.8),
 			0 0 0.8vw rgba(255, 200, 60, 0.55);
 	}
-	.last-win-mult {
-		font-family: 'Alexandria', sans-serif;
-		font-size: 0.95vw;
-		font-weight: 600;
-		color: #ffe14d;
-		white-space: nowrap;
-	}
 	.game.portrait .hud .last-win-val {
 		font-size: 4.8vw;
-	}
-	.game.portrait .last-win-mult {
-		font-size: 2.2vw;
 	}
 	@keyframes bonus-bet-in {
 		from {

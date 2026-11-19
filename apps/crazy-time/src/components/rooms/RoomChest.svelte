@@ -210,7 +210,11 @@
 		resolveOpen(index);
 	};
 
+	/** The room has been handed the round (`play`): the clock and its drain start together. */
+	let started = $state(false);
+
 	export const play = async (): Promise<number> => {
+		started = true;
 		const count = room.chests.length;
 		if (interactive) {
 			// One clock for the whole run, and it is the hint's drain. When it runs out the wait is
@@ -299,7 +303,7 @@
 	<RoomHint
 		lines={interactive ? HINT : ['Opening the chests']}
 		durationMs={interactive ? PICK_MS : null}
-		shown={winner === null}
+		shown={started && winner === null}
 		size={HINT_SIZE}
 	/>
 	<div class="grid">
