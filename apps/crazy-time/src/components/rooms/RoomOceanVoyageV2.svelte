@@ -241,7 +241,7 @@
 	    is centred in it. `pick` is the row a barrel's foot comes down to as it is taken: below the tip
 	    of the bow's spike (785) and above the rail (913), so the spike stands over the barrel as it is
 	    picked. */
-	const DECK_PX = { w: 1918, ring: 707, ringY: 1293, tip: 785, pick: 845 };
+	const DECK_PX = { w: 1918, h: 1505, ring: 707, ringY: 1293, tip: 785, pick: 845 };
 	/** The top of the deck's rail at its middle, in the deck picture's pixels. */
 	const DECK_RAIL_Y = 913;
 	/** How far a landscape deck is let down below the foot of the screen, as a share of the height. */
@@ -353,6 +353,10 @@
 	const CREAK_FADE_MS = 250;
 	/** What to tell the player at the helm. One line per drain — see `RoomHint`. */
 	const HINT = ['Steer the wheel', 'to pick barrels'];
+	/** The room's writing: the other rooms' size, but never taller than a share of the screen's height —
+	    on a very wide, short screen 2.6vw is a hundred pixels of type, which stands over the barrels
+	    laid out on the water below the plate. */
+	const HINT_SIZE = 'min(2.6vw, 4.8vh)';
 	/** The visible foot of BonusRound's title frame, as a share of its box (the rest is glow). */
 	const PLATE_FOOT = 0.866;
 
@@ -389,8 +393,15 @@
 		return () => observer.disconnect();
 	});
 
+	/**
+	 * The width the room's own pieces (cave, ship, barrels) are laid out in. A screen wider than 21:9
+	 * gets them kept to a 21:9 stage in its middle, rather than stretched out along it; the sky, sea
+	 * and mountains behind still fill the whole screen.
+	 */
+	const MAX_ASPECT = 21 / 9;
+	const VW = $derived(portrait ? W : Math.min(W, H * MAX_ASPECT));
 	/** The lanes' width: how much of the screen the playing field takes up. */
-	const PW = $derived(portrait ? W * 0.92 : Math.min(W * 0.56, H * 0.85));
+	const PW = $derived(portrait ? W * 0.92 : Math.min(VW * 0.56, H * 0.85));
 	/** Seconds on the water. */
 	let T = $state(0);
 	const rowStart = (i: number) => LEAD_SECONDS + i * ROW_SECONDS;
@@ -418,7 +429,7 @@
 		),
 	);
 	const caveAt = (p: number) => {
-		const w = W * (layout.startW + (layout.endW - layout.startW) * p);
+		const w = VW * (layout.startW + (layout.endW - layout.startW) * p);
 		const h = w / CAVE_ASPECT;
 		const foot0 = horizonY + layout.startFoot * H;
 		const foot = foot0 + (footEnd - foot0) * p;
@@ -493,10 +504,13 @@
 	 * float on the sea and never reach up onto the cave. Never above HORIZON_MIN of the height.
 	 */
 	const HORIZON_MIN = 0.3;
+	/** The water that is wanted between the cave's foot and the bow, in barrel heights: a barrel, the gap
+	    behind it, and room for the next row to be seen coming — about what a 16:9 screen has. */
+	const WATER_ROOM = 1.6;
 	const horizonY = $derived(
 		Math.max(
 			H * HORIZON_MIN,
-			Math.min(H * layout.horizon, hitY - gateH * (1 + ROW_GAP + 0.05) - layout.startFoot * H),
+			Math.min(H * layout.horizon, hitY - gateH * WATER_ROOM - layout.startFoot * H),
 		),
 	);
 	/** How far the sea takes to fade in at its top edge, over the haze at the foot of the sky. */
@@ -520,10 +534,24 @@
 	const helmW = $derived(wheelW * WHEEL_ART);
 	// Landscape: the screen's width — or, on a screen squarer than the deck allows (an iPad), as wide
 	// as it takes for the rigging to reach past the top of the screen rather than end in mid-air.
+	//
+	// Not so tall, though, that on a very wide, short screen the bow stands up the screen and takes
+	// the sea with it: the deck is only ever DECK_TALL screen heights from its top to its ring, and a
+	// screen wider than that allows has the deck drawn wider than it is tall (`deckScaleX`), its
+	// picture stretched across — the rail and rigging only run out to the sides — rather than scaled
+	// up by the width. 21:9 is under the limit and is unchanged.
+	const DECK_TALL = 1.65;
 	const deckScale = $derived(
-		portrait ? (wheelW * 1.25) / DECK_PX.ring : Math.max(W / DECK_PX.w, (H * (1 + DECK_SINK)) / DECK_PX.ringY),
+		portrait
+			? (wheelW * 1.25) / DECK_PX.ring
+			: Math.max(
+					Math.min(VW / DECK_PX.w, (DECK_TALL * H) / DECK_PX.ringY),
+					(H * (1 + DECK_SINK)) / DECK_PX.ringY,
+				),
 	);
-	const deckW = $derived(DECK_PX.w * deckScale);
+	/** The deck's scale across the screen: `deckScale`, or more where the screen is wider than that. */
+	const deckScaleX = $derived(portrait ? deckScale : Math.max(VW / DECK_PX.w, deckScale));
+	const deckW = $derived(DECK_PX.w * deckScaleX);
 	const deckTop = $derived(H - DECK_PX.ringY * deckScale + (portrait ? 0 : H * DECK_SINK));
 
 	/** The barrel of gold (`GOLD_PX`): its size in pixels per front-picture pixel, and where it stands —
@@ -1182,7 +1210,7 @@
 	     as one layer, in place from the first frame. -->
 	<div class="aboard">
 		<!-- The ship's deck, in front of the sea, the gates and the kraken, with the wheel set into its ring. -->
-		<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px" />
+		<img class="deck" src={DECK} alt="" draggable="false" style="left:{cx - deckW / 2}px; top:{deckTop}px; width:{deckW}px; height:{DECK_PX.h * deckScale}px" />
 
 		<!-- The barrel of gold, on the deck behind the wheel: the barrel's inside, the heap of coins rising
 		     out of it as barrels are collected, the barrel's body in front, and the total on its hoop. -->
@@ -1261,12 +1289,12 @@
 	     title frame. -->
 	<div class="caption" style="top:{plateFoot.toFixed(1)}px">
 		{#if ended === 'kraken'}
-			<RoomHint size="2.6vw" portraitSize="7.4vw">Kraken encountered!</RoomHint>
+			<RoomHint size={HINT_SIZE} portraitSize="7.4vw">Kraken encountered!</RoomHint>
 		{:else if !kraken && reached < depths}
 			{#if interactive}
-				<RoomHint lines={HINT} shown={!steered} size="2.6vw" portraitSize="7.4vw" />
+				<RoomHint lines={HINT} shown={!steered} size={HINT_SIZE} portraitSize="7.4vw" />
 			{:else}
-				<RoomHint lines={['Sailing on']} size="2.6vw" portraitSize="7.4vw" />
+				<RoomHint lines={['Sailing on']} size={HINT_SIZE} portraitSize="7.4vw" />
 			{/if}
 		{/if}
 	</div>
