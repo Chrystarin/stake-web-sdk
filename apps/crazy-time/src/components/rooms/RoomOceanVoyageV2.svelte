@@ -402,11 +402,26 @@
 	 * portrait (the sides off the screen, the top behind the title frame). It stands in the sea with
 	 * its waterline at the foot of its mouth; the line of rows reaches back to its bottom edge.
 	 */
+	/**
+	 * Where the cave's foot comes to on the last row (`LAYOUT`'s `endFoot`) — but never so far down
+	 * the screen that there is less water left between it and the bow than a barrel needs to float
+	 * in: a barrel's own height and the gap behind it (ROW_GAP). The barrels stand on that water and
+	 * never reach up onto the cave, whatever shape the screen is: a screen that is short for its
+	 * width has the bow high up it, and the cave's fixed share of the height would have come down
+	 * past the barrels' feet. It still never comes up from where it started, so it only ever grows
+	 * towards the player.
+	 */
+	const footEnd = $derived(
+		Math.max(
+			horizonY + layout.startFoot * H,
+			Math.min(layout.endFoot * H, hitY - gateH * (1 + ROW_GAP + 0.05)),
+		),
+	);
 	const caveAt = (p: number) => {
 		const w = W * (layout.startW + (layout.endW - layout.startW) * p);
 		const h = w / CAVE_ASPECT;
 		const foot0 = horizonY + layout.startFoot * H;
-		const foot = foot0 + (layout.endFoot * H - foot0) * p;
+		const foot = foot0 + (footEnd - foot0) * p;
 		const top = foot - h;
 		return { w, h, top, bottom: foot };
 	};
@@ -471,7 +486,19 @@
 	const caveLit = $derived(Math.sqrt(clamp(grow, 0, 1)));
 	const skullFilter = $derived(reveal > 0 ? `brightness(${(1 - SKULL_DIM * reveal).toFixed(3)})` : 'none');
 	/** The horizon, down the screen: the sky stands on it, the sea runs from it, the cave starts on it. */
-	const horizonY = $derived(H * layout.horizon);
+	/**
+	 * Raised, on a screen so short for its width that the bow stands high up it (the deck is as wide as
+	 * the screen, so a wide, short one has its rail well up the height), until there is water enough
+	 * between the cave's foot and the bow for a barrel and the gap behind it (ROW_GAP): the barrels
+	 * float on the sea and never reach up onto the cave. Never above HORIZON_MIN of the height.
+	 */
+	const HORIZON_MIN = 0.3;
+	const horizonY = $derived(
+		Math.max(
+			H * HORIZON_MIN,
+			Math.min(H * layout.horizon, hitY - gateH * (1 + ROW_GAP + 0.05) - layout.startFoot * H),
+		),
+	);
 	/** How far the sea takes to fade in at its top edge, over the haze at the foot of the sky. */
 	const blend = $derived(BLEND_PX * (W / 1024));
 	/**
