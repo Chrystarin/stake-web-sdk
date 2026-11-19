@@ -354,7 +354,7 @@
 	/** What to tell the player at the helm. One line per drain — see `RoomHint`. */
 	const HINT = ['Steer the wheel', 'to pick barrels'];
 	/** The visible foot of BonusRound's title frame, as a share of its box (the rest is glow). */
-	const PLATE_FOOT = 0.857;
+	const PLATE_FOOT = 0.866;
 
 	const depths = $derived(room.depths.length);
 	const cols = TILES_PER_DEPTH;

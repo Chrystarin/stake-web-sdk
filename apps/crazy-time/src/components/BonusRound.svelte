@@ -577,12 +577,12 @@
 	   the FILE ends rather than where the sign does, and anything meant to sit under the sign, or
 	   to disappear behind it, would be measuring against nothing. The margin is a share of the
 	   WIDTH, which is what a percentage margin resolves against: 0.143 of the height over the
-	   art's 2.266 ratio. */
+	   art's 2.373 ratio (1220x514, the glow below its foot 0.134 of the height). */
 	.plate {
 		position: relative;
 		width: 28.6vw;
-		aspect-ratio: 775 / 342;
-		margin-bottom: -6.3%;
+		aspect-ratio: 1220 / 514;
+		margin-bottom: -5.6%;
 		background: var(--title-frame) no-repeat center / 100% 100%;
 		display: flex;
 		align-items: center;

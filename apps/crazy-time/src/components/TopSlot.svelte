@@ -23,16 +23,19 @@
 	import { staticCssUrl, staticUrl } from '../lib/staticUrl';
 
 	/**
-	 * The cabinet art (static/img/top-slots/frame.png, 1774x887). Its two windows were read off the
-	 * alpha channel — left x 145..838, right x 932..1624, both y 334..768 — and the percentages below
-	 * are those bounds over the image box, so the reels sit exactly in the openings. The opening's
-	 * height works out at 0.2452 of the frame's WIDTH, which is where `--cell` comes from.
+	 * The cabinet art (static/img/top-slots/frame.png, 2000x1070). Its two windows were read off the
+	 * alpha channel and the Figma frame — left x 195..954, right x 1047..1806 (the cabinet is
+	 * symmetric), both y 386..838 — and the percentages below are those bounds over the image box, so
+	 * the reels sit exactly in the openings. The opening's height works out at 0.226 of the frame's
+	 * WIDTH, which is where `--cell` comes from. The blue behind each reel is the artist's own
+	 * window backdrop (reel_backdrop.webp, 759x452 — exactly one opening).
 	 */
 	const FRAME_ART = staticUrl('img/top-slots/frame.webp');
+	const REEL_BACKDROP = staticCssUrl('img/top-slots/reel_backdrop.webp');
 	/**
 	 * The two ropes the cabinet hangs from, hooked onto the rope bindings drawn on its top rail
-	 * (left one centred at x 435 of 1774, the right its mirror at 1339; the rail's top edge at y 187
-	 * of 887). Each is the hook end (static/img/top-slots/rope.png from row 227 down, so its top is
+	 * (left one centred at x 528 of 2000, the right its mirror at 1472; the coils' top edge at y 221
+	 * of 1070). Each is the hook end (static/img/top-slots/rope.png from row 227 down, so its top is
 	 * where the twist repeats) under a strand cut from the same rope, one repeat (294 px, three turns)
 	 * tall and tiled on up past the top of the screen — so the rope still reaches the rigging when the
 	 * cabinet comes down into the middle of the wheel.
@@ -212,7 +215,7 @@
 </script>
 
 <div class="topslot" class:applied class:animating>
-	<div class="cabinet">
+	<div class="cabinet" style="--reel-backdrop:{REEL_BACKDROP}">
 		<!-- Behind the frame: the hook goes down behind the binding, so it reads as hooked on. -->
 		{#each ['left', 'right'] as side (side)}
 			<div class="rope {side}" style="--strand:{ROPE_STRAND}" aria-hidden="true">
@@ -260,7 +263,7 @@
 	   which is also the step the strip translates by. */
 	.topslot {
 		--frame-w: var(--ts-width, 22.8vw);
-		--cell: calc(var(--frame-w) * 0.2452);
+		--cell: calc(var(--frame-w) * 0.226);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -268,30 +271,29 @@
 	.cabinet {
 		position: relative;
 		width: var(--frame-w);
-		aspect-ratio: 1774 / 887;
+		aspect-ratio: 2000 / 1070;
 	}
 	/*
 	 * A rope, in the cabinet's own units. The drawing is 887 px wide with the rope dead centre, and is
-	 * drawn at 0.45 of its size against the 1774 px frame: 22.5% of the cabinet's width, which makes
-	 * the ring about as wide as the binding it hooks. The hook's tip (row 1541 of the 1547-row end
-	 * piece) sits at 28.5% of the cabinet's height, 60 frame px down behind the binding, so the ring
-	 * hangs just above the rail. Everything above the end piece is strand, as tall as it needs to be.
+	 * drawn at 0.2 of the 2000 px frame's width, which makes the ring about as wide as the binding it
+	 * hooks. The hook's tip (row 1541 of the 1547-row end piece) sits at 27% of the cabinet's height,
+	 * behind the coil, so the ring hangs just above the rail. Everything above the end piece is strand, as tall as it needs to be.
 	 */
 	.rope {
-		--rope-w: calc(var(--frame-w) * 0.225);
+		--rope-w: calc(var(--frame-w) * 0.2);
 		position: absolute;
 		z-index: 1;
-		bottom: 71.5%;
+		bottom: 73%;
 		width: var(--rope-w);
 		display: flex;
 		flex-direction: column;
 		pointer-events: none;
 	}
 	.rope.left {
-		left: calc(24.5% - var(--rope-w) / 2);
+		left: calc(26.4% - var(--rope-w) / 2);
 	}
 	.rope.right {
-		left: calc(75.5% - var(--rope-w) / 2);
+		left: calc(73.6% - var(--rope-w) / 2);
 	}
 	/* The strand, tiled up from the end piece's top edge — the tile starts on the row the end piece
 	   does, so the twist runs on through the join. Tall enough to clear the top of the screen from
@@ -322,18 +324,18 @@
 	/* Placed on the art's own window bounds; height is the cell itself so the strip steps true. */
 	.reel {
 		position: absolute;
-		top: 37.66%;
+		top: 36.07%;
 		height: var(--cell);
 		overflow: hidden;
-		background: #0d0906;
+		background: #0d0906 var(--reel-backdrop) center / 100% 100% no-repeat;
 	}
 	.spot-reel {
-		left: 8.17%;
-		width: 39.12%;
+		left: 9.75%;
+		width: 37.95%;
 	}
 	.mult-reel {
-		left: 52.54%;
-		width: 39.06%;
+		left: 52.35%;
+		width: 37.95%;
 	}
 	.strip {
 		display: flex;

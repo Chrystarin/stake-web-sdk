@@ -61,6 +61,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	// ── Top Slot cabinet (TopSlot.svelte) ─────────────────────────────────────────────────────────
 	'img/top-slots/frame.webp',
 	'img/top-slots/rope_end.webp',
+	'img/top-slots/reel_backdrop.webp',
 	'img/top-slots/rope_strand.webp',
 
 	// ── Chips (Game.svelte: the tray/board chips' base art and the balance rail's coin) ──────────
