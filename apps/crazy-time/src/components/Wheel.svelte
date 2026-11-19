@@ -73,8 +73,19 @@
 		frame?: WheelFrame;
 		/** Inner radius of the wedges, in viewBox units out of 200. */
 		innerRadius?: number;
-		/** Fired whenever a new segment passes under the flapper while spinning. */
-		onTick?: (index: number) => void;
+		/**
+		 * Fired whenever a new segment passes under the flapper while spinning. `build` is the
+		 * anticipation (see `anticipate`), 0 until the disc starts to slow and 1 as it comes to rest,
+		 * so a caller can bring its tick up with it.
+		 */
+		onTick?: (index: number, build: number) => void;
+		/**
+		 * Build up to the stop: as the disc slows, the pointer at 12 o'clock warms and flashes on each
+		 * tick and the passing outline brightens; on landing the pointer flares and the winning wedge's
+		 * outline pulses gold. Presentation only — the landing is still the book's `spinTo` index, and
+		 * the spin takes exactly as long as before. Needs a `frame` (it lights the frame's pointer).
+		 */
+		anticipate?: boolean;
 		/** Fires with the resting segment when a spin ends. */
 		onLand?: (index: number) => void;
 		/** Highlight this segment (after landing). */
@@ -113,7 +124,30 @@
 		flash = false,
 		liftedIcon = null,
 		sparks = false,
+		anticipate = false,
 	}: Props = $props();
+
+	/**
+	 * The anticipation (`anticipate`): how far into the slow-down the disc is, 0 to 1. It starts at
+	 * BUILD_FROM of the spin's run — the curve has spent most of its turns by then and the wedges are
+	 * passing slowly enough to read — and is stepped on each tick, so it costs a repaint only when the
+	 * flapper crosses a wedge.
+	 */
+	const BUILD_FROM = 0.42;
+	let build = $state(0);
+	let spinStartAt = 0;
+	/** Bumped on each tick while building: re-keys the pointer's flash so it plays again. */
+	let tickPulse = $state(0);
+	/** The pointer's flare as the disc comes to rest. */
+	let flare = $state(false);
+	let flareTimer: ReturnType<typeof setTimeout> | undefined;
+	const FLARE_MS = 900;
+	onDestroy(() => clearTimeout(flareTimer));
+	const buildAt = (now: number) => {
+		if (!spinStartAt) return 0;
+		const t = (now - spinStartAt) / durationMs;
+		return Math.min(1, Math.max(0, (t - BUILD_FROM) / (1 - BUILD_FROM)));
+	};
 
 	let sparkLayer: WheelSparks | undefined = $state();
 	/** Sparks start on the frame's outer ring: its art runs about 1.23x the hole's radius. */
@@ -241,7 +275,12 @@
 		passing = idx;
 		if (idx !== lastTick) {
 			lastTick = idx;
-			onTick?.(idx);
+			const b = anticipate ? buildAt(performance.now()) : 0;
+			if (anticipate) {
+				build = b;
+				if (b > 0) tickPulse++;
+			}
+			onTick?.(idx, b);
 		}
 		if (spinning) raf = requestAnimationFrame(track);
 	};
@@ -266,10 +305,14 @@
 			resolveSpin = resolve;
 			stopIcon();
 			spinning = true;
+			build = 0;
+			flare = false;
+			clearTimeout(flareTimer);
 			lastTick = indexAt(rotation);
 			// Two frames so the transition picks up the new duration before the angle changes.
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
+					spinStartAt = performance.now();
 					rotation = next;
 					cancelAnimationFrame(raf);
 					raf = requestAnimationFrame(track);
@@ -396,6 +439,12 @@
 			sparkLayer.setSpeed(0);
 			sparkLayer.burst();
 			lastAt = 0;
+		}
+		if (anticipate) {
+			build = 0;
+			spinStartAt = 0;
+			flare = true;
+			flareTimer = setTimeout(() => (flare = false), FLARE_MS);
 		}
 		onLand?.(index);
 		resolveSpin?.();
@@ -783,9 +832,21 @@
 		     that svg's tiles — the lettering, its glow filters and all — on every tick, thirty and
 		     more times a second at the top of a spin. Out here each tick repaints one stroked path on
 		     an otherwise empty layer, and the disc underneath is never touched while it turns. -->
-		<svg viewBox="0 0 {R * 2} {R * 2}" class="passing" aria-hidden="true">
+		<svg
+			viewBox="0 0 {R * 2} {R * 2}"
+			class="passing"
+			style="--build:{build}"
+			aria-hidden="true"
+		>
 			{#if outlined !== null}
-				<path d={wedgePath(outlined)} class="passing-edge" />
+				<!-- Keyed on the wedge so the winner's pulse starts afresh on every landing. -->
+				{#key `${outlined}:${passing === null}`}
+					<path
+						d={wedgePath(outlined)}
+						class="passing-edge"
+						class:won={anticipate && passing === null && highlight !== null}
+					/>
+				{/key}
 			{/if}
 		</svg>
 	</div>
@@ -809,6 +870,25 @@
 				draggable="false"
 				style="left:{frame.hole.cx * 100}%; top:{frame.hole.cy * 100}%; width:{(frame.centerWidth ?? 0.29) * 100}%"
 			/>
+		{/if}
+		{#if anticipate}
+			<!-- The frame's pointer at 12 o'clock (the top of the hole), lit as the disc slows: a warm
+			     pool that grows with `build`, a flash on each tick, and a flare on landing. Gradients
+			     only, no filters, so it is the same on the lite tier. -->
+			<div
+				class="pointer-glow"
+				class:on={build > 0}
+				class:flare
+				style="left:{frame.hole.cx * 100}%; top:{(frame.hole.cy - frame.hole.r * frame.aspect) *
+					100}%; width:{frame.hole.r * 70}%; --build:{build}"
+				aria-hidden="true"
+			>
+				{#key tickPulse}
+					{#if tickPulse > 0 && build > 0}
+						<span class="pointer-flash"></span>
+					{/if}
+				{/key}
+			</div>
 		{/if}
 		{#if sparks}
 			<WheelSparks
@@ -941,8 +1021,83 @@
 		fill: none;
 		pointer-events: none;
 		stroke-linejoin: round;
-		stroke: rgba(255, 246, 194, 0.8);
-		stroke-width: 1.6;
+		stroke: rgba(255, 246, 194, calc(0.8 + 0.2 * var(--build, 0)));
+		/* Heavier as the disc slows (`--build`, see `anticipate`), so the eye is on it for the stop. */
+		stroke-width: calc(1.6 + 2 * var(--build, 0));
+	}
+	/* The wedge it came to rest on: a gold outline that pulses three times and then stays. The layer
+	   is its own (see the markup), so the pulse repaints one path and never the disc. */
+	.passing-edge.won {
+		stroke: #ffd75a;
+		stroke-width: 4;
+		animation: edge-won 520ms ease-in-out 3;
+	}
+	@keyframes edge-won {
+		0%,
+		100% {
+			stroke-width: 4;
+			stroke: #ffd75a;
+		}
+		45% {
+			stroke-width: 7.5;
+			stroke: #fff6c8;
+		}
+	}
+	/* The frame's pointer, lit (see `anticipate`). Centred on the top of the hole, where the pointer's
+	   tip meets the disc, and drawn over the frame art. */
+	.pointer-glow {
+		position: absolute;
+		aspect-ratio: 1;
+		transform: translate(-50%, -50%);
+		border-radius: 50%;
+		pointer-events: none;
+		background: radial-gradient(
+			circle,
+			rgba(255, 244, 196, 0.85) 0%,
+			rgba(255, 210, 90, 0.45) 30%,
+			rgba(255, 180, 40, 0) 68%
+		);
+		mix-blend-mode: screen;
+		opacity: 0;
+		scale: 0.7;
+		transition:
+			opacity 260ms ease,
+			scale 260ms ease;
+	}
+	.pointer-glow.on {
+		opacity: calc(0.35 + 0.55 * var(--build));
+		scale: calc(0.75 + 0.35 * var(--build));
+	}
+	.pointer-glow.flare {
+		animation: pointer-flare 900ms ease-out forwards;
+	}
+	@keyframes pointer-flare {
+		0% {
+			opacity: 1;
+			scale: 1.5;
+		}
+		100% {
+			opacity: 0;
+			scale: 1;
+		}
+	}
+	/* One flash per tick: a bright core that pops and fades before the next wedge comes. */
+	.pointer-flash {
+		position: absolute;
+		inset: 22%;
+		border-radius: 50%;
+		background: radial-gradient(circle, rgba(255, 255, 240, 0.95) 0%, rgba(255, 230, 140, 0) 70%);
+		animation: pointer-flash 240ms ease-out forwards;
+	}
+	@keyframes pointer-flash {
+		from {
+			opacity: 1;
+			scale: 1.15;
+		}
+		to {
+			opacity: 0;
+			scale: 0.8;
+		}
 	}
 	.label {
 		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;

@@ -498,6 +498,41 @@
 	.cell.mult.landed {
 		filter: drop-shadow(0.034em 0.068em 0 #000) drop-shadow(0 0 0.14em rgba(255, 226, 120, 0.9));
 	}
+	/* And is stamped down as it lands — a punch past size and back — so it reads as the multiplier
+	   being put on the bet beside it, not one more plate going by. Transform only, inside the cell. */
+	.cell.mult.landed .mult-stroke,
+	.cell.mult.landed .mult-fill {
+		animation: ts-stamp 460ms cubic-bezier(0.2, 0.8, 0.3, 1.2);
+	}
+	@keyframes ts-stamp {
+		0% {
+			transform: scale(1.55);
+			opacity: 0.4;
+		}
+		55% {
+			transform: scale(0.92);
+			opacity: 1;
+		}
+		100% {
+			transform: scale(1);
+		}
+	}
+	/* The pair, joined: while a multiplier stands, the bet it applies to glows in step with the
+	   cabinet's own pulse (`.applied`), so the two windows read as one result. */
+	.applied .spot-reel .cell.landed .badge {
+		animation: ts-pair 900ms ease-in-out infinite alternate;
+	}
+	@keyframes ts-pair {
+		from {
+			scale: 1;
+		}
+		to {
+			scale: 1.07;
+		}
+	}
+	:global(html[data-tier='lite']) .applied .spot-reel .cell.landed .badge {
+		animation: none;
+	}
 	/* A miss is a plate of its own — the same brown, with nothing on it — rather than a gap between
 	   two others, so the reel always shows one whole slot in the window. */
 	.cell.mult.blank {

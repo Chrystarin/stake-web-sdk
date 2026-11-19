@@ -3173,7 +3173,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					sparks
 					highlight={wheelHighlight}
 					liftedIcon={revealIcon}
-					onTick={() => playSound('peg', 1.4, 0.5)}
+					anticipate
+					onTick={(_, build) => playSound('peg', 1.4 + 0.2 * build, 0.5 + 0.35 * build)}
 				/>
 				<!-- Once a bet is down the wheel stays dimmed and only its middle lights: the frame art again,
 				     undimmed, cut to a circle just past the hub (see `.hub-lit`), then a warm pool over it —
