@@ -1336,9 +1336,8 @@
 	/* The whole cave — the front and what is seen through its mouth — fades into the sea at its foot. */
 	.cave {
 		position: absolute;
-		/* In front of the barrels (`.gates`, 2) in landscape, where none of them is ever laid over the
-		   cave — but behind them in portrait (`.portrait .gates`). Under the kraken and its darkness,
-		   which come after it at this level. */
+		/* Behind the barrels (`.gates`), which are nearer than it and come after it at this level, on
+		   every screen. Under the kraken and its darkness, which come after both. */
 		z-index: 3;
 		pointer-events: none;
 		will-change: transform;
@@ -1408,18 +1407,17 @@
 	 * next row will open, and is lit; the others sit back. Opened, the barrel flashes and is gone
 	 * (its multiplier goes up on the barrel of gold, `.gold-total`); the rest of the row sinks away.
 	 */
+	/* The barrels are nearer than the cave, so they stand over it: at its level, and after it. A row's
+	   barrels stand on a line `reach` below the cave's foot and are `gateH` tall, so wherever the cave
+	   comes down close to the bow for the screen's shape (a phone, where it is three screens wide and
+	   the screen is short; a wide screen, where its foot is low against its height) every barrel's
+	   top is laid over the cave's lower rocks — and stood behind it they were hidden there, and dimmed
+	   by the fade at its foot. The kraken and its darkness, after both, still come over them. */
 	.gates {
 		position: absolute;
 		inset: 0;
-		z-index: 2;
-		pointer-events: none;
-	}
-	/* On a phone the cave comes right down to the bow by the last rows (it is three screens wide and
-	   the screen is short), and stood in front of the barrels it hid the last row outright. The barrels
-	   are nearer than the cave, so in portrait they stand over it: at its level, and after it. The
-	   kraken and its darkness, after both, still come over them. */
-	.voyage.portrait .gates {
 		z-index: 3;
+		pointer-events: none;
 	}
 	.gate {
 		position: absolute;
@@ -1527,21 +1525,17 @@
 	/*
 	 * A barrel's splash: the strip of frames (`SPLASH`) stepped through once, a frame at a time, its foot
 	 * on the barrel's foot. `background-position-y` 0% shows the first frame and 100% the last, so
-	 * `steps(n, jump-none)` lands on each of the n frames in turn. Over the barrels (`.gates`, 2) — under
-	 * the cave and the kraken, which it never reaches — and behind the deck, which is above `.view`.
+	 * `steps(n, jump-none)` lands on each of the n frames in turn. Over the barrels (`.gates`, 3, before it
+	 * in the page) — under the kraken, which it never reaches — and behind the deck, which is above `.view`.
 	 */
 	.splash {
 		position: absolute;
-		z-index: 2;
+		z-index: 3;
 		pointer-events: none;
 		transform: translate(calc(-1 * var(--foot-x)), -100%);
 		background-repeat: no-repeat;
 		background-size: 100% calc(var(--frames) * 100%);
 		animation: splash-frames var(--splash-ms) steps(var(--frames), jump-none) both;
-	}
-	/* Still over the barrels where they have been raised over the cave (`.voyage.portrait .gates`). */
-	.voyage.portrait .splash {
-		z-index: 3;
 	}
 	/* The kraken's: over it and its darkness (3, after them). The mirrored one is flipped about its own
 	   foot, so it still rises from the same point. */

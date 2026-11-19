@@ -1158,6 +1158,13 @@
 	.run.glow {
 		filter: drop-shadow(0 0 3px var(--wedge)) drop-shadow(0 0 9px var(--wedge));
 	}
+	/* A room name is the smallest lettering on the disc that has to be read, and on a phone it is
+	   tiny: a darker keyline than a number's keeps it off its wedge's colour. Darker, not thicker —
+	   Pieces of Eight's counters close up past the 2.4 a label already has ("R" reads as "F"). Only
+	   on the names (not the multipliers, whose stroke is their own wedge colour, `.label.upright`). */
+	.run.glow .label:not(.upright) {
+		stroke: rgba(12, 6, 0, 0.82);
+	}
 	/* The reduced budget (lib/deviceTier.svelte.ts): the lettering on its stroke alone. Every glow
 	   is two blurs over a run of glyphs, and every figure its own shadow filter, all rasterised in
 	   software whenever the disc is redrawn — the one thing a weak phone pays for most on this

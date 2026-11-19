@@ -2178,6 +2178,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		if (!canSpin) return;
 		stakePanelOpen = false;
 		releaseBalance();
+		clearLastWin();
 
 		if (online && hasActiveRoundToResume()) {
 			betNotice = 'Finishing your previous round…';
@@ -2395,6 +2396,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			return;
 		}
 		releaseBalance();
+		clearLastWin();
 		if (online && hasActiveRoundToResume()) {
 			buyBonusOpen = false;
 			betNotice = 'Finishing your previous round…';
@@ -2463,6 +2465,32 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		stateGame.buying ? buyChipFace() : currentChipFace();
 
 	let winCash = $state(0);
+	/**
+	 * The round's settlement, kept on the rail over the Total Bet from the moment the win is shown
+	 * until the next round is staked (`clearLastWin`): what the round returned and what that is as
+	 * a multiple of the Total Bet. Straight off the book's amount (`winShow`), never worked out on
+	 * the client, so it is the figure the RGS settled. `shown` counts up to `amount` once.
+	 */
+	let lastWin = $state<{ id: number; amount: number; mult: number; shown: number } | null>(null);
+	const LAST_WIN_COUNT_MS = 700;
+	const showLastWin = (amount: number, mult: number) => {
+		const id = (lastWin?.id ?? 0) + 1;
+		lastWin = { id, amount, mult, shown: 0 };
+		const start = performance.now();
+		const step = () => {
+			if (lastWin?.id !== id) return;
+			const t = Math.min(1, (performance.now() - start) / LAST_WIN_COUNT_MS);
+			// Counted in whole cents, so the figure never shows more places than the currency has.
+			lastWin.shown = t >= 1 ? amount : Math.floor(amount * (1 - (1 - t) ** 3) * 100) / 100;
+			if (t < 1) requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
+		// A tab with no frames still has to end on the true figure.
+		setTimeout(() => {
+			if (lastWin?.id === id) lastWin.shown = amount;
+		}, LAST_WIN_COUNT_MS + 100);
+	};
+	const clearLastWin = () => (lastWin = null);
 	let winPopup = $state<{ id: number; amount: number; multiplier: number } | null>(null);
 	let winPopupId = 0;
 	$effect(() => {
@@ -2972,6 +3000,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			winCash = (emitterEvent.amount / 100) * stateBet.betAmount;
 			playSound('win');
 			const multiplier = committedStake > 0 ? winCash / committedStake : 0;
+			if (winCash > 0 && !replayMode) showLastWin(winCash, multiplier);
 			// A big win gets Willy's full-screen popup; the tile's readout plays under it either way.
 			if (multiplier >= WIN_POPUP_MIN_MULT) {
 				winPopup = { id: ++winPopupId, amount: winCash, multiplier };
@@ -3022,20 +3051,35 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		     of it is on that room stands over it (`bonusBet`). -->
 		{#snippet totalBet()}
 			<div class="total-bet">
-				{#if replayMode}
-					<!-- Stake's replay rules want the bet amount beside the real cost, and a replay has no
-					     tray to read the chip off. -->
-					<div class="bonus-bet">
-						<span class="total-bet-lbl">Chip</span>
-						<span class="total-bet-val">{formatMoney(stateBet.betAmount)}</span>
-					</div>
-				{/if}
-				{#if bonusBet !== null}
-					<div class="bonus-bet">
-						<span class="total-bet-lbl">Bonus Bet</span>
-						<span class="total-bet-val">{formatMoney(bonusBet)}</span>
-					</div>
-				{/if}
+				<!-- What stands over the wager, stacked: the replay's chip, a room's bonus bet, and the
+				     round's settlement (`lastWin`). -->
+				<div class="hud-over">
+					{#if lastWin}
+						{#key lastWin.id}
+							<div class="bonus-bet last-win">
+								<span class="total-bet-lbl">Total Win</span>
+								<span class="total-bet-val last-win-val">{formatMoney(lastWin.shown)}</span>
+								{#if lastWin.mult > 0}
+									<span class="last-win-mult">{fmtMult(lastWin.mult)} Total Bet</span>
+								{/if}
+							</div>
+						{/key}
+					{/if}
+					{#if replayMode}
+						<!-- Stake's replay rules want the bet amount beside the real cost, and a replay has no
+						     tray to read the chip off. -->
+						<div class="bonus-bet">
+							<span class="total-bet-lbl">Chip</span>
+							<span class="total-bet-val">{formatMoney(stateBet.betAmount)}</span>
+						</div>
+					{/if}
+					{#if bonusBet !== null}
+						<div class="bonus-bet">
+							<span class="total-bet-lbl">Bonus Bet</span>
+							<span class="total-bet-val">{formatMoney(bonusBet)}</span>
+						</div>
+					{/if}
+				</div>
 				<span class="total-bet-lbl">Total Bet</span>
 				<span class="total-bet-val">{formatMoney(total)}</span>
 			</div>
@@ -3537,6 +3581,14 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		background: var(--art-chip-base) no-repeat center / contain;
 		filter: hue-rotate(var(--chip-hue, 0deg));
 		z-index: 0;
+		/* A solid disc of a deep shade of the chip's own colour behind the art, not a ring round it: the
+		   chip's scalloped edge leaves notches inside a circle, and a ring left them open, so the
+		   outline came away from the chip as it scaled and pulsed. The disc fills them, and the thin
+		   shadow takes it out to a border. The art is gold, so this is a dark gold, and the same
+		   hue-rotate that tints the chip carries the disc round to that chip's colour with it. */
+		border-radius: 50%;
+		background-color: rgb(84, 56, 0);
+		box-shadow: 0 0 0 0.13vw rgb(84, 56, 0);
 	}
 	.chip span {
 		position: relative;
@@ -3550,6 +3602,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	.chip.selected {
 		outline: 0.3vw solid #ffe14d;
 		border-radius: 50%;
+		/* A warm halo round the gold ring, and nothing dark out there: the keyline is on the chip. */
+		box-shadow: 0 0 1.3vw 0.4vw rgba(255, 210, 70, 0.7);
 		animation: chip-pulse 1.2s ease-in-out infinite;
 	}
 	/* The selected chip breathes in the tray (and in the stake panel), as it does on the Buy Bonus
@@ -4023,11 +4077,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		display: flex;
 		justify-content: center;
 		scale: calc(1 - var(--depth, 0) * 0.11);
-		opacity: calc(1 - var(--depth, 0) * 0.22);
+		/* Every chip at full strength: only the scale steps down with distance from the selected one. */
 		z-index: calc(3 - var(--depth, 0));
-		transition:
-			scale 0.26s ease,
-			opacity 0.26s ease;
+		transition: scale 0.26s ease;
 	}
 	.chip-wrap:not(.shown) {
 		pointer-events: none;
@@ -4721,19 +4773,48 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	/* The bonus bet, stood on top of the wager and read the same way. Out of the flow: the rail's
 	   height is measured (`railH`) and the table is laid out against it, and a read-out that comes
 	   and goes with the bonus screen must not move the table under that screen. */
-	.hud .bonus-bet {
+	.hud .hud-over {
 		position: absolute;
 		right: 0;
 		bottom: 100%;
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
+		gap: 0.35vw;
 		margin-bottom: 0.35vw;
+	}
+	.game.portrait .hud .hud-over {
+		gap: 0.9vw;
+		margin-bottom: 0.9vw;
+	}
+	.hud .bonus-bet {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
 		white-space: nowrap;
 		animation: bonus-bet-in 320ms ease-out both;
 	}
-	.game.portrait .hud .bonus-bet {
-		margin-bottom: 0.9vw;
+	/* The settlement: the win a size up from the wager, so it is the figure the eye lands on, with
+	   what it is in Total Bets under it. */
+	.hud .last-win-val {
+		font-size: 2.3vw;
+		color: #fff2a8;
+		text-shadow:
+			0 0.1vw 0.3vw rgba(0, 0, 0, 0.8),
+			0 0 0.8vw rgba(255, 200, 60, 0.55);
+	}
+	.last-win-mult {
+		font-family: 'Alexandria', sans-serif;
+		font-size: 0.95vw;
+		font-weight: 600;
+		color: #ffe14d;
+		white-space: nowrap;
+	}
+	.game.portrait .hud .last-win-val {
+		font-size: 4.8vw;
+	}
+	.game.portrait .last-win-mult {
+		font-size: 2.2vw;
 	}
 	@keyframes bonus-bet-in {
 		from {
@@ -5029,7 +5110,11 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	/* A chip on the tile takes its frame out of the shade — the tile's only "backed" mark. A fully
 	   covered group button does the same with its ring (`.bundle-btn.on::after`). */
 	.tile.backed::before {
-		filter: brightness(1);
+		filter: brightness(1.12) drop-shadow(0 0 0.5vw rgba(255, 214, 90, 0.75));
+	}
+	/* The lite budget: the frame lit, without the blur round it. */
+	:global(html[data-tier='lite']) .tile.backed::before {
+		filter: brightness(1.18);
 	}
 	/* Three of the spot's icon in a row, the middle one biggest, all on one centre line. A room's
 	   icon is square against a number badge's 30:48, so it runs a little shorter to keep the row
