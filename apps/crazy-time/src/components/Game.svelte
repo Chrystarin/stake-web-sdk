@@ -321,8 +321,14 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	// 240x384), room wedges its own icon (ROOM_ICON) with the name lettered down the wedge below it
 	// by the Wheel itself.
 	const BADGE_ASPECT = 5 / 8;
-	/** The button sits inside the hub's brass collar, clear of the spokes. */
-	const HUB_BUTTON_DIAMETER = (2 * 118) / 1911;
+	/**
+	 * The button fills the inside of the hub's brass collar — the wood disc inside it is about 255 px
+	 * across in the art, and the button's picture has 345 of its 384 px as its own gold ring — so its
+	 * lit face is as big as that circle.
+	 */
+	const HUB_BUTTON_DIAMETER = 284 / 1911;
+	/** The hub's brass collar, outer edge to outer edge, in the same art (the spokes reach past it). */
+	const HUB_RING_DIAMETER = 352 / 1911;
 	// The painted ruby sits slightly above the center of the wheel's inner edge.
 	const HUB_GEM_Y = 958.5 / 1925;
 
@@ -1221,6 +1227,33 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 				: !canSpin,
 	);
 	const hubAction = $derived(settled ? 'PLAY AGAIN' : replayMode ? 'PLAY' : 'SPIN');
+	/**
+	 * The hub's words as lines of letters, each letter with the time it starts to be drawn: from the
+	 * middle of its line out to both ends, the second line a beat after the first.
+	 */
+	const hubLines = $derived.by(() => {
+		const words = hubAction.split(' ');
+		return words.map((word, line) => ({
+			y: (line - (words.length - 1) / 2) * 0.95,
+			letters: [...word].map((ch, i, all) => ({
+				ch,
+				delay: Math.abs(i - (all.length - 1) / 2) * 0.1 + line * 0.14,
+			})),
+		}));
+	});
+	/**
+	 * The hub's lettering is only drawn once the button is live AND no chip is still in the air: the chip
+	 * that enabled it lands first, then the writing begins. Once it is drawn it stays while the button
+	 * does (a second chip down does not wipe it); a disabled button forgets it.
+	 */
+	let hubInk = $state(false);
+	$effect(() => {
+		if (confirmDisabled || wheelOff) {
+			hubInk = false;
+		} else if (flights.length === 0) {
+			hubInk = true;
+		}
+	});
 	const clearDisabled = $derived(
 		clearing || payingOut || (!settled && (!idle || backedCount === 0)),
 	);
@@ -3271,19 +3304,56 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 				/>
 				<button
 					type="button"
+				<!-- PLAY AGAIN: the hub around the gem is shaded so the eye goes to the button. -->
+				<span
+					class="hub-dim"
+					class:on={hubInk && settled}
+					aria-hidden="true"
+					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{HUB_GEM_Y * 100}%; width:{HUB_RING_DIAMETER * 100}%"
+				></span>
 					class="hub-spin"
 					disabled={confirmDisabled || wheelOff}
 					aria-label={hubAction}
+					class:awake={hubInk}
+					class:busy={!bettingOpen}
 					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{HUB_GEM_Y *
 						100}%; width:{HUB_BUTTON_DIAMETER * 100}%"
 					onclick={onConfirmClick}
 				>
 					<img class="hub-art" src={staticUrl('img/wheel/hub_button.webp')} alt="" draggable="false" />
 					{#key hubAction}
-						<span class="hub-cta" aria-hidden="true">
-							{#each hubAction.split(' ') as word}
-								<span class="hub-word">{word}</span>
-							{/each}
+						<span class="hub-cta" class:ink={hubInk} aria-hidden="true">
+							<svg class="hub-ink" viewBox="-3.6 -1.5 7.2 3" overflow="visible">
+								<defs>
+									<!-- Cut into the gem: a dark groove along the edges the light is behind, a bright lip
+									     catching on the far edge. -->
+									<filter id="hubEtch" x="-10%" y="-25%" width="120%" height="150%" color-interpolation-filters="sRGB">
+										<feOffset in="SourceAlpha" dx="0.03" dy="0.05" result="shift" />
+										<feGaussianBlur in="shift" stdDeviation="0.022" result="shiftSoft" />
+										<feComposite in="SourceAlpha" in2="shiftSoft" operator="out" result="inner" />
+										<feFlood flood-color="#3a0016" flood-opacity="0.9" />
+										<feComposite in2="inner" operator="in" result="groove" />
+										<feOffset in="SourceAlpha" dx="0.025" dy="0.045" result="lipShift" />
+										<feComposite in="lipShift" in2="SourceAlpha" operator="out" result="lip" />
+										<feFlood flood-color="#ffd2e6" flood-opacity="0.95" />
+										<feComposite in2="lip" operator="in" result="lipLight" />
+										<feMerge>
+											<feMergeNode in="lipLight" />
+											<feMergeNode in="SourceGraphic" />
+											<feMergeNode in="groove" />
+										</feMerge>
+									</filter>
+								</defs>
+								{#each hubLines as line}
+									<g transform="translate(0 {line.y})">
+										{#each ['ink-fill', 'ink-trace', 'ink-tip'] as layer}
+											<text class={layer} text-anchor="middle" dominant-baseline="central">
+												{#each line.letters as l}<tspan style="--d:{l.delay}s">{l.ch}</tspan>{/each}
+											</text>
+										{/each}
+									</g>
+								{/each}
+							</svg>
 						</span>
 					{/key}
 				</button>
@@ -4404,7 +4474,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		background: none;
 		cursor: pointer;
 		pointer-events: auto;
-		font-size: clamp(12px, calc(var(--wheel-w) * 0.024), 24px);
+		font-size: clamp(14px, calc(var(--wheel-w) * 0.0285), 28px);
+		z-index: 5;
 		transition: scale 220ms cubic-bezier(0.2, 0.75, 0.25, 1.2);
 	}
 	.hub-art {
@@ -4415,14 +4486,15 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		filter: drop-shadow(0 0.18em 0.13em rgba(27, 9, 3, 0.85));
 		pointer-events: none;
 	}
-	.hub-spin:not(:disabled)::before,
-	.hub-spin:not(:disabled)::after {
+		transition: filter 420ms ease-out;
+	.hub-spin.awake::before,
+	.hub-spin.awake::after {
 		content: '';
 		position: absolute;
 		z-index: 1;
 		pointer-events: none;
 	}
-	.hub-spin:not(:disabled)::before {
+	.hub-spin.awake::before {
 		inset: 16% 18% 17% 16%;
 		clip-path: polygon(31% 0, 72% 0, 100% 30%, 100% 70%, 71% 100%, 27% 100%, 0 70%, 0 30%);
 		background: radial-gradient(ellipse, #ff88ad 0%, #ff427a 43%, rgba(239, 33, 87, 0.6) 68%, transparent 94%);
@@ -4430,7 +4502,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		animation: hub-ruby-pulse 2.8s ease-in-out infinite;
 	}
 	/* The two highlights stay opposite each other on the same brass track. */
-	.hub-spin:not(:disabled)::after {
+	.hub-spin.awake::after {
 		inset: 0;
 		background: conic-gradient(
 			from -55deg,
@@ -4461,7 +4533,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			rotate: 1turn;
 		}
 	}
-	.hub-spin:not(:disabled):hover {
+	.hub-spin.awake:not(:disabled):hover {
 		scale: 1.05;
 	}
 	.hub-spin:focus-visible {
@@ -4472,18 +4544,43 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		scale: 0.95;
 	}
 	.hub-spin:disabled {
-		scale: 0.68;
+	/* Asleep: while it is disabled, and for the beat after it is enabled that the chip that enabled it
+	   is still landing (`hubInk`) — the lit gem waits for the bet to be down. */
+	.hub-spin:not(.awake) {
+		scale: 0.72;
+	}
 		cursor: default;
 		pointer-events: none;
 	}
-	.hub-spin:disabled .hub-art {
+	.hub-spin:not(.awake) .hub-art {
 		filter: saturate(0.48) contrast(0.78) brightness(0.64);
 	}
 	.hub-cta {
 		position: relative;
+	/* Mid-round the gem keeps its own colour, just small: it is not waiting for a bet, it is busy. */
+	.hub-spin.busy:not(.awake) .hub-art {
+		filter: drop-shadow(0 0.18em 0.13em rgba(27, 9, 3, 0.85));
+	}
+	.hub-dim {
+		position: absolute;
+		translate: -50% -50%;
+		aspect-ratio: 1;
+		border-radius: 50%;
+		background: radial-gradient(circle closest-side, rgba(12, 4, 0, 0.62), rgba(12, 4, 0, 0.55) 88%, rgba(12, 4, 0, 0.3));
+		opacity: 0;
+		z-index: 4;
+		transition: opacity 450ms ease-out;
+		pointer-events: none;
+	}
+	.hub-dim.on {
+		opacity: 1;
+	}
 		z-index: 2;
-		display: grid;
-		justify-items: center;
+		display: block;
+		/* The box the writing sits in — the SVG in it is centred on it and wider than the button's
+		   face, so it is out of the flow rather than stretching this. */
+		width: 4.6em;
+		height: 2.2em;
 		pointer-events: none;
 		font-family: 'Alexandria', sans-serif;
 		font-size: 0.9em;
@@ -4491,58 +4588,104 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		line-height: 1.02;
 		letter-spacing: 0.04em;
 	}
-	.hub-spin:not(:disabled) .hub-cta::before {
-		content: '';
+	/* The words are drawn, not typed: from the middle of each line out to both ends, every letter is
+	   traced stroke by stroke — a bright point running its outline and leaving a hot line behind it —
+	   and filled in behind the pen. The SVG is laid out in em, so the lettering is the size the HTML
+	   text it replaced was. */
+	.hub-ink {
 		position: absolute;
-		inset: 0 -0.16em;
-		background: radial-gradient(
-			ellipse closest-side,
-			rgba(255, 215, 240, 0.9),
-			rgba(255, 86, 154, 0.5) 40%,
-			transparent 100%
-		);
-		animation: hub-letter-flare 530ms ease-out 45ms both;
+		left: 50%;
+		top: 50%;
+		translate: -50% -50%;
+		width: 7.2em;
+		height: 3em;
+		overflow: visible;
 	}
-	.hub-word {
-		position: relative;
-		padding: 0.12em 0.22em;
-		margin: -0.12em -0.22em;
-		background: linear-gradient(180deg, #fffaf4 24%, #ffe0ef 54%, #ff9fc8 88%);
-		background-clip: text;
-		color: transparent;
-		filter: drop-shadow(0 0.06em 0.07em #49051d)
-			drop-shadow(0 0 0.19em rgba(255, 87, 151, 0.95));
+	.hub-ink text {
+		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
+		font-weight: 400;
+		font-size: 1.02px;
+		letter-spacing: 0.17px;
 	}
-	.hub-spin:not(:disabled) .hub-word {
-		animation: hub-word-reveal 400ms cubic-bezier(0.24, 0.58, 0.35, 1) 80ms both;
+	.hub-ink .ink-fill {
+		fill: #fff4f8;
+		stroke: #fff4f8;
+		stroke-width: 0.03px;
+		stroke-linejoin: round;
+		fill-opacity: 0;
+		stroke-opacity: 0;
+		filter: url(#hubEtch);
 	}
-	.hub-spin:not(:disabled) .hub-word + .hub-word {
-		animation-delay: 230ms;
+	.hub-ink .ink-trace,
+	.hub-ink .ink-tip {
+		fill: none;
+		stroke-linejoin: round;
+		stroke-linecap: round;
+		stroke-opacity: 0;
 	}
-	@keyframes hub-word-reveal {
+	.hub-ink .ink-trace {
+		stroke: #ffd2e8;
+		stroke-width: 0.075px;
+		stroke-dasharray: 8 8;
+		stroke-dashoffset: 8;
+	}
+	.hub-ink .ink-tip {
+		stroke: #fff;
+		stroke-width: 0.13px;
+		stroke-dasharray: 0.55 14;
+		stroke-dashoffset: 0;
+		filter: drop-shadow(0 0 0.12px #fff) drop-shadow(0 0 0.22px #ff5f9f);
+	}
+	.hub-cta.ink .ink-fill tspan {
+		animation: hub-fill-in 360ms ease-out calc(140ms + var(--d) + 220ms) both;
+	}
+	.hub-cta.ink .ink-trace tspan {
+		animation: hub-trace 480ms cubic-bezier(0.37, 0, 0.63, 1) calc(140ms + var(--d)) both;
+	}
+	.hub-cta.ink .ink-tip tspan {
+		animation: hub-tip 480ms cubic-bezier(0.37, 0, 0.63, 1) calc(140ms + var(--d)) both;
+	}
+	@keyframes hub-fill-in {
 		from {
-			clip-path: inset(-0.35em 50%);
-			opacity: 0;
-		}
-		26% {
-			opacity: 1;
+			fill-opacity: 0;
+			stroke-opacity: 0;
 		}
 		to {
-			clip-path: inset(-0.35em);
-			opacity: 1;
+			fill-opacity: 1;
+			stroke-opacity: 1;
 		}
 	}
-	@keyframes hub-letter-flare {
+	@keyframes hub-trace {
 		from {
-			opacity: 0;
-			scale: 0.12 0.5;
+			stroke-dashoffset: 8;
+			stroke-opacity: 0;
 		}
-		24% {
-			opacity: 0.82;
+		8% {
+			stroke-opacity: 1;
+		}
+		75% {
+			stroke-dashoffset: 0;
+			stroke-opacity: 1;
 		}
 		to {
-			opacity: 0;
-			scale: 1.15 1;
+			stroke-dashoffset: 0;
+			stroke-opacity: 0;
+		}
+	}
+	@keyframes hub-tip {
+		from {
+			stroke-dashoffset: 0;
+			stroke-opacity: 0;
+		}
+		8% {
+			stroke-opacity: 1;
+		}
+		78% {
+			stroke-opacity: 1;
+		}
+		to {
+			stroke-dashoffset: -8;
+			stroke-opacity: 0;
 		}
 	}
 	.hub-spin:disabled .hub-cta {
@@ -4554,11 +4697,12 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		}
 		.hub-spin:not(:disabled)::before,
 		.hub-spin:not(:disabled)::after,
-		.hub-spin:not(:disabled) .hub-word {
+		.hub-cta.ink .hub-ink tspan {
 			animation: none;
 		}
-		.hub-spin:not(:disabled) .hub-cta::before {
-			content: none;
+		.hub-cta.ink .ink-fill {
+			fill-opacity: 1;
+			stroke-opacity: 1;
 		}
 	}
 

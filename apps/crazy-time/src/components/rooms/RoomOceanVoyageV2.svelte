@@ -241,11 +241,24 @@
 	    is centred in it. `pick` is the row a barrel's foot comes down to as it is taken: below the tip
 	    of the bow's spike (785) and above the rail (913), so the spike stands over the barrel as it is
 	    picked. */
-	const DECK_PX = { w: 1918, h: 1505, ring: 707, ringY: 1293, tip: 785, pick: 845 };
+	const DECK_PX = { w: 3741, h: 1505, ring: 707, ringY: 1293, tip: 785, pick: 845 };
+	/**
+	 * The deck's picture is drawn twice as wide as it needs for a 16:9 screen, its rail, rigging and
+	 * posts running on out to either side, so a wide screen has a whole ship to look at rather than
+	 * a deck that ends in the sea. This is the width of its middle that a screen of the room's own
+	 * proportions (up to 21:9) is fitted to: the scale is worked out against it, and the rest of the
+	 * picture is what a wider screen shows and a narrower one crops.
+	 */
+	const DECK_CORE_W = 1918;
 	/** The top of the deck's rail at its middle, in the deck picture's pixels. */
 	const DECK_RAIL_Y = 913;
 	/** How far a landscape deck is let down below the foot of the screen, as a share of the height. */
 	const DECK_SINK = 0.1;
+	/**
+	 * Let further down on a screen wider than 16:9, by this share of the height at 32:9 and in
+	 * proportion between: the bow stands lower and the barrels have more sea to be seen in.
+	 */
+	const DECK_SINK_WIDE = 0.07;
 	/**
 	 * The wheel's picture. It is drawn a little from above — its rim an ellipse WHEEL_TILT as tall as
 	 * it is wide, and its hub above the middle — so it is turned as a tilted wheel: stretched round,
@@ -295,15 +308,17 @@
 	    rail. */
 	const KRAKEN_SPLASH_SUNK = 0.3;
 	/**
-	 * The top edge of the deck's rail across the deck picture, in its pixels: 33 samples, left edge to
+	 * The top edge of the deck's rail across the deck picture, in its pixels: 65 samples, left edge to
 	 * right, measured off `v2/ship.webp`'s alpha. It falls away from the bow to the sides, so a splash
 	 * off to one side has to be set by the rail where it stands, not at the middle. The bow's spike
 	 * (16) stands up out of it, and the rigging, lanterns and posts cross it out to the sides (0-6,
 	 * 26-32): those are smoothed over — the rail behind them.
 	 */
 	const DECK_EDGE_PX = [
-		1060, 1055, 1050, 1045, 1040, 1036, 1032, 1029, 1021, 1009, 997, 983, 967, 949, 926, 905, 898, 905, 927, 950,
-		968, 984, 998, 1010, 1021, 1029, 1032, 1036, 1040, 1045, 1050, 1055, 1060,
+		1190, 1192, 1194, 1197, 1199, 1195, 1187, 1178, 1169, 1161, 1152, 1143, 1135, 1126, 1116, 1105, 1093, 1081,
+		1070, 1058, 1046, 1036, 1026, 1017, 1007, 998, 988, 979, 965, 949, 932, 916, 900, 916, 932, 949, 965, 979,
+		988, 998, 1007, 1016, 1026, 1035, 1046, 1058, 1070, 1081, 1093, 1105, 1116, 1126, 1135, 1143, 1152, 1161,
+		1169, 1178, 1187, 1195, 1199, 1197, 1194, 1192, 1190,
 	];
 	const END_HOLD_MS = 900;
 
@@ -543,23 +558,22 @@
 	// as it takes for the rigging to reach past the top of the screen rather than end in mid-air.
 	//
 	// Not so tall, though, that on a very wide, short screen the bow stands up the screen and takes
-	// the sea with it: the deck is only ever DECK_TALL screen heights from its top to its ring, and a
-	// screen wider than that allows has the deck drawn wider than it is tall (`deckScaleX`), its
-	// picture stretched across — the rail and rigging only run out to the sides — rather than scaled
-	// up by the width. 21:9 is under the limit and is unchanged.
+	// the sea with it: the deck is only ever DECK_TALL screen heights from its top to its ring. A screen
+	// wider than that allows just shows more of the picture, which runs on out to either side.
 	const DECK_TALL = 1.65;
+	const deckSink = $derived(
+		DECK_SINK + DECK_SINK_WIDE * clamp((W / H - 16 / 9) / (32 / 9 - 16 / 9), 0, 1),
+	);
 	const deckScale = $derived(
 		portrait
 			? (wheelW * 1.25) / DECK_PX.ring
 			: Math.max(
-					Math.min(VW / DECK_PX.w, (DECK_TALL * H) / DECK_PX.ringY),
-					(H * (1 + DECK_SINK)) / DECK_PX.ringY,
+					Math.min(VW / DECK_CORE_W, (DECK_TALL * H) / DECK_PX.ringY),
+					(H * (1 + deckSink)) / DECK_PX.ringY,
 				),
 	);
-	/** The deck's scale across the screen: `deckScale`, or more where the screen is wider than that. */
-	const deckScaleX = $derived(portrait ? deckScale : Math.max(VW / DECK_PX.w, deckScale));
-	const deckW = $derived(DECK_PX.w * deckScaleX);
-	const deckTop = $derived(H - DECK_PX.ringY * deckScale + (portrait ? 0 : H * DECK_SINK));
+	const deckW = $derived(DECK_PX.w * deckScale);
+	const deckTop = $derived(H - DECK_PX.ringY * deckScale + (portrait ? 0 : H * deckSink));
 
 	/** The barrel of gold (`GOLD_PX`): its size in pixels per front-picture pixel, and where it stands —
 	    centred behind the wheel, its foot hidden behind it. */
