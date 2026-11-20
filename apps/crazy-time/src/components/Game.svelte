@@ -34,7 +34,15 @@
 		chipTextColour as sharedChipTextColour,
 		fmtChip,
 	} from '../game/chips';
-	import { playSound, preloadSounds, startMusic, stopMusic, syncMusicVolume } from '../game/sound';
+	import {
+		playSound,
+		prepareMusicScene,
+		preloadSounds,
+		silenceSounds,
+		startMusic,
+		stopMusic,
+		syncMusicVolume,
+	} from '../game/sound';
 	import {
 		NUMBER_PAY,
 		NUMBER_SPOTS,
@@ -74,7 +82,7 @@
 	import HudMenuPopup from './HudMenuPopup.svelte';
 	import InfoModal from './InfoModal.svelte';
 	import WinPopup from './WinPopup.svelte';
-	import { WIN_POPUP_MIN_MULT, WIN_POPUP_TOTAL_MS } from '../lib/winPopup';
+	import { BIG_WIN_SOUND_MULT, WIN_POPUP_MIN_MULT, WIN_POPUP_TOTAL_MS } from '../lib/winPopup';
 import RgsErrorModal from './RgsErrorModal.svelte';
 	import QuickGuideModal from './QuickGuideModal.svelte';
 	import { isConfirmPromptOpen, requestConfirmPrompt } from '../game/confirmPrompt.svelte';
@@ -441,10 +449,15 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		// selected then when the balance covers no chip at all; see the step-down effect).
 		if (isSelected) stakePanelOpen = !stakePanelOpen;
 		else if (!chipDisabled(value)) selectStake(value);
+		else playSound('refused');
 	};
 
 	const pickStake = (value: number) => {
-		if (settled || clearing || chipDisabled(value)) return;
+		if (settled || clearing) return;
+		if (chipDisabled(value)) {
+			playSound('refused');
+			return;
+		}
 		selectStake(value);
 		stakePanelOpen = false;
 	};
@@ -1473,7 +1486,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			},
 		];
 		schedule(id, () => playSound('whoosh'), delay + grow);
-		schedule(id, () => playSound('pop'), delay + grow + travel);
+		schedule(id, () => playSound(kind === 'place' ? 'chipLand' : 'pop'), delay + grow + travel);
 		if (opts.onLand) schedule(id, opts.onLand, delay + ms);
 		schedule(id, () => dropFlight(id), delay + ms);
 		if (opts.from || opts.to) followLanding(id, box, delay + ms);
@@ -1552,7 +1565,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			},
 		];
 		playSound('whoosh');
-		schedule(id, () => playSound('pop'), TRAVEL_MS);
+		schedule(id, () => playSound(spot === 'tray' ? 'pop' : 'chipLand'), TRAVEL_MS);
 		schedule(id, () => dropFlight(id), ms);
 	};
 
@@ -1935,7 +1948,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 
 	const onConfirmClick = () => {
 		if (confirmDisabled) return;
-		playSound('click');
+		// A spin (or a replay's) gets its own start; PLAY AGAIN on a settled board is a plain press.
+		playSound(settled ? 'click' : 'spinStart');
 		if (replayMode) void (settled ? replayAgain() : startReplay());
 		else if (settled) void finishRound();
 		else spin();
@@ -2044,7 +2058,10 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 
 	const toggleSpot = (spot: Spot) => {
 		if (!idle || settled || clearing || replayMode) return;
-		animateChange(stateGameDerived.toggleSpot(spot));
+		// Nothing changed on a tile that was not backed: the board refused it (the balance does not
+		// cover another chip, or it would not make a ticket).
+		const wasBacked = stateGame.backed[spot];
+		if (!animateChange(stateGameDerived.toggleSpot(spot)) && !wasBacked) playSound('refused');
 	};
 
 	/** Gap between a bundle's chips, so a group lands as a run rather than a single thud. */
@@ -2075,6 +2092,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			change = stateGameDerived.placeSpots(spots);
 		}
 		if (animateChange(change)) playSound('click');
+		else if (!bundleOn(spots)) playSound('refused');
 	};
 
 	/**
@@ -2424,6 +2442,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		committedStake = stateGameDerived.buyTotal(mode);
 		if (!stateGameDerived.beginBuy(mode)) {
 			buyBonusOpen = false;
+			playSound('refused');
 			betNotice = 'Not enough balance for this buy.';
 			return;
 		}
@@ -2942,13 +2961,15 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			// Normally already on its way from the press of SPIN; a resumed round comes straight here.
 			await focusTopSlot();
 			await topSlot?.spin(event.spot, event.multiplier);
-			// Let the pair be read before anything moves again.
-			await waitForTimeout(TOP_SLOT_HOLD_MS);
 			// The multiplier goes to the board first, straight out of the cabinet in the middle of the
 			// screen (a blank is the miss: nothing to carry over), and only once it has landed does
 			// the cabinet go home — the trip home counts towards the badge's settle on its tile.
 			const { spot, multiplier } = event;
 			const carried = spot !== null && multiplier !== null && multiplier > 1;
+			// A pair that carries something rings out the moment its second reel has landed.
+			if (carried) playSound('topSlotHit');
+			// Let the pair be read before anything moves again.
+			await waitForTimeout(TOP_SLOT_HOLD_MS);
 			if (carried) await flyMultiplier(spot, multiplier);
 			await releaseTopSlot();
 			if (carried) await waitForTimeout(Math.max(0, MULT_SETTLE_MS - TS_FOCUS_MS));
@@ -2958,6 +2979,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			if (!wheelOff) panelDimmed = true;
 		},
 		wheelSpin: async (event) => {
+			// A room's track starts downloading now, so the spin and the reveal cover its fetch and
+			// the room does not open on silence.
+			if (isRoomSpot(event.spot)) prepareMusicScene(event.spot);
 			// The Top Slot is home before the wheel turns (it normally went on its own after its pair).
 			await releaseTopSlot();
 			// A round that skipped the Top Slot (a buy it had nothing for) dims the board here instead.
@@ -2977,7 +3001,11 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			// The wheel is done; the board comes back to full strength to show what it paid.
 			panelDimmed = false;
 			// Not behind the Buy Bonus screen: the room's own entrance is the sound of that landing.
-			if (!buyWaiting) playSound(event.covered ? 'merge' : 'pop');
+			// The pocket on every landing; a landing the board was backing keeps the chip merge over it.
+			if (!buyWaiting) {
+				playSound('wheelLand');
+				if (event.covered) playSound('merge');
+			}
 			// The landed wedge's badge does its tile's motion: the chest rattles, the ball hops, the
 			// number pops. Not for a wheel off the stage — nobody would see it.
 			const landMotionMs = wheelOff ? 0 : TILE_MOTION_MS[motionOf(event.spot)];
@@ -3021,8 +3049,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	const showWin = async (amount: number) => {
 		// Book amounts are x100 in units of the chip, so cash scales by betAmount.
 		winCash = (amount / 100) * stateBet.betAmount;
-		playSound('win');
 		const multiplier = committedStake > 0 ? winCash / committedStake : 0;
+		playSound(multiplier >= BIG_WIN_SOUND_MULT ? 'bigWin' : 'win');
 		if (winCash > 0 && !replayMode) showLastWin(winCash);
 		// A big win gets Willy's full-screen popup; the tile's readout plays under it either way.
 		if (multiplier >= WIN_POPUP_MIN_MULT) {
@@ -3142,7 +3170,11 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			{#if stateGame.menuOpen}
 				<HudMenuPopup
 					soundEnabled={stateGame.soundEnabled}
-					onToggleSound={() => (stateGame.soundEnabled = !stateGame.soundEnabled)}
+					onToggleSound={() => {
+						stateGame.soundEnabled = !stateGame.soundEnabled;
+						// Off means off now, not once the dragon or the kraken has finished.
+						if (!stateGame.soundEnabled) silenceSounds();
+					}}
 					musicEnabled={stateGame.musicEnabled}
 					onToggleMusic={() => (stateGame.musicEnabled = !stateGame.musicEnabled)}
 					onOpenRules={() => openInfo('rules')}
@@ -3237,7 +3269,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					highlight={wheelHighlight}
 					liftedIcon={revealIcon}
 					anticipate
-					onTick={(_, build) => playSound('peg', 1.4 + 0.2 * build, 0.5 + 0.35 * build)}
+					onTick={(_, build) =>
+					playSound('wheelTick', 0.95 + 0.15 * build, 0.5 + 0.35 * build)}
 				/>
 				<!-- Once a bet is down the wheel stays dimmed and only its middle lights: the frame art again,
 				     undimmed, cut to a circle just past the hub (see `.hub-lit`), then a warm pool over it —

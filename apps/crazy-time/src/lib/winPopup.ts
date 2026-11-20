@@ -16,6 +16,13 @@ export type WinTier = 'massive' | 'epic' | 'captain';
  * gate the popup again (it was 10).
  */
 export const WIN_POPUP_MIN_MULT = 0;
+/**
+ * A win of at least this many times the stake plays the big-win fanfare in place of the plain win
+ * sound. Kept apart from the popup threshold, which is 0 for now: a five-second fanfare on every 1x
+ * win would wear thin fast. 10 is where the popup used to start.
+ */
+export const BIG_WIN_SOUND_MULT = 10;
+
 /** The lowest multiple of each tier above Massive Plunder. */
 export const WIN_TIER_FROM_MULT = { epic: 50, captain: 200 } as const;
 

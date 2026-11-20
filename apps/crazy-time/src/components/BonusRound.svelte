@@ -134,11 +134,13 @@
 	 * the board will take. `0.7em` a character is measured off PiecesOfEight, rounded up a little so
 	 * a wider-than-average name still lands inside the rope.
 	 */
+	const TITLE_INSET_PERCENT = 20;
+	const titlePlateVw = $derived(portrait ? 90 : 34);
 	const titleSizeVw = (label: string): number => {
-		const plateVw = portrait ? 80.6 : 28.6;
 		const capVw = portrait ? 9.4 : 3.6;
-		// The writing surface is 0.72 of the picture across.
-		return Math.min(capVw, (plateVw * 0.72) / (0.7 * label.length));
+		const textWidthVw = (titlePlateVw * (100 - 2 * TITLE_INSET_PERCENT)) / 100;
+		const fitVw = textWidthVw / (0.7 * label.length);
+		return Math.min(capVw, fitVw) * 1.08;
 	};
 
 	/**
@@ -378,17 +380,33 @@
 	const SLAM_GAP_VW = 2;
 	const SLAM_OVER = 1.15;
 	let screenRatio = $state(0.5625);
+	/**
+	 * The title frame, its lettering and the multiplier are authored in vw, so on a screen wider than
+	 * 16:9 they grow with the width and take over the middle of the room (over the Treasure Chest's
+	 * hint, over the Ocean Voyage's cave). `--wv` is a landscape vw held to 16:9: 1vw up to there, and
+	 * shrinking with the height past it (worked in the screen's own pixels, as a `vw` carries the CSS zoom), so they are the size they are on a 16:9 desktop. Portrait
+	 * has its own sizes.
+	 */
+	let screenW = $state(1920);
+	let screenH = $state(1080);
+	/** In the screen's own layout pixels (the game's CSS zoom is not in them, but is in a `vw`). */
+	const wvPx = $derived(Math.min(screenW, screenH / 0.5625) / 100);
+	const wvCss = $derived(portrait ? '1vw' : `${wvPx.toFixed(3)}px`);
 	const titleBig = $derived.by(() => {
-		const [plate, ts, cap] = portrait ? [80.6, 6.6, 1.08] : [28.6, 1.7, 1.75];
-		const perBig = plate / 2.373 / 2 + 4.3 * ts * SLAM_OVER;
-		const room = 50 * screenRatio - SLAM_GAP_VW - 1.5;
+		const [ts, cap] = portrait ? [6.6, Math.min(1.08, 96 / titlePlateVw)] : [1.7, 1.75];
+		const perBig = (titlePlateVw * 514) / 2440 + 4.3 * ts * SLAM_OVER;
+		const room = (portrait ? 50 * screenRatio : screenH / wvPx / 2) - SLAM_GAP_VW - 1.5;
 		return Math.max(0.6, Math.min(cap, room / perBig));
 	});
 	$effect(() => {
 		const el = screenEl;
 		if (!el) return;
 		const measure = () => {
-			if (el.offsetWidth) screenRatio = el.offsetHeight / el.offsetWidth;
+			if (el.offsetWidth) {
+				screenRatio = el.offsetHeight / el.offsetWidth;
+				screenW = el.offsetWidth;
+				screenH = el.offsetHeight;
+			}
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
@@ -547,12 +565,12 @@
 		class:descending={held && enteredAs === 'descend'}
 		class:helm={current.helm}
 		bind:this={screenEl}
-		style="--room-base:{colour.base}; --room-deep:{colour.deep}">
+		style="--room-base:{colour.base}; --room-deep:{colour.deep}; --wv:{wvCss}; --plate-width:calc({titlePlateVw} * var(--wv)); --title-inset:{TITLE_INSET_PERCENT}%">
 		<div class="room-video-host" use:roomVideo={spot}></div>
 		{#if scene}
 			<SpineBackdrop {scene} />
 		{/if}
-		<div class="room-scrim"></div>
+		<div class="room-scrim" class:chest-scrim={spot === 'chest'}></div>
 
 		<div class="header" class:multiplied={current.room.topSlotMultiplier > 1}>
 			<div
@@ -561,7 +579,7 @@
 				bind:this={plateEl}
 				style="--title-frame:url('{TITLE_FRAME}')"
 			>
-				<div class="title" style="font-size:{titleSizeVw(SPOT_LABEL[spot])}vw">
+				<div class="title" style="font-size:calc({titleSizeVw(SPOT_LABEL[spot])} * var(--wv))">
 					{SPOT_LABEL[spot]}
 				</div>
 				{#if current.room.topSlotMultiplier > 1}
@@ -582,7 +600,7 @@
 			{/if}
 		</div>
 
-		<div class="stage">
+		<div class="stage" class:chest-stage={spot === 'chest'}>
 			{#if current.room.type === 'piratePlinkoRoom'}
 				<RoomPiratePlinko
 					bind:this={roomApi}
@@ -627,7 +645,7 @@
 					bind:this={titleEl}
 					style="--title-frame:url('{TITLE_FRAME}'); scale:{titleBig}"
 				>
-					<div class="title" style="font-size:{titleSizeVw(SPOT_LABEL[spot])}vw">
+					<div class="title" style="font-size:calc({titleSizeVw(SPOT_LABEL[spot])} * var(--wv))">
 						{SPOT_LABEL[spot]}
 					</div>
 					{#if current.room.topSlotMultiplier > 1}
@@ -643,7 +661,7 @@
 			<!-- The multiplier, up big over the name before it is slammed onto it (`slamMultiplier`). -->
 			<div
 				class="mult-slam"
-				style="--big:{titleBig}; --slam-over:{SLAM_OVER}; --slam-gap:{SLAM_GAP_VW}vw"
+				style="--big:{titleBig}; --slam-over:{SLAM_OVER}; --slam-gap:calc({SLAM_GAP_VW} * var(--wv))"
 			>
 				<div class="mult-tag" bind:this={slamEl} use:sameWidth>
 					{@render multTag(current.room.topSlotMultiplier)}
@@ -727,6 +745,14 @@
 				transparent 45%
 			);
 	}
+	.chest-scrim {
+		background: radial-gradient(
+			ellipse at 50% 48%,
+			rgba(9, 12, 27, 0.48) 0%,
+			rgba(7, 9, 21, 0.58) 62%,
+			rgba(4, 5, 13, 0.78) 100%
+		);
+	}
 	/* The round's own furniture sits above the backdrop. A positioned element paints over static
 	   ones whatever the DOM order, so these have to be positioned too rather than merely later. */
 	.header,
@@ -779,7 +805,7 @@
 	   art's 2.373 ratio (1220x514, the glow below its foot 0.134 of the height). */
 	.plate {
 		position: relative;
-		width: 28.6vw;
+		width: var(--plate-width);
 		aspect-ratio: 1220 / 514;
 		margin-bottom: -5.6%;
 		background: var(--title-frame) no-repeat center / 100% 100%;
@@ -801,8 +827,7 @@
 		   What this replaced was a percentage MARGIN, which resolves against the WIDTH — on a 2.27:1
 		   sign that is more than twice the lift it looks like, which is why the text once sat high. */
 		position: absolute;
-		left: 14%;
-		right: 14%;
+		inset-inline: var(--title-inset);
 		top: 22%;
 		bottom: 19.6%;
 		display: flex;
@@ -810,7 +835,7 @@
 		justify-content: center;
 		font-family: 'PiecesOfEight', 'Alexandria', sans-serif;
 		font-weight: 400;
-		letter-spacing: 0.08vw;
+		letter-spacing: calc(0.08 * var(--wv));
 		line-height: 1;
 		white-space: nowrap;
 		color: #f7c948;
@@ -833,7 +858,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.3vw;
+		gap: calc(0.3 * var(--wv));
 	}
 	/* The multiplier over the skull at the top of the sign, dead centre. Only the size is set here —
 	   the tag is `em`-based (`.mult-tag`). */
@@ -844,7 +869,7 @@
 		top: 62%;
 		left: 50%;
 		translate: -50% 0;
-		font-size: 1.7vw;
+		font-size: calc(1.7 * var(--wv));
 	}
 	/* Hung under the sign's bottom rope, so the not-in line goes under it rather than over it. */
 	.header.multiplied .badges {
@@ -897,24 +922,20 @@
 	.ts.waiting {
 		visibility: hidden;
 	}
-	/* The multiplier, held under the sign before it is slammed up onto it: hung a gap below the name's
-	   foot (the name stands in the middle at `titleBig`, `--big`; half of it is 28.6vw / 2.373 / 2 =
-	   6.03vw of it), a little bigger than the size it lands at on the sign (`.ts`, at the same
-	   `--big`), so the slam is a stamp rather than a grow. `titleBig` is worked out so this fits on
-	   the screen. Placed with the layer, not a translate, because the slam animates the tag's own
-	   `translate`. */
+	/* Start the multiplier below the bottom of the enlarged title frame. Its own translate
+	   stays free for the slam animation. */
 	.mult-slam {
 		position: absolute;
 		left: 0;
 		right: 0;
-		top: calc(50% + 6.03vw * var(--big) + var(--slam-gap));
+		top: calc(50% + var(--plate-width) * var(--big) * 514 / 2440 + var(--slam-gap));
 		z-index: 8;
 		display: flex;
 		justify-content: center;
 		pointer-events: none;
 	}
 	.mult-slam .mult-tag {
-		font-size: calc(1.7vw * var(--big) * var(--slam-over));
+		font-size: calc(1.7 * var(--wv) * var(--big) * var(--slam-over));
 	}
 	.mult-slam .mult-tag {
 		opacity: 0;
@@ -934,7 +955,7 @@
 		margin-bottom: 0.04em;
 	}
 	.not-in {
-		font-size: 0.9vw;
+		font-size: calc(0.9 * var(--wv));
 		color: #d6c6b4;
 	}
 	.stage {
@@ -944,6 +965,23 @@
 		flex: 1;
 		min-height: 0;
 	}
+	.chest-stage {
+		/* Size the grid against the space left by the plaque and footer. */
+		container-type: size;
+		width: 100%;
+		margin-block: calc(0.5rem + var(--chest-header-extra, 0px)) 0.5rem;
+		overflow: clip;
+		overflow-clip-margin: 0.5rem;
+	}
+	.header:has(.badges) + .chest-stage {
+		--chest-header-extra: calc(1.6 * var(--wv));
+	}
+	.header.multiplied + .chest-stage {
+		--chest-header-extra: calc(5.2 * var(--wv));
+	}
+	.header.multiplied:has(.badges) + .chest-stage {
+		--chest-header-extra: calc(6.8 * var(--wv));
+	}
 	.footer {
 		height: 4.6vw;
 	}
@@ -951,9 +989,7 @@
 	.footer.folded {
 		height: 0;
 	}
-	/* The result, dead centre on the screen and over everything the rooms draw. Sized to come out
-	   the same as the Treasure Chest's number on its grown last chest (a quarter of a chest column,
-	   times its zoom). */
+	/* The shared result sits over the center of the room. Treasure Chest renders its own result. */
 	.centre-result {
 		position: absolute;
 		inset: 0;
@@ -967,9 +1003,6 @@
 	/* ---- Portrait ----------------------------------------------------------------------------
 	   Everything here is authored in vw, and a portrait vw is about a third of a landscape one, so
 	   the sign and its lettering are scaled back up to come out the same size on the screen. */
-	:global(.game.portrait) .plate {
-		width: 80.6vw;
-	}
 	:global(.game.portrait) .title {
 		letter-spacing: 0.21vw;
 	}
@@ -987,12 +1020,17 @@
 		   the rail rather than on it, and the rooms were laid out against that. */
 		margin-bottom: var(--rail-h, 0px);
 	}
+	:global(.game.portrait) .header:has(.badges) + .chest-stage {
+		--chest-header-extra: 4vw;
+	}
+	:global(.game.portrait) .header.multiplied + .chest-stage {
+		--chest-header-extra: 17vw;
+	}
+	:global(.game.portrait) .header.multiplied:has(.badges) + .chest-stage {
+		--chest-header-extra: 21vw;
+	}
 	:global(.game.portrait) .centre-result {
 		font-size: 19vw;
-	}
-	/* The sign is 80.6vw across in portrait: 16.98vw from its middle to its foot at 1x. */
-	:global(.game.portrait) .mult-slam {
-		top: calc(50% + 16.98vw * var(--big) + var(--slam-gap));
 	}
 	:global(.game.portrait) .mult-slam .mult-tag {
 		font-size: calc(6.6vw * var(--big) * var(--slam-over));

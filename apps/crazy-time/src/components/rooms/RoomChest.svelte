@@ -199,10 +199,10 @@
 		return turn === -1 ? award : decoys[turn];
 	};
 
-	/** A pop per chest, climbing a little with each one so the run of eleven reads as a run. */
+	/** A wooden knock per chest, climbing a little with each one so the run of eleven reads as a run. */
 	const openChest = (index: number) => {
 		openedOrder = [...openedOrder, index];
-		playSound('pop', 0.9 + openedOrder.length * 0.03, 0.4);
+		playSound('chestPick', 0.9 + openedOrder.length * 0.03);
 	};
 
 	const choose = (index: number) => {
@@ -289,7 +289,7 @@
 	};
 </script>
 
-<div class="chests" style="--shake-ms:{SHAKE_MS}ms; --cols:{COLS}">
+<div class="chests" style="--shake-ms:{SHAKE_MS}ms; --cols:{COLS}; --rows:{ROWS}">
 	<!-- The rule of the room and the pick clock, in the game's one voice — see `RoomHint`. It stands
 	     over the grid rather than across it, because here the thing being read and the thing being
 	     tapped are the same twelve boxes. A player who was not in the bonus is only being shown the
@@ -300,12 +300,14 @@
 	     exact moment that chest is measuring its way to the middle. There is nothing left for it to
 	     say, either — from here the chest carries its own number, cut in the letters every other
 	     multiplier in the game is cut in, and the footer says what that paid. -->
-	<RoomHint
-		lines={interactive ? HINT : ['Opening the chests']}
-		durationMs={interactive ? PICK_MS : null}
-		shown={started && winner === null}
-		size={HINT_SIZE}
-	/>
+	<div class="hint-slot">
+		<RoomHint
+			lines={interactive ? HINT : ['Opening the chests']}
+			durationMs={interactive ? PICK_MS : null}
+			shown={started && winner === null}
+			size={HINT_SIZE}
+		/>
+	</div>
 	<div class="grid">
 		{#each room.chests as _, i (i)}
 			{@const mine = winner === i}
@@ -363,48 +365,44 @@
 </div>
 
 <style>
-	/*
-	 * Every measurement in this room is a share of ONE chest column, and that column is the only
-	 * number that changes between a wide screen and a tall one. It was a dozen separate vw values
-	 * before, which meant a portrait pass would have been a dozen more of them, each free to drift
-	 * out of proportion with the rest; now there is a single knob and the drawing follows it.
-	 */
 	.chests {
-		/* The dragon's layer is laid over this box. */
 		position: relative;
-		/* The height the room is given: the frame less 18.05vw of plaque, footer and padding
-		   (`BonusRound`). Every column below is sized against it, so a wide screen shrinks the board
-		   rather than running it over the plaque and the footer. */
-		--stage-h: calc(100vh / var(--fit, 1) - 18.05vw);
-		/* As wide as the stage can stand: the column is 3.33 cells tall (the hint, its gap and three
-		   rows); divided by 3.42 for a hair of air, it is about 11.2vw on 16:9. */
-		--cell: min(11.5vw, calc(var(--stage-h) / 3.42));
-		--col-gap: calc(var(--cell) * 0.097);
-		--row-gap: calc(var(--cell) * 0.097);
-		/* The instruction, as a share of the column. Two lines of it stand 1.9 of this tall. */
-		--hint: calc(var(--cell) * 0.3);
-		/* The shut drawing, laid across the full column: 1102/1427 of its own width. */
-		--art-h: calc(var(--cell) * 0.7723);
-		/* Headroom over the lid: only what the hover lift and the rattle reach into. It used to be a
-		   quarter of a column, held for the dragon, but the dragon is drawn on a layer of its own and
-		   finds the lid off the chest's width (`ChestDragon`), so it never needed the box to be tall. */
-		--head: calc(var(--cell) * 0.05);
-		--chest-h: calc(var(--art-h) + var(--head));
-		/* How far the last chest grows once it reaches the middle — and the dragon with it, since it
-		   is sized off the chest's own box on the screen. The eleven are gone by then and the hint
-		   has faded, so there is nothing under it to hide except the air. Its foot stands just clear
-		   of the win line, which comes up under it, and the dragon on its lid clear of the sign
-		   above; `--lift` puts it there (negative: with less headroom in the rows the board's middle
-		   sits higher than it did, so the chest is lowered back onto the same spot). Column x zoom
-		   is what lands on the screen (33.6vw, set when the column was 8vw at 4.2), and
-		   `BonusRound`'s centre result is sized off the same product to match the number on it, so
-		   the zoom comes down as the column grows. */
-		--zoom: 3;
-		--lift: calc(var(--cell) * -0.14);
+		--art-ratio: calc(1102 / 1427);
+		--chest-ratio: calc(var(--art-ratio) + 0.05);
+		--hint-slot-ratio: 0.53;
+		--hint-gap-ratio: 0.1;
+		--col-gap-ratio: 0.08;
+		--min-row-gap-ratio: 0.06;
+		--hint-space: calc(var(--hint-slot-ratio) + var(--hint-gap-ratio));
+		--rows-and-hint: calc(var(--rows) * var(--chest-ratio) + var(--hint-space));
+		/* Fit the full board within the stage left by the title and HUD. */
+		--cell: min(
+			calc(100cqw / (var(--cols) + (var(--cols) - 1) * var(--col-gap-ratio))),
+			calc(100cqh / (var(--rows-and-hint) + (var(--rows) - 1) * var(--min-row-gap-ratio)))
+		);
+		--col-gap: calc(var(--cell) * var(--col-gap-ratio));
+		--row-gap: max(
+			calc(var(--cell) * var(--min-row-gap-ratio)),
+			calc((100cqh - var(--cell) * var(--rows-and-hint)) / (var(--rows) - 1))
+		);
+		--hint: calc(var(--cell) * 0.25);
+		--art-h: calc(var(--cell) * var(--art-ratio));
+		--chest-h: calc(var(--cell) * var(--chest-ratio));
+		/* Fit the chest and the dragon above it inside the stage. */
+		--winner-width: min(var(--winner-width-limit, 62cqw), 82cqh);
+		/* Convert the two CSS lengths into the unitless ratio required by scale(). */
+		--zoom: tan(atan2(var(--winner-width), var(--cell)));
+		--winner-offset: calc(var(--winner-width) * 0.12 - var(--cell) * var(--hint-space) / 2);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: calc(var(--cell) * 0.1);
+		gap: calc(var(--cell) * var(--hint-gap-ratio));
+	}
+	.hint-slot {
+		display: grid;
+		place-items: center;
+		width: 100%;
+		height: calc(var(--cell) * var(--hint-slot-ratio));
 	}
 	.grid {
 		display: grid;
@@ -466,6 +464,11 @@
 		width: 100%;
 		height: auto;
 		transform: translateX(-50%);
+		/* Match the plaque's yellow-gold glow and ground the silhouette with a dark shadow. */
+		filter:
+			drop-shadow(0 calc(var(--cell) * 0.015) calc(var(--cell) * 0.018) rgba(3, 4, 13, 0.85))
+			drop-shadow(0 0 calc(var(--cell) * 0.014) rgba(255, 216, 77, 0.82))
+			drop-shadow(0 0 calc(var(--cell) * 0.028) rgba(255, 191, 34, 0.42));
 		/* Decoration. The number above it is what a chest actually says. */
 		pointer-events: none;
 		transition:
@@ -547,7 +550,7 @@
 		z-index: 5;
 		transform: translate(
 				calc((var(--cell) + var(--col-gap)) * var(--dx)),
-				calc((var(--chest-h) + var(--row-gap)) * var(--dy) - var(--lift, 0px))
+				calc((var(--chest-h) + var(--row-gap)) * var(--dy) + var(--winner-offset))
 			)
 			scale(var(--zoom));
 	}
@@ -607,33 +610,7 @@
 		}
 	}
 
-	/* ---- Portrait ----------------------------------------------------------------------
-	   The board turned on its side to suit a taller screen: three across and four down (`COLS`).
-	   Four chests down on a phone's short screen (h/w about 1.3) is as tall as the board can
-	   stand between the sign and the footer; on anything taller the rows spread apart to fill the
-	   stage rather than leaving the air in one band under the board. */
 	:global(.game.portrait) .chests {
-		/* The frame less 44.1vw of plaque, footer and padding, and the rail under them. */
-		--stage-h: calc(100vh / var(--fit, 1) - 44.1vw - var(--rail-h, 0px));
-		/* Four rows at their closest make the column 4.32 cells tall; 4.45 leaves a hair of air.
-		   About 24.2vw on a phone, and held at 24.5vw on anything taller: the last chest grows off
-		   this times the zoom, so a column that kept growing would grow it past the screen's edges.
-		   A taller screen spreads the rows apart instead (`--row-gap`). */
-		--cell: min(24.5vw, calc(var(--stage-h) / 4.45));
-		/* Spread across the screen rather than huddled in its middle: 86vw from edge to edge. */
-		--col-gap: calc(var(--cell) * 0.25);
-		/* Whatever height the column does not use goes between the rows — 3.96 cells is the hint, its
-		   gap and the four chests — up to half a chest apart, past which they stop reading as one
-		   board and the rest is split above and below it. */
-		--row-gap: clamp(
-			calc(var(--cell) * 0.12),
-			calc((var(--stage-h) * 0.97 - var(--cell) * 3.96) / 3),
-			calc(var(--cell) * 0.5)
-		);
-		/* 79.8vw on the screen, as it was at 19vw x 4.2. */
-		--zoom: 3.25;
-		/* A phone's board has the win line well below the chest, so it lands where it did before the
-		   rows lost their headroom: lowered onto the old spot, as in landscape. */
-		--lift: calc(var(--cell) * -0.385);
+		--winner-width-limit: 98cqw;
 	}
 </style>

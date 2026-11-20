@@ -740,7 +740,7 @@
 						quake();
 					},
 					land: (at) => {
-						playSound('merge');
+						playSound('wheelLand');
 						throwCoins(at);
 					},
 				}}
@@ -799,9 +799,9 @@
 		   here once because three rules and one measured marker all have to agree on them. */
 		/* Trimmed to give the board its height back: the bay is mostly air, and with the win line off
 		   the footer the board is the only thing left that wants the room. */
-		--cannon-h: 10.6vw;
+		--cannon-h: calc(10.6 * var(--wv, 1vw));
 		--cannon-pivot: 0.4;
-		--cannon-gap: 1.2vw;
+		--cannon-gap: calc(1.2 * var(--wv, 1vw));
 		/* How much of the barrel goes up behind the title plaque. The bay only reserves what is left,
 		   so whatever is hidden costs the board nothing. */
 		--cannon-tuck: 0.55;

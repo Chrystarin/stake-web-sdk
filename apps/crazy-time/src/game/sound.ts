@@ -12,6 +12,138 @@ import { stateGame } from './stateGame.svelte';
  * standalone mp3s. Each effect plays on a small ring of audio nodes, so overlapping plays (tapping
  * one colour straight after another) sound together instead of restarting the one already playing.
  */
+// --- Output: Web Audio gain ----------------------------------------------------------------
+// Every element — each effect voice and each music track — is routed through a GainNode of its own,
+// and its level is set there rather than on `el.volume`. iOS ignores `volume` on a media element
+// outright (it is always 1), so with `volume` alone an iPhone heard the music some 26 dB over the
+// mix it was given, every effect at full, no fades, and sliders that did nothing short of zero. A
+// GainNode is honoured everywhere. The elements still do the fetching, decoding and looping; only
+// the level moves.
+//
+// The context is made on the first touch, not at load: one made before it starts suspended, and
+// Chrome logs a warning for it. Elements made before then are routed the moment it exists (nothing
+// can sound before that touch anyway). Where there is no Web Audio, or routing an element fails,
+// that element simply keeps using `volume`.
+
+type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
+
+let ctx: AudioContext | null = null;
+const gains = new WeakMap<HTMLMediaElement, GainNode>();
+/** Elements waiting for the context to be made, to be routed then. */
+const unrouted = new Set<HTMLMediaElement>();
+
+const routeNow = (el: HTMLMediaElement, context: AudioContext): void => {
+	if (gains.has(el)) return;
+	try {
+		const gain = context.createGain();
+		// Whatever level it was given while it waited is carried over to the node.
+		gain.gain.value = el.volume;
+		context.createMediaElementSource(el).connect(gain).connect(context.destination);
+		gains.set(el, gain);
+		el.volume = 1;
+	} catch {
+		/* already routed elsewhere, or no support: it stays on `volume` */
+	}
+};
+
+/** Put `el` on a gain of its own — now if the context exists, else as soon as it does. */
+const route = (el: HTMLMediaElement): void => {
+	if (ctx) routeNow(el, ctx);
+	else unrouted.add(el);
+};
+
+/** Set an element's level, on its gain if it has one. */
+const setLevel = (el: HTMLMediaElement, level: number): void => {
+	const gain = gains.get(el);
+	if (gain) gain.gain.value = level;
+	else el.volume = Math.min(1, Math.max(0, level));
+};
+const levelOf = (el: HTMLMediaElement): number => gains.get(el)?.gain.value ?? el.volume;
+
+/**
+ * iOS files Web Audio under the "ambient" session by default, which the ringer switch mutes — so once
+ * the elements play through a context, a phone on silent would hear nothing. "playback" is what an
+ * `<audio>` element had on its own. Re-asserted on `pageshow`, as the plinko app found it needed.
+ */
+const preferPlaybackSession = (): void => {
+	const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+	if (session && session.type !== 'playback') {
+		try {
+			session.type = 'playback';
+		} catch {
+			/* read-only on this build */
+		}
+	}
+};
+
+/**
+ * Keep the context running. A suspended or "interrupted" one (a call, Siri, another app taking the
+ * session) comes back with `resume()`. A ZOMBIE — "running", but its clock frozen, which iOS leaves
+ * behind when the page is hidden while it is sounding — does not: `resume()` on it is a no-op, and
+ * only suspending it and resuming restarts it (measured on real devices in the plinko app).
+ */
+let lastClock = -1;
+const heal = (): void => {
+	if (!ctx || ctx.state === 'closed') return;
+	if (ctx.state !== 'running') {
+		void ctx.resume().catch(() => {});
+		return;
+	}
+	const now = ctx.currentTime;
+	if (now === lastClock) {
+		lastClock = -1;
+		const zombie = ctx;
+		void zombie
+			.suspend()
+			.then(() => zombie.resume())
+			.catch(() => {});
+		return;
+	}
+	lastClock = now;
+};
+
+/** Once a second while the page is shown: a running context whose clock has not moved is a zombie. */
+const WATCHDOG_MS = 1000;
+
+const makeContext = (): void => {
+	if (ctx || typeof window === 'undefined') return;
+	const Ctor = window.AudioContext ?? (window as WebkitWindow).webkitAudioContext;
+	if (!Ctor) return;
+	try {
+		ctx = new Ctor();
+	} catch {
+		return;
+	}
+	for (const el of unrouted) routeNow(el, ctx);
+	unrouted.clear();
+	setInterval(() => {
+		if (document.hidden) lastClock = -1;
+		else heal();
+	}, WATCHDOG_MS);
+};
+
+/** Every touch: make the context if it is not made, and wake it if it is not running. */
+const onTouch = (): void => {
+	makeContext();
+	if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') void ctx.resume().catch(() => {});
+};
+
+if (typeof window !== 'undefined') {
+	preferPlaybackSession();
+	// iOS counts `touchend` and `click` as activation, not `touchstart`; `pointerdown` is everyone
+	// else's earliest. Capture, so a handler that stops propagation cannot keep it from us.
+	for (const type of ['pointerdown', 'touchend', 'click', 'keydown'] as const) {
+		window.addEventListener(type, onTouch, { capture: true, passive: true });
+	}
+	window.addEventListener('pageshow', () => {
+		preferPlaybackSession();
+		heal();
+	});
+	document.addEventListener('visibilitychange', () => {
+		if (!document.hidden) heal();
+	});
+}
+
 export type SoundName =
 	| 'whoosh'
 	| 'pop'
@@ -30,7 +162,15 @@ export type SoundName =
 	| 'shipWheel'
 	| 'coinFlip'
 	| 'coinShuffle'
-	| 'openPopup';
+	| 'openPopup'
+	| 'wheelTick'
+	| 'wheelLand'
+	| 'chipLand'
+	| 'refused'
+	| 'spinStart'
+	| 'topSlotHit'
+	| 'bigWin'
+	| 'chestPick';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
@@ -64,9 +204,11 @@ const SOURCES: Record<SoundName, string> = {
 	notify: staticUrl('sound/notify.mp3'),
 	win: staticUrl('sound/win.mp3'),
 	// The jackpot screen arriving and leaving — a door thudding shut and creaking back open, from
-	// the same game's bonus screen. Both are SPRITE windows; see `SPRITES`.
-	doorClose: staticUrl('sound/door_close.ogg'),
-	doorOpen: staticUrl('sound/door_open.ogg'),
+	// the same game's bonus screen. Both are SPRITE windows; see `SPRITES`. MP3, not the Vorbis .ogg
+	// they were delivered as: no iPhone or iPad decodes Vorbis in an <audio>, so both doors were
+	// silent there. These are the plinko app's transcodes, which keep the same sprite windows.
+	doorClose: staticUrl('sound/door_close.mp3'),
+	doorOpen: staticUrl('sound/door_open.mp3'),
 	// The kraken rising over the rail in Ocean Voyage v2 (rooms/RoomOceanVoyageV2.svelte). A SPRITE
 	// window: the recording runs nearly 13s, and the room is gone long before that.
 	kraken: staticUrl('sound/kraken_sfx.mp3'),
@@ -80,6 +222,24 @@ const SOURCES: Record<SoundName, string> = {
 	coinShuffle: staticUrl('sound/coin_shuffle.mp3'),
 	// The win popup arriving: Willy's own (apps/plinko/static/sound/openPopup.mp3).
 	openPopup: staticUrl('sound/openPopup.mp3'),
+	// Chosen from the audition (2026-11-20). The plinko ones are that game's files as they ship there;
+	// the two dice ones are from the @3d-dice/dice-box-threejs package (MIT), renamed for what they do.
+	// The main wheel's flapper ticking past each pin. The bonus wheel and the Top Slot keep the peg.
+	wheelTick: staticUrl('sound/roulette_tick.mp3'),
+	// The main wheel coming to rest on its segment; also the plinko room's ball dropping into its slot.
+	wheelLand: staticUrl('sound/pocket.mp3'),
+	// A chip set down on a bet tile (a chip going home to the tray keeps the pop).
+	chipLand: staticUrl('sound/chip_felt.mp3'),
+	// A tap the table cannot take: a tile the balance does not cover, a chip worth more than it.
+	refused: staticUrl('sound/clickingFail.mp3'),
+	// SPIN pressed.
+	spinStart: staticUrl('sound/startAutoPlay.mp3'),
+	// The Top Slot's two reels landing on a pair that carries a multiplier to the board.
+	topSlotHit: staticUrl('sound/bonus_level_up.mp3'),
+	// A win of BIG_WIN_SOUND_MULT times the stake or more, in place of `win`. A SPRITE window.
+	bigWin: staticUrl('sound/bonus_congratulations.mp3'),
+	// A chest opened in the chest room.
+	chestPick: staticUrl('sound/chest_wood.mp3'),
 };
 
 /**
@@ -134,6 +294,18 @@ const SPRITES: Partial<Record<SoundName, [startMs: number, durationMs: number, f
 		 * Two seconds is about a fountain's flight, throw to the last coin in.
 		 */
 		coinShuffle: [2000, 2000],
+		/**
+		 * The chime and the first of its ring: loud at the hit, -30 dB by 3.2s, and the file runs on to
+		 * 6.2s. By then the multiplier has flown to the board and the wheel is turning, so it is let go
+		 * over the last second.
+		 */
+		topSlotHit: [0, 3000, 1000],
+		/**
+		 * The fanfare off its 0.27s of silent head (plinko's own window starts at 250ms), and only as
+		 * long as the win popup is up (WIN_POPUP_TOTAL_MS, 3.2s): it rides down with the popup's fade
+		 * rather than ringing on into the next round.
+		 */
+		bigWin: [250, 3300, 900],
 	};
 
 /** Per-sound trim, so the movement swish sits under the landing pop rather than over it. */
@@ -170,6 +342,24 @@ const MIX: Record<SoundName, number> = {
 	coinFlip: 1,
 	coinShuffle: 1,
 	openPopup: 1,
+	// The new set, levelled from measured peaks and loudness against what each replaces — not yet by
+	// ear. The old pop peaked at -22 dBFS, so its replacements, which peak near -3, are held well
+	// down; they still come out louder than the pop did, which was hard to hear.
+	// The tick peaks within 2 dB of the peg it replaces; the callers' build-up gains stay as they were.
+	wheelTick: 0.5,
+	// The one hit at the end of a five-second spin.
+	wheelLand: 0.6,
+	// Up to a dozen of these go down in a bundle tap, 60ms apart.
+	chipLand: 0.35,
+	// Recorded quiet (-29 LUFS): near full so it is heard at all.
+	refused: 0.8,
+	// Recorded hot (-18 LUFS, peaking at -0.4): a press, not an event.
+	spinStart: 0.5,
+	topSlotHit: 0.8,
+	// Plinko's own level for it: over the music and the popup's coin bed.
+	bigWin: 0.8,
+	// Eleven in a row, climbing in pitch.
+	chestPick: 0.35,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
@@ -215,6 +405,7 @@ const takeVoice = (name: SoundName): HTMLAudioElement => {
 		const warmed = preloaded.get(name);
 		const voice = warmed ? (warmed.cloneNode() as HTMLAudioElement) : new Audio(SOURCES[name]);
 		voice.preload = 'auto';
+		route(voice);
 		ring.push(voice);
 		return voice;
 	}
@@ -307,15 +498,25 @@ export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 			warmed = new Audio(SOURCES[name]);
 			preloaded.set(name, warmed);
 		}
+		// A sprite plays on the warmed element itself, so that is what goes on a gain. Only the
+		// sprites': the other warmed elements are never played, only cloned.
+		route(warmed);
 		node = warmed;
 	} else {
 		node = takeVoice(name);
 	}
-	node.volume = Math.min(1, volume);
+	// Capped at 1 so the mix is what it was before the gains; a gain could take a quiet file past it.
+	setLevel(node, Math.min(1, volume));
 	// Set on every play, not only a pitched one: the voice is reused, and would otherwise carry the
 	// last caller's rate into a play that asked for none.
-	const pitched = node as HTMLAudioElement & { preservesPitch?: boolean };
+	const pitched = node as HTMLAudioElement & {
+		preservesPitch?: boolean;
+		webkitPreservesPitch?: boolean;
+	};
 	pitched.preservesPitch = false;
+	// Safari before 17 only knows the prefixed name, and would otherwise pitch-correct every
+	// rate-shifted tick back to the same note.
+	pitched.webkitPreservesPitch = false;
 	node.playbackRate = rate && rate > 0 ? rate : 1;
 
 	// Rejects while the autoplay policy is unsatisfied. Every play here follows a tap on the
@@ -337,7 +538,7 @@ export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 	const windowMs = durationMs / speed;
 	// A fade longer than the window would start before the sound did.
 	const fade = Math.min(fadeMs / speed, windowMs);
-	const full = node.volume;
+	const full = levelOf(node);
 
 	const start = () => {
 		try {
@@ -361,12 +562,12 @@ export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 				let step = 0;
 				ramp = setInterval(() => {
 					step += 1;
-					node.volume = Math.max(0, full * (1 - step / steps));
+					setLevel(node, Math.max(0, full * (1 - step / steps)));
 					if (step < steps) return;
 					clearInterval(ramp);
 					node.pause();
 					// Handed back at its proper level, or the next play starts silent.
-					node.volume = full;
+					setLevel(node, full);
 				}, fade / steps);
 			},
 			Math.max(0, windowMs - fade),
@@ -375,7 +576,7 @@ export const playSound = (name: SoundName, rate?: number, gain = 1): void => {
 		spriteRuns.set(name, () => {
 			clearTimeout(stop);
 			if (ramp) clearInterval(ramp);
-			node.volume = full;
+			setLevel(node, full);
 		});
 	};
 	// `readyState >= HAVE_METADATA` is the point at which a seek will take.
@@ -393,22 +594,33 @@ export const fadeOutSound = (name: SoundName, fadeMs = 250): void => {
 	const node = preloaded.get(name);
 	if (!node || !SPRITES[name] || node.paused) return;
 	cancelSprite(name);
-	const full = node.volume;
+	const full = levelOf(node);
 	const steps = Math.max(1, Math.round(fadeMs / 30));
 	let step = 0;
 	const ramp = setInterval(() => {
 		step += 1;
-		node.volume = Math.max(0, full * (1 - step / steps));
+		setLevel(node, Math.max(0, full * (1 - step / steps)));
 		if (step < steps) return;
 		clearInterval(ramp);
 		node.pause();
-		node.volume = full;
+		setLevel(node, full);
 		spriteRuns.delete(name);
 	}, fadeMs / steps);
 	spriteRuns.set(name, () => {
 		clearInterval(ramp);
-		node.volume = full;
+		setLevel(node, full);
 	});
+};
+
+/**
+ * Stop every effect that is sounding: the voices, and any sprite with its window still open. For the
+ * menu's Sound switch going off (a kraken or a dragon would otherwise roar on for seconds after it)
+ * and the page being hidden.
+ */
+export const silenceSounds = (): void => {
+	for (const name of [...spriteRuns.keys()]) cancelSprite(name);
+	for (const ring of voices.values()) for (const voice of ring) voice.pause();
+	for (const [name, node] of preloaded) if (SPRITES[name]) node.pause();
 };
 
 // --- Background music ---------------------------------------------------------------------
@@ -425,7 +637,7 @@ const MUSIC_SOURCES: Record<MusicScene, string> = {
 	bonusWheel: staticUrl('sound/bgm_bonus_wheel.mp3'),
 	piratePlinko: staticUrl('sound/bgm_pirate_plinko.mp3'),
 	chest: staticUrl('sound/bgm_treasure_chest.mp3'),
-	oceanVoyage: staticUrl('sound/brm_ocean_voyage.mp3'),
+	oceanVoyage: staticUrl('sound/bgm_ocean_voyage.mp3'),
 };
 
 /** The music files — streamed on first use by the scene that plays them, never preloaded. */
@@ -479,16 +691,16 @@ const trackFor = (name: MusicScene): Track => {
 		const el = new Audio(MUSIC_SOURCES[name]);
 		el.loop = true;
 		el.preload = 'auto';
+		route(el);
 		track = { el, gain: 0 };
 		tracks.set(name, track);
 	}
 	return track;
 };
 
-// iOS ignores `volume` on a media element, so there the fades cannot be heard: the outgoing track
-// plays on at full until its fade ends and it pauses. Everywhere else the ride is smooth.
+// On the track's gain (see `route`), so the fades and the mix are heard on iOS too.
 const applyVolume = (track: Track) => {
-	track.el.volume = Math.min(1, Math.max(0, musicVolume() * track.gain));
+	setLevel(track.el, Math.min(1, Math.max(0, musicVolume() * track.gain)));
 };
 
 /**
@@ -498,10 +710,57 @@ const applyVolume = (track: Track) => {
  */
 const resumeScene = (): void => {
 	if (!running || musicVolume() <= 0) return;
+	// Nothing plays into a hidden page; `onVisibility` brings the scene back when it is shown.
+	if (typeof document !== 'undefined' && document.hidden) return;
 	const track = tracks.get(scene);
 	if (!track || !track.el.paused) return;
+	// A track whose stream failed (a dropped connection mid-download) stays failed: every `play()`
+	// on it rejects. Start the fetch over, so the retry on the next touch has something to play.
+	if (track.el.error) track.el.load();
 	applyVolume(track);
 	void track.el.play().catch(() => onFirstGesture(resumeScene));
+};
+
+/**
+ * Hidden: the music and any effect still sounding stop, rather than playing on in a background tab
+ * (or on a phone's lock screen). Shown again: the scene's track picks up where it was. iOS pauses
+ * media by itself when the browser goes to the background, and nothing else would ever call
+ * `play()` again — the table would come back silent until the Music switch was toggled.
+ */
+const onVisibility = (): void => {
+	if (document.hidden) {
+		for (const track of tracks.values()) {
+			if (track.ramp) clearInterval(track.ramp);
+			track.ramp = undefined;
+			track.el.pause();
+			// An outgoing track caught mid-fade is finished with: it stays down.
+			if (tracks.get(scene) !== track) track.gain = 0;
+		}
+		// The scene's own track was cut off mid-fade with its ramp: it comes back at full.
+		const current = tracks.get(scene);
+		if (current) current.gain = 1;
+		silenceSounds();
+		return;
+	}
+	resumeScene();
+};
+
+/** Back from the back/forward cache: `visibilitychange` may not fire, so treat it as being shown. */
+const onPageShow = (event: PageTransitionEvent): void => {
+	if (event.persisted) resumeScene();
+};
+
+let visibilityWired = false;
+const wireVisibility = (on: boolean): void => {
+	if (typeof document === 'undefined' || on === visibilityWired) return;
+	visibilityWired = on;
+	if (on) {
+		document.addEventListener('visibilitychange', onVisibility);
+		window.addEventListener('pageshow', onPageShow);
+	} else {
+		document.removeEventListener('visibilitychange', onVisibility);
+		window.removeEventListener('pageshow', onPageShow);
+	}
 };
 
 /** Ride a track's gain to `target` over `ms`, pausing it once it reaches silence. */
@@ -528,6 +787,7 @@ const rampTo = (track: Track, target: number, ms: number): void => {
 export const startMusic = (): void => {
 	if (typeof Audio === 'undefined') return; // SSR
 	running = true;
+	wireVisibility(true);
 	const track = trackFor(scene);
 	if (track.gain < 1) rampTo(track, 1, FADE_START_MS);
 	resumeScene();
@@ -556,6 +816,18 @@ export const setMusicScene = (next: MusicScene): void => {
 	resumeScene();
 };
 
+/**
+ * Start fetching a scene's track ahead of `setMusicScene` — called as the wheel starts for a room,
+ * so the room's 4 MB track has the spin and the reveal to arrive in. The tracks are streamed, never
+ * part of the intro preload; without this the first visit to a room opened on a few seconds of
+ * silence while its track downloaded.
+ */
+export const prepareMusicScene = (next: MusicScene): void => {
+	if (!running || typeof Audio === 'undefined' || musicVolume() <= 0) return;
+	const { el } = trackFor(next);
+	if (el.networkState === HTMLMediaElement.NETWORK_EMPTY) el.load();
+};
+
 /** Follow the music slider: silence pauses the music, and turning it back up resumes the scene's track. */
 export const syncMusicVolume = (): void => {
 	// Read before the guard, so a caller tracking this (Game's effect) still subscribes to the
@@ -571,6 +843,7 @@ export const syncMusicVolume = (): void => {
 
 export const stopMusic = (): void => {
 	cancelGestureWait?.();
+	wireVisibility(false);
 	running = false;
 	for (const track of tracks.values()) {
 		if (track.ramp) clearInterval(track.ramp);
