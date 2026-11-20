@@ -15,6 +15,7 @@
 	 * The reveal keeps its old shape from there: the eleven clear off the board, and only then does
 	 * the last chest cross to the middle, take the dragon's fire, and give up its number.
 	 */
+	import { untrack } from 'svelte';
 	import { PICK_SECONDS } from '../../game/constants';
 	import type { BookEventChest } from '../../game/typesBookEvent';
 	import { playSound } from '../../game/sound';
@@ -79,6 +80,75 @@
 	 * a narrower, taller board fills more of the phone. The transforms below are the only other
 	 * place that shape matters.
 	 */
+	/**
+	 * On a landscape screen the board is let down over the bottom bar — the strip under the stage that
+	 * only holds the HUD's corners — and made as big as the room it then has, but never so wide that it
+	 * reaches the balance (bottom left) or the total bet (bottom right). `bleed` is how far below the
+	 * stage the board may reach, `clearW` how wide it may be, both in layout pixels (what `cqh` and
+	 * `cqw` are made of); portrait keeps the board to its stage.
+	 */
+	let rootEl = $state<HTMLDivElement>();
+	let bleed = $state(0);
+	let clearW = $state<number | null>(null);
+	/**
+	 * How far the board is moved down (up, if negative) so the hint and the chests stand midway
+	 * between the foot of the title frame and the foot of the screen: the stage starts a fixed way under
+	 * the frame whatever the shape of the screen, which on a wide, short one leaves more air above the
+	 * hint than there is below the last row.
+	 */
+	let nudge = $state(0);
+	$effect(() => {
+		const el = rootEl;
+		if (!el || portrait) {
+			bleed = 0;
+			clearW = null;
+			nudge = 0;
+			return;
+		}
+		const measure = () => untrack(() => {
+			const stage = el.parentElement;
+			const screen = el.closest('.screen');
+			if (!stage || !screen) return;
+			const zoom = el.getBoundingClientRect().width / (el.offsetWidth || 1) || 1;
+			const edge = (screen.getBoundingClientRect().width / zoom) * 0.012;
+			bleed = Math.max(
+				0,
+				(screen.getBoundingClientRect().bottom - stage.getBoundingClientRect().bottom) / zoom - edge,
+			);
+			const game = el.closest('.game');
+			const balance = game?.querySelector('.balance-hud')?.getBoundingClientRect();
+			const bet = game?.querySelector('.hud .total-bet')?.getBoundingClientRect();
+			clearW =
+				balance && bet && bet.left > balance.right
+					? (bet.left - balance.right) / zoom - 2 * edge
+					: null;
+			// Midway: the gap under the title frame (to the top of the hint's lettering) against the gap
+			// under the last row (to the foot of the screen), both worked out as if the board were not moved.
+			const frame = screen.querySelector('.header .plate')?.getBoundingClientRect();
+			const mult = screen.querySelector('.header .ts')?.getBoundingClientRect();
+			const lettering = [...el.querySelectorAll('.hint-slot *')].find(
+				(e) => e.children.length === 0 && e.textContent?.trim(),
+			);
+			const hintTop = (lettering ?? el.querySelector('.hint-slot'))?.getBoundingClientRect().top;
+			const gridBottom = el.querySelector('.grid')?.getBoundingClientRect().bottom;
+			if (!frame || hintTop === undefined || gridBottom === undefined) return;
+			const frameFoot = Math.max(frame.top + frame.height * 0.866, mult?.bottom ?? 0);
+			const moved = nudge * zoom;
+			const above = hintTop - moved - frameFoot;
+			const below = screen.getBoundingClientRect().bottom - (gridBottom - moved);
+			const next = (below - above) / 2 / zoom;
+			if (Math.abs(next - nudge) > 1) nudge = next;
+		});
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(el.parentElement as Element);
+		observer.observe(el);
+		const settle = setTimeout(measure, 120);
+		return () => {
+			clearTimeout(settle);
+			observer.disconnect();
+		};
+	});
 	const COLS = $derived(portrait ? 3 : 4);
 	const ROWS = $derived(portrait ? 4 : 3);
 	/** How many columns and rows a chest stands out from the middle of the board (see `.centred`). */
@@ -289,7 +359,13 @@
 	};
 </script>
 
-<div class="chests" style="--shake-ms:{SHAKE_MS}ms; --cols:{COLS}; --rows:{ROWS}">
+<div
+	class="chests"
+	bind:this={rootEl}
+	style="--shake-ms:{SHAKE_MS}ms; --cols:{COLS}; --rows:{ROWS}; --bleed:{bleed.toFixed(1)}px; --nudge:{nudge.toFixed(1)}px{clearW !== null
+		? `; --clear-w:${clearW.toFixed(1)}px`
+		: ''}"
+>
 	<!-- The rule of the room and the pick clock, in the game's one voice — see `RoomHint`. It stands
 	     over the grid rather than across it, because here the thing being read and the thing being
 	     tapped are the same twelve boxes. A player who was not in the bonus is only being shown the
@@ -376,14 +452,17 @@
 		--hint-space: calc(var(--hint-slot-ratio) + var(--hint-gap-ratio));
 		--rows-and-hint: calc(var(--rows) * var(--chest-ratio) + var(--hint-space));
 		/* Fit the full board within the stage left by the title and HUD. */
+		--board-h: calc(100cqh + var(--bleed, 0px));
 		--cell: min(
-			calc(100cqw / (var(--cols) + (var(--cols) - 1) * var(--col-gap-ratio))),
-			calc(100cqh / (var(--rows-and-hint) + (var(--rows) - 1) * var(--min-row-gap-ratio)))
+			calc(
+				min(100cqw, var(--clear-w, 100cqw)) / (var(--cols) + (var(--cols) - 1) * var(--col-gap-ratio))
+			),
+			calc(var(--board-h) / (var(--rows-and-hint) + (var(--rows) - 1) * var(--min-row-gap-ratio)))
 		);
 		--col-gap: calc(var(--cell) * var(--col-gap-ratio));
 		--row-gap: max(
 			calc(var(--cell) * var(--min-row-gap-ratio)),
-			calc((100cqh - var(--cell) * var(--rows-and-hint)) / (var(--rows) - 1))
+			calc((var(--board-h) - var(--cell) * var(--rows-and-hint)) / (var(--rows) - 1))
 		);
 		--hint: calc(var(--cell) * 0.25);
 		--art-h: calc(var(--cell) * var(--art-ratio));
@@ -397,6 +476,9 @@
 		flex-direction: column;
 		align-items: center;
 		gap: calc(var(--cell) * var(--hint-gap-ratio));
+		/* Down over the bar under the stage: the stage still lays it out as its own height. */
+		margin-bottom: calc(-1 * var(--bleed, 0px));
+		top: var(--nudge, 0px);
 	}
 	.hint-slot {
 		display: grid;

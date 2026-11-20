@@ -1427,6 +1427,9 @@
 		.bb-backdrop {
 			/* No captain until the screen is wide enough for her (WIDE, below). */
 			--bb-char-w: 0px;
+			/* The room each side of a 16:9 stage, on a screen wider than that (WIDE, below): the cards
+			   and the captain stand together in the middle rather than the captain going to the far edge. */
+			--bb-edge: 0px;
 			--bb-title-fs: clamp(calc(38 * var(--ui-px)), 5vw, calc(60 * var(--ui-px)));
 			--bb-balance-fs: clamp(calc(16 * var(--ui-px)), 1.6vw, calc(22 * var(--ui-px)));
 			/* The title's line (1.2) at the top, the balance's (1.3) at the bottom. */
@@ -1440,12 +1443,13 @@
 					var(--bb-head-h) + var(--bb-foot-h)
 			);
 			padding-top: calc(3vh + env(safe-area-inset-top, 0px) + var(--bb-head-h));
-			padding-right: calc(2vw + var(--bb-char-w) + env(safe-area-inset-right, 0px));
+			padding-left: var(--bb-edge);
+			padding-right: calc(2vw + var(--bb-char-w) + var(--bb-edge) + env(safe-area-inset-right, 0px));
 			padding-bottom: calc(3vh + env(safe-area-inset-bottom, 0px) + var(--bb-foot-h));
 		}
 		.bb-modal {
 			position: static;
-			--bb-modal-width: min(calc(1100 * var(--ui-px)), calc(96vw - var(--bb-char-w)));
+			--bb-modal-width: min(calc(1100 * var(--ui-px)), calc(96vw - var(--bb-char-w) - 2 * var(--bb-edge)));
 		}
 		.bb-title {
 			position: absolute;
@@ -1472,8 +1476,8 @@
 		   centred on it, with the captain or without — and down in the footer band. */
 		.bb-balance {
 			position: absolute;
-			left: calc(2vw + env(safe-area-inset-left, 0px));
-			right: calc(2vw + var(--bb-char-w) + env(safe-area-inset-right, 0px));
+			left: calc(2vw + var(--bb-edge) + env(safe-area-inset-left, 0px));
+			right: calc(2vw + var(--bb-char-w) + var(--bb-edge) + env(safe-area-inset-right, 0px));
 			bottom: calc(3vh + env(safe-area-inset-bottom, 0px));
 			margin: 0;
 			text-align: center;
@@ -1487,16 +1491,18 @@
 	@media (min-aspect-ratio: 7001/5000) {
 		.bb-backdrop {
 			--bb-char-w: min(calc(98vh * 932 / 1070), 50vw);
+			--bb-edge: max(0px, calc((100vw - 177.78vh) / 2));
 		}
 		@supports (height: 100svh) {
 			.bb-backdrop {
 				--bb-char-w: min(calc(98svh * 932 / 1070), 50vw);
+				--bb-edge: max(0px, calc((100vw - 177.78svh) / 2));
 			}
 		}
 		.bb-character {
 			display: block;
 			position: absolute;
-			right: 0;
+			right: var(--bb-edge);
 			bottom: 0;
 			z-index: -1;
 			width: var(--bb-char-w);
@@ -1516,7 +1522,7 @@
 			--pad-top: 0.06;
 			display: block;
 			position: absolute;
-			right: 0;
+			right: var(--bb-edge);
 			bottom: 0;
 			z-index: -1;
 			width: calc(var(--bb-char-w) * (1 + var(--pad-left)));

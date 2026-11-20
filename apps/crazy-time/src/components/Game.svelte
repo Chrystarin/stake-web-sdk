@@ -1247,13 +1247,17 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	 */
 	const hubLines = $derived.by(() => {
 		const words = hubAction.split(' ');
-		return words.map((word, line) => ({
-			y: (line - (words.length - 1) / 2) * 0.95,
-			letters: [...word].map((ch, i, all) => ({
-				ch,
-				delay: Math.abs(i - (all.length - 1) / 2) * 0.1 + line * 0.14,
-			})),
-		}));
+		return words.map((word, line) => {
+			const center = (word.length - 1) / 2;
+			const innerDistance = center - Math.floor(center);
+			return {
+				y: (line - (words.length - 1) / 2) * 0.95,
+				letters: [...word].map((ch, i) => ({
+					ch,
+					delay: (Math.abs(i - center) - innerDistance) * 0.1 + line * 0.14,
+				})),
+			};
+		});
 	});
 	/**
 	 * The hub's lettering is only drawn once the button is live AND no chip is still in the air: the chip
@@ -3040,7 +3044,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 				// Unseen, so there is nothing to wait for: the board shows the result at once.
 				wheel?.jumpTo(target);
 			} else {
-				await wheel?.spinTo(target, { turns: 3, ms: 11000 });
+				await wheel?.spinTo(target, { turns: 2, ms: 7000 });
 			}
 			wheelHighlight = target;
 			landedSpot = event.spot;
@@ -4684,13 +4688,13 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		filter: drop-shadow(0 0 0.12px #fff) drop-shadow(0 0 0.22px #ff5f9f);
 	}
 	.hub-cta.ink .ink-fill tspan {
-		animation: hub-fill-in 360ms ease-out calc(140ms + var(--d) + 220ms) both;
+		animation: hub-fill-in 360ms ease-out calc(var(--d) + 220ms) both;
 	}
 	.hub-cta.ink .ink-trace tspan {
-		animation: hub-trace 480ms cubic-bezier(0.37, 0, 0.63, 1) calc(140ms + var(--d)) both;
+		animation: hub-trace 480ms cubic-bezier(0.37, 0, 0.63, 1) var(--d) both;
 	}
 	.hub-cta.ink .ink-tip tspan {
-		animation: hub-tip 480ms cubic-bezier(0.37, 0, 0.63, 1) calc(140ms + var(--d)) both;
+		animation: hub-tip 480ms cubic-bezier(0.37, 0, 0.63, 1) var(--d) both;
 	}
 	@keyframes hub-fill-in {
 		from {

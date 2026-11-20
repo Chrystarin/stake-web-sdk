@@ -148,6 +148,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 	'img/ocean-voyage/v2/skull_cave.webp',
 	'img/ocean-voyage/v2/skull_cave_dim.webp',
 	'img/ocean-voyage/inside_cave.webp',
+	'img/ocean-voyage/inside_cave_detail.webp',
 	'img/ocean-voyage/v2/floating_barrel.webp',
 	'img/ocean-voyage/v2/ship.webp',
 	'img/ocean-voyage/v2/wheel.webp',

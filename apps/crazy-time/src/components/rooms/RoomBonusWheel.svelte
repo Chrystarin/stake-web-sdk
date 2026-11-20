@@ -8,6 +8,7 @@
 	 * countdown spins it for them if they sit on their hands — but a wheel that goes off on its own
 	 * is a wheel that happened TO them, and the whole point of the room is the pull of the handle.
 	 */
+	import { untrack } from 'svelte';
 	import Wheel, { type WheelSegment, type WheelFrame } from '../Wheel.svelte';
 	import { PICK_SECONDS } from '../../game/constants';
 	import type { BookEventBonusWheel } from '../../game/typesBookEvent';
@@ -103,6 +104,59 @@
 	let highlight = $state<number | null>(null);
 
 	/**
+	 * Where the wheel stands, worked out from the screen it is on: as big as the room between the foot
+	 * of the title frame and the foot of the screen allows — down over the bar under the stage — with
+	 * its disc of wedges starting where the frame's lettering ends. The sign may cover the rim and the
+	 * top pointer, which are what it tucks over; it never covers a wedge. `wd` is the wheel's width and
+	 * `lift` how far it is moved from where the stage would put it, both in the room's own pixels.
+	 */
+	let rootEl = $state<HTMLDivElement>();
+	let wd = $state<number | null>(null);
+	let lift = $state(0);
+	/** How far down the box the frame's art runs below the hole's centre, as a share of its width. */
+	const BELOW = (1 - FRAME.hole.cy) / FRAME.aspect;
+	$effect(() => {
+		const el = rootEl;
+		if (!el) return;
+		const measure = () => untrack(() => {
+			const screen = el.closest('.screen');
+			const frame = screen?.querySelector('.header .plate')?.getBoundingClientRect();
+			if (!screen || !frame) return;
+			const mult = screen.querySelector('.header .ts')?.getBoundingClientRect();
+			const zoom = el.getBoundingClientRect().width / (el.offsetWidth || 1) || 1;
+			const box = screen.getBoundingClientRect();
+			const edge = (box.width / zoom) * 0.012;
+			const foot = Math.max(frame.top + frame.height * 0.866, mult?.bottom ?? 0);
+			const avail = (box.bottom - foot) / zoom - edge;
+			// The disc's top to the art's foot is `BELOW + r` of the wheel's width.
+			const wide = box.width / zoom;
+			const cap = box.width > box.height ? wide * 0.8 : wide;
+			const width = Math.max(0, Math.min(avail / (BELOW + FRAME.hole.r), cap));
+			if (width > 0 && Math.abs(width - (wd ?? 0)) > 1) wd = width;
+			const w = wd ?? el.offsetWidth;
+			const artH = w / FRAME.aspect;
+			// Held to the width of the screen (a phone), it comes out shorter than the room: the spare is
+			// shared, so it stands midway between the frame and the foot of the screen.
+			const spare = Math.max(0, avail - (BELOW + FRAME.hole.r) * w);
+			const wanted =
+				(foot - box.top) / zoom + spare / 2 - (FRAME.hole.cy * artH - FRAME.hole.r * w);
+			const unmoved = (el.getBoundingClientRect().top - box.top) / zoom - lift;
+			const next = wanted - unmoved;
+			if (Math.abs(next - lift) > 1) lift = next;
+		});
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(el);
+		const parent = el.parentElement;
+		if (parent) observer.observe(parent);
+		const settle = setTimeout(measure, 120);
+		return () => {
+			clearTimeout(settle);
+			observer.disconnect();
+		};
+	});
+
+	/**
 	 * The clock the player is spinning against, as one span rather than as a count of ticks.
 	 *
 	 * It used to be a `setInterval` printing the seconds under the hub. The instruction now IS the
@@ -156,7 +210,11 @@
 	};
 </script>
 
-<div class="jackpot">
+<div
+	class="jackpot"
+	bind:this={rootEl}
+	style="{wd !== null ? `--room-wheel-w:${wd.toFixed(1)}px; ` : ''}top:{lift.toFixed(1)}px"
+>
 	<Wheel
 		bind:this={wheel}
 		{segments}
@@ -218,7 +276,6 @@
 		 * centred instead — which also lifts the frame's bottom gem clear of the screen's edge on a
 		 * short viewport, where the box is taller than the stage between the sign and the footer.
 		 */
-		margin-bottom: calc(var(--room-wheel-w) * 0.062);
 		position: relative;
 	}
 	/* The hub is the Bonus Wheel's own icon, and while that icon is in the air on the way in or out

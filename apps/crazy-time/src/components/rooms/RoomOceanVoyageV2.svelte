@@ -60,9 +60,9 @@
 	    over the dim one as it comes near. */
 	const CAVE = staticPath('img/ocean-voyage/v2/skull_cave.webp');
 	const CAVE_DIM = staticPath('img/ocean-voyage/v2/skull_cave_dim.webp');
-	/** The treasure cave inside: the original painting (1671×941) rather than v2's 699×393 one, since
-	    the voyage ends with it filling the screen. Darkened by a black veil, not a dim cut. */
+	/** The full cave painting and a closer cut of its treasure for the final zoom. */
 	const INSIDE = staticPath('img/ocean-voyage/inside_cave.webp');
+	const INSIDE_DETAIL = staticPath('img/ocean-voyage/inside_cave_detail.webp');
 	const SEA = staticPath('img/ocean-voyage/sea_night.webp');
 	/** The water's light, from the Figma guide: see `SEA_LIGHT`. */
 	const SEA_DIM = staticPath('img/ocean-voyage/v2/ocean_dim_overlay.webp');
@@ -1144,16 +1144,23 @@
 		     the box `left:{caveLeft}px` used to give. -->
 		<div
 			class="cave"
+			class:zoomed={ended === 'port'}
 			style="left:{cx - cave.w / 2}px; top:{cave.top}px; width:{cave.w}px; height:{cave.h}px; transform:translateX({(-offset * CAVE_PAN).toFixed(1)}px) {caveZoom.transform === 'none' ? '' : caveZoom.transform}; transform-origin:{HOLE_CX * 100}% {HOLE_CY * 100}%; --sink:{(caveZoom.sink * 100).toFixed(2)}%; --hole-l:{HOLE.left * 100}%; --hole-w:{(HOLE.right - HOLE.left) * 100}%; --hole-t:{HOLE.top * 100}%; --hole-h:{(HOLE.bottom - HOLE.top) * 100}%"
 		>
 			<div class="cave-dark"></div>
-			<img
-				class="cave-inside"
-				src={INSIDE}
-				alt=""
-				draggable="false"
+			<div
+				class="cave-interior"
 				style="width:{INSIDE_W * 100}%; left:{(INSIDE_CX - INSIDE_W / 2) * 100}%"
-			/>
+			>
+				<img class="cave-inside" src={INSIDE} alt="" draggable="false" />
+				<img
+					class="cave-detail"
+					src={INSIDE_DETAIL}
+					alt=""
+					draggable="false"
+					style:opacity={smooth(clamp((zoomIn - 0.2) / 0.65, 0, 1))}
+				/>
+			</div>
 			<div class="cave-dark" style="opacity:{veil.toFixed(3)}"></div>
 			<img class="cave-front" src={CAVE_DIM} alt="" draggable="false" style="filter:{skullFilter}" />
 			<img class="cave-front" src={CAVE} alt="" draggable="false" style="opacity:{caveLit.toFixed(3)}; filter:{skullFilter}" />
@@ -1421,6 +1428,12 @@
 		-webkit-mask-image: linear-gradient(180deg, #000 var(--sink), transparent 100%);
 		filter: drop-shadow(0 calc(var(--voyage-w) * 0.01) calc(var(--voyage-w) * 0.02) rgba(0, 0, 0, 0.55));
 	}
+	.cave.zoomed {
+		/* Let the browser rasterize the settled treasure view at its final scale. */
+		will-change: auto;
+		mask-image: none;
+		filter: none;
+	}
 	.cave img {
 		position: absolute;
 		display: block;
@@ -1431,9 +1444,25 @@
 		height: 100%;
 	}
 	/* Standing on the foot of the hole, not under the rocks below it. */
-	.cave-inside {
+	.cave-interior {
+		position: absolute;
 		bottom: calc(100% - var(--hole-t) - var(--hole-h));
+	}
+	.cave-interior .cave-inside {
+		position: static;
+		width: 100%;
 		height: auto;
+	}
+	/* The detail cut covers 23–77% across and 21–88% down the full painting. */
+	.cave-detail {
+		left: 23%;
+		top: 21%;
+		width: 54%;
+		height: 67%;
+		mask-image:
+			linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent),
+			linear-gradient(transparent, #000 10%, #000 90%, transparent);
+		mask-composite: intersect;
 	}
 	/* The box the mouth's hole takes up: black behind the inside (its own see-through corners show
 	   none of the sea), and black over it as the veil. The front covers all of it but the hole. */

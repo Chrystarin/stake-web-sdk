@@ -970,7 +970,10 @@
 		container-type: size;
 		width: 100%;
 		margin-block: calc(0.5rem + var(--chest-header-extra, 0px)) 0.5rem;
-		overflow: clip;
+		/* Clipped at the sides only: on a landscape screen the board is let down over the bar below the
+		   stage (see RoomChest's `bleed`). */
+		overflow-x: clip;
+		overflow-y: visible;
 		overflow-clip-margin: 0.5rem;
 	}
 	.header:has(.badges) + .chest-stage {

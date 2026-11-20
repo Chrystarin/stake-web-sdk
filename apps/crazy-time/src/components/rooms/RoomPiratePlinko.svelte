@@ -256,6 +256,39 @@
 	 * hold while the box matches the picture.
 	 */
 	let wrapEl: HTMLElement | undefined = $state();
+	/**
+	 * Portrait: the cabinet stands on the foot of the screen, not on the bar the HUD's corners sit in —
+	 * the column is let down over that bar, less a small margin. `bleed` is how far, in the room's own
+	 * pixels. Landscape has no bar under the room to speak of (the footer is folded), so it stays 0.
+	 */
+	let rootEl: HTMLElement | undefined = $state();
+	let bleed = $state(0);
+	$effect(() => {
+		const el = rootEl;
+		if (!el || !portrait) {
+			bleed = 0;
+			return;
+		}
+		const measure = () =>
+			untrack(() => {
+				const stage = el.parentElement;
+				const screen = el.closest('.screen');
+				if (!stage || !screen) return;
+				const zoom = zoomOf(el);
+				const box = screen.getBoundingClientRect();
+				const margin = (box.width / zoom) * 0.025;
+				const next = Math.max(0, (box.bottom - stage.getBoundingClientRect().bottom) / zoom - margin);
+				if (Math.abs(next - bleed) > 1) bleed = next;
+			});
+		measure();
+		const observer = new ResizeObserver(measure);
+		if (el.parentElement) observer.observe(el.parentElement);
+		const settle = setTimeout(measure, 120);
+		return () => {
+			clearTimeout(settle);
+			observer.disconnect();
+		};
+	});
 	let bayEl: HTMLElement | undefined = $state();
 	let wrap = $state({ w: 0, h: 0 });
 	/**
@@ -656,7 +689,7 @@
 	};
 </script>
 
-<div class="plinko">
+<div class="plinko" bind:this={rootEl} style="--bleed:{bleed.toFixed(1)}px">
 	<div class="cannon-bay" bind:this={bayEl}>
 		{#if loading}
 			<!-- Before the cannon, so the barrel paints over the ball as it goes in. -->
@@ -786,7 +819,11 @@
 		   grows and shrinks with the viewport rather than being pinned to one size. Wider than it
 		   was: the third cabinet is a flatter picture (2:1 against 1.47:1), so at the old 56vw it
 		   left a band of empty screen between the gun and the pegs. */
-		width: 66vw;
+		/* Out to the width of the screen: it is the height the column has left that stops the board
+		   (the cabinet is fitted to it, ratio kept), so a screen as tall as it is wide — a tablet —
+		   gets the whole of that height rather than a board held to two thirds of the width. A wider
+		   screen is bound by height and is not changed by this. */
+		width: 100vw;
 		height: 100%;
 		/* Stretched, not merely tall: the room has to START at the plaque, or the cannon hung off
 		   its top edge has nothing to be hidden behind. */
@@ -967,7 +1004,10 @@
 	   authored in vw scaled up to match, because a portrait vw is about a third of a landscape
 	   one. The board's own geometry needs no rules here — it follows the frame it is given. */
 	:global(.game.portrait) .plinko {
-		width: 92vw;
+		/* Wider than the screen: the cabinet is the width of the column and the screen crops the
+		   skulls and the outer rail, so the pegs get most of the width of a phone and the board
+		   rises to meet the gun instead of leaving a band of empty screen under it. */
+		width: 124vw;
 		/* Trimmed from 37.5vw, and the air under it with it. The gun and the cabinet are bidding for
 		   the same stretch of screen: every pixel the barrel gives up here is one the board takes,
 		   multiplied by its own ratio into two thirds of a pixel of width — and on a tall screen the
@@ -975,5 +1015,20 @@
 		   part that was surrendered is mostly the part that stands BEHIND the plaque. */
 		--cannon-h: 33vw;
 		--cannon-gap: 2.5vw;
+		/* Lower down the screen: only a little of the barrel is behind the plaque, so with the
+		   reward multiplier hanging under it the gun still shows its length. */
+		--cannon-tuck: 0.4;
+		/* Down over the bar under the stage, to the foot of the screen less a margin. */
+		height: calc(100% + var(--bleed, 0px));
+		margin-bottom: calc(-1 * var(--bleed, 0px));
+	}
+	/* A small phone (a short portrait screen): the gun is smaller, and tucked further up under the
+	   plaque, so it sits close to the title frame and the board keeps the height it gives up. */
+	@media (max-height: 700px) {
+		:global(.game.portrait) .plinko {
+			--cannon-h: 27vw;
+			--cannon-gap: 2vw;
+			--cannon-tuck: 0.36;
+		}
 	}
 </style>

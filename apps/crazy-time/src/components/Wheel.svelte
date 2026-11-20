@@ -45,8 +45,7 @@
 	 * Optional art frame around the disc. `hole` is the transparent circle of the frame image, as
 	 * fractions of the image box (centre and radius); the disc is fitted to it, slightly oversized so
 	 * the wedge edges run under the ring. `center` is a static hub image placed on the hole centre,
-	 * `centerWidth` its width as a fraction of the image box. The frame's own pointer at 12 o'clock
-	 * is the flapper, so the CSS one is not drawn.
+	 * `centerWidth` its width as a fraction of the image box.
 	 */
 	export type WheelFrame = {
 		src: string;
@@ -55,6 +54,16 @@
 		/** Optional static hub image (omit when the frame art already carries its own hub). */
 		center?: string;
 		centerWidth?: number;
+		/** Crop and hinge for a movable pointer cut from the frame art, in fractions of the frame. */
+		flapper?: {
+			left: number;
+			right: number;
+			bottom: number;
+			pivotX: number;
+			pivotY: number;
+			tipY: number;
+			outline: string;
+		};
 		/**
 		 * How far past the hole edge the wedges run, as a fraction of the hole radius. A hair of
 		 * overscan hides the anti-aliased seam between wedge edge and ring; the ring covers it.
@@ -80,10 +89,8 @@
 		 */
 		onTick?: (index: number, build: number) => void;
 		/**
-		 * Build up to the stop: as the disc slows, the pointer at 12 o'clock warms and flashes on each
-		 * tick and the passing outline brightens; on landing the pointer flares and the winning wedge's
-		 * outline pulses gold. Presentation only — the landing is still the book's `spinTo` index, and
-		 * the spin takes exactly as long as before. Needs a `frame` (it lights the frame's pointer).
+		 * Ease out of the spin and build the tick cue as the disc slows. On landing, the pointer flares
+		 * and the winning wedge's outline pulses gold. The landing remains the book's `spinTo` index.
 		 */
 		anticipate?: boolean;
 		/** Fires with the resting segment when a spin ends. */
@@ -129,15 +136,11 @@
 
 	/**
 	 * The anticipation (`anticipate`): how far into the slow-down the disc is, 0 to 1. It starts at
-	 * BUILD_FROM of the spin's run — the curve has spent most of its turns by then and the wedges are
-	 * passing slowly enough to read — and is stepped on each tick, so it costs a repaint only when the
-	 * flapper crosses a wedge.
+	 * BUILD_FROM of the spin's run, when the top-speed phase ends. The tick cue samples it when the
+	 * flapper releases.
 	 */
-	const BUILD_FROM = 0.42;
-	let build = $state(0);
+	const BUILD_FROM = 3 / 7;
 	let spinStartAt = 0;
-	/** Bumped on each tick while building: re-keys the pointer's flash so it plays again. */
-	let tickPulse = $state(0);
 	/** The pointer's flare as the disc comes to rest. */
 	let flare = $state(false);
 	let flareTimer: ReturnType<typeof setTimeout> | undefined;
@@ -218,6 +221,26 @@
 		return `M${o0.x},${o0.y} A${OUTER},${OUTER} 0 ${large} 1 ${o1.x},${o1.y} L${i1.x},${i1.y} A${INNER},${INNER} 0 ${large} 0 ${i0.x},${i0.y}Z`;
 	};
 
+	/** Each divider has a lit brass face and a recessed side in the neighboring segment. */
+	const dividerBevel = $derived.by(() => {
+		const faces = { light: '', shadow: '', seam: '' };
+		for (const [index, angle] of starts.entries()) {
+			const previous = (index + starts.length - 1) % starts.length;
+			const width = Math.min(0.29, spanOf(index) * 0.065, spanOf(previous) * 0.065);
+			const outer = polar(OUTER, angle);
+			const inner = polar(INNER, angle);
+			const face = (edge: number) => {
+				const outside = polar(OUTER, edge);
+				const inside = polar(INNER, edge);
+				return `M${inner.x},${inner.y}L${outer.x},${outer.y}L${outside.x},${outside.y}L${inside.x},${inside.y}Z`;
+			};
+			faces.light += face(angle + width);
+			faces.shadow += face(angle - width);
+			faces.seam += `M${inner.x},${inner.y}L${outer.x},${outer.y}`;
+		}
+		return faces;
+	});
+
 	let rotation = $state(0);
 	let spinning = $state(false);
 	let durationMs = $state(4500);
@@ -249,6 +272,7 @@
 	};
 
 	let lastTick = -1;
+	let hasTicked = $state(false);
 	/** The segment under the flapper right now, while the disc is moving. Null when it is at rest. */
 	let passing = $state<number | null>(null);
 	/**
@@ -257,35 +281,57 @@
 	 * goes when the round is cleared.
 	 */
 	const outlined = $derived(passing ?? highlight);
+	let flapperEl: HTMLImageElement | undefined = $state();
+
+	const flapperGeometry = $derived.by(() => {
+		const marker = frame?.flapper;
+		if (!frame || !marker) return null;
+		return {
+			offset: marker.pivotX - frame.hole.cx,
+			hinge: (frame.hole.cy - marker.pivotY) / frame.aspect,
+			length: (marker.tipY - marker.pivotY) / frame.aspect,
+		};
+	});
+
+	/** Follow the divider with the tip until the spring releases. The tick belongs to the release. */
+	const trackFlapper = (deg: number, index: number, speed: number) => {
+		if (!flapperEl || !flapperGeometry) return index;
+		const { offset, hinge, length } = flapperGeometry;
+		const span = spanOf(index);
+		const divider = ((deg + starts[index] + span) % 360 + 360) % 360;
+		// Release before the midpoint so the flapper is free when the result comes to rest.
+		const releaseAt = Math.min(2.7, span * 0.42);
+		const angle = (Math.min(divider, releaseAt) * Math.PI) / 180;
+		// Intersect the divider's radial line with the arc traced by the hinged tip.
+		const projection = (hinge * Math.sin(angle) - offset * Math.cos(angle)) / length;
+		const tilt = Math.max(0, Math.asin(Math.max(-1, Math.min(1, projection))) - angle);
+		const returnArc = Math.min(speed * 0.05, span * 0.28);
+		const progress = divider < releaseAt ? 0 : returnArc > 0 ? Math.min(1, (divider - releaseAt) / returnArc) : 1;
+		const spring = (1 - progress) ** 2 * Math.cos(progress * Math.PI * 1.5);
+		flapperEl.style.rotate = `${(-tilt * spring * 180) / Math.PI}deg`;
+		return divider < releaseAt ? (index + 1) % segments.length : index;
+	};
 
 	const track = () => {
 		const deg = liveRotation();
-		if (sparkLayer) {
-			const now = performance.now();
-			if (lastAt) {
-				// The disc turns clockwise only, so a drop in the angle is the wrap past 360.
-				const d = (deg - lastDeg + 360) % 360;
-				const dt = (now - lastAt) / 1000;
-				if (dt > 0) sparkLayer.setSpeed(d / dt);
-			}
-			lastDeg = deg;
-			lastAt = now;
-		}
-		const idx = indexAt(deg);
+		const now = performance.now();
+		// The disc turns clockwise only, so a drop in angle is the wrap past 360.
+		const speed = lastAt && now > lastAt ? (((deg - lastDeg + 360) % 360) * 1000) / (now - lastAt) : 0;
+		lastDeg = deg;
+		lastAt = now;
+		sparkLayer?.setSpeed(speed);
+		const idx = trackFlapper(deg, indexAt(deg), speed);
 		passing = idx;
 		if (idx !== lastTick) {
 			lastTick = idx;
-			const b = anticipate ? buildAt(performance.now()) : 0;
-			if (anticipate) {
-				build = b;
-				if (b > 0) tickPulse++;
-			}
-			onTick?.(idx, b);
+			if (anticipate) hasTicked = true;
+			onTick?.(idx, anticipate ? buildAt(now) : 0);
 		}
 		if (spinning) raf = requestAnimationFrame(track);
 	};
 
 	let resolveSpin: (() => void) | null = null;
+	let spinTimer: ReturnType<typeof setTimeout> | undefined;
 
 	/**
 	 * Spin forward to rest with `index` under the flapper. Resolves when the disc has stopped.
@@ -305,10 +351,10 @@
 			resolveSpin = resolve;
 			stopIcon();
 			spinning = true;
-			build = 0;
 			flare = false;
 			clearTimeout(flareTimer);
 			lastTick = indexAt(rotation);
+			hasTicked = false;
 			// Two frames so the transition picks up the new duration before the angle changes.
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
@@ -319,7 +365,7 @@
 				});
 			});
 			// Safety net in case transitionend never fires (tab hidden, element replaced).
-			setTimeout(() => finish(index), durationMs + 400);
+			spinTimer = setTimeout(() => finish(index), durationMs + 400);
 		});
 	};
 
@@ -435,13 +481,14 @@
 		spinning = false;
 		passing = null;
 		cancelAnimationFrame(raf);
+		clearTimeout(spinTimer);
+		if (flapperEl) flapperEl.style.rotate = '0deg';
+		lastAt = 0;
 		if (sparkLayer) {
 			sparkLayer.setSpeed(0);
 			sparkLayer.burst();
-			lastAt = 0;
 		}
 		if (anticipate) {
-			build = 0;
 			spinStartAt = 0;
 			flare = true;
 			flareTimer = setTimeout(() => (flare = false), FLARE_MS);
@@ -452,11 +499,14 @@
 	};
 
 	const onTransitionEnd = (event: TransitionEvent) => {
-		if (event.propertyName !== 'transform') return;
+		if (event.target !== wheelEl || event.propertyName !== 'transform') return;
 		finish(indexAt(rotation));
 	};
 
-	onDestroy(() => cancelAnimationFrame(raf));
+	onDestroy(() => {
+		cancelAnimationFrame(raf);
+		clearTimeout(spinTimer);
+	});
 
 	const LABEL_R = 160; // the ring the number labels sit on; bonus wedges start their crest here
 	const labelPos = (i: number) => polar(LABEL_R, centreOf(i));
@@ -708,6 +758,7 @@
 		style:width={discBox ? `${discBox.width}%` : null}
 		style:height={discBox ? `${discBox.height}%` : null}
 		class:spinning
+		class:anticipate
 		bind:this={wheelEl}
 		style="--rotation:{rotation}deg; --duration:{durationMs}ms"
 		ontransitionend={onTransitionEnd}
@@ -729,6 +780,11 @@
 					class:slam={slammed === i}
 				/>
 			{/each}
+			<g class="divider-bevel">
+				<path d={dividerBevel.shadow} class="divider-shadow" />
+				<path d={dividerBevel.light} class="divider-light" />
+				<path d={dividerBevel.seam} class="divider-seam" />
+			</g>
 			<circle cx={R} cy={R} r={OUTER} fill="url(#rim)" />
 			{#each segments as seg, i (i)}
 				{#if seg.image && seg.kind === 'wide'}
@@ -835,15 +891,16 @@
 		<svg
 			viewBox="0 0 {R * 2} {R * 2}"
 			class="passing"
-			style="--build:{build}"
 			aria-hidden="true"
 		>
 			{#if outlined !== null}
 				<!-- Keyed on the wedge so the winner's pulse starts afresh on every landing. -->
 				{#key `${outlined}:${passing === null}`}
+					<path d={wedgePath(outlined)} class="passing-recess" />
 					<path
 						d={wedgePath(outlined)}
 						class="passing-edge"
+						class:tick={hasTicked && passing !== null}
 						class:won={anticipate && passing === null && highlight !== null}
 					/>
 				{/key}
@@ -861,7 +918,36 @@
 		aria-hidden="true"
 	></div>
 	{#if frame}
-		<img class="frame" src={frame.src} alt="" draggable="false" />
+		{#if frame.flapper}
+			{@const marker = frame.flapper}
+			<div
+				class="frame-shell"
+				style="--cut-left:{marker.left * 100}%; --cut-right:{marker.right * 100}%; --cut-bottom:{marker.bottom * 100}%"
+				aria-hidden="true"
+			>
+				<img class="frame frame-cut" src={frame.src} alt="" draggable="false" />
+				<!-- Sample the adjoining rim to fill the wood behind the moving pointer. -->
+				<div class="frame-patch">
+					<img
+						class="frame patch-art"
+						src={frame.src}
+						alt=""
+						draggable="false"
+						style="transform-origin:{frame.hole.cx * 100}% {frame.hole.cy * 100}%"
+					/>
+				</div>
+			</div>
+			<img
+				class="flapper-art"
+				bind:this={flapperEl}
+				src={frame.src}
+				alt=""
+				draggable="false"
+				style="clip-path:{marker.outline}; transform-origin:{marker.pivotX * 100}% {marker.pivotY * 100}%"
+			/>
+		{:else}
+			<img class="frame" src={frame.src} alt="" draggable="false" />
+		{/if}
 		{#if frame.center}
 			<img
 				class="center"
@@ -871,24 +957,13 @@
 				style="left:{frame.hole.cx * 100}%; top:{frame.hole.cy * 100}%; width:{(frame.centerWidth ?? 0.29) * 100}%"
 			/>
 		{/if}
-		{#if anticipate}
-			<!-- The frame's pointer at 12 o'clock (the top of the hole), lit as the disc slows: a warm
-			     pool that grows with `build`, a flash on each tick, and a flare on landing. Gradients
-			     only, no filters, so it is the same on the lite tier. -->
+		{#if anticipate && flare}
 			<div
-				class="pointer-glow"
-				class:on={build > 0}
-				class:flare
+				class="pointer-landing-flare"
 				style="left:{frame.hole.cx * 100}%; top:{(frame.hole.cy - frame.hole.r * frame.aspect) *
-					100}%; width:{frame.hole.r * 70}%; --build:{build}"
+					100}%; width:{frame.hole.r * 70}%"
 				aria-hidden="true"
-			>
-				{#key tickPulse}
-					{#if tickPulse > 0 && build > 0}
-						<span class="pointer-flash"></span>
-					{/if}
-				{/key}
-			</div>
+			></div>
 		{/if}
 		{#if sparks}
 			<WheelSparks
@@ -921,14 +996,38 @@
 	.framed .rim-ring {
 		display: none;
 	}
-	.frame {
+	.frame,
+	.frame-shell,
+	.frame-patch,
+	.flapper-art {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
 		pointer-events: none;
 		user-select: none;
+	}
+	.frame,
+	.frame-shell {
 		filter: drop-shadow(0 0.6vw 1.4vw rgba(0, 0, 0, 0.6));
+	}
+	.frame-shell .frame {
+		filter: none;
+	}
+	.frame-cut {
+		clip-path: polygon(
+			0 0, var(--cut-left) 0, var(--cut-left) var(--cut-bottom),
+			var(--cut-right) var(--cut-bottom), var(--cut-right) 0, 100% 0, 100% 100%, 0 100%
+		);
+	}
+	.frame-patch {
+		clip-path: inset(
+			0 calc(100% - var(--cut-right) - 1px) calc(100% - var(--cut-bottom))
+			calc(var(--cut-left) - 1px)
+		);
+	}
+	.patch-art {
+		rotate: 14deg;
 	}
 	.center {
 		position: absolute;
@@ -939,6 +1038,31 @@
 	}
 	.disc.spinning {
 		transition: transform var(--duration) cubic-bezier(0.1, 0.72, 0.08, 1);
+	}
+	.disc.spinning.anticipate {
+		transition-timing-function: cubic-bezier(0.3, 0.457, 0.57, 1);
+		/* Distance along the seven-second spin. Hold a constant slope through 3s, then ease down
+		   to rest at 7s. The slope is the wheel's speed. */
+		transition-timing-function: linear(
+			0,
+			0.6521739 42.857143%,
+			0.7040009 46.428571%,
+			0.7508951 50%,
+			0.7930237 53.571429%,
+			0.8305602 57.142857%,
+			0.8636849 60.714286%,
+			0.8925857 64.285714%,
+			0.9174592 67.857143%,
+			0.9385125 71.428571%,
+			0.9559641 75%,
+			0.970047 78.571429%,
+			0.9810117 82.142857%,
+			0.9891304 85.714286%,
+			0.994705 89.285714%,
+			0.9980785 92.857143%,
+			0.9996603 96.428571%,
+			1
+		);
 	}
 	svg {
 		width: 100%;
@@ -958,9 +1082,21 @@
 		stroke-width: 4;
 	}
 	.wedge {
-		stroke: #f0c65a;
-		stroke-width: 1;
 		transition: filter 300ms ease, opacity 300ms ease;
+	}
+	.divider-bevel {
+		pointer-events: none;
+	}
+	.divider-shadow {
+		fill: rgba(52, 21, 8, 0.64);
+	}
+	.divider-light {
+		fill: rgba(255, 205, 108, 0.78);
+	}
+	.divider-seam {
+		fill: none;
+		stroke: #ac6625;
+		stroke-width: 0.4;
 	}
 	.wedge.lit {
 		filter: brightness(1.35) saturate(1.2);
@@ -1016,36 +1152,55 @@
 	.shade.on {
 		opacity: 0.55;
 	}
-	/* The segment being pointed at as the wheel turns: one thin light rim on the wedge's own edge. */
-	.passing-edge {
+	/* The warm lip sits over a darker edge, like a raised brass frame around the active wedge. */
+	.passing-edge,
+	.passing-recess {
 		fill: none;
 		pointer-events: none;
 		stroke-linejoin: round;
-		stroke: rgba(255, 246, 194, calc(0.8 + 0.2 * var(--build, 0)));
-		/* Heavier as the disc slows (`--build`, see `anticipate`), so the eye is on it for the stop. */
-		stroke-width: calc(1.6 + 2 * var(--build, 0));
+	}
+	.passing-recess {
+		stroke: rgba(110, 49, 14, 0.9);
+		stroke-width: 2.5;
+	}
+	.passing-edge {
+		stroke: rgba(255, 226, 153, 0.82);
+		stroke-width: 1.1;
+	}
+	.passing-edge.tick {
+		animation: edge-tick 160ms ease-out;
+	}
+	@keyframes edge-tick {
+		from {
+			stroke: #fff2c4;
+			stroke-width: 1.8;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.passing-edge.tick {
+			animation: none;
+		}
 	}
 	/* The wedge it came to rest on: a gold outline that pulses three times and then stays. The layer
 	   is its own (see the markup), so the pulse repaints one path and never the disc. */
 	.passing-edge.won {
 		stroke: #ffd75a;
-		stroke-width: 4;
+		stroke-width: 2.2;
 		animation: edge-won 520ms ease-in-out 3;
 	}
 	@keyframes edge-won {
 		0%,
 		100% {
-			stroke-width: 4;
+			stroke-width: 2.2;
 			stroke: #ffd75a;
 		}
 		45% {
-			stroke-width: 7.5;
+			stroke-width: 3.5;
 			stroke: #fff6c8;
 		}
 	}
-	/* The frame's pointer, lit (see `anticipate`). Centred on the top of the hole, where the pointer's
-	   tip meets the disc, and drawn over the frame art. */
-	.pointer-glow {
+	/* A brief flare at the tip after the wheel lands. */
+	.pointer-landing-flare {
 		position: absolute;
 		aspect-ratio: 1;
 		transform: translate(-50%, -50%);
@@ -1058,17 +1213,6 @@
 			rgba(255, 180, 40, 0) 68%
 		);
 		mix-blend-mode: screen;
-		opacity: 0;
-		scale: 0.7;
-		transition:
-			opacity 260ms ease,
-			scale 260ms ease;
-	}
-	.pointer-glow.on {
-		opacity: calc(0.35 + 0.55 * var(--build));
-		scale: calc(0.75 + 0.35 * var(--build));
-	}
-	.pointer-glow.flare {
 		animation: pointer-flare 900ms ease-out forwards;
 	}
 	@keyframes pointer-flare {
@@ -1079,24 +1223,6 @@
 		100% {
 			opacity: 0;
 			scale: 1;
-		}
-	}
-	/* One flash per tick: a bright core that pops and fades before the next wedge comes. */
-	.pointer-flash {
-		position: absolute;
-		inset: 22%;
-		border-radius: 50%;
-		background: radial-gradient(circle, rgba(255, 255, 240, 0.95) 0%, rgba(255, 230, 140, 0) 70%);
-		animation: pointer-flash 240ms ease-out forwards;
-	}
-	@keyframes pointer-flash {
-		from {
-			opacity: 1;
-			scale: 1.15;
-		}
-		to {
-			opacity: 0;
-			scale: 0.8;
 		}
 	}
 	.label {
