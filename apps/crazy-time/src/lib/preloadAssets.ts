@@ -51,6 +51,7 @@ const DOM_IMAGE_PATHS: readonly string[] = [
 
 	// ── The wheel (Game.svelte + Wheel.svelte): ring art, number badges, room badges ─────────────
 	'img/wheel/frame.webp',
+	'img/wheel/hub_button.webp',
 	...NUMBER_SPOTS.map((spot) => `img/wheel/${NUMBER_PAY[spot]}.png`),
 	// One picture per room, drawn on the wheel, on the bet tile, on the Top Slot reel and on the Buy
 	// Bonus cards — `ROOM_ICON` is the one place all four of those read it from.

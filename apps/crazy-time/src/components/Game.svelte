@@ -321,12 +321,10 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	// 30x48), room wedges its own icon (ROOM_ICON) with the name lettered down the wedge below it
 	// by the Wheel itself.
 	const BADGE_ASPECT = 30 / 48;
-	/**
-	 * The play button's diameter as a fraction of the frame box: the gem at the middle of the hub,
-	 * not the whole ship's wheel. The gem and its red ring run to about r=60px in the 1911px frame
-	 * art (sampled: strongly red to r≈55, wood from r≈60), so 72 leaves a small margin around it.
-	 */
-	const HUB_HIT = (2 * 72) / 1911;
+	/** The button sits inside the hub's brass collar, clear of the spokes. */
+	const HUB_BUTTON_DIAMETER = (2 * 118) / 1911;
+	// The painted ruby sits slightly above the center of the wheel's inner edge.
+	const HUB_GEM_Y = 958.5 / 1925;
 
 	const WHEEL_SEGMENTS: WheelSegment[] = SEGMENT_LAYOUT.map((spot) => ({
 		label: isRoomSpot(spot) ? SPOT_LABEL[spot] : String(NUMBER_PAY[spot]),
@@ -1222,6 +1220,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 				? !canReplay
 				: !canSpin,
 	);
+	const hubAction = $derived(settled ? 'PLAY AGAIN' : replayMode ? 'PLAY' : 'SPIN');
 	const clearDisabled = $derived(
 		clearing || payingOut || (!settled && (!idle || backedCount === 0)),
 	);
@@ -2938,7 +2937,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	 * on, and a replay no betting at all.
 	 */
 	const betting = $derived(bettingOpen && stateGame.buying === null);
-	const betDown = $derived(betting && canSpin);
 
 	// Betting again: the Top Slot goes back up out of sight and the wheel grows into its room.
 	$effect(() => {
@@ -3226,7 +3224,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			class="stage"
 			class:solo={wheelOff && !topSlotHidden}
 			class:betting
-			class:bet-down={betDown}
 			class:big-wheel={bigWheel}
 		>
 			<div
@@ -3272,37 +3269,24 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					onTick={(_, build) =>
 					playSound('wheelTick', 0.95 + 0.15 * build, 0.5 + 0.35 * build)}
 				/>
-				<!-- Once a bet is down the wheel stays dimmed and only its middle lights: the frame art again,
-				     undimmed, cut to a circle just past the hub (see `.hub-lit`), then a warm pool over it —
-				     the gem is what to press next. -->
-				<img class="hub-lit" class:on={betDown} src={WHEEL_FRAME.src} alt="" draggable="false" />
-				<div
-					class="hub-glow"
-					class:on={betDown}
-					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{WHEEL_FRAME.hole.cy * 100}%"
-					aria-hidden="true"
-				></div>
-				<!-- The gem at the middle of the hub is the play button: it spins, or plays again once a
-			     round has settled. It carries the prompt the old tab used to, and pulses while it can
-			     be pressed, since a gem is not self-evidently a button. -->
-				<div
+				<button
+					type="button"
 					class="hub-spin"
-					class:disabled={confirmDisabled}
-					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{WHEEL_FRAME.hole.cy *
-						100}%; width:{HUB_HIT * 100}%"
+					disabled={confirmDisabled || wheelOff}
+					aria-label={hubAction}
+					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{HUB_GEM_Y *
+						100}%; width:{HUB_BUTTON_DIAMETER * 100}%"
 					onclick={onConfirmClick}
-					aria-hidden="true"
 				>
-					<span class="hub-cta"
-						>{stateGame.rolling || replayStarting || wrappingUp
-							? '…'
-							: settled
-								? 'PLAY\nAGAIN'
-								: replayMode
-									? 'PLAY'
-									: 'SPIN'}</span
-					>
-				</div>
+					<img class="hub-art" src={staticUrl('img/wheel/hub_button.webp')} alt="" draggable="false" />
+					{#key hubAction}
+						<span class="hub-cta" aria-hidden="true">
+							{#each hubAction.split(' ') as word}
+								<span class="hub-word">{word}</span>
+							{/each}
+						</span>
+					{/key}
+				</button>
 			</div>
 		</div>
 
@@ -4292,10 +4276,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	.ts-swing {
 		transform-origin: 50% -150%;
 	}
-	/* Betting: the wheel is dimmed the whole time bets are being placed — once one is down only its
-	   middle comes back (`.hub-lit`). While the Top Slot has the floor the wheel stays stepped back
-	   behind it. On the wheel itself rather than the wrap, so the gem, its glow and the lit hub,
-	   which sit over the wheel inside the wrap, are not dimmed with it. */
+	/* Dim the wheel art during betting and Top Slot focus. The ruby button is drawn above it. */
 	.wheel-wrap :global(.wheel) {
 		transition: filter 500ms ease;
 	}
@@ -4305,85 +4286,12 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	.wheel-wrap.under-focus :global(.wheel) {
 		filter: brightness(0.62) saturate(0.85);
 	}
-	/* The hub, lit: the frame art laid exactly over the wheel's own (which fills the wheel's box, as
-	   this fills the wrap) and cut to a circle about the hole's centre (955.7, 972.8 of 1911x1925).
-	   The hub's art ends at r ≈ 290 px of the 1911 and the ring starts at r ≈ 720, so a cut at 330
-	   falls on nothing but transparency and leaves no edge anywhere. */
-	.hub-lit {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		pointer-events: none;
-		user-select: none;
-		clip-path: circle(17.2% at 50.01% 50.54%);
-		opacity: 0;
-		transition: opacity 400ms ease;
-	}
-	.hub-lit.on {
-		opacity: 1;
-	}
-	/* The light at the wheel's middle once a bet is down: a warm pool screened over the hub, pulsing
-	   with the gem's own ring. */
-	.hub-glow {
-		position: absolute;
-		width: 30%;
-		aspect-ratio: 1;
-		translate: -50% -50%;
-		border-radius: 50%;
-		pointer-events: none;
-		mix-blend-mode: screen;
-		background: radial-gradient(
-			circle closest-side,
-			rgba(255, 240, 180, 0.85) 0%,
-			rgba(255, 210, 90, 0.45) 35%,
-			rgba(255, 170, 40, 0) 100%
-		);
-		opacity: 0;
-		scale: 0.6;
-		transition:
-			opacity 400ms ease,
-			scale 400ms ease;
-	}
-	.hub-glow.on {
-		opacity: 1;
-		scale: 1;
-		animation: hub-glow-pulse 1.7s ease-in-out infinite;
-	}
-	@keyframes hub-glow-pulse {
-		0%,
-		100% {
-			opacity: 0.65;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-	/*
-	 * The reduced drawing budget (lib/deviceTier.svelte.ts, `html[data-tier='lite']`): the table's
-	 * standing decoration held still, and its one blend mode dropped. Each of these is composited on
-	 * the GPU every frame for the life of the table, which is exactly the budget a weak phone has
-	 * not got — the cabinet's sway is a full re-composite of the Top Slot, the hub's pool is a
-	 * `screen` blend read back against the wheel, and the gem's halo pulses for most of a session.
-	 */
+	/* Hold the Top Slot's standing decoration still on the reduced drawing budget. */
 	:global(html[data-tier='lite']) .ts-sway {
 		animation: none;
 	}
-	:global(html[data-tier='lite']) .hub-glow {
-		mix-blend-mode: normal;
-		opacity: 0;
-	}
-	:global(html[data-tier='lite']) .hub-glow.on {
-		animation: none;
-		opacity: 0.7;
-	}
-	:global(html[data-tier='lite']) .hub-spin::before {
-		animation: none;
-		opacity: 0.75;
-	}
 	@media (prefers-reduced-motion: reduce) {
-		.ts-sway,
-		.hub-glow.on {
+		.ts-sway {
 			animation: none;
 		}
 	}
@@ -4482,78 +4390,176 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			translate: 0 0;
 		}
 	}
-	.wheel-wrap.off .hub-spin {
-		pointer-events: none;
-	}
-	/* The stage is click-through; this is the one piece of it that answers. */
+	/* The ruby rests in its socket between actions and rises when it can be pressed. */
 	.hub-spin {
 		position: absolute;
 		translate: -50% -50%;
+		min-width: 44px;
 		aspect-ratio: 1;
+		padding: 0;
+		border: 0;
 		border-radius: 50%;
+		display: grid;
+		place-items: center;
+		background: none;
 		cursor: pointer;
 		pointer-events: auto;
-		transition: scale 120ms ease;
+		font-size: clamp(12px, calc(var(--wheel-w) * 0.024), 24px);
+		transition: scale 220ms cubic-bezier(0.2, 0.75, 0.25, 1.2);
 	}
-	/* The pulse is the halo's OPACITY, on a pseudo-element that carries the halo at full. A
-	   `box-shadow` whose blur and spread change every frame cannot be composited: the old keyframes on
-	   the shadow itself had the browser repainting the gem sixty times a second for as long as it could
-	   be pressed — most of a session. Opacity is blended on the GPU and paints nothing. */
-	.hub-spin::before {
-		content: '';
+	.hub-art {
 		position: absolute;
 		inset: 0;
-		border-radius: 50%;
-		box-shadow: 0 0 1.4vw 0.35vw rgba(255, 225, 77, 0.7);
-		opacity: 0.5;
-		animation: hub-pulse 1.7s ease-in-out infinite;
+		width: 100%;
+		height: 100%;
+		filter: drop-shadow(0 0.18em 0.13em rgba(27, 9, 3, 0.85));
+		pointer-events: none;
 	}
-	@keyframes hub-pulse {
-		0%,
-		100% {
-			opacity: 0.5;
-		}
+	.hub-spin:not(:disabled)::before,
+	.hub-spin:not(:disabled)::after {
+		content: '';
+		position: absolute;
+		z-index: 1;
+		pointer-events: none;
+	}
+	.hub-spin:not(:disabled)::before {
+		inset: 16% 18% 17% 16%;
+		clip-path: polygon(31% 0, 72% 0, 100% 30%, 100% 70%, 71% 100%, 27% 100%, 0 70%, 0 30%);
+		background: radial-gradient(ellipse, #ff88ad 0%, #ff427a 43%, rgba(239, 33, 87, 0.6) 68%, transparent 94%);
+		opacity: 0.16;
+		animation: hub-ruby-pulse 2.8s ease-in-out infinite;
+	}
+	/* The two highlights stay opposite each other on the same brass track. */
+	.hub-spin:not(:disabled)::after {
+		inset: 0;
+		background: conic-gradient(
+			from -55deg,
+			transparent 0deg,
+			rgba(242, 138, 36, 0.14) 17deg,
+			rgba(255, 174, 57, 0.38) 36deg,
+			rgba(255, 204, 109, 0.7) 49deg,
+			#fff6d3 55deg,
+			rgba(255, 211, 123, 0.56) 61deg,
+			transparent 69deg 180deg,
+			rgba(242, 138, 36, 0.14) 197deg,
+			rgba(255, 174, 57, 0.38) 216deg,
+			rgba(255, 204, 109, 0.7) 229deg,
+			#fff6d3 235deg,
+			rgba(255, 211, 123, 0.56) 241deg,
+			transparent 249deg
+		);
+		mask-image: radial-gradient(circle closest-side, transparent 82%, #000 86% 89%, transparent 93%);
+		animation: hub-rim-orbit 3.4s linear infinite;
+	}
+	@keyframes hub-ruby-pulse {
 		50% {
-			opacity: 1;
+			opacity: 0.6;
 		}
 	}
-	.hub-spin:hover::before {
-		animation: none;
-		opacity: 1;
-		box-shadow: 0 0 1.6vw 0.45vw rgba(255, 225, 77, 0.75);
+	@keyframes hub-rim-orbit {
+		to {
+			rotate: 1turn;
+		}
 	}
-	.hub-spin:active {
-		scale: 0.96;
+	.hub-spin:not(:disabled):hover {
+		scale: 1.05;
 	}
-	.hub-spin.disabled {
+	.hub-spin:focus-visible {
+		outline: 2px solid #fff2b0;
+		outline-offset: 3px;
+	}
+	.hub-spin:not(:disabled):active {
+		scale: 0.95;
+	}
+	.hub-spin:disabled {
+		scale: 0.68;
 		cursor: default;
 		pointer-events: none;
 	}
-	.hub-spin.disabled::before {
-		display: none;
+	.hub-spin:disabled .hub-art {
+		filter: saturate(0.48) contrast(0.78) brightness(0.64);
 	}
-	/* The prompt the play tab used to carry, centred on the gem. Click-through: the button is the gem
-	   itself, so a long word's ends do not extend the target. */
 	.hub-cta {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		translate: -50% -50%;
+		position: relative;
+		z-index: 2;
+		display: grid;
+		justify-items: center;
 		pointer-events: none;
-		font-family: 'PotatoSans', 'Alexandria', sans-serif;
-		font-size: 1.4vw;
-		line-height: 1.05;
-		letter-spacing: 0.08vw;
-		/* Two words, two lines — PLAY over AGAIN — both centred on the gem. */
-		white-space: pre-line;
-		text-align: center;
-		color: #fff;
-		paint-order: stroke;
-		-webkit-text-stroke: 0.1vw rgba(0, 0, 0, 0.55);
-		text-shadow: 0 0 0.5vw rgba(0, 0, 0, 0.85);
+		font-family: 'Alexandria', sans-serif;
+		font-size: 0.9em;
+		font-weight: 600;
+		line-height: 1.02;
+		letter-spacing: 0.04em;
 	}
-	.hub-spin.disabled .hub-cta {
+	.hub-spin:not(:disabled) .hub-cta::before {
+		content: '';
+		position: absolute;
+		inset: 0 -0.16em;
+		background: radial-gradient(
+			ellipse closest-side,
+			rgba(255, 215, 240, 0.9),
+			rgba(255, 86, 154, 0.5) 40%,
+			transparent 100%
+		);
+		animation: hub-letter-flare 530ms ease-out 45ms both;
+	}
+	.hub-word {
+		position: relative;
+		padding: 0.12em 0.22em;
+		margin: -0.12em -0.22em;
+		background: linear-gradient(180deg, #fffaf4 24%, #ffe0ef 54%, #ff9fc8 88%);
+		background-clip: text;
+		color: transparent;
+		filter: drop-shadow(0 0.06em 0.07em #49051d)
+			drop-shadow(0 0 0.19em rgba(255, 87, 151, 0.95));
+	}
+	.hub-spin:not(:disabled) .hub-word {
+		animation: hub-word-reveal 400ms cubic-bezier(0.24, 0.58, 0.35, 1) 80ms both;
+	}
+	.hub-spin:not(:disabled) .hub-word + .hub-word {
+		animation-delay: 230ms;
+	}
+	@keyframes hub-word-reveal {
+		from {
+			clip-path: inset(-0.35em 50%);
+			opacity: 0;
+		}
+		26% {
+			opacity: 1;
+		}
+		to {
+			clip-path: inset(-0.35em);
+			opacity: 1;
+		}
+	}
+	@keyframes hub-letter-flare {
+		from {
+			opacity: 0;
+			scale: 0.12 0.5;
+		}
+		24% {
+			opacity: 0.82;
+		}
+		to {
+			opacity: 0;
+			scale: 1.15 1;
+		}
+	}
+	.hub-spin:disabled .hub-cta {
 		opacity: 0;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hub-spin {
+			transition: none;
+		}
+		.hub-spin:not(:disabled)::before,
+		.hub-spin:not(:disabled)::after,
+		.hub-spin:not(:disabled) .hub-word {
+			animation: none;
+		}
+		.hub-spin:not(:disabled) .hub-cta::before {
+			content: none;
+		}
 	}
 
 	.bottom-panel {
@@ -4634,9 +4640,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	/* The 1vw that used to be the stage's gap between the cabinet and the wheel. */
 	.game.portrait .stage:not(.big-wheel) .wheel-wrap {
 		margin-top: calc(var(--ts-width, 67vw) / 2 + 1vw - var(--wheel-lap, 1.29vw));
-	}
-	.game.portrait .hub-cta {
-		font-size: 3.4vw;
 	}
 	/* Two columns of four: the multipliers take the first two rows and the bonuses the last two,
 	   rather than the board's own alternating order. */
