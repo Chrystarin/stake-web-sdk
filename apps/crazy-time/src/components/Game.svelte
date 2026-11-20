@@ -315,6 +315,20 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		aspect: 1911 / 1925,
 		hole: { cx: 955.7 / 1911, cy: 972.8 / 1925, r: 758.1 / 1911 },
 		overscan: 0.06,
+		flapper: {
+			left: 884 / 1911,
+			right: 1034 / 1911,
+			bottom: 248 / 1925,
+			pivotX: 960 / 1911,
+			pivotY: 68 / 1925,
+			tipY: 243 / 1925,
+			outline: `polygon(${[
+				[955, 8], [980, 10], [1002, 19], [1018, 34], [1028, 55], [1030, 73],
+				[1026, 96], [1012, 128], [994, 171], [964, 244], [956, 246],
+				[947, 233], [922, 174], [902, 128], [892, 101], [890, 76],
+				[893, 55], [903, 37], [919, 22], [938, 13],
+			].map(([x, y]) => `${(x / 1911) * 100}% ${(y / 1925) * 100}%`).join(',')})`,
+		},
 	};
 
 	// Every wedge wears badge art on the label ring: number wedges their value (img/wheel/N.png,
@@ -3026,7 +3040,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 				// Unseen, so there is nothing to wait for: the board shows the result at once.
 				wheel?.jumpTo(target);
 			} else {
-				await wheel?.spinTo(target, { turns: 5, ms: 4600 });
+				await wheel?.spinTo(target, { turns: 3, ms: 11000 });
 			}
 			wheelHighlight = target;
 			landedSpot = event.spot;
@@ -4170,6 +4184,32 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		height: 2.5vw;
 		margin: auto 0.7vw;
 	}
+	/* Clear and undo: round buttons in the chip tray's own colour — the same translucent black with its
+	   inset shade — with a thin light rim and a pale glyph, instead of the shared sheet's grey discs. */
+	.actions-wrap .clear-btn,
+	.undo-btn {
+		box-sizing: border-box;
+		cursor: pointer;
+		border-radius: 50%;
+		border: 0.07vw solid rgba(255, 255, 255, 0.3);
+		background:
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f4efe6' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19.5 12a7.5 7.5 0 1 1-2.2-5.3'/%3E%3Cpath d='M19.5 4.2v4.4h-4.4'/%3E%3C/svg%3E")
+				center / 56% no-repeat,
+			rgba(0, 0, 0, 0.45);
+		box-shadow: inset 0 0.2vw 0.1vw rgba(0, 0, 0, 0.24);
+		transition:
+			filter 160ms ease,
+			scale 160ms ease;
+	}
+	.actions-wrap .clear-btn:not(.disabled):hover,
+	.undo-btn:not(.disabled):hover {
+		filter: brightness(1.35);
+		border-color: rgba(255, 255, 255, 0.55);
+	}
+	.actions-wrap .clear-btn:not(.disabled):active,
+	.undo-btn:not(.disabled):active {
+		scale: 0.92;
+	}
 	/* The shared table.scss floats the tray on a pale pill; black suits this table. */
 	.chips-wrap {
 		background: rgba(0, 0, 0, 0.45);
@@ -4196,19 +4236,16 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		width: 2.5vw;
 		height: 2.5vw;
 		margin: auto 0.7vw;
-		cursor: pointer;
-		border-radius: 50%;
-		background: rgba(88, 88, 88, 0.7);
-		border: 0.05vw solid #828a97;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
-	.undo-btn::before {
-		content: '↶';
-		color: #fff;
-		font-size: 1.5vw;
-		line-height: 1;
+	/* Undo is the same glyph turned the other way round. */
+	.undo-btn {
+		background:
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f4efe6' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.5 5.5H15a5 5 0 0 1 0 10H8'/%3E%3Cpath d='M12 2.5L9 5.5l3 3'/%3E%3Cpath d='M11 12.5l-3 3 3 3'/%3E%3C/svg%3E")
+				center / 56% no-repeat,
+			rgba(0, 0, 0, 0.45);
 	}
 	.undo-btn.disabled,
 	.clear-btn.disabled {
@@ -4506,21 +4543,29 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	/* The two highlights stay opposite each other on the same brass track. */
 	.hub-spin.awake::after {
 		inset: 0;
+		/* Two glints on opposite sides of the rim: a long, bright run of light ending in a white head. */
 		background: conic-gradient(
-			from -55deg,
+			from -114deg,
 			transparent 0deg,
-			rgba(242, 138, 36, 0.14) 17deg,
-			rgba(255, 174, 57, 0.38) 36deg,
-			rgba(255, 204, 109, 0.7) 49deg,
-			#fff6d3 55deg,
-			rgba(255, 211, 123, 0.56) 61deg,
-			transparent 69deg 180deg,
-			rgba(242, 138, 36, 0.14) 197deg,
-			rgba(255, 174, 57, 0.38) 216deg,
-			rgba(255, 204, 109, 0.7) 229deg,
-			#fff6d3 235deg,
-			rgba(255, 211, 123, 0.56) 241deg,
-			transparent 249deg
+			rgba(242, 138, 36, 0.14) 14deg,
+			rgba(255, 160, 44, 0.42) 34deg,
+			rgba(255, 184, 70, 0.72) 54deg,
+			rgba(255, 204, 108, 0.9) 72deg,
+			rgba(255, 226, 150, 0.97) 92deg,
+			#fff6d3 108deg,
+			#fff6d3 114deg,
+			rgba(255, 211, 123, 0.6) 120deg,
+			transparent 128deg,
+			transparent 180deg,
+			rgba(242, 138, 36, 0.14) 194deg,
+			rgba(255, 160, 44, 0.42) 214deg,
+			rgba(255, 184, 70, 0.72) 234deg,
+			rgba(255, 204, 108, 0.9) 252deg,
+			rgba(255, 226, 150, 0.97) 272deg,
+			#fff6d3 288deg,
+			#fff6d3 294deg,
+			rgba(255, 211, 123, 0.6) 300deg,
+			transparent 308deg
 		);
 		mask-image: radial-gradient(circle closest-side, transparent 82%, #000 86% 89%, transparent 93%);
 		animation: hub-rim-orbit 3.4s linear infinite;
@@ -4855,9 +4900,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		height: 6.4vw;
 		margin: auto 1.2vw;
 	}
-	.game.portrait .undo-btn::before {
-		font-size: 4.2vw;
-	}
 	.game.portrait .tile .placed-chip,
 	.game.portrait .flying-chip {
 		width: 9.2vw;
@@ -5001,8 +5043,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		font-size: 2.3vw;
 		color: #fff2a8;
 		text-shadow:
-			0 0.1vw 0.3vw rgba(0, 0, 0, 0.8),
-			0 0 0.8vw rgba(255, 200, 60, 0.55);
+			0 0.14vw 0 #5a2505,
+			0 0.2vw 0.4vw rgba(0, 0, 0, 0.85),
+			0 0 0.9vw rgba(255, 200, 60, 0.6);
 	}
 	.game.portrait .hud .last-win-val {
 		font-size: 4.8vw;
@@ -5050,19 +5093,49 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	/* The balance and the wager are the same read-out in two places, so they share their type. */
 	.hud-lbl,
 	.total-bet-lbl {
-		font-size: 0.95vw;
-		font-weight: 500;
-		letter-spacing: 0.05vw;
+		font-size: 1.05vw;
+		font-weight: 700;
+		letter-spacing: 0.08vw;
 		text-transform: uppercase;
-		color: #d6c6b4;
+		color: #fff3dc;
+		/* Cut out of the backdrop: a dark brown edge round the letters and a hard shadow under them, so
+		   they read on a bright sea as on a dark cabinet. */
+		paint-order: stroke fill;
+		-webkit-text-stroke: 0.2em #2a1204;
+		text-shadow:
+			0 0.12vw 0 #2a1204,
+			0 0.15vw 0.35vw rgba(0, 0, 0, 0.85);
 	}
 	.hud-val,
 	.total-bet-val {
-		font-size: 1.9vw;
-		font-weight: 700;
-		color: #ffe14d;
+		font-size: 2vw;
+		font-weight: 800;
+		color: #ffdf3f;
 		white-space: nowrap;
 		font-variant-numeric: tabular-nums;
+		paint-order: stroke fill;
+		-webkit-text-stroke: 0.17em #3a1604;
+		text-shadow:
+			0 0.14vw 0 #5a2505,
+			0 0.2vw 0.4vw rgba(0, 0, 0, 0.85),
+			0 0 0.9vw rgba(255, 190, 40, 0.4);
+	}
+	/* A soft dark pool behind each read-out, wider than the type, so it stands off a busy backdrop. */
+	.balance-hud,
+	.hud .total-bet,
+	.hud .bonus-bet {
+		position: relative;
+		isolation: isolate;
+	}
+	.balance-hud::before,
+	.hud .total-bet::before,
+	.hud .bonus-bet::before {
+		content: '';
+		position: absolute;
+		inset: -0.8vw -1.6vw;
+		z-index: -1;
+		background: radial-gradient(ellipse closest-side, rgba(10, 4, 0, 0.5), rgba(10, 4, 0, 0.28) 62%, transparent);
+		pointer-events: none;
 	}
 
 	/* ---- Bet board ---- */
