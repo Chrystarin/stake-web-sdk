@@ -1518,7 +1518,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			},
 		];
 		schedule(id, () => playSound('whoosh'), delay + grow);
-		schedule(id, () => playSound(kind === 'place' ? 'chipLand' : 'pop'), delay + grow + travel);
+		schedule(id, () => playSound(kind === 'place' ? 'chipLand' : 'chipReturn'), delay + grow + travel);
 		if (opts.onLand) schedule(id, opts.onLand, delay + ms);
 		schedule(id, () => dropFlight(id), delay + ms);
 		if (opts.from || opts.to) followLanding(id, box, delay + ms);
@@ -1555,7 +1555,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		cancelCues(flight.id);
 		const grow = (GROW_MS * (flight.ms ?? FLIGHT_MS)) / FLIGHT_MS;
 		if (elapsed > grow) playSound('whoosh');
-		schedule(flight.id, () => playSound('pop'), Math.max(0, elapsed - grow));
+		schedule(flight.id, () => playSound('chipReturn'), Math.max(0, elapsed - grow));
 		schedule(flight.id, () => dropFlight(flight.id), elapsed);
 	};
 
@@ -1597,7 +1597,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 			},
 		];
 		playSound('whoosh');
-		schedule(id, () => playSound(spot === 'tray' ? 'pop' : 'chipLand'), TRAVEL_MS);
+		schedule(id, () => playSound(spot === 'tray' ? 'chipReturn' : 'chipLand'), TRAVEL_MS);
 		schedule(id, () => dropFlight(id), ms);
 	};
 
@@ -2015,7 +2015,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 
 	const onClearClick = () => {
 		if (clearDisabled) return;
-		playSound('click');
+		// Clearing the board is the chips being gathered up; on a settled board it is a plain press.
+		playSound(settled ? 'click' : 'chipReturn');
 		if (settled) void finishRound();
 		else clearBoard();
 	};
@@ -2897,7 +2898,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		wheelDropped = true;
 		await waitForTimeout(TS_HOME_MS - dropAt);
 		if (topSlotFocus) return;
-		playSound('boom', 1.3, 0.5);
+		playSound('slamHome', 1, 0.5);
 		slamShake();
 		// Then the wheel, hard on its heels — up into place under it and slammed home a quarter of a
 		// second after the cabinet (WHEEL_SLAM_GAP_MS), while the cabinet is still juddering. Its
@@ -2906,7 +2907,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		wheelDropped = false;
 		await waitForTimeout(WHEEL_RISE_MS);
 		if (!topSlotFocus) topSlotRaised = false;
-		playSound('boom', 1.1, 0.55);
+		// A shade lower than the cabinet's: the wheel is the heavier of the two.
+		playSound('slamHome', 0.9, 0.55);
 		shakeWheel();
 		await waitForTimeout(WHEEL_SHAKE_MS);
 	};
@@ -3276,7 +3278,7 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 								bind:this={topSlot}
 								applied={topSlotApplied}
 								onTick={() => playSound('peg', 1.9, 0.5)}
-								onReelStop={() => playSound('notify')}
+								onReelStop={() => playSound('reelStop')}
 							/>
 						</div>
 					</div>
@@ -3302,8 +3304,6 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					onTick={(_, build) =>
 					playSound('wheelTick', 0.95 + 0.15 * build, 0.5 + 0.35 * build)}
 				/>
-				<button
-					type="button"
 				<!-- PLAY AGAIN: the hub around the gem is shaded so the eye goes to the button. -->
 				<span
 					class="hub-dim"
@@ -3311,11 +3311,13 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 					aria-hidden="true"
 					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{HUB_GEM_Y * 100}%; width:{HUB_RING_DIAMETER * 100}%"
 				></span>
+				<button
+					type="button"
 					class="hub-spin"
-					disabled={confirmDisabled || wheelOff}
-					aria-label={hubAction}
 					class:awake={hubInk}
 					class:busy={!bettingOpen}
+					disabled={confirmDisabled || wheelOff}
+					aria-label={hubAction}
 					style="left:{WHEEL_FRAME.hole.cx * 100}%; top:{HUB_GEM_Y *
 						100}%; width:{HUB_BUTTON_DIAMETER * 100}%"
 					onclick={onConfirmClick}
@@ -4484,9 +4486,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 		width: 100%;
 		height: 100%;
 		filter: drop-shadow(0 0.18em 0.13em rgba(27, 9, 3, 0.85));
+		transition: filter 420ms ease-out;
 		pointer-events: none;
 	}
-		transition: filter 420ms ease-out;
 	.hub-spin.awake::before,
 	.hub-spin.awake::after {
 		content: '';
@@ -4543,20 +4545,18 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	.hub-spin:not(:disabled):active {
 		scale: 0.95;
 	}
-	.hub-spin:disabled {
 	/* Asleep: while it is disabled, and for the beat after it is enabled that the chip that enabled it
 	   is still landing (`hubInk`) — the lit gem waits for the bet to be down. */
 	.hub-spin:not(.awake) {
 		scale: 0.72;
 	}
+	.hub-spin:disabled {
 		cursor: default;
 		pointer-events: none;
 	}
 	.hub-spin:not(.awake) .hub-art {
 		filter: saturate(0.48) contrast(0.78) brightness(0.64);
 	}
-	.hub-cta {
-		position: relative;
 	/* Mid-round the gem keeps its own colour, just small: it is not waiting for a bet, it is busy. */
 	.hub-spin.busy:not(.awake) .hub-art {
 		filter: drop-shadow(0 0.18em 0.13em rgba(27, 9, 3, 0.85));
@@ -4575,6 +4575,8 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	.hub-dim.on {
 		opacity: 1;
 	}
+	.hub-cta {
+		position: relative;
 		z-index: 2;
 		display: block;
 		/* The box the writing sits in — the SVG in it is centred on it and wider than the button's

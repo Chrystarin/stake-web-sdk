@@ -170,7 +170,10 @@ export type SoundName =
 	| 'spinStart'
 	| 'topSlotHit'
 	| 'bigWin'
-	| 'chestPick';
+	| 'chestPick'
+	| 'chipReturn'
+	| 'slamHome'
+	| 'reelStop';
 
 const SOURCES: Record<SoundName, string> = {
 	// The chip leaving the tray.
@@ -240,6 +243,13 @@ const SOURCES: Record<SoundName, string> = {
 	bigWin: staticUrl('sound/bonus_congratulations.mp3'),
 	// A chest opened in the chest room.
 	chestPick: staticUrl('sound/chest_wood.mp3'),
+	// Kenney, CC0 (see static/sound/LICENSES.md), transcoded from the packs' OGG to MP3 for iOS.
+	// A chip going home to the tray — handed back, cleared, or sent home in mid-flight.
+	chipReturn: staticUrl('sound/chip_return.mp3'),
+	// The Top Slot cabinet and then the wheel slammed home onto their perches.
+	slamHome: staticUrl('sound/slam_plate.mp3'),
+	// Each Top Slot reel coming to rest.
+	reelStop: staticUrl('sound/reel_bell.mp3'),
 };
 
 /**
@@ -360,6 +370,13 @@ const MIX: Record<SoundName, number> = {
 	bigWin: 0.8,
 	// Eleven in a row, climbing in pitch.
 	chestPick: 0.35,
+	// The same chip family as `chipLand`, at its level.
+	chipReturn: 0.35,
+	// The boom's level, with the callers' gains kept: the plate peaks and sits within 2 dB of it.
+	slamHome: 0.85,
+	// Two a spin, over the peg ticking. The notify it replaces was 20 dB under everything; this
+	// peaks near full scale, so it is held down to sit with the tick rather than over it.
+	reelStop: 0.4,
 };
 
 const preloaded = new Map<SoundName, HTMLAudioElement>();
