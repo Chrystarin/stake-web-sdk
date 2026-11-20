@@ -224,9 +224,8 @@
 			</div>
 		{/each}
 		<img class="frame-art" src={FRAME_ART} alt="" draggable="false" />
-		<!-- Each window is shaded at its edges, like a drum turning away into the cabinet, and lit in
-		     the middle where the result stands (`::before` the light, `::after` the shade). -->
-		<div class="reel spot-reel" class:lit={landedSpot !== null}>
+		<!-- Both windows keep the drum's edge shading. The multiplier has its own warm light. -->
+		<div class="reel spot-reel">
 			<div class="strip" bind:this={spotStripEl} style="--offset:{spotOffset}; --ms:{SPIN_MS}ms">
 				{#each spotStrip as item, i (i)}
 					{@const landed = landedSpot === item.key}
@@ -370,18 +369,12 @@
 		flex: none;
 		width: auto;
 		filter: drop-shadow(0 0.1vw 0.2vw rgba(0, 0, 0, 0.5));
-		transition: filter 250ms ease;
 	}
 	/* A bonus has the window to itself too, with no name under it: the room's icon, set big and
 	   dead centre. Its drawing is round-ish and fills its file, so it is set a little larger than
 	   a number badge (a tall, narrow plate) to read at the same weight. */
 	.crest {
 		height: calc(var(--cell) * 0.84);
-	}
-	/* The one that landed, lit from behind with the window's own light. */
-	.cell.landed .badge {
-		filter: drop-shadow(0 0 calc(var(--cell) * 0.06) rgba(255, 236, 160, 0.95))
-			drop-shadow(0 0 calc(var(--cell) * 0.16) rgba(255, 196, 70, 0.7));
 	}
 	/* The landed icon's own motion (the global `motion-*` classes), kept inside the window: the
 	   tile's cannonball hops a third of its height, which a window one cell tall would cut the top
@@ -414,10 +407,10 @@
 			transform: scale(1.03, 0.97);
 		}
 	}
-	/* The window's light: a warm pool in the middle, where the result stands, screened over the
+	/* The multiplier window's light: a warm pool in the middle, screened over the
 	   strip so it brightens what is under it rather than covering it. Brighter once the reel has
 	   stopped on something. */
-	.reel::before,
+	.mult-reel::before,
 	.reel::after {
 		content: '';
 		position: absolute;
@@ -425,7 +418,7 @@
 		z-index: 1;
 		pointer-events: none;
 	}
-	.reel::before {
+	.mult-reel::before {
 		background: radial-gradient(
 			ellipse 46% 62% at 50% 50%,
 			rgba(255, 236, 170, 0.34) 0%,
@@ -436,7 +429,7 @@
 		opacity: 0.7;
 		transition: opacity 300ms ease;
 	}
-	.reel.lit::before {
+	.mult-reel.lit::before {
 		opacity: 1;
 	}
 	/* And its shade: the edges fall away into soft shadow, top and bottom most (the drum turning
@@ -494,7 +487,7 @@
 	.mult-fill {
 		color: #e9e4e4;
 	}
-	/* The multiplier it stopped on glows like the icon beside it. */
+	/* Highlight the landed multiplier. */
 	.cell.mult.landed {
 		filter: drop-shadow(0.034em 0.068em 0 #000) drop-shadow(0 0 0.14em rgba(255, 226, 120, 0.9));
 	}
@@ -517,8 +510,7 @@
 			transform: scale(1);
 		}
 	}
-	/* The pair, joined: while a multiplier stands, the bet it applies to glows in step with the
-	   cabinet's own pulse (`.applied`), so the two windows read as one result. */
+	/* Pulse the selected badge in step with the cabinet when the multiplier applies. */
 	.applied .spot-reel .cell.landed .badge {
 		animation: ts-pair 900ms ease-in-out infinite alternate;
 	}

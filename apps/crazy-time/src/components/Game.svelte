@@ -318,9 +318,9 @@ import RgsErrorModal from './RgsErrorModal.svelte';
 	};
 
 	// Every wedge wears badge art on the label ring: number wedges their value (img/wheel/N.png,
-	// 30x48), room wedges its own icon (ROOM_ICON) with the name lettered down the wedge below it
+	// 240x384), room wedges its own icon (ROOM_ICON) with the name lettered down the wedge below it
 	// by the Wheel itself.
-	const BADGE_ASPECT = 30 / 48;
+	const BADGE_ASPECT = 5 / 8;
 	/** The button sits inside the hub's brass collar, clear of the spokes. */
 	const HUB_BUTTON_DIAMETER = (2 * 118) / 1911;
 	// The painted ruby sits slightly above the center of the wheel's inner edge.
